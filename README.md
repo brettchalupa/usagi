@@ -25,8 +25,8 @@ Run with:
 - `usagi dev path/to/my_game` for live-reload development (script, sprites, and
   sfx reload on save; F5 resets state).
 - `usagi run path/to/my_game` to run without live-reload.
-- `usagi tools` will open the Usagi tools (jukebox, tile picker). Not yet
-  implemented.
+- `usagi tools [path]` opens the Usagi tools window (jukebox, tile picker). See
+  the **Tools** section below.
 
 While developing Usagi itself, replace `usagi` with `cargo run --` (for example
 `cargo run -- dev examples/hello_usagi.lua`).
@@ -112,6 +112,42 @@ crash. The pattern:
 - **Constants and module aliases** → file-scope `local`.
 
 See `examples/hello_usagi.lua` and `examples/input.lua` for the layout.
+
+## Tools
+
+`usagi tools [path]` opens a 1280×720 window with a tab bar for the available
+tools. The path is optional; pass a project directory (or a `.lua` file) to load
+its `sprites.png` and `sfx/` assets. Without a path the tools open with empty
+state.
+
+Switch tools via the tab buttons or with **1** (Jukebox) / **2** (TilePicker).
+
+Both tools live-reload their assets: drop a new WAV in `sfx/` or save a new
+`sprites.png` and the tools pick it up on the next frame.
+
+### Jukebox
+
+Lists every `.wav` in `<project>/sfx/` and lets you audition them. Selected
+sounds play automatically on selection change (Pico-8 SFX editor style), so you
+can just arrow through the list to hear each one.
+
+- **up** / **down** or **W** / **S** to select.
+- **space** or **enter** to replay the current selection.
+- Click a name to select + play.
+- Click the **Play** button in the right pane to replay.
+
+### TilePicker
+
+Shows `<project>/sprites.png` with a 1-based grid overlay matching `gfx.spr`.
+Click any tile to copy its index to the clipboard (paste it straight into your
+Lua code).
+
+- **WASD** to pan. **Q** / **E** to zoom out / in (0.5×–20×). **0** resets the
+  view.
+- **R** toggles the grid and index overlay.
+- **B** cycles the viewport background color (gray / black / white) so tiles
+  stay visible regardless of palette.
+- Left click a tile to copy its 1-based index; a toast confirms the value.
 
 ## Developing
 
