@@ -35,10 +35,15 @@ function gfx.rect(x, y, w, h, color) end
 ---@field B     integer
 input = {}
 
----Returns true while the given key is held down.
+---Returns true while the given key is just pressed
 ---@param key integer  one of input.LEFT / RIGHT / UP / DOWN / A / B
 ---@return boolean
 function input.pressed(key) end
+
+---Returns true while the given key is held down
+---@param key integer  one of input.LEFT / RIGHT / UP / DOWN / A / B
+---@return boolean
+function input.down(key) end
 
 ---@class Usagi
 ---@field gfx    Usagi.Gfx

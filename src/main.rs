@@ -188,9 +188,13 @@ fn main() -> LuaResult<()> {
             let rl_ref = &rl;
             lua.scope(|scope| {
                 let pressed = scope.create_function(|_, key: u32| {
-                    Ok(key_from_u32(key).is_some_and(|k| rl_ref.is_key_down(k)))
+                    Ok(key_from_u32(key).is_some_and(|k| rl_ref.is_key_pressed(k)))
                 })?;
                 input_tbl.set("pressed", pressed)?;
+                let down = scope.create_function(|_, key: u32| {
+                    Ok(key_from_u32(key).is_some_and(|k| rl_ref.is_key_down(k)))
+                })?;
+                input_tbl.set("down", down)?;
                 update_fn.call::<()>(dt)?;
                 Ok(())
             })?;

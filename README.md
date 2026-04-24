@@ -1,4 +1,4 @@
-# Usagi - Rapid Game Prototyping Tool
+# Usagi - Rapid 2D Game Prototyping Tool
 
 Usagi is a tool for quickly prototyping simple games with Lua. It features
 live-reloading as your change your game code. Usagi is built with Rust. Its API
