@@ -20,7 +20,16 @@ my_game/
     coin.wav
 ```
 
-Run with `cargo run -- path/to/my_game` (or a bare `.lua` file).
+Run with:
+
+- `usagi dev path/to/my_game` for live-reload development (script, sprites, and
+  sfx reload on save; F5 resets state).
+- `usagi run path/to/my_game` to run without live-reload.
+- `usagi tools` will open the Usagi tools (jukebox, tile picker). Not yet
+  implemented.
+
+While developing Usagi itself, replace `usagi` with `cargo run --` (for example
+`cargo run -- dev examples/hello_usagi.lua`).
 
 ## Lua API
 
@@ -89,6 +98,9 @@ progress.
 
 - `_init()` is **not** called on a save-triggered reload.
 - Press **F5** for a hard reset: Usagi runs `_init()` to reinitialize state.
+- Press **~** (grave/tilde) to toggle the FPS overlay. On by default in `dev`,
+  off in `run`.
+- Press **Alt+Enter** to toggle borderless fullscreen.
 
 ### Writing reload-friendly scripts
 
