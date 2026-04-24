@@ -6,17 +6,18 @@ use crate::assets::{SfxLibrary, SpriteSheet, load_script};
 use crate::input;
 use crate::palette::palette;
 use crate::render::{draw_error_overlay, draw_render_target};
+use crate::vfs::VirtualFs;
 use crate::{GAME_HEIGHT, GAME_WIDTH};
 
 use mlua::prelude::*;
 use sola_raylib::prelude::*;
 
-/// Runs a Usagi game session. When `dev` is true, the script, sprite sheet,
-/// and sfx are live-reloaded on filesystem change; otherwise the session is
-/// read-only after startup. F5 always resets state via `_init()`.
-pub fn run(script_path: &str, dev: bool) -> crate::Result<()> {
-    let sprites_path = std::path::Path::new(script_path).with_file_name("sprites.png");
-    let sfx_dir = std::path::Path::new(script_path).with_file_name("sfx");
+/// Runs a Usagi game session. The `vfs` supplies the script, sprites, and
+/// sfx (either from disk or a fused bundle). When `dev` is true AND the
+/// vfs supports reload, files are re-read on mtime change. F5 always
+/// resets state via `_init()`.
+pub fn run(vfs: &dyn VirtualFs, dev: bool) -> crate::Result<()> {
+    let reload = dev && vfs.supports_reload();
 
     let (mut rl, thread) = sola_raylib::init()
         .size((GAME_WIDTH * 2.) as i32, (GAME_HEIGHT * 2.) as i32)
@@ -36,22 +37,16 @@ pub fn run(script_path: &str, dev: bool) -> crate::Result<()> {
     // successful reload or F5 reset.
     let mut last_error: Option<String> = None;
 
-    record_err(
-        &mut last_error,
-        "initial load",
-        load_script(&lua, script_path),
-    );
+    record_err(&mut last_error, "initial load", load_script(&lua, vfs));
 
     if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
         record_err(&mut last_error, "_init", init.call::<()>(()));
     }
     let mut update: Option<LuaFunction> = lua.globals().get("_update").ok();
     let mut draw: Option<LuaFunction> = lua.globals().get("_draw").ok();
-    let mut last_modified = std::fs::metadata(script_path)
-        .and_then(|m| m.modified())
-        .ok();
+    let mut last_modified = vfs.script_mtime();
 
-    let mut sprites = SpriteSheet::load(&mut rl, &thread, &sprites_path);
+    let mut sprites = SpriteSheet::load(&mut rl, &thread, vfs);
 
     // Audio is optional. If the device can't be initialised, games still run;
     // sfx.play just no-ops via SfxLibrary::empty.
@@ -59,7 +54,7 @@ pub fn run(script_path: &str, dev: bool) -> crate::Result<()> {
         .map_err(|e| eprintln!("[usagi] audio init failed: {}", e))
         .ok();
     let mut sfx = match &audio {
-        Some(a) => SfxLibrary::load(a, &sfx_dir),
+        Some(a) => SfxLibrary::load(a, vfs),
         None => SfxLibrary::empty(),
     };
 
@@ -67,20 +62,19 @@ pub fn run(script_path: &str, dev: bool) -> crate::Result<()> {
     let mut show_fps = dev;
 
     while !rl.window_should_close() {
-        // Live reload is gated on `dev`. In `run` mode the session is
-        // read-only after startup; file changes on disk are ignored.
-        if dev {
+        // Live reload is gated on `dev` AND the vfs supporting it. A fused
+        // binary never reloads; `run` mode ignores changes too.
+        if reload {
             // Script reload: re-exec on mtime change. State is preserved
             // (no _init call); F5 is the explicit reset. Errors are logged
             // and the previous callbacks keep running so a half-saved file
             // can't kill the session.
-            if let Ok(modified) = std::fs::metadata(script_path).and_then(|m| m.modified())
-                && Some(modified) != last_modified
-            {
-                last_modified = Some(modified);
-                match load_script(&lua, script_path) {
+            let new_mtime = vfs.script_mtime();
+            if new_mtime.is_some() && new_mtime != last_modified {
+                last_modified = new_mtime;
+                match load_script(&lua, vfs) {
                     Ok(()) => {
-                        println!("[usagi] reloaded {}", script_path);
+                        println!("[usagi] reloaded {}", vfs.script_name());
                         update = lua.globals().get("_update").ok();
                         draw = lua.globals().get("_draw").ok();
                         last_error = None;
@@ -94,14 +88,13 @@ pub fn run(script_path: &str, dev: bool) -> crate::Result<()> {
             }
 
             // Sprite sheet reload. Drop of the previous Texture2D frees GPU.
-            if sprites.reload_if_changed(&mut rl, &thread, &sprites_path) {
-                println!("[usagi] reloaded {}", sprites_path.display());
+            if sprites.reload_if_changed(&mut rl, &thread, vfs) {
+                println!("[usagi] reloaded sprites.png");
             }
 
-            // SFX reload. Scan is cheap (just stats); we only pay for
-            // new_sound when the manifest actually differs.
+            // SFX reload.
             if let Some(a) = &audio
-                && sfx.reload_if_changed(a, &sfx_dir)
+                && sfx.reload_if_changed(a, vfs)
             {
                 println!("[usagi] reloaded sfx ({} sound(s))", sfx.len());
             }

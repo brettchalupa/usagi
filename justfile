@@ -17,6 +17,10 @@ fmt:
 tools *args:
     cargo run -- tools {{ args }}
 
+# Compile a game to a standalone executable. Example: `just compile examples/snake`.
+compile *args:
+    cargo run -- compile {{ args }}
+
 # Release-build the usagi binary and copy it to ~/.local/bin/ for testing.
 install:
     cargo build --release

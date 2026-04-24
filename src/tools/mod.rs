@@ -7,6 +7,7 @@ mod jukebox;
 mod tilepicker;
 
 use crate::assets::{SfxLibrary, SpriteSheet};
+use crate::vfs::FsBacked;
 use sola_raylib::prelude::*;
 use std::path::{Path, PathBuf};
 
@@ -53,8 +54,11 @@ struct State {
 
 pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     let project_dir = project_path.and_then(resolve_project_dir);
-    let sfx_dir = project_dir.as_ref().map(|d| d.join("sfx"));
-    let sprites_path = project_dir.as_ref().map(|d| d.join("sprites.png"));
+    let vfs = project_dir
+        .as_ref()
+        .map(|d| FsBacked::from_project_dir(d.clone()));
+    let sfx_dir_display = project_dir.as_ref().map(|d| d.join("sfx"));
+    let sprites_path_display = project_dir.as_ref().map(|d| d.join("sprites.png"));
 
     let (mut rl, thread) = sola_raylib::init()
         .size(WINDOW_W as i32, WINDOW_H as i32)
@@ -68,14 +72,12 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         .map_err(|e| eprintln!("[usagi] audio init failed: {}", e))
         .ok();
 
-    let mut sfx = match (&audio, &sfx_dir) {
-        (Some(a), Some(dir)) => SfxLibrary::load(a, dir),
+    let mut sfx = match (&audio, &vfs) {
+        (Some(a), Some(v)) => SfxLibrary::load(a, v),
         _ => SfxLibrary::empty(),
     };
 
-    let mut sprites = sprites_path
-        .as_ref()
-        .map(|p| SpriteSheet::load(&mut rl, &thread, p));
+    let mut sprites = vfs.as_ref().map(|v| SpriteSheet::load(&mut rl, &thread, v));
 
     let mut state = State {
         active: Tool::Jukebox,
@@ -94,17 +96,17 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
             }
         }
 
-        if let (Some(a), Some(dir)) = (&audio, &sfx_dir)
-            && sfx.reload_if_changed(a, dir)
+        if let (Some(a), Some(v)) = (&audio, &vfs)
+            && sfx.reload_if_changed(a, v)
         {
             state.jukebox.refresh_names(&sfx.sounds);
             println!("[usagi] jukebox reloaded sfx ({} sound(s))", sfx.len());
         }
 
-        if let (Some(sheet), Some(p)) = (sprites.as_mut(), sprites_path.as_ref())
-            && sheet.reload_if_changed(&mut rl, &thread, p)
+        if let (Some(sheet), Some(v)) = (sprites.as_mut(), vfs.as_ref())
+            && sheet.reload_if_changed(&mut rl, &thread, v)
         {
-            println!("[usagi] tools reloaded {}", p.display());
+            println!("[usagi] tools reloaded sprites.png");
         }
 
         // Global tab shortcuts. Applied before per-tool input so switching
@@ -144,11 +146,14 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
                     &mut state.jukebox,
                     &sfx.sounds,
                     project_path,
-                    sfx_dir.as_deref(),
+                    sfx_dir_display.as_deref(),
                 ),
-                Tool::TilePicker => {
-                    tilepicker::draw(&mut d, &state.tilepicker, tex, sprites_path.as_deref())
-                }
+                Tool::TilePicker => tilepicker::draw(
+                    &mut d,
+                    &state.tilepicker,
+                    tex,
+                    sprites_path_display.as_deref(),
+                ),
             }
 
             if let Some(toast) = &state.toast {

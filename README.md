@@ -27,6 +27,9 @@ Run with:
 - `usagi run path/to/my_game` to run without live-reload.
 - `usagi tools [path]` opens the Usagi tools window (jukebox, tile picker). See
   the **Tools** section below.
+- `usagi compile path/to/my_game` produces a standalone executable for the host
+  platform with the game's script, sprites, and sfx fused into the binary. No
+  Usagi install needed to run the output. See the **Compile** section below.
 
 While developing Usagi itself, replace `usagi` with `cargo run --` (for example
 `cargo run -- dev examples/hello_usagi.lua`).
@@ -159,6 +162,29 @@ Lua code).
 - **B** cycles the viewport background color (gray / black / white) so tiles
   stay visible regardless of palette.
 - Left click a tile to copy its 1-based index; a toast confirms the value.
+
+## Compile
+
+`usagi compile <path>` produces a standalone executable for the host platform.
+The binary has the game's `main.lua`, `sprites.png` (if present), and
+`sfx/*.wav` fused into its own trailing bytes, so you can ship one file.
+
+```
+$ usagi compile examples/snake
+[usagi] compiled snake (1 file(s), 2185 bytes bundled)
+$ ./snake
+```
+
+Notes:
+
+- Output defaults to `./<name>` where `<name>` is the project's directory name
+  (or the script's stem for flat `.lua` files). `-o <path>` overrides.
+- The fused binary is cross-platform only insofar as the Usagi binary that
+  produced it is: a Linux `usagi` produces a Linux executable, a Windows one
+  produces a `.exe`, etc. Cross-compilation isn't implemented yet.
+- Live-reload is disabled in fused mode; F5 still resets state via `_init()`.
+- The fuse format is simple and additive: a magic footer at the end of the exe
+  that points back to an appended bundle.
 
 ## Developing
 
