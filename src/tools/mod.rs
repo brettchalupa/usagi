@@ -7,7 +7,6 @@ mod jukebox;
 mod tilepicker;
 
 use crate::assets::{SfxLibrary, SpriteSheet};
-use mlua::prelude::*;
 use sola_raylib::prelude::*;
 use std::path::{Path, PathBuf};
 
@@ -52,7 +51,7 @@ struct State {
     toast: Option<Toast>,
 }
 
-pub fn run(project_path: Option<&str>) -> LuaResult<()> {
+pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     let project_dir = project_path.and_then(resolve_project_dir);
     let sfx_dir = project_dir.as_ref().map(|d| d.join("sfx"));
     let sprites_path = project_dir.as_ref().map(|d| d.join("sprites.png"));

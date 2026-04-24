@@ -8,14 +8,17 @@
 mod api;
 mod assets;
 mod cli;
+mod error;
 mod input;
 mod palette;
 mod render;
 mod session;
 mod tools;
 
+pub use error::{Error, Result};
+
 use clap::{Parser, Subcommand};
-use mlua::prelude::*;
+use std::process::ExitCode;
 
 /// Game render dimensions, in pixels. The internal RT is always this size;
 /// the window upscales to fit.
@@ -49,22 +52,23 @@ enum Command {
     },
 }
 
-fn main() -> LuaResult<()> {
+fn main() -> ExitCode {
     let cli = Cli::parse();
-    match cli.command {
+    let result = match cli.command {
         Command::Run { path } => start_session(&path, false),
         Command::Dev { path } => start_session(&path, true),
         Command::Tools { path } => tools::run(path.as_deref()),
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("[usagi] {e}");
+            ExitCode::FAILURE
+        }
     }
 }
 
-fn start_session(path_arg: &str, dev: bool) -> LuaResult<()> {
-    let script_path = match cli::resolve_script_path(path_arg) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("[usagi] {}", e);
-            std::process::exit(1);
-        }
-    };
+fn start_session(path_arg: &str, dev: bool) -> Result<()> {
+    let script_path = cli::resolve_script_path(path_arg)?;
     session::run(&script_path, dev)
 }

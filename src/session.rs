@@ -14,7 +14,7 @@ use sola_raylib::prelude::*;
 /// Runs a Usagi game session. When `dev` is true, the script, sprite sheet,
 /// and sfx are live-reloaded on filesystem change; otherwise the session is
 /// read-only after startup. F5 always resets state via `_init()`.
-pub fn run(script_path: &str, dev: bool) -> LuaResult<()> {
+pub fn run(script_path: &str, dev: bool) -> crate::Result<()> {
     let sprites_path = std::path::Path::new(script_path).with_file_name("sprites.png");
     let sfx_dir = std::path::Path::new(script_path).with_file_name("sfx");
 
