@@ -52,6 +52,11 @@ pub fn run(vfs: &dyn VirtualFs, dev: bool) -> crate::Result<()> {
     let reload = dev && vfs.supports_reload();
 
     let lua = Lua::new();
+    // Generational GC fits game workloads (lots of short-lived per-frame
+    // allocations, small set of long-lived state). Minor cycles only scan
+    // young objects, so long-lived game state isn't re-marked every cycle.
+    // (0, 0) keeps Lua's default minor/major multipliers.
+    lua.gc_gen(0, 0);
     setup_api(&lua, dev)?;
 
     // Latest Lua error, if any. Rendered as an on-screen overlay; cleared on
