@@ -63,7 +63,7 @@ pub fn run(vfs: &dyn VirtualFs, dev: bool) -> crate::Result<()> {
     record_err(&mut last_error, "initial load", load_script(&lua, vfs));
 
     let config = read_config(&lua, &mut last_error);
-    let title = config.title.unwrap_or_else(|| "USAGI".to_string());
+    let title = config.title.unwrap_or_else(|| "Usagi".to_string());
 
     let (mut rl, thread) = sola_raylib::init()
         .size((GAME_WIDTH * 2.) as i32, (GAME_HEIGHT * 2.) as i32)
