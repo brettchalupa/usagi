@@ -11,3 +11,13 @@ sola-raylib = { git = "https://github.com/brettchalupa/sola-raylib.git" }
 
 [dev-dependencies]
 tempfile = "3"
+
+# Smaller binaries on all targets. Cargo automatically uses panic=unwind
+# for the test profile so `cargo test` is unaffected. Note this does NOT
+# disable `-fwasm-exceptions` on the emscripten target (Rust 1.93+ passes
+# it unconditionally); see `docs/web-build.md`.
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

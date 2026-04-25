@@ -1,5 +1,11 @@
 //! The interactive game session: runs the raylib event loop, drives the
 //! Lua VM, handles live reload (if `dev` is true), and renders.
+//!
+//! State lives on a `Session` struct so we can drive frames identically on
+//! native (a `while session.frame() {}` loop) and on emscripten (handing
+//! the struct to `emscripten_set_main_loop_arg`, which yields to the
+//! browser between frames). Avoiding a blocking native loop on emscripten
+//! is what lets us drop ASYNCIFY entirely.
 
 use crate::api::{record_err, setup_api};
 use crate::assets::{SfxLibrary, SpriteSheet, load_script};
@@ -11,6 +17,7 @@ use crate::{GAME_HEIGHT, GAME_WIDTH};
 
 use mlua::prelude::*;
 use sola_raylib::prelude::*;
+use std::time::SystemTime;
 
 /// User-visible engine config returned by `_config()`. Read once before the
 /// window opens. All fields are optional; missing fields fall back to
@@ -60,158 +67,338 @@ fn read_config(lua: &Lua, last_error: &mut Option<String>) -> Config {
     config
 }
 
-/// Runs a Usagi game session. The `vfs` supplies the script, sprites, and
-/// sfx (either from disk or a fused bundle). When `dev` is true AND the
-/// vfs supports reload, files are re-read on mtime change. F5 always
-/// resets state via `_init()`.
-pub fn run(vfs: &dyn VirtualFs, dev: bool) -> crate::Result<()> {
-    let reload = dev && vfs.supports_reload();
+/// All long-lived session state. Constructed once, frame() called once per
+/// iteration. Owning everything (rather than holding references) lets us
+/// pass a stable pointer to emscripten_set_main_loop_arg.
+struct Session {
+    rl: RaylibHandle,
+    thread: RaylibThread,
+    rt: RenderTexture2D,
 
-    let lua = Lua::new();
-    // Generational GC fits game workloads (lots of short-lived per-frame
-    // allocations, small set of long-lived state). Minor cycles only scan
-    // young objects, so long-lived game state isn't re-marked every cycle.
-    // (0, 0) keeps Lua's default minor/major multipliers.
-    lua.gc_gen(0, 0);
-    setup_api(&lua, dev)?;
+    lua: Lua,
+    update: Option<LuaFunction>,
+    draw: Option<LuaFunction>,
 
-    // Latest Lua error, if any. Rendered as an on-screen overlay; cleared on
-    // successful reload or F5 reset.
-    let mut last_error: Option<String> = None;
+    /// `audio` is leaked to give it a `'static` lifetime so `Sound<'static>`
+    /// can be stored alongside it in the same struct without self-reference
+    /// pain. The audio device lives for program lifetime anyway; this is
+    /// not a real leak (process exit reclaims it).
+    audio: Option<&'static RaylibAudio>,
+    sfx: SfxLibrary<'static>,
+    sprites: SpriteSheet,
 
-    // Load the script chunk first so callbacks (including _config) are
-    // defined. We need _config's return value before the window opens.
-    record_err(&mut last_error, "initial load", load_script(&lua, vfs));
+    last_error: Option<String>,
+    last_modified: Option<SystemTime>,
+    show_fps: bool,
+    config: Config,
 
-    let config = read_config(&lua, &mut last_error);
+    vfs: Box<dyn VirtualFs>,
+    reload: bool,
+}
 
-    let (mut rl, thread) = sola_raylib::init()
-        .size((GAME_WIDTH * 2.) as i32, (GAME_HEIGHT * 2.) as i32)
-        .highdpi()
-        .resizable()
-        .title(&config.title)
-        .build();
-    rl.set_target_fps(60);
-    let mut rt: RenderTexture2D = rl
-        .load_render_texture(&thread, GAME_WIDTH as u32, GAME_HEIGHT as u32)
-        .unwrap();
+impl Session {
+    fn new(vfs: Box<dyn VirtualFs>, dev: bool) -> crate::Result<Self> {
+        let reload = dev && vfs.supports_reload();
 
-    if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
-        record_err(&mut last_error, "_init", init.call::<()>(()));
+        let lua = Lua::new();
+        // Generational GC fits game workloads (lots of short-lived per-frame
+        // allocations, small set of long-lived state).
+        lua.gc_gen(0, 0);
+        setup_api(&lua, dev)?;
+
+        let mut last_error: Option<String> = None;
+
+        record_err(
+            &mut last_error,
+            "initial load",
+            load_script(&lua, vfs.as_ref()),
+        );
+
+        let config = read_config(&lua, &mut last_error);
+
+        // `.highdpi()` and `.resizable()` are desktop-only: on emscripten
+        // they fight the JS shell's CSS scaling. `.highdpi()` doubles the
+        // canvas backing-store via devicePixelRatio. `.resizable()` makes
+        // raylib's emscripten resize callback set the canvas backing-store
+        // to `window.innerWidth × window.innerHeight` on every resize event
+        // (and one fires at page load), stretching the framebuffer to
+        // viewport dims and breaking aspect ratio. On web we keep the
+        // backing-store at GAME_WIDTH*2 × GAME_HEIGHT*2 and let the shell's
+        // CSS upscale via `image-rendering: pixelated`.
+        let mut builder = sola_raylib::init();
+        builder
+            .size((GAME_WIDTH * 2.) as i32, (GAME_HEIGHT * 2.) as i32)
+            .title(&config.title);
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            builder.highdpi().resizable();
+        }
+        let (mut rl, thread) = builder.build();
+        // On web, the browser drives the frame rate through
+        // `emscripten_set_main_loop_arg` at requestAnimationFrame rate
+        // (60 Hz on most monitors). Don't call `set_target_fps`: raylib's
+        // implementation uses `emscripten_sleep` for the pacing wait,
+        // which requires ASYNCIFY (we deliberately don't link with it).
+        #[cfg(not(target_os = "emscripten"))]
+        rl.set_target_fps(60);
+        let rt: RenderTexture2D = rl
+            .load_render_texture(&thread, GAME_WIDTH as u32, GAME_HEIGHT as u32)
+            .unwrap();
+
+        if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
+            record_err(&mut last_error, "_init", init.call::<()>(()));
+        }
+        let update: Option<LuaFunction> = lua.globals().get("_update").ok();
+        let draw: Option<LuaFunction> = lua.globals().get("_draw").ok();
+        let last_modified = vfs.script_mtime();
+
+        let sprites = SpriteSheet::load(&mut rl, &thread, vfs.as_ref());
+
+        let audio: Option<&'static RaylibAudio> = RaylibAudio::init_audio_device()
+            .map_err(|e| eprintln!("[usagi] audio init failed: {}", e))
+            .ok()
+            .map(|a| &*Box::leak(Box::new(a)));
+
+        let sfx = match audio {
+            Some(a) => SfxLibrary::load(a, vfs.as_ref()),
+            None => SfxLibrary::empty(),
+        };
+
+        Ok(Self {
+            rl,
+            thread,
+            rt,
+            lua,
+            update,
+            draw,
+            audio,
+            sfx,
+            sprites,
+            last_error,
+            last_modified,
+            show_fps: false,
+            config,
+            vfs,
+            reload,
+        })
     }
-    let mut update: Option<LuaFunction> = lua.globals().get("_update").ok();
-    let mut draw: Option<LuaFunction> = lua.globals().get("_draw").ok();
-    let mut last_modified = vfs.script_mtime();
 
-    let mut sprites = SpriteSheet::load(&mut rl, &thread, vfs);
+    /// Runs a single frame. Returns false when the user has closed the
+    /// window (only meaningful on native — browsers handle close themselves).
+    fn frame(&mut self) -> bool {
+        if self.rl.window_should_close() {
+            return false;
+        }
 
-    // Audio is optional. If the device can't be initialised, games still run;
-    // sfx.play just no-ops via SfxLibrary::empty.
-    let audio = RaylibAudio::init_audio_device()
-        .map_err(|e| eprintln!("[usagi] audio init failed: {}", e))
-        .ok();
-    let mut sfx = match &audio {
-        Some(a) => SfxLibrary::load(a, vfs),
-        None => SfxLibrary::empty(),
-    };
+        if self.reload {
+            self.maybe_reload_assets();
+        }
+        self.handle_global_shortcuts();
 
-    // FPS overlay: off by default. Toggle with `~`.
-    let mut show_fps = false;
+        let dt = self.rl.get_frame_time();
+        let screen_w = self.rl.get_screen_width();
+        let screen_h = self.rl.get_screen_height();
+        let fps = self.rl.get_fps();
 
-    while !rl.window_should_close() {
-        // Live reload is gated on `dev` AND the vfs supporting it. A fused
-        // binary never reloads; `run` mode ignores changes too.
-        if reload {
-            // Script reload: re-exec on mtime change. State is preserved
-            // (no _init call); F5 is the explicit reset. Errors are logged
-            // and the previous callbacks keep running so a half-saved file
-            // can't kill the session.
-            let new_mtime = vfs.script_mtime();
-            if new_mtime.is_some() && new_mtime != last_modified {
-                last_modified = new_mtime;
-                match load_script(&lua, vfs) {
-                    Ok(()) => {
-                        println!("[usagi] reloaded {}", vfs.script_name());
-                        update = lua.globals().get("_update").ok();
-                        draw = lua.globals().get("_draw").ok();
-                        last_error = None;
-                    }
-                    Err(e) => {
-                        let msg = format!("reload: {}", e);
-                        eprintln!("[usagi] {}", msg);
-                        last_error = Some(msg);
-                    }
+        self.run_update(dt);
+        self.run_draw(dt, fps);
+        self.blit_and_overlay(screen_w, screen_h);
+        true
+    }
+
+    fn maybe_reload_assets(&mut self) {
+        // Script reload: re-exec on mtime change. State is preserved (no
+        // _init); F5 is the explicit reset. Errors are logged and the
+        // previous callbacks keep running so a half-saved file can't kill
+        // the session.
+        let new_mtime = self.vfs.script_mtime();
+        if new_mtime.is_some() && new_mtime != self.last_modified {
+            self.last_modified = new_mtime;
+            match load_script(&self.lua, self.vfs.as_ref()) {
+                Ok(()) => {
+                    println!("[usagi] reloaded {}", self.vfs.script_name());
+                    self.update = self.lua.globals().get("_update").ok();
+                    self.draw = self.lua.globals().get("_draw").ok();
+                    self.last_error = None;
+                }
+                Err(e) => {
+                    let msg = format!("reload: {}", e);
+                    eprintln!("[usagi] {}", msg);
+                    self.last_error = Some(msg);
                 }
             }
-
-            // Sprite sheet reload. Drop of the previous Texture2D frees GPU.
-            if sprites.reload_if_changed(&mut rl, &thread, vfs) {
-                println!("[usagi] reloaded sprites.png");
-            }
-
-            // SFX reload.
-            if let Some(a) = &audio
-                && sfx.reload_if_changed(a, vfs)
-            {
-                println!("[usagi] reloaded sfx ({} sound(s))", sfx.len());
-            }
         }
 
-        // Alt+Enter toggles borderless fullscreen. Using is_key_down for alt
-        // and is_key_pressed for enter avoids retriggering while alt is held.
-        if rl.is_key_pressed(KeyboardKey::KEY_ENTER)
-            && (rl.is_key_down(KeyboardKey::KEY_LEFT_ALT)
-                || rl.is_key_down(KeyboardKey::KEY_RIGHT_ALT))
+        if self
+            .sprites
+            .reload_if_changed(&mut self.rl, &self.thread, self.vfs.as_ref())
         {
-            rl.toggle_borderless_windowed();
+            println!("[usagi] reloaded sprites.png");
         }
 
-        // Dev shortcut: `~` (grave/tilde key) toggles the FPS overlay.
-        if rl.is_key_pressed(KeyboardKey::KEY_GRAVE) {
-            show_fps = !show_fps;
+        if let Some(a) = self.audio
+            && self.sfx.reload_if_changed(a, self.vfs.as_ref())
+        {
+            println!("[usagi] reloaded sfx ({} sound(s))", self.sfx.len());
+        }
+    }
+
+    fn handle_global_shortcuts(&mut self) {
+        // Alt+Enter toggles borderless fullscreen.
+        if self.rl.is_key_pressed(KeyboardKey::KEY_ENTER)
+            && (self.rl.is_key_down(KeyboardKey::KEY_LEFT_ALT)
+                || self.rl.is_key_down(KeyboardKey::KEY_RIGHT_ALT))
+        {
+            self.rl.toggle_borderless_windowed();
         }
 
-        // Dev shortcut: F5 runs _init() to wipe game state. Always available,
-        // in both `run` and `dev`, since it's a one-off action.
-        if rl.is_key_pressed(KeyboardKey::KEY_F5)
-            && let Ok(init) = lua.globals().get::<LuaFunction>("_init")
+        // ~ toggles the FPS overlay.
+        if self.rl.is_key_pressed(KeyboardKey::KEY_GRAVE) {
+            self.show_fps = !self.show_fps;
+        }
+
+        // F5 runs _init() to wipe game state. Always available, in both
+        // `run` and `dev`, since it's a one-off action.
+        if self.rl.is_key_pressed(KeyboardKey::KEY_F5)
+            && let Ok(init) = self.lua.globals().get::<LuaFunction>("_init")
         {
             match init.call::<()>(()) {
                 Ok(()) => {
                     println!("[usagi] reset (F5)");
-                    last_error = None;
+                    self.last_error = None;
                 }
                 Err(e) => {
                     let msg = format!("_init: {}", e);
                     eprintln!("[usagi] {}", msg);
-                    last_error = Some(msg);
+                    self.last_error = Some(msg);
                 }
             }
         }
+    }
 
-        let dt = rl.get_frame_time();
-        let screen_w = rl.get_screen_width();
-        let screen_h = rl.get_screen_height();
-        let fps = rl.get_fps();
+    fn run_update(&mut self, dt: f32) {
+        let Self {
+            lua,
+            rl,
+            sfx,
+            update,
+            last_error,
+            ..
+        } = self;
+        let Some(update_fn) = update.as_ref() else {
+            return;
+        };
+        let rl_ref: &RaylibHandle = rl;
+        let sfx_ref: &SfxLibrary<'static> = sfx;
+        record_err(
+            last_error,
+            "_update",
+            lua.scope(|scope| {
+                let input_tbl: LuaTable = lua.globals().get("input")?;
+                let pressed = scope
+                    .create_function(|_, action: u32| Ok(input::action_pressed(rl_ref, action)))?;
+                input_tbl.set("pressed", pressed)?;
+                let down = scope
+                    .create_function(|_, action: u32| Ok(input::action_down(rl_ref, action)))?;
+                input_tbl.set("down", down)?;
 
-        // Update phase. Input and sfx closures borrow rl and the sounds map
-        // respectively; errors from user Lua are logged so a broken _update
-        // doesn't kill the session.
-        if let Some(ref update_fn) = update {
-            let rl_ref = &rl;
-            let sfx_ref = &sfx;
+                let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
+                let play = scope.create_function(|_, name: String| {
+                    sfx_ref.play(&name);
+                    Ok(())
+                })?;
+                sfx_tbl.set("play", play)?;
+
+                update_fn.call::<()>(dt)?;
+                Ok(())
+            }),
+        );
+    }
+
+    fn run_draw(&mut self, dt: f32, fps: u32) {
+        let Self {
+            lua,
+            rl,
+            thread,
+            rt,
+            sfx,
+            sprites,
+            draw,
+            last_error,
+            show_fps,
+            ..
+        } = self;
+        let mut d_rt = rl.begin_texture_mode(thread, rt);
+        if let Some(draw_fn) = draw.as_ref() {
+            let d_rt_cell = std::cell::RefCell::new(&mut d_rt);
+            let sprites_ref = sprites.texture();
+            let sfx_ref: &SfxLibrary<'static> = sfx;
             record_err(
-                &mut last_error,
-                "_update",
+                last_error,
+                "_draw",
                 lua.scope(|scope| {
-                    let input_tbl: LuaTable = lua.globals().get("input")?;
-                    let pressed = scope.create_function(|_, action: u32| {
-                        Ok(input::action_pressed(rl_ref, action))
+                    let gfx_tbl: LuaTable = lua.globals().get("gfx")?;
+                    let clear = scope.create_function(|_, c: i32| {
+                        d_rt_cell.borrow_mut().clear_background(palette(c));
+                        Ok(())
                     })?;
-                    input_tbl.set("pressed", pressed)?;
-                    let down = scope
-                        .create_function(|_, action: u32| Ok(input::action_down(rl_ref, action)))?;
-                    input_tbl.set("down", down)?;
+                    let text =
+                        scope.create_function(|_, (s, x, y, c): (String, f32, f32, i32)| {
+                            d_rt_cell.borrow_mut().draw_text(
+                                &s,
+                                x.round() as i32,
+                                y.round() as i32,
+                                8,
+                                palette(c),
+                            );
+                            Ok(())
+                        })?;
+                    let rect = scope.create_function(
+                        |_, (x, y, w, h, c): (f32, f32, f32, f32, i32)| {
+                            d_rt_cell.borrow_mut().draw_rectangle(
+                                x.round() as i32,
+                                y.round() as i32,
+                                w.round() as i32,
+                                h.round() as i32,
+                                palette(c),
+                            );
+                            Ok(())
+                        },
+                    )?;
+                    let spr = scope.create_function(|_, (idx, x, y): (i32, f32, f32)| {
+                        // 1-based indexing to match Lua conventions.
+                        if idx < 1 {
+                            return Ok(());
+                        }
+                        let idx0 = idx - 1;
+                        if let Some(tex) = sprites_ref {
+                            const CELL: i32 = 16;
+                            let cols = tex.width / CELL;
+                            if cols <= 0 {
+                                return Ok(());
+                            }
+                            let col = idx0 % cols;
+                            let row = idx0 / cols;
+                            if row * CELL >= tex.height {
+                                return Ok(());
+                            }
+                            let source = Rectangle {
+                                x: (col * CELL) as f32,
+                                y: (row * CELL) as f32,
+                                width: CELL as f32,
+                                height: CELL as f32,
+                            };
+                            let pos = Vector2::new(x.round(), y.round());
+                            d_rt_cell
+                                .borrow_mut()
+                                .draw_texture_rec(tex, source, pos, Color::WHITE);
+                        }
+                        Ok(())
+                    })?;
+                    gfx_tbl.set("clear", clear)?;
+                    gfx_tbl.set("text", text)?;
+                    gfx_tbl.set("rect", rect)?;
+                    gfx_tbl.set("spr", spr)?;
 
                     let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
                     let play = scope.create_function(|_, name: String| {
@@ -220,121 +407,88 @@ pub fn run(vfs: &dyn VirtualFs, dev: bool) -> crate::Result<()> {
                     })?;
                     sfx_tbl.set("play", play)?;
 
-                    update_fn.call::<()>(dt)?;
+                    draw_fn.call::<()>(dt)?;
                     Ok(())
                 }),
             );
         }
-
-        // Draw phase. gfx.* share d_rt via RefCell (multiple draw fns need
-        // mut access). Errors are logged; the partial RT still gets blitted
-        // so the window stays alive.
-        {
-            let mut d_rt = rl.begin_texture_mode(&thread, &mut rt);
-            if let Some(ref draw_fn) = draw {
-                let d_rt_cell = std::cell::RefCell::new(&mut d_rt);
-                let sprites_ref = sprites.texture();
-                let sfx_ref = &sfx;
-                record_err(
-                    &mut last_error,
-                    "_draw",
-                    lua.scope(|scope| {
-                        let gfx_tbl: LuaTable = lua.globals().get("gfx")?;
-                        let clear = scope.create_function(|_, c: i32| {
-                            d_rt_cell.borrow_mut().clear_background(palette(c));
-                            Ok(())
-                        })?;
-                        let text =
-                            scope.create_function(|_, (s, x, y, c): (String, f32, f32, i32)| {
-                                d_rt_cell.borrow_mut().draw_text(
-                                    &s,
-                                    x.round() as i32,
-                                    y.round() as i32,
-                                    8,
-                                    palette(c),
-                                );
-                                Ok(())
-                            })?;
-                        let rect = scope.create_function(
-                            |_, (x, y, w, h, c): (f32, f32, f32, f32, i32)| {
-                                d_rt_cell.borrow_mut().draw_rectangle(
-                                    x.round() as i32,
-                                    y.round() as i32,
-                                    w.round() as i32,
-                                    h.round() as i32,
-                                    palette(c),
-                                );
-                                Ok(())
-                            },
-                        )?;
-                        let spr = scope.create_function(|_, (idx, x, y): (i32, f32, f32)| {
-                            // 1-based indexing to match Lua conventions
-                            // (ipairs, t[1], string.sub). Sprite 1 is the
-                            // top-left cell of the sheet.
-                            if idx < 1 {
-                                return Ok(());
-                            }
-                            let idx0 = idx - 1;
-                            if let Some(tex) = sprites_ref {
-                                const CELL: i32 = 16;
-                                let cols = tex.width / CELL;
-                                if cols <= 0 {
-                                    return Ok(());
-                                }
-                                let col = idx0 % cols;
-                                let row = idx0 / cols;
-                                if row * CELL >= tex.height {
-                                    return Ok(());
-                                }
-                                let source = Rectangle {
-                                    x: (col * CELL) as f32,
-                                    y: (row * CELL) as f32,
-                                    width: CELL as f32,
-                                    height: CELL as f32,
-                                };
-                                let pos = Vector2::new(x.round(), y.round());
-                                d_rt_cell.borrow_mut().draw_texture_rec(
-                                    tex,
-                                    source,
-                                    pos,
-                                    Color::WHITE,
-                                );
-                            }
-                            Ok(())
-                        })?;
-                        gfx_tbl.set("clear", clear)?;
-                        gfx_tbl.set("text", text)?;
-                        gfx_tbl.set("rect", rect)?;
-                        gfx_tbl.set("spr", spr)?;
-
-                        let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
-                        let play = scope.create_function(|_, name: String| {
-                            sfx_ref.play(&name);
-                            Ok(())
-                        })?;
-                        sfx_tbl.set("play", play)?;
-
-                        draw_fn.call::<()>(dt)?;
-                        Ok(())
-                    }),
-                );
-            }
-            if show_fps {
-                d_rt.draw_text(&format!("FPS: {}", fps), 0, 0, 8, Color::GREEN);
-            }
-        }
-
-        // Blit render target to screen, then overlay any active Lua error.
-        {
-            let mut d = rl.begin_drawing(&thread);
-            d.clear_background(Color::BLACK);
-            draw_render_target(&mut d, &mut rt, screen_w, screen_h, config.pixel_perfect);
-            if let Some(ref err) = last_error {
-                draw_error_overlay(&mut d, err, screen_w, screen_h);
-            }
+        if *show_fps {
+            d_rt.draw_text(&format!("FPS: {}", fps), 0, 0, 8, Color::GREEN);
         }
     }
-    Ok(())
+
+    fn blit_and_overlay(&mut self, screen_w: i32, screen_h: i32) {
+        let mut d = self.rl.begin_drawing(&self.thread);
+        d.clear_background(Color::BLACK);
+        draw_render_target(
+            &mut d,
+            &mut self.rt,
+            screen_w,
+            screen_h,
+            self.config.pixel_perfect,
+        );
+        if let Some(ref err) = self.last_error {
+            draw_error_overlay(&mut d, err, screen_w, screen_h);
+        }
+    }
+}
+
+/// Runs a Usagi game session. The `vfs` supplies the script, sprites, and
+/// sfx (either from disk or a fused bundle). When `dev` is true AND the
+/// vfs supports reload, files are re-read on mtime change. F5 always
+/// resets state via `_init()`.
+pub fn run(vfs: Box<dyn VirtualFs>, dev: bool) -> crate::Result<()> {
+    let session = Session::new(vfs, dev)?;
+
+    #[cfg(target_os = "emscripten")]
+    {
+        run_emscripten(Box::new(session));
+        // emscripten unwinds the call stack via the JS event loop, so we
+        // never get past set_main_loop_arg in practice. Satisfy the type.
+        return Ok(());
+    }
+
+    #[cfg(not(target_os = "emscripten"))]
+    {
+        let mut session = session;
+        while session.frame() {}
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "emscripten")]
+unsafe extern "C" {
+    fn emscripten_set_main_loop_arg(
+        func: extern "C" fn(*mut std::ffi::c_void),
+        arg: *mut std::ffi::c_void,
+        fps: i32,
+        simulate_infinite_loop: i32,
+    );
+}
+
+#[cfg(target_os = "emscripten")]
+extern "C" fn frame_callback(arg: *mut std::ffi::c_void) {
+    // SAFETY: `arg` was set in `run_emscripten` from `Box::into_raw(Box<Session>)`
+    // and is exclusively owned by the loop. No other code touches it.
+    let session: &mut Session = unsafe { &mut *(arg as *mut Session) };
+    session.frame();
+}
+
+#[cfg(target_os = "emscripten")]
+fn run_emscripten(session: Box<Session>) {
+    // `Box::into_raw` gives us a stable pointer; the browser owns the
+    // pointer for the rest of the program (the tab being closed reclaims
+    // it). simulate_infinite_loop=1 tells emscripten to throw a JS
+    // unwinding exception so control never returns to us.
+    let session_ptr = Box::into_raw(session) as *mut std::ffi::c_void;
+    unsafe {
+        emscripten_set_main_loop_arg(
+            frame_callback,
+            session_ptr,
+            0, // fps; 0 = drive at requestAnimationFrame rate (matches refresh)
+            1, // simulate_infinite_loop
+        );
+    }
 }
 
 #[cfg(test)]

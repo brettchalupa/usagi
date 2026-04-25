@@ -104,7 +104,7 @@ function _update(dt)
 end
 
 function _draw(dt)
-  gfx.clear(gfx.COLOR_BLACK)
+  gfx.clear(gfx.COLOR_ORANGE)
 
   gfx.rect(state.food.x * CELL, state.food.y * CELL, CELL, CELL, gfx.COLOR_RED)
 

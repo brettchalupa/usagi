@@ -42,8 +42,8 @@ Define any of these as globals; Usagi calls them:
 
 - `_config()` — optional. Called **once at startup, before the window opens**;
   returns a config table. Currently supports `title` (defaults to "Usagi") and
-  `pixel_perfect` (defaults to `true`, set `false` to stretch the game to
-  fill the window instead of integer-scaling with bars).
+  `pixel_perfect` (defaults to `true`, set `false` to stretch the game to fill
+  the window instead of integer-scaling with bars).
 - `_init()` — once at start, and when the user presses **F5**. Put state setup
   here.
 - `_update(dt)` — each frame, before draw. `dt` is seconds since last frame.
@@ -190,32 +190,67 @@ Lua code).
 
 ## Compile
 
-`usagi compile <path>` produces a standalone executable for the host platform.
-The binary has the game's `main.lua`, `sprites.png` (if present), and
-`sfx/*.wav` fused into its own trailing bytes, so you can ship one file.
+`usagi compile <path>` packages a game for distribution. By default it produces
+all artifacts in one export directory:
 
 ```
 $ usagi compile examples/snake
-[usagi] compiled snake (1 file(s), 2185 bytes bundled)
-$ ./snake
+[usagi] compiled snake-export/snake (3 file(s), 37125 bytes bundled)
+[usagi] wrote snake-export/snake.usagi (3 file(s), 37125 bytes)
+[usagi] wrote snake-export/web/ (3 game file(s), 37125 bundle bytes; runtime from embedded)
+[usagi] export ready at snake-export/
+
+$ tree snake-export
+snake-export
+├── snake             # native fused executable (./snake to run)
+├── snake.usagi       # portable bundle (usagi run snake.usagi)
+└── web/              # zip and upload to itch.io
+    ├── index.html
+    ├── usagi.{js,wasm}
+    └── game.usagi
+```
+
+Or pick one with `--target {all,exe,bundle,web}`:
+
+```
+$ usagi compile examples/snake --target bundle
+$ usagi compile examples/snake --target web
+$ usagi compile examples/snake --target exe
 ```
 
 Notes:
 
-- Output defaults to `./<name>` where `<name>` is the project's directory name
-  (or the script's stem for flat `.lua` files). `-o <path>` overrides.
-- The fused binary is cross-platform only insofar as the Usagi binary that
-  produced it is: a Linux `usagi` produces a Linux executable, a Windows one
-  produces a `.exe`, etc. Cross-compilation isn't implemented yet.
-- Live-reload is disabled in fused mode; F5 still resets state via `_init()`.
+- Output defaults: `./<name>-export/` for `all`, `./<name>` for `exe`,
+  `./<name>.usagi` for `bundle`, `./<name>-web/` for `web`. `<name>` is the
+  project directory name (or the script's stem for flat `.lua` files).
+  `-o <path>` overrides.
+- A fused exe is cross-platform only insofar as the Usagi binary that produced
+  it is: a Linux `usagi` produces a Linux executable, a Windows one produces a
+  `.exe`, etc. `.usagi` bundles are platform-agnostic.
+- `--target web` (and the `web/` slice of `--target all`) needs the wasm
+  runtime. **Release builds of `usagi` embed it at compile time**, so an
+  installed `usagi` Just Works. Debug builds (`cargo run`) fall back to reading
+  the runtime from `target/web/`. See [docs/web-build.md](docs/web-build.md) for
+  the build dance.
+- Live-reload is disabled in compiled artifacts; F5 still resets state via
+  `_init()`.
 - The fuse format is simple and additive: a magic footer at the end of the exe
-  that points back to an appended bundle.
+  points back to an appended bundle. A `.usagi` file is the same bundle bytes
+  without the footer.
+
+## Web build
+
+Usagi compiles to wasm via emscripten so games can run in a browser. See
+[docs/web-build.md](docs/web-build.md) for setup, the build/dev loop, debugging
+tips, and the (non-obvious) wasm exception ABI requirements.
 
 ## Developing
 
 - `just run` - run hello_usagi example
 - `just ok` - run all checks
 - `just fmt` - format Rust code
+- `just serve-web` - build and serve the web build at <http://localhost:3535>
+  (requires `emcc` on PATH; see [docs/web-build.md](docs/web-build.md))
 
 ## Reference and Inspiration
 

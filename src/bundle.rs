@@ -160,6 +160,20 @@ impl Bundle {
         Ok(())
     }
 
+    /// Loads a standalone bundle file from disk. Use this for shipping a
+    /// game as a `.usagi` data file (run with `usagi run game.usagi`),
+    /// the counterpart to a fused exe.
+    pub fn load_from_path(path: &Path) -> io::Result<Self> {
+        let mut f = std::fs::File::open(path)?;
+        Self::deserialize(&mut f)
+    }
+
+    /// Writes this bundle to a standalone file (no exe fusing).
+    pub fn write_to_path(&self, path: &Path) -> io::Result<()> {
+        let mut f = std::fs::File::create(path)?;
+        self.serialize(&mut f)
+    }
+
     /// Checks the current executable for a fused bundle and loads it if
     /// present. Returns None if the exe isn't fused (normal Usagi dev run).
     pub fn load_from_current_exe() -> Option<Self> {
@@ -267,6 +281,30 @@ mod tests {
         assert_eq!(bundle.get("main.lua"), Some(b"-- minimal".as_slice()));
         assert!(bundle.get("sprites.png").is_none());
         assert_eq!(bundle.file_count(), 1);
+    }
+
+    #[test]
+    fn write_and_load_standalone_roundtrip() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("game.usagi");
+
+        let mut b = Bundle::new();
+        b.insert("main.lua", b"print('hi')".to_vec());
+        b.insert("sfx/jump.wav", vec![1, 2, 3]);
+        b.write_to_path(&path).unwrap();
+
+        let loaded = Bundle::load_from_path(&path).unwrap();
+        assert_eq!(loaded.get("main.lua"), Some(b"print('hi')".as_slice()));
+        assert_eq!(loaded.get("sfx/jump.wav"), Some([1, 2, 3].as_slice()));
+        assert_eq!(loaded.file_count(), 2);
+    }
+
+    #[test]
+    fn load_from_path_rejects_garbage_file() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("not-a-bundle");
+        fs::write(&path, b"hello world").unwrap();
+        assert!(Bundle::load_from_path(&path).is_err());
     }
 
     #[test]

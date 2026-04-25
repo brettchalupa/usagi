@@ -1,0 +1,35 @@
+[target.wasm32-unknown-emscripten]
+# Emscripten link args for the web build. See `docs/web-build.md` for the
+# rationale on the wasm-eh ABI flags. Per-frame loop is driven by the
+# browser via `emscripten_set_main_loop_arg`, so we don't need ASYNCIFY.
+#
+# The game itself is NOT baked into the wasm: the JS shell (web/shell.html)
+# fetches a `.usagi` bundle over HTTP, writes it into the virtual FS at
+# `/game.usagi`, then calls main(). That's why `--preload-file` is absent
+# and `FS` is exported. This way one prebuilt runtime can ship any game.
+rustflags = [
+  "-C", "link-arg=-sSUPPORT_LONGJMP=wasm",
+  "-C", "link-arg=-sFORCE_FILESYSTEM=1",
+  "-C", "link-arg=-sUSE_GLFW=3",
+  "-C", "link-arg=-sTOTAL_MEMORY=134217728",
+  "-C", "link-arg=-sALLOW_MEMORY_GROWTH=1",
+  # ASYNCIFY is required because miniaudio (raudio backend on web) busy-waits
+  # in its WebAudio init loop with `emscripten_sleep(1)` until init resolves
+  # (see miniaudio.h: "The emscripten_sleep() call is why we need to build
+  # with -sASYNCIFY"). Without it, the first sound play aborts the wasm.
+  # ASYNCIFY adds ~100 KB and a small per-call overhead but is compatible
+  # with `-fwasm-exceptions` (the earlier incompatibility was specifically
+  # `SUPPORT_LONGJMP=emscripten` + wasm-eh, not ASYNCIFY).
+  "-C", "link-arg=-sASYNCIFY=1",
+  "-C", "link-arg=-sEXPORTED_RUNTIME_METHODS=['ccall','callMain','wasmMemory','HEAPU8','HEAP32','HEAPF32','FS']",
+]
+
+# C/C++ deps must use the same exception ABI rustc uses at link time. See
+# `docs/web-build.md` for the full rationale; short version: Rust 1.93+
+# unconditionally passes `-fwasm-exceptions` on this target, so cc-rs's
+# compiles need it too or the link fails on `__cxa_find_matching_catch_*`
+# (legacy JS-EH ABI). The matching longjmp ABI is `wasm`, used by Lua's
+# setjmp.
+[env]
+CFLAGS_wasm32_unknown_emscripten = "-fwasm-exceptions -sSUPPORT_LONGJMP=wasm"
+CXXFLAGS_wasm32_unknown_emscripten = "-fwasm-exceptions -sSUPPORT_LONGJMP=wasm"
