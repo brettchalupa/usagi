@@ -6,6 +6,17 @@ is inspired by Pico-8.
 
 Uses Lua 5.4.
 
+## Install
+
+The only way to install Usagi currently is to have the Rust toolchain installed
+and use:
+
+```
+cargo install --git https://github.com/brettchalupa/usagi.git
+```
+
+This will be made easier in the future.
+
 ## Project layout
 
 A Usagi game is either a single `.lua` file or a directory with a `main.lua` in
