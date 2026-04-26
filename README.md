@@ -40,10 +40,13 @@ end
 When you save `hello.lua`, the Usagi runtime automatically reloads it. Make
 changes to the text and see it live update.
 
-In most traditional game development environments, you need to restart your
-engine game after making changes. Usagi lets you focus on coding and making art
-without losing the current game state, allowing for much faster iteration
-cycles.
+In most traditional game development environments, you would need to restart
+your game's executable after making changes. Usagi lets you focus on coding and
+making art without losing the current game state, allowing for much faster
+iteration cycles.
+
+Need to revise a sprite quickly? Just open it in Aseprite, tweak it, save it,
+and see it update in the context of your game.
 
 ## Project Goal
 
