@@ -51,13 +51,16 @@ Usagi does not aim to be anything more than a rapid development engine for
 simple, lower res 2D games. It doesn't intend to support mobile platforms or
 touch or VR. It doesn't aim to replace Love2D or Pico-8 or Picotron. It's not a
 fantasy console. It's a command-line program and suite of tools to help you make
-games.
+games quickly.
 
 Usagi is great for those learning game programming. And for those who to use
 something more flexible than Pico-8/Picotron but more constrained than Love2D.
 
 **Why Lua:** Lua is a widely-used language in game programming, and it's quite
 simple yet surprisingly powerful, making it a good fit for Usagi.
+
+If you want to build a medium-to-large polished game, Usagi would not be a good
+fit.
 
 ## Project Layout
 
@@ -95,6 +98,8 @@ change in the future or be configurable.
 
 - **Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely to
   common monitor sizes
+- **One Lua File**: there is no way to import other Lua files into your game
+  (yet), only `main.lua` or whatever you named your file is supported
 - **One Spritesheet**: `sprites.png` is the only image file for textures that
   can be loaded
 - **Sprite Size**: 16px by 16px - using `gfx.spr` uses the index based on this
