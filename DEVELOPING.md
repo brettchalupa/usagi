@@ -1,0 +1,73 @@
+# Developing usagi
+
+Guide to how to work on the engine.
+
+## Dependencies
+
+Install Rust: https://rustup.rs
+
+## Local
+
+`just ok` runs fmt, clippy, and tests. Run before any commit.
+
+`just example <name>` boots an example in dev mode with live reload.
+
+While developing Usagi itself, replace `usagi` with `cargo run --` (for example
+`cargo run -- dev examples/hello_usagi.lua`).
+
+`just build-web` then `just serve-web` builds the wasm runtime and serves it
+locally on port 3535. Needs emscripten on PATH; run `./setup-emscripten.sh` once
+to install it on Fedora. `brew install emscripten` works on macOS.
+
+See `justfile` for the full list of recipes.
+
+## CI (`.github/workflows/ci.yml`)
+
+Runs on every push to `main` and every pull request. Three jobs:
+
+- `check`: matrix of Linux (`ubuntu-22.04`), macOS (`macos-latest`, Apple
+  Silicon), and Windows (`windows-latest`). Runs fmt, clippy, tests, and a
+  release build. Uploads the binary as an artifact.
+- `web`: builds the emscripten wasm runtime. Uploads `usagi.js` and
+  `usagi.wasm`.
+
+CI artifacts expire after 90 days and require a GitHub login to download. Use
+them for spot-checking a PR. For distribution, cut a release.
+
+## Releases (`.github/workflows/release.yml`)
+
+Push a tag matching `v*` to trigger a release build:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The workflow builds release binaries on every supported target, packages them,
+and creates a GitHub Release **as a draft** with the archives attached. Review
+the auto-generated notes and assets on the Releases page, then click Publish to
+make it public. Tags containing a hyphen (`v0.1.0-dev.1`) are flagged as
+prereleases following semver convention.
+
+Bump `version` in `Cargo.toml` and run `cargo update -p usagi` to refresh
+`Cargo.lock` before tagging. The tag should match the manifest version.
+
+### Release artifacts
+
+| File                               | Target                                  |
+| ---------------------------------- | --------------------------------------- |
+| `usagi-<ver>-linux-x86_64.tar.gz`  | Linux x86_64, glibc 2.35+               |
+| `usagi-<ver>-macos-aarch64.tar.gz` | macOS, Apple Silicon                    |
+| `usagi-<ver>-windows-x86_64.zip`   | Windows 10+                             |
+| `usagi-<ver>-wasm.tar.gz`          | Web runtime (`usagi.js` + `usagi.wasm`) |
+
+## Build environment notes
+
+- The Linux runner is `ubuntu-22.04` (glibc 2.35) for portability. Binaries run
+  on Debian 12+, RHEL 9+, Fedora, Arch, openSUSE Leap 15.4+. Migrate before
+  April 2027 (22.04 EOL). For older distros (RHEL 8, etc.) the path forward is a
+  manylinux2014 container.
+- `macos-latest` is Apple Silicon. No Intel mac binary is produced; `macos-13`
+  is the last hosted Intel runner and GitHub will retire it before too long.
+- Caching: `Swatinem/rust-cache@v2` per matrix entry, plus
+  `mymindstorm/setup-emsdk` caches the emsdk install for the wasm job.
