@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ matrix.os }}
+
+      - name: Install Linux system deps
+        # raylib's bundled glfw needs X11 dev headers to build on Linux.
+        # libasound2-dev for audio, libudev-dev for gamepad/input.
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev \
+            libudev-dev \
+            libx11-dev \
+            libxcursor-dev \
+            libxinerama-dev \
+            libxrandr-dev \
+            libxi-dev \
+            libgl1-mesa-dev
+
+      - name: Fmt
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test
+
+      - name: Release build
+        run: cargo build --release
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: usagi-${{ matrix.os }}
+          path: |
+            target/release/usagi
+            target/release/usagi.exe
+          if-no-files-found: ignore
+
+  web:
+    name: emscripten
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-emscripten
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: emscripten
+
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+          actions-cache-folder: emsdk-cache
+
+      - name: Build wasm runtime (release)
+        # Mirrors `just build-web-release`: see docs/web-build.md for the
+        # wasm-eh ABI rationale. EMCC_CFLAGS is read by every emcc invocation,
+        # including raylib's CMake build.
+        env:
+          EMCC_CFLAGS: -fwasm-exceptions -sSUPPORT_LONGJMP=wasm -s USE_LIBPNG=1 -s USE_OGG=1 -s USE_VORBIS=1
+        run: cargo build --release --target wasm32-unknown-emscripten
+
+      - name: Upload wasm runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: usagi-wasm
+          path: |
+            target/wasm32-unknown-emscripten/release/usagi.js
+            target/wasm32-unknown-emscripten/release/usagi.wasm
