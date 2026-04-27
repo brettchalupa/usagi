@@ -130,7 +130,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          generate_release_notes: true
+          generate_release_notes: false
           # Created as a draft so the release can be reviewed (notes, attached
           # archives) before going public.
           draft: true
