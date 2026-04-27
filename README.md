@@ -18,14 +18,9 @@ the public domain.
 [Download the latest Usagi build for your operating
 system.](https://github.com/brettchalupa/usagi/releases/latest)
 
-You can also install Usagi with `cargo` if you have
-[the Rust toolchain installed](https://rustup.rs/):
+**Latest Usagi release:** v0.1.0
 
-```
-cargo install --git https://github.com/brettchalupa/usagi.git
-```
-
-_More ways of installing Usagi will be added in the future._
+_More ways of installing Usagi may be added in the future._
 
 ### Upgrading
 
