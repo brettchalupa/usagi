@@ -364,6 +364,18 @@ impl Session {
                         })?;
                     let rect = scope.create_function(
                         |_, (x, y, w, h, c): (f32, f32, f32, f32, i32)| {
+                            d_rt_cell.borrow_mut().draw_rectangle_lines(
+                                x.round() as i32,
+                                y.round() as i32,
+                                w.round() as i32,
+                                h.round() as i32,
+                                palette(c),
+                            );
+                            Ok(())
+                        },
+                    )?;
+                    let rect_fill = scope.create_function(
+                        |_, (x, y, w, h, c): (f32, f32, f32, f32, i32)| {
                             d_rt_cell.borrow_mut().draw_rectangle(
                                 x.round() as i32,
                                 y.round() as i32,
@@ -407,6 +419,7 @@ impl Session {
                     gfx_tbl.set("clear", clear)?;
                     gfx_tbl.set("text", text)?;
                     gfx_tbl.set("rect", rect)?;
+                    gfx_tbl.set("rect_fill", rect_fill)?;
                     gfx_tbl.set("spr", spr)?;
 
                     let sfx_tbl: LuaTable = lua.globals().get("sfx")?;

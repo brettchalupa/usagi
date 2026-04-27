@@ -33,13 +33,21 @@ function gfx.clear(color) end
 ---@param color integer  a gfx.COLOR_* constant
 function gfx.text(text, x, y, color) end
 
----Draws a filled rectangle.
+---Draws a rectangle outline.
 ---@param x      number
 ---@param y      number
 ---@param w      number
 ---@param h      number
 ---@param color  integer  a gfx.COLOR_* constant
 function gfx.rect(x, y, w, h, color) end
+
+---Draws a filled rectangle.
+---@param x      number
+---@param y      number
+---@param w      number
+---@param h      number
+---@param color  integer  a gfx.COLOR_* constant
+function gfx.rect_fill(x, y, w, h, color) end
 
 ---Draws a 16×16 sprite from the loaded sheet at (x, y). The sheet is
 ---`sprites.png` next to the game's main .lua; indices run left-to-right,
