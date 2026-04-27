@@ -7,22 +7,28 @@ API is clear, consistent, and familiar.
 Usagi is built with [Rust](https://rust-lang.org/) and
 [sola-raylib](https://crates.io/crates/sola-raylib).
 
-:warning: Usagi is very early in development and not stable. APIs and commands
-will break. :warning:
+**WARNING:** Usagi is very early in development and not stable. APIs and
+commands will change.
 
 Usagi is made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to
 the public domain.
 
 ## Install
 
-The only way to install Usagi currently is to have
-[the Rust toolchain installed](https://rustup.rs/) and use:
+[Download the latest Usagi build for your operating
+system.](https://github.com/brettchalupa/usagi/releases/latest)
+
+You can also install Usagi with `cargo` if you have
+[the Rust toolchain installed](https://rustup.rs/):
 
 ```
 cargo install --git https://github.com/brettchalupa/usagi.git
 ```
 
-_Installing Usagi will be made easier in the future._
+**NOTE:** the Windows build and installing via `cargo` don't support the web
+target with `usagi compile` yet.
+
+_More ways of installing Usagi will be added in the future._
 
 ## Hello, Usagi
 
