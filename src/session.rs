@@ -266,14 +266,22 @@ impl Session {
             self.show_fps = !self.show_fps;
         }
 
-        // F5 runs _init() to wipe game state. Always available, in both
-        // `run` and `dev`, since it's a one-off action.
-        if self.rl.is_key_pressed(KeyboardKey::KEY_F5)
-            && let Ok(init) = self.lua.globals().get::<LuaFunction>("_init")
-        {
+        // F5 / Ctrl+R / Cmd+R run _init() to wipe game state. Always
+        // available, in both `run` and `dev`, since it's a one-off action.
+        // Caps Lock as a modifier: many users remap caps→ctrl at the OS
+        // level, but raylib/GLFW often sees the raw scancode and misses the
+        // remap. Accepting caps directly here makes those setups work.
+        let ctrl_held = self.rl.is_key_down(KeyboardKey::KEY_LEFT_CONTROL)
+            || self.rl.is_key_down(KeyboardKey::KEY_RIGHT_CONTROL)
+            || self.rl.is_key_down(KeyboardKey::KEY_CAPS_LOCK);
+        let super_held = self.rl.is_key_down(KeyboardKey::KEY_LEFT_SUPER)
+            || self.rl.is_key_down(KeyboardKey::KEY_RIGHT_SUPER);
+        let reset = self.rl.is_key_pressed(KeyboardKey::KEY_F5)
+            || (self.rl.is_key_pressed(KeyboardKey::KEY_R) && (ctrl_held || super_held));
+        if reset && let Ok(init) = self.lua.globals().get::<LuaFunction>("_init") {
             match init.call::<()>(()) {
                 Ok(()) => {
-                    println!("[usagi] reset (F5)");
+                    println!("[usagi] reset");
                     self.last_error = None;
                 }
                 Err(e) => {

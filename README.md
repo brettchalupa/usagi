@@ -237,7 +237,8 @@ Usagi watches the running script file and re-executes it when you save. The new
 progress.
 
 - `_init()` is **not** called on a save-triggered reload.
-- Press **F5** for a hard reset: Usagi runs `_init()` to reinitialize state.
+- Press **F5** (or **Ctrl+R** / **Cmd+R**) for a hard reset: Usagi runs
+  `_init()` to reinitialize state.
 - Press **~** (grave/tilde) to toggle the FPS overlay. On by default in `dev`,
   off in `run`.
 - Press **Alt+Enter** to toggle borderless fullscreen.
