@@ -23,7 +23,7 @@ end
 function _init()
   state = {
     p = {
-      x = 20,
+      x = 50,
       y = 20,
       spd = 200,
     }
@@ -55,6 +55,6 @@ function _draw(_dt)
   gfx.clear(gfx.COLOR_BLUE)
   gfx.spr(SPR.BUNNY, 20, 20)
   gfx.spr(SPR.SHIP, state.p.x, state.p.y)
-  gfx.spr(SPR.BULLET_LG, 50, 40)
   gfx.spr(SPR.BULLET_SM, 20, 40)
+  gfx.spr(SPR.BULLET_LG, 50, 40)
 end

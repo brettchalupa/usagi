@@ -106,11 +106,11 @@ end
 function _draw(dt)
   gfx.clear(gfx.COLOR_ORANGE)
 
-  gfx.rect(state.food.x * CELL, state.food.y * CELL, CELL, CELL, gfx.COLOR_RED)
+  gfx.rect_fill(state.food.x * CELL, state.food.y * CELL, CELL, CELL, gfx.COLOR_RED)
 
   for i, seg in ipairs(state.snake) do
     local color = (i == 1) and gfx.COLOR_GREEN or gfx.COLOR_DARK_GREEN
-    gfx.rect(seg.x * CELL, seg.y * CELL, CELL, CELL, color)
+    gfx.rect_fill(seg.x * CELL, seg.y * CELL, CELL, CELL, color)
   end
 
   gfx.text("score " .. state.score, 4, 4, gfx.COLOR_WHITE)

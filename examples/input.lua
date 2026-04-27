@@ -8,8 +8,8 @@ end
 
 function _init()
   state = {
-    x = 20,
-    y = 20,
+    x = 32,
+    y = 32,
     spd = 200,
   }
 end
@@ -31,5 +31,6 @@ end
 
 function _draw(dt)
   gfx.clear(gfx.COLOR_WHITE)
-  gfx.rect(state.x, state.y, 32, 32, gfx.COLOR_BLACK)
+  gfx.text("Move the square around", 4, 4, gfx.COLOR_DARK_GRAY)
+  gfx.rect_fill(state.x, state.y, 16, 16, gfx.COLOR_DARK_GRAY)
 end
