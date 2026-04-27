@@ -290,8 +290,8 @@ platform plus a portable bundle:
 
 ```
 $ usagi compile examples/snake
-$ tree snake-export
-snake-export
+$ tree export
+export
 ├── snake-linux.zip      # Linux x86_64 fused exe
 ├── snake-macos.zip      # macOS arm64 fused exe
 ├── snake-windows.zip    # Windows x86_64 fused exe

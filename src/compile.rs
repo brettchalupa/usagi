@@ -37,6 +37,10 @@ pub fn run(
     web_shell: Option<&str>,
 ) -> Result<()> {
     let script_path = PathBuf::from(cli::resolve_script_path(path_arg)?);
+    // Canonicalize so `usagi compile .` from inside the project dir gives
+    // the dir's name, not "main" (project_name keys off the script's
+    // parent, and "." has no file_name).
+    let script_path = script_path.canonicalize().unwrap_or(script_path);
     let bundle = Bundle::from_project(&script_path).map_err(|e| {
         Error::Cli(format!(
             "building bundle from {}: {e}",
@@ -388,7 +392,8 @@ fn project_name(script_path: &Path) -> &str {
 
 fn default_output_path(name: &str, target: CompileTarget) -> PathBuf {
     match target {
-        CompileTarget::All => PathBuf::from(format!("{name}-export")),
+        // Project-agnostic so one gitignore entry covers any game.
+        CompileTarget::All => PathBuf::from("export"),
         CompileTarget::Bundle => PathBuf::from(format!("{name}.usagi")),
         CompileTarget::Linux => PathBuf::from(format!("{name}-linux.zip")),
         CompileTarget::Macos => PathBuf::from(format!("{name}-macos.zip")),

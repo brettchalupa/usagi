@@ -8,8 +8,8 @@ Doesn't contain updates relating to developing the engine itself.
 Features:
 
 - `usagi compile` now produces every platform from any host. Default output is
-  `<name>-export/` containing zips for linux, macos, windows, web, plus the
-  portable `.usagi` bundle.
+  `export/` containing zips for linux, macos, windows, web, plus the portable
+  `.usagi` bundle.
 - `--target` accepts `linux`, `macos`, `windows`, `web`, `bundle`, or `all`.
 - Runtime templates auto-fetch by version from GitHub Releases on first use,
   cache to a per-OS directory, and verify against published `sha256` sidecars
