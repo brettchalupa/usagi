@@ -3,25 +3,22 @@
 History of Usagi releases and what changed in each release. User-facing notes.
 Doesn't contain updates relating to developing the engine itself.
 
-## v0.1.0-dev - UNRELEASED
+## v0.1.0 - Apr 27, 2026
+
+Initial release of Usagi, introducing the CLI with `usagi dev`, `usagi run`,
+`usagi export`, and `usagi run`.
+
+Includes input, rectangle drawing, sound effect playback, and rendering tiles
+from a single `sprites.png.`
 
 Features:
 
-- `usagi init [path]` bootstraps a new project. Writes `main.lua` with stubbed
-  callbacks, `.luarc.json` for Lua LSP, `.gitignore`, `meta/usagi.lua` (API type
-  stubs for editor autocomplete), and `USAGI.md` (engine docs). Defaults to the
-  current directory; existing files are skipped, never overwritten.
-
-## v0.1.0-rc.4 - Apr 27, 2026
-
-Fixes:
-
-- sha generation command on Windows CI runner
-
-## v0.1.0-rc.3 - Apr 27, 2026
-
-Features:
-
+- `gfx.rect` now draws a rectangle outline; use `gfx.rect_fill` for the filled
+  variant
+- `gfx.circ(x, y, r, color)` — circle outline
+- `gfx.circ_fill(x, y, r, color)` — filled circle
+- `gfx.line(x1, y1, x2, y2, color)` — line
+- Ctrl + R and Cmd + R hard refresh in `usagi dev`
 - `usagi export` produces every platform from any host. Default output is
   `export/` containing zips for linux, macos, windows, web, plus the portable
   `.usagi` bundle.
@@ -38,35 +35,7 @@ Features:
 - New subcommand `usagi templates {list,clear}` to inspect or wipe the cache.
 - Set `USAGI_TEMPLATE_BASE` to point at a fork or mirror for offline /
   air-gapped setups.
-
-Breaking:
-
-- `--target exe` and `--target web` were removed. Use `--target <os>`
-  (`linux`/`macos`/`windows`) instead of `exe`, and `--target web` keeps its
-  name but now produces a zip rather than a directory.
-
-Fixes:
-
-- <kbd>Esc</kbd> only quits the game in dev builds, not release builds
-- On desktop, the window's minimum size is the resolution of the game
-  (320x180px)
-
-## v0.1.0-dev.2 - Apr 27, 2026
-
-Features:
-
-- `gfx.rect` now draws a rectangle outline; use `gfx.rect_fill` for the filled
-  variant
-- `gfx.circ(x, y, r, color)` — circle outline
-- `gfx.circ_fill(x, y, r, color)` — filled circle
-- `gfx.line(x1, y1, x2, y2, color)` — line
-- Ctrl + R and Cmd + R hard refresh in `usagi dev`
-
-Fixes:
-
-- Properly exit games with `0` status, don't segfault on close
-
-## v0.1.0-dev.1 - Apr 26, 2026
-
-Initial pre-release of Usagi. Very early days. Includes input, rectangle
-drawing, sound effect playback, and rendering tiles from a single `sprites.png.`
+- `usagi init [path]` bootstraps a new project. Writes `main.lua` with stubbed
+  callbacks, `.luarc.json` for Lua LSP, `.gitignore`, `meta/usagi.lua` (API type
+  stubs for editor autocomplete), and `USAGI.md` (engine docs). Defaults to the
+  current directory; existing files are skipped, never overwritten.
