@@ -117,54 +117,9 @@ jobs:
           name: usagi-wasm
           path: dist/*
 
-  build-arm:
-    name: build (${{ matrix.name }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: aarch64-unknown-linux-gnu
-            name: linux-aarch64
-          - target: armv7-unknown-linux-gnueabihf
-            name: linux-armv7
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: release-cross-${{ matrix.target }}
-
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cross
-
-      - name: Build
-        run: cross build --release --locked --target ${{ matrix.target }}
-
-      - name: Resolve version
-        id: ver
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Package
-        run: |
-          mkdir -p dist
-          tar -czf "dist/usagi-${{ steps.ver.outputs.version }}-${{ matrix.name }}.tar.gz" \
-            -C target/${{ matrix.target }}/release usagi
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: usagi-${{ matrix.name }}
-          path: dist/*
-
   publish:
     name: publish
-    needs: [build, build-web, build-arm]
+    needs: [build, build-web]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
