@@ -126,10 +126,8 @@ Here's what Usagi will support as it heads towards 1.0 release:
 - `usagi compile` creates exports for all target plaforms (Linux, macOS,
   Windows, and web)
 - Music playback with looping support
-- More shape primitives
 - Mouse functions and ability to hide cursor
 - Arbitrary source rectangle rendering from the spritesheet
-- Using a different font throughout as I don't love Raylib's default one
 
 ## Lua API
 
