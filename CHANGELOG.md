@@ -5,6 +5,12 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## v0.1.0-dev - UNRELEASED
 
+## v0.1.0-rc.4 - Apr 27, 2026
+
+Fixes:
+
+- sha generation command on Windows CI runner
+
 ## v0.1.0-rc.3 - Apr 27, 2026
 
 Features:
