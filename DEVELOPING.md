@@ -40,6 +40,16 @@ them for spot-checking a PR. For distribution, cut a release.
 
 ## Releases (`.github/workflows/release.yml`)
 
+### Release Prep
+
+1. Run `just ok` to ensure all checks pass
+2. Run `just examples` to verify everything is working as expected
+3. Bump `version` in `Cargo.toml` and run `cargo update -p usagi` to refresh
+   `Cargo.lock` before tagging. The tag should match the manifest version.
+4. Update CHANGELOG.md
+
+### Tagging
+
 Push a tag matching `v*` to trigger a release build:
 
 ```sh
@@ -47,16 +57,17 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
+### Publishing the Release
+
 The workflow builds release binaries on every supported target, packages them,
-and creates a GitHub Release **as a draft** with the archives attached. Review
-the auto-generated notes and assets on the Releases page, then click Publish to
+and creates a GitHub Release **as a draft** with the archives attached. Once the
+workflow finishes, there will be a draft release.
+
+Copy the Changelog notes and assets on the Releases page, then click Publish to
 make it public. Tags containing a hyphen (`v0.1.0-dev.1`) are flagged as
 prereleases following semver convention.
 
-Bump `version` in `Cargo.toml` and run `cargo update -p usagi` to refresh
-`Cargo.lock` before tagging. The tag should match the manifest version.
-
-### Release artifacts
+### Release Artifacts
 
 | File                               | Target                                  |
 | ---------------------------------- | --------------------------------------- |
@@ -65,7 +76,7 @@ Bump `version` in `Cargo.toml` and run `cargo update -p usagi` to refresh
 | `usagi-<ver>-windows-x86_64.zip`   | Windows 10+                             |
 | `usagi-<ver>-wasm.tar.gz`          | Web runtime (`usagi.js` + `usagi.wasm`) |
 
-## Build environment notes
+## Build Environment Notes
 
 - The Linux runner is `ubuntu-22.04` (glibc 2.35) for portability. Binaries
   should run on Debian 12+, RHEL 9+, Fedora, Arch, openSUSE Leap 15.4+.
