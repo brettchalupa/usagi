@@ -150,6 +150,13 @@ impl Session {
         // which requires ASYNCIFY (we deliberately don't link with it).
         #[cfg(not(target_os = "emscripten"))]
         rl.set_target_fps(60);
+        // raylib defaults Esc to quit, which is useful while iterating
+        // (`usagi dev`) but a foot-gun for shipped games where a player
+        // hitting Esc to dismiss a menu would close the game. Keep it in
+        // dev, drop it everywhere else.
+        if !dev {
+            rl.set_exit_key(None);
+        }
         let rt: RenderTexture2D = rl
             .load_render_texture(&thread, GAME_WIDTH as u32, GAME_HEIGHT as u32)
             .unwrap();
