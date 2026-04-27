@@ -17,7 +17,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # ubuntu-22.04 (glibc 2.35, gcc 11) over ubuntu-latest for the Linux
+        # build: produces a binary that hopefully runs on older distros (RHEL 9,
+        # Debian stable, etc.) and avoids a Mesa FBO regression seen with
+        # ubuntu-latest's gcc 13.3 builds on Fedora. EOL April 2027.
+        os: [ubuntu-22.04, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
 
