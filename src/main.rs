@@ -71,10 +71,11 @@ enum Command {
         /// Path to a .lua file or a directory with main.lua. Defaults to ".".
         path: Option<String>,
     },
-    /// Open the Usagi tools window (jukebox, tile picker).
+    /// Open the Usagi tools window (jukebox, tile picker). Defaults to
+    /// the current directory.
     Tools {
-        /// Optional path to the game project (dir or .lua file). Future
-        /// tools use this to locate sprites.png, sfx/, etc.
+        /// Path to the game project (dir or .lua file). Defaults to ".".
+        /// Tools use this to locate sprites.png, sfx/, etc.
         path: Option<String>,
     },
     /// Inspect or wipe the local template cache.
@@ -151,7 +152,7 @@ fn main() -> ExitCode {
         let result = match cli.command {
             Command::Run { path } => start_session(path.as_deref().unwrap_or("."), false),
             Command::Dev { path } => start_session(path.as_deref().unwrap_or("."), true),
-            Command::Tools { path } => tools::run(path.as_deref()),
+            Command::Tools { path } => tools::run(Some(path.as_deref().unwrap_or("."))),
             Command::Templates { cmd } => run_templates_cmd(cmd),
             Command::Compile {
                 path,
