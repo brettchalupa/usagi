@@ -7,11 +7,10 @@ Doesn't contain updates relating to developing the engine itself.
 
 Features:
 
-- `usagi init [path]` bootstraps a new project. Writes `main.lua` with
-  stubbed callbacks, `.luarc.json` for Lua LSP, `.gitignore`,
-  `meta/usagi.lua` (API type stubs for editor autocomplete), and
-  `USAGI.md` (engine docs). Defaults to the current directory; existing
-  files are skipped, never overwritten.
+- `usagi init [path]` bootstraps a new project. Writes `main.lua` with stubbed
+  callbacks, `.luarc.json` for Lua LSP, `.gitignore`, `meta/usagi.lua` (API type
+  stubs for editor autocomplete), and `USAGI.md` (engine docs). Defaults to the
+  current directory; existing files are skipped, never overwritten.
 
 ## v0.1.0-rc.4 - Apr 27, 2026
 
@@ -23,14 +22,14 @@ Fixes:
 
 Features:
 
-- `usagi compile` now produces every platform from any host. Default output is
+- `usagi export` produces every platform from any host. Default output is
   `export/` containing zips for linux, macos, windows, web, plus the portable
   `.usagi` bundle.
 - `--target` accepts `linux`, `macos`, `windows`, `web`, `bundle`, or `all`.
 - Runtime templates auto-fetch by version from GitHub Releases on first use,
   cache to a per-OS directory, and verify against published `sha256` sidecars
   before extracting.
-- Host platform compiles offline (fuses against the running binary, no cache
+- Host platform exports offline (fuses against the running binary, no cache
   lookup or network).
 - New flags: `--template-path` (local archive), `--template-url` (custom URL,
   useful for forks and mirrors), `--no-cache` (force re-download), `--web-shell`

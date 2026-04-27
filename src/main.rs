@@ -3,8 +3,8 @@
 //! The binary has two modes of operation:
 //!
 //! 1. **Normal mode** parses the CLI and dispatches to a subcommand
-//!    (`run` / `dev` / `tools` / `templates` / `compile`).
-//! 2. **Fused mode** (when a `usagi compile` output has appended a bundle)
+//!    (`run` / `dev` / `tools` / `templates` / `export` / `init`).
+//! 2. **Fused mode** (when a `usagi export` output has appended a bundle)
 //!    detects the bundle at startup and runs the embedded game directly,
 //!    skipping the CLI entirely. This is how shipped game binaries work.
 //!
@@ -24,11 +24,11 @@ mod session;
 mod tools;
 mod vfs;
 
-// Compile + templates aren't reachable from the wasm runtime (no CLI on
+// Export + templates aren't reachable from the wasm runtime (no CLI on
 // web) and their dep chain (ureq -> rustls -> ring) doesn't build for
 // emscripten anyway. Native-only.
 #[cfg(not(target_os = "emscripten"))]
-mod compile;
+mod export;
 #[cfg(not(target_os = "emscripten"))]
 mod init;
 #[cfg(not(target_os = "emscripten"))]
@@ -44,7 +44,7 @@ use vfs::{BundleBacked, FsBacked};
 #[cfg(not(target_os = "emscripten"))]
 use clap::{Parser, Subcommand};
 #[cfg(not(target_os = "emscripten"))]
-use compile::CompileTarget;
+use export::ExportTarget;
 
 /// Game render dimensions, in pixels. The internal RT is always this size;
 /// the window upscales to fit.
@@ -91,9 +91,9 @@ enum Command {
         #[command(subcommand)]
         cmd: TemplatesCmd,
     },
-    /// Compile a game into a shippable artifact. Defaults to the current
-    /// directory.
-    Compile {
+    /// Export a game as shippable artifacts (zips per platform + `.usagi`
+    /// bundle). Defaults to the current directory.
+    Export {
         /// Path to a .lua file or a directory with main.lua. Defaults to ".".
         path: Option<String>,
         /// Output path. Defaults to `export/` for `all`,
@@ -105,8 +105,8 @@ enum Command {
         /// `linux` / `macos` / `windows` / `web` write one platform zip.
         /// Templates auto-fetch by version on first use; override with
         /// `--template-path` or `--template-url`.
-        #[arg(long, value_enum, default_value_t = CompileTarget::All)]
-        target: CompileTarget,
+        #[arg(long, value_enum, default_value_t = ExportTarget::All)]
+        target: ExportTarget,
         /// Local template, either a release archive (`.tar.gz` for
         /// linux/macos/web, `.zip` for windows) or an already-extracted
         /// directory containing the runtime files. Pointing at the local
@@ -140,7 +140,7 @@ enum TemplatesCmd {
 }
 
 fn main() -> ExitCode {
-    // Web build: there is no CLI, no fused-exe trick, no compile mode. The
+    // Web build: there is no CLI, no fused-exe trick, no export mode. The
     // JS shell preloads the bundle at `/game.usagi` in the wasm virtual FS
     // before calling main(); the runtime then loads and runs it. See
     // `web/shell.html` and `docs/web-build.md`.
@@ -163,7 +163,7 @@ fn main() -> ExitCode {
             Command::Init { path } => init::run(path.as_deref().unwrap_or(".")),
             Command::Tools { path } => tools::run(Some(path.as_deref().unwrap_or("."))),
             Command::Templates { cmd } => run_templates_cmd(cmd),
-            Command::Compile {
+            Command::Export {
                 path,
                 output,
                 target,
@@ -171,7 +171,7 @@ fn main() -> ExitCode {
                 template_url,
                 no_cache,
                 web_shell,
-            } => compile::run(
+            } => export::run(
                 path.as_deref().unwrap_or("."),
                 output.as_deref(),
                 target,

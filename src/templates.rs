@@ -1,4 +1,4 @@
-//! Runtime templates for `usagi compile`: download or read a release
+//! Runtime templates for `usagi export`: download or read a release
 //! archive, extract it, locate the runtime files inside.
 //!
 //! Archives come from `.github/workflows/release.yml`:
@@ -64,7 +64,7 @@ impl Target {
 
     /// The target matching the currently-running binary, if it's one of
     /// the platforms shipped as a release template. Used to short-circuit
-    /// the auto-fetch path: a host-target compile fuses against the
+    /// the auto-fetch path: a host-target export fuses against the
     /// running exe and never touches the network.
     pub fn host() -> Option<Target> {
         if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
@@ -715,7 +715,7 @@ mod tests {
     }
 
     #[test]
-    fn host_matches_compile_target() {
+    fn host_matches_export_target() {
         let host = Target::host();
         if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
             assert_eq!(host, Some(Target::Linux));

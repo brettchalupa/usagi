@@ -82,8 +82,8 @@ The wasm runtime is game-agnostic. It does NOT have a game baked in via
 3. JS calls `Module.callMain([])`. Rust's `main()` on the emscripten target
    loads `/game.usagi`, builds a `BundleBacked` vfs, and runs.
 
-This is the same `.usagi` bundle format `usagi compile --bundle` produces on
-native. So the build artifacts in `target/web/` are:
+This is the same `.usagi` bundle format `usagi export --target bundle`
+produces on native. So the build artifacts in `target/web/` are:
 
 | File         | Role                                     | Game-specific? |
 | ------------ | ---------------------------------------- | -------------- |
@@ -93,23 +93,23 @@ native. So the build artifacts in `target/web/` are:
 | `game.usagi` | Bundled `main.lua` + `sprites.png` + sfx | **Yes**        |
 
 To swap games you only need to replace `game.usagi`; the other three files are
-reusable across games. That's also what makes `usagi compile --target web`
+reusable across games. That's also what makes `usagi export --target web`
 viable without an emcc rebuild on the user's machine.
 
 ## Shipping a game (to itch.io etc.)
 
-`usagi compile <path>` produces all targets at once by default:
+`usagi export <path>` produces all targets at once by default:
 
 ```sh
-usagi compile path/to/your/game
-# -> ./your_game-export/{your_game, your_game.usagi, web/}
+usagi export path/to/your/game
+# -> ./export/{your_game-linux.zip, your_game-macos.zip, your_game-windows.zip, your_game-web.zip, your_game.usagi}
 ```
 
 For just the web slice:
 
 ```sh
-usagi compile path/to/your/game --target web
-# -> ./your_game-web/  (zip and upload)
+usagi export path/to/your/game --target web
+# -> ./your_game-web.zip  (unzip and upload)
 ```
 
 The web output contains `index.html`, `usagi.js`, `usagi.wasm`, and
@@ -124,7 +124,7 @@ wasm runtime _embedded_ in the native binary at compile time. So an installed
 `usagi` produces a working `web/` from anywhere on the user's machine, no source
 checkout, no emcc, no `target/web/`.
 
-Debug builds (`cargo run -- compile ...`) skip the embed to keep dev fast, and
+Debug builds (`cargo run -- export ...`) skip the embed to keep dev fast, and
 fall back to reading `target/web/` from disk. So the dev loop in this checkout
 is:
 
@@ -169,7 +169,7 @@ just example-web spr           # rebundles examples/spr -> target/web/game.usagi
 # refresh the browser tab
 ```
 
-This works for any path that `usagi compile --bundle` accepts: a directory with
+This works for any path that `usagi export --target bundle` accepts: a directory with
 a `main.lua`, a single `.lua` file, etc. If you change something in the bundled
 game's source, rerun `just example-web <name>` and refresh.
 

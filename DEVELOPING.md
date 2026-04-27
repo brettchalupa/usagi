@@ -27,14 +27,14 @@ See `justfile` for the full list of recipes.
 
 ## Testing the Web Build Locally
 
-`usagi compile --target web` normally fetches a runtime template from the
+`usagi export --target web` normally fetches a runtime template from the
 matching release tag. On a `-dev` build there's no published release, so point
 the CLI at the locally-built runtime instead. `--template-path` accepts an
 extracted directory in addition to an archive:
 
 ```sh
 just build-web                          # one-time: build the wasm runtime
-cargo run -- compile examples/snake --target web \
+cargo run -- export examples/snake --target web \
     --template-path target/wasm32-unknown-emscripten/release
 ```
 
@@ -106,11 +106,11 @@ prereleases following semver convention.
 | `usagi-<ver>-wasm.tar.gz`          | Web runtime (`usagi.js` + `usagi.wasm` + shell.html) |
 
 Each artifact also publishes a `<file>.sha256` sidecar (sha256sum format).
-`usagi compile` fetches the sidecar alongside the archive and verifies before
+`usagi export` fetches the sidecar alongside the archive and verifies before
 extraction; mismatches fail loudly.
 
 Filenames carry the architecture so future arm/x86 splits drop in without
-renaming. `usagi compile` resolves `--target linux` to the matching artifact via
+renaming. `usagi export` resolves `--target linux` to the matching artifact via
 the URL convention `${USAGI_TEMPLATE_BASE}/v<ver>/<file>`.
 
 ### Post Release

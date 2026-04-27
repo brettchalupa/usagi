@@ -110,9 +110,9 @@ Run with:
 - `usagi run path/to/my_game` to run without live-reload.
 - `usagi tools [path]` opens the Usagi tools window (jukebox, tile picker). See
   the **Tools** section below.
-- `usagi compile path/to/my_game` packages a game for distribution: zips for
+- `usagi export path/to/my_game` packages a game for distribution: zips for
   Linux, macOS, Windows, and the web, plus a portable `.usagi` bundle. See the
-  **Compile** section below.
+  **Export** section below.
 
 While developing Usagi itself, replace `usagi` with `cargo run --` (for example
 `cargo run -- dev examples/hello_usagi.lua`).
@@ -223,8 +223,7 @@ Engine-level info.
 
 - `usagi.GAME_W`, `usagi.GAME_H` — game render dimensions (320, 180).
 - `usagi.IS_DEV` — `true` when running under `usagi dev`; `false` under
-  `usagi
-run` and inside compiled binaries. Useful for gating debug overlays,
+  `usagi run` and inside exported binaries. Useful for gating debug overlays,
   dev menus, verbose logging:
 
   ```lua
@@ -304,13 +303,13 @@ Lua code).
   stay visible regardless of palette.
 - Left click a tile to copy its 1-based index; a toast confirms the value.
 
-## Compile
+## Export
 
-`usagi compile <path>` packages a game for distribution. Default output is every
+`usagi export <path>` packages a game for distribution. Default output is every
 platform plus a portable bundle:
 
 ```
-$ usagi compile examples/snake
+$ usagi export examples/snake
 $ tree export
 export
 ├── snake-linux.zip      # Linux x86_64 fused exe
@@ -323,9 +322,9 @@ export
 Or pick one with `--target`:
 
 ```
-$ usagi compile examples/snake --target web
-$ usagi compile examples/snake --target windows
-$ usagi compile examples/snake --target bundle
+$ usagi export examples/snake --target web
+$ usagi export examples/snake --target windows
+$ usagi export examples/snake --target bundle
 ```
 
 ### Cross-platform Templates
@@ -343,10 +342,9 @@ each archive against its `sha256` sidecar before extracting.
   Releases base URL.
 
 The host platform always works offline. Linux x86_64 running
-`usagi compile
---target linux` (or the linux slice of `--target all`) fuses
+`usagi export --target linux` (or the linux slice of `--target all`) fuses
 against the running binary directly: no cache lookup, no network. First-time
-cross-compile to other platforms needs network; subsequent runs are offline.
+cross-platform export needs network; subsequent runs are offline.
 
 Override the template source explicitly:
 
@@ -358,7 +356,7 @@ Override the template source explicitly:
 ### Web Shell
 
 The web export ships a default HTML page that hosts the canvas. To use a custom
-page, drop a `shell.html` next to your script and `usagi compile` picks it up
+page, drop a `shell.html` next to your script and `usagi export` picks it up
 automatically. Override per-build with `--web-shell PATH`.
 
 ### Notes
@@ -367,7 +365,7 @@ automatically. Override per-build with `--web-shell PATH`.
   windows zip names it `<name>.exe`). The web zip is unzip-and-serve.
 - `<name>` is the project directory name (or the script's stem for flat `.lua`
   files). `-o <path>` overrides the output location.
-- Live-reload is disabled in compiled artifacts; F5 still resets state via
+- Live-reload is disabled in exported artifacts; F5 still resets state via
   `_init()`.
 - The fuse format is simple and additive: a magic footer at the end of the exe
   points back to an appended bundle. A `.usagi` file is the same bundle bytes

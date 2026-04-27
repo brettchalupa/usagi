@@ -24,9 +24,9 @@ fmt:
 tools *args:
     cargo run -- tools {{ args }}
 
-# Compile a game to a standalone executable. Example: `just compile examples/snake`.
-compile *args:
-    cargo run -- compile {{ args }}
+# Export a game to shippable artifacts. Example: `just export examples/snake`.
+export *args:
+    cargo run -- export {{ args }}
 
 [doc("""
 One-time toolchain setup for the web build: emscripten + wasm target +
@@ -67,7 +67,7 @@ build-web:
     cp web/shell.html target/web/index.html
     cp target/wasm32-unknown-emscripten/debug/usagi.wasm target/web/
     cp target/wasm32-unknown-emscripten/debug/usagi.js target/web/
-    cargo run --quiet -- compile examples/snake --target bundle -o target/web/game.usagi
+    cargo run --quiet -- export examples/snake --target bundle -o target/web/game.usagi
 
 build-web-release:
     bash -c 'set -e; \
@@ -79,7 +79,7 @@ build-web-release:
     cp web/shell.html target/web/index.html
     cp target/wasm32-unknown-emscripten/release/usagi.wasm target/web/
     cp target/wasm32-unknown-emscripten/release/usagi.js target/web/
-    cargo run --release --quiet -- compile examples/snake --target bundle -o target/web/game.usagi
+    cargo run --release --quiet -- export examples/snake --target bundle -o target/web/game.usagi
 
 [doc("""
 Rebundle target/web/game.usagi from a different example without
@@ -87,7 +87,7 @@ rebuilding the runtime. Refresh the browser tab to load the new game.
 Example: `just example-web spr`.
 """)]
 example-web name:
-    cargo run --quiet -- compile examples/{{ name }} --target bundle -o target/web/game.usagi
+    cargo run --quiet -- export examples/{{ name }} --target bundle -o target/web/game.usagi
     @echo "[usagi] target/web/game.usagi swapped to examples/{{ name }}"
 
 [doc("""
@@ -98,9 +98,9 @@ Serve target/web/ locally on port 3535. Does NOT rebuild; pair with
 serve-web:
     simple-http-server --index --nocache -p ${PORT:=3535} target/web
 
-# Smoke-test a `.usagi` bundle: compile it, then run via `usagi run`. Drops the bundle file in the cwd. Example: `just bundle snake`.
+# Smoke-test a `.usagi` bundle: export it, then run via `usagi run`. Drops the bundle file in the cwd. Example: `just bundle snake`.
 bundle name:
-    cargo run --quiet -- compile examples/{{ name }} --target bundle
+    cargo run --quiet -- export examples/{{ name }} --target bundle
     cargo run --quiet -- run {{ name }}.usagi
 
 # Release-build the usagi binary and copy it to ~/.local/bin/ for testing.

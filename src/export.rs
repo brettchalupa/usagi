@@ -1,4 +1,4 @@
-//! `usagi compile`: package a game for distribution. Resolves a runtime
+//! `usagi export`: package a game for distribution. Resolves a runtime
 //! template (cache, `--template-path`, `--template-url`, or the host
 //! binary), fuses the bundle, zips the result.
 
@@ -10,7 +10,7 @@ use clap::ValueEnum;
 use std::path::{Path, PathBuf};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
-pub enum CompileTarget {
+pub enum ExportTarget {
     /// All four platform zips plus the portable `.usagi` bundle.
     All,
     /// Portable `.usagi` bundle file (run with `usagi run`).
@@ -25,19 +25,19 @@ pub enum CompileTarget {
     Web,
 }
 
-/// Top-level entry from `Command::Compile`. Validates flag combinations,
+/// Top-level entry from `Command::Export`. Validates flag combinations,
 /// builds the bundle, then dispatches to the target-specific path.
 pub fn run(
     path_arg: &str,
     output: Option<&str>,
-    target: CompileTarget,
+    target: ExportTarget,
     template_path: Option<&str>,
     template_url: Option<&str>,
     no_cache: bool,
     web_shell: Option<&str>,
 ) -> Result<()> {
     let script_path = PathBuf::from(cli::resolve_script_path(path_arg)?);
-    // Canonicalize so `usagi compile .` from inside the project dir gives
+    // Canonicalize so `usagi export .` from inside the project dir gives
     // the dir's name, not "main" (project_name keys off the script's
     // parent, and "." has no file_name).
     let script_path = script_path.canonicalize().unwrap_or(script_path);
@@ -75,19 +75,16 @@ pub fn run(
         .unwrap_or_else(|| default_output_path(&name, target));
 
     match target {
-        CompileTarget::All => compile_all(&bundle, &name, &out_path, &opts),
-        CompileTarget::Bundle => write_bundle(&bundle, &out_path),
-        CompileTarget::Linux
-        | CompileTarget::Macos
-        | CompileTarget::Windows
-        | CompileTarget::Web => {
+        ExportTarget::All => export_all(&bundle, &name, &out_path, &opts),
+        ExportTarget::Bundle => write_bundle(&bundle, &out_path),
+        ExportTarget::Linux | ExportTarget::Macos | ExportTarget::Windows | ExportTarget::Web => {
             let target_kind = template_target.expect("validated above");
-            compile_one_target(&bundle, &name, target_kind, &opts, &out_path)
+            export_one_target(&bundle, &name, target_kind, &opts, &out_path)
         }
     }
 }
 
-/// Inputs that flow from the CLI into per-target compile steps. Grouped
+/// Inputs that flow from the CLI into per-target export steps. Grouped
 /// to keep call sites readable as the option set grows.
 struct Opts<'a> {
     template_path: Option<&'a str>,
@@ -99,7 +96,7 @@ struct Opts<'a> {
 /// Builds every cross-platform zip plus the portable `.usagi` bundle.
 /// The host target fuses against the running binary (offline); the
 /// others come from the cache, downloading on first use.
-fn compile_all(bundle: &Bundle, name: &str, out_dir: &Path, opts: &Opts) -> Result<()> {
+fn export_all(bundle: &Bundle, name: &str, out_dir: &Path, opts: &Opts) -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::Cli(format!("creating export dir {}: {e}", out_dir.display())))?;
     // --target all walks every platform via the cache; per-target archive
@@ -112,7 +109,7 @@ fn compile_all(bundle: &Bundle, name: &str, out_dir: &Path, opts: &Opts) -> Resu
     };
     for target in templates::Target::ALL {
         let zip = out_dir.join(format!("{name}-{}.zip", target.as_str()));
-        compile_one_target(bundle, name, target, &inner, &zip)?;
+        export_one_target(bundle, name, target, &inner, &zip)?;
     }
     write_bundle(bundle, &out_dir.join(format!("{name}.usagi")))?;
     println!("[usagi] export ready at {}/", out_dir.display());
@@ -123,7 +120,7 @@ fn compile_all(bundle: &Bundle, name: &str, out_dir: &Path, opts: &Opts) -> Resu
 /// archive, explicit `--template-url` download, the running binary (when
 /// `target` matches the host, no network), or the shared cache
 /// (auto-fetched by version).
-fn compile_one_target(
+fn export_one_target(
     bundle: &Bundle,
     name: &str,
     target: templates::Target,
@@ -136,7 +133,7 @@ fn compile_one_target(
         // through extract first. This is what makes local web iteration
         // ergonomic (`--template-path target/wasm32-.../release`).
         if path.is_dir() {
-            return compile_from_runtime_dir(
+            return export_from_runtime_dir(
                 bundle,
                 name,
                 path,
@@ -145,7 +142,7 @@ fn compile_one_target(
                 out_path,
             );
         }
-        return compile_from_archive(
+        return export_from_archive(
             bundle,
             name,
             path,
@@ -160,7 +157,7 @@ fn compile_one_target(
         let archive = dl.path().join(archive_name_from_url(url));
         println!("[usagi] downloading {url}");
         templates::download_with_verify(url, &archive)?;
-        return compile_from_archive(
+        return export_from_archive(
             bundle,
             name,
             &archive,
@@ -170,7 +167,7 @@ fn compile_one_target(
         );
     }
     if templates::Target::host() == Some(target) {
-        return compile_from_host_exe(bundle, name, target, out_path);
+        return export_from_host_exe(bundle, name, target, out_path);
     }
     let cache_root = templates::cache_dir()?;
     let base = templates::template_base();
@@ -181,7 +178,7 @@ fn compile_one_target(
         target,
         opts.no_cache,
     )?;
-    compile_from_runtime_dir(
+    export_from_runtime_dir(
         bundle,
         name,
         &runtime_dir,
@@ -193,7 +190,7 @@ fn compile_one_target(
 
 /// Fuses against the currently-running binary. Used when the requested
 /// target matches the host: no network, no cache lookup.
-fn compile_from_host_exe(
+fn export_from_host_exe(
     bundle: &Bundle,
     name: &str,
     target: templates::Target,
@@ -216,8 +213,8 @@ fn compile_from_host_exe(
     Ok(())
 }
 
-/// Extracts `archive` to a tempdir, then delegates to `compile_from_runtime_dir`.
-fn compile_from_archive(
+/// Extracts `archive` to a tempdir, then delegates to `export_from_runtime_dir`.
+fn export_from_archive(
     bundle: &Bundle,
     name: &str,
     archive: &Path,
@@ -235,7 +232,7 @@ fn compile_from_archive(
         .map_err(|e| Error::Cli(format!("creating template scratch dir: {e}")))?;
     let extract_dir = scratch.path().join("extracted");
     templates::extract(archive, &extract_dir)?;
-    compile_from_runtime_dir(
+    export_from_runtime_dir(
         bundle,
         name,
         &extract_dir,
@@ -249,7 +246,7 @@ fn compile_from_archive(
 /// `runtime_dir` is either a tempdir (from `--template-path`/`url`) or
 /// the shared cache dir (from auto-fetch). `web_shell_override` only
 /// applies to the web target.
-fn compile_from_runtime_dir(
+fn export_from_runtime_dir(
     bundle: &Bundle,
     name: &str,
     runtime_dir: &Path,
@@ -291,7 +288,7 @@ fn fuse_exe(bundle: &Bundle, base_exe: &Path, out_path: &Path) -> Result<()> {
         .fuse(base_exe, out_path)
         .map_err(|e| Error::Cli(format!("fusing bundle onto {}: {e}", base_exe.display())))?;
     println!(
-        "[usagi] compiled {} ({} file(s), {} bytes bundled)",
+        "[usagi] fused {} ({} file(s), {} bytes bundled)",
         out_path.display(),
         bundle.file_count(),
         bundle.total_bytes(),
@@ -334,18 +331,18 @@ fn ensure_parent(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn target_produces_web(target: CompileTarget) -> bool {
-    matches!(target, CompileTarget::All | CompileTarget::Web)
+fn target_produces_web(target: ExportTarget) -> bool {
+    matches!(target, ExportTarget::All | ExportTarget::Web)
 }
 
-/// Maps the CLI compile-target enum to the template-module enum. Returns
+/// Maps the CLI export-target enum to the template-module enum. Returns
 /// `None` for targets that don't use templates (`all`, `bundle`).
-fn template_target_for(target: CompileTarget) -> Option<templates::Target> {
+fn template_target_for(target: ExportTarget) -> Option<templates::Target> {
     match target {
-        CompileTarget::Linux => Some(templates::Target::Linux),
-        CompileTarget::Macos => Some(templates::Target::Macos),
-        CompileTarget::Windows => Some(templates::Target::Windows),
-        CompileTarget::Web => Some(templates::Target::Wasm),
+        ExportTarget::Linux => Some(templates::Target::Linux),
+        ExportTarget::Macos => Some(templates::Target::Macos),
+        ExportTarget::Windows => Some(templates::Target::Windows),
+        ExportTarget::Web => Some(templates::Target::Wasm),
         _ => None,
     }
 }
@@ -390,15 +387,15 @@ fn project_name(script_path: &Path) -> &str {
     }
 }
 
-fn default_output_path(name: &str, target: CompileTarget) -> PathBuf {
+fn default_output_path(name: &str, target: ExportTarget) -> PathBuf {
     match target {
         // Project-agnostic so one gitignore entry covers any game.
-        CompileTarget::All => PathBuf::from("export"),
-        CompileTarget::Bundle => PathBuf::from(format!("{name}.usagi")),
-        CompileTarget::Linux => PathBuf::from(format!("{name}-linux.zip")),
-        CompileTarget::Macos => PathBuf::from(format!("{name}-macos.zip")),
-        CompileTarget::Windows => PathBuf::from(format!("{name}-windows.zip")),
-        CompileTarget::Web => PathBuf::from(format!("{name}-web.zip")),
+        ExportTarget::All => PathBuf::from("export"),
+        ExportTarget::Bundle => PathBuf::from(format!("{name}.usagi")),
+        ExportTarget::Linux => PathBuf::from(format!("{name}-linux.zip")),
+        ExportTarget::Macos => PathBuf::from(format!("{name}-macos.zip")),
+        ExportTarget::Windows => PathBuf::from(format!("{name}-windows.zip")),
+        ExportTarget::Web => PathBuf::from(format!("{name}-web.zip")),
     }
 }
 
@@ -538,12 +535,12 @@ mod tests {
 
     #[test]
     fn target_produces_web_table() {
-        assert!(target_produces_web(CompileTarget::All));
-        assert!(target_produces_web(CompileTarget::Web));
-        assert!(!target_produces_web(CompileTarget::Bundle));
-        assert!(!target_produces_web(CompileTarget::Linux));
-        assert!(!target_produces_web(CompileTarget::Macos));
-        assert!(!target_produces_web(CompileTarget::Windows));
+        assert!(target_produces_web(ExportTarget::All));
+        assert!(target_produces_web(ExportTarget::Web));
+        assert!(!target_produces_web(ExportTarget::Bundle));
+        assert!(!target_produces_web(ExportTarget::Linux));
+        assert!(!target_produces_web(ExportTarget::Macos));
+        assert!(!target_produces_web(ExportTarget::Windows));
     }
 
     #[test]
