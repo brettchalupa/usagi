@@ -25,6 +25,35 @@ to install it on Fedora. `brew install emscripten` works on macOS.
 
 See `justfile` for the full list of recipes.
 
+## Testing the Web Build Locally
+
+`usagi compile --target web` normally fetches a runtime template from the
+matching release tag. On a `-dev` build there's no published release, so point
+the CLI at the locally-built runtime instead. `--template-path` accepts an
+extracted directory in addition to an archive:
+
+```sh
+just build-web                          # one-time: build the wasm runtime
+cargo run -- compile examples/snake --target web \
+    --template-path target/wasm32-unknown-emscripten/release
+```
+
+That writes `snake-web.zip` in the cwd. To run it in a browser:
+
+```sh
+unzip -d /tmp/snake-web snake-web.zip
+simple-http-server --index --nocache -p 3535 /tmp/snake-web
+# open http://localhost:3535
+```
+
+`simple-http-server` is the same server `just serve-web` uses (installed by
+`just setup-web`).
+
+`shell.html` is auto-picked up from `web/shell.html` in the source tree when
+running from the repo root, so you don't need to stage it. Pass
+`--web-shell PATH` (or drop a `shell.html` next to your script) to use a custom
+one.
+
 ## CI (`.github/workflows/ci.yml`)
 
 Runs on every push to `main` and every pull request. Three jobs:
@@ -69,12 +98,20 @@ prereleases following semver convention.
 
 ### Release Artifacts
 
-| File                               | Target                                  |
-| ---------------------------------- | --------------------------------------- |
-| `usagi-<ver>-linux-x86_64.tar.gz`  | Linux x86_64, glibc 2.35+               |
-| `usagi-<ver>-macos-aarch64.tar.gz` | macOS, Apple Silicon                    |
-| `usagi-<ver>-windows-x86_64.zip`   | Windows 10+                             |
-| `usagi-<ver>-wasm.tar.gz`          | Web runtime (`usagi.js` + `usagi.wasm`) |
+| File                               | Target                                               |
+| ---------------------------------- | ---------------------------------------------------- |
+| `usagi-<ver>-linux-x86_64.tar.gz`  | Linux x86_64, glibc 2.35+                            |
+| `usagi-<ver>-macos-aarch64.tar.gz` | macOS, Apple Silicon                                 |
+| `usagi-<ver>-windows-x86_64.zip`   | Windows 10+                                          |
+| `usagi-<ver>-wasm.tar.gz`          | Web runtime (`usagi.js` + `usagi.wasm` + shell.html) |
+
+Each artifact also publishes a `<file>.sha256` sidecar (sha256sum format).
+`usagi compile` fetches the sidecar alongside the archive and verifies before
+extraction; mismatches fail loudly.
+
+Filenames carry the architecture so future arm/x86 splits drop in without
+renaming. `usagi compile` resolves `--target linux` to the matching artifact via
+the URL convention `${USAGI_TEMPLATE_BASE}/v<ver>/<file>`.
 
 ### Post Release
 

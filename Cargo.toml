@@ -16,8 +16,32 @@ clap = { version = "4", features = ["derive"] }
 mlua = { version = "0.11", features = ["lua54", "vendored"] }
 sola-raylib = { version = "6.0" }
 
-[dev-dependencies]
+# Compile-only deps. The wasm runtime never reaches `usagi compile`
+# (there's no CLI on web), and `ureq`'s rustls dep transitively pulls in
+# `ring`, which doesn't build for wasm32-unknown-emscripten. Gating the
+# whole compile+templates dep chain keeps the wasm build green and the
+# wasm binary smaller.
+[target.'cfg(not(target_os = "emscripten"))'.dependencies]
+# Archive extraction for `usagi compile --template-path`. Pure-Rust gzip
+# (no system zlib needed); zip with only the deflate codec to keep size
+# down. `tempfile` is also used at runtime to extract templates into a
+# scratch dir.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+tar = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate", "time"] }
+# `time` for converting std SystemTime mtimes into zip's DateTime when
+# stamping zip entries. The zip crate exposes its own DateTime type but
+# it only takes time::OffsetDateTime for std-compatible conversions.
+time = { version = "0.3", default-features = false, features = ["std"] }
 tempfile = "3"
+# HTTP fetcher for `usagi compile --template-url`. Sync (no tokio) and
+# rustls-only (no system openssl). Default features are heavy (cookies,
+# brotli, json, etc.) and we don't need any of them.
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+# Per-OS cache directory resolver for runtime templates.
+directories = "6"
+# SHA-256 verification of downloaded templates against published sidecars.
+sha2 = "0.10"
 
 # Smaller binaries on all targets. Cargo automatically uses panic=unwind
 # for the test profile so `cargo test` is unaffected. Note this does NOT

@@ -61,16 +61,18 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          tar -czf "dist/usagi-${{ steps.ver.outputs.version }}-${{ matrix.name }}.tar.gz" \
-            -C target/release "usagi${{ matrix.ext }}"
+          archive="usagi-${{ steps.ver.outputs.version }}-${{ matrix.name }}.tar.gz"
+          tar -czf "dist/$archive" -C target/release "usagi${{ matrix.ext }}"
+          (cd dist && shasum -a 256 "$archive" > "$archive.sha256")
 
       - name: Package (zip)
         if: matrix.archive == 'zip'
         shell: bash
         run: |
           mkdir -p dist
-          7z a -tzip "dist/usagi-${{ steps.ver.outputs.version }}-${{ matrix.name }}.zip" \
-            "./target/release/usagi${{ matrix.ext }}"
+          archive="usagi-${{ steps.ver.outputs.version }}-${{ matrix.name }}.zip"
+          7z a -tzip "dist/$archive" "./target/release/usagi${{ matrix.ext }}"
+          (cd dist && shasum -a 256 "$archive" > "$archive.sha256")
 
       - uses: actions/upload-artifact@v4
         with:
@@ -107,10 +109,16 @@ jobs:
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Package
+        # Bundle shell.html alongside the wasm runtime so `usagi compile
+        # --target wasm` against a downloaded template has every file it
+        # needs without falling back to anywhere else.
         run: |
           mkdir -p dist
-          tar -czf "dist/usagi-${{ steps.ver.outputs.version }}-wasm.tar.gz" \
-            -C target/wasm32-unknown-emscripten/release usagi.js usagi.wasm
+          archive="usagi-${{ steps.ver.outputs.version }}-wasm.tar.gz"
+          cp web/shell.html target/wasm32-unknown-emscripten/release/
+          tar -czf "dist/$archive" \
+            -C target/wasm32-unknown-emscripten/release usagi.js usagi.wasm shell.html
+          (cd dist && shasum -a 256 "$archive" > "$archive.sha256")
 
       - uses: actions/upload-artifact@v4
         with:
