@@ -63,11 +63,6 @@ Bump `version` in `Cargo.toml` and run `cargo update -p usagi` to refresh
 
 ## Build environment notes
 
-- The Linux runner is `ubuntu-22.04` (glibc 2.35) for portability. Binaries run
-  on Debian 12+, RHEL 9+, Fedora, Arch, openSUSE Leap 15.4+. Migrate before
-  April 2027 (22.04 EOL). For older distros (RHEL 8, etc.) the path forward is a
-  manylinux2014 container.
-- `macos-latest` is Apple Silicon. No Intel mac binary is produced; `macos-13`
-  is the last hosted Intel runner and GitHub will retire it before too long.
-- Caching: `Swatinem/rust-cache@v2` per matrix entry, plus
-  `mymindstorm/setup-emsdk` caches the emsdk install for the wasm job.
+- The Linux runner is `ubuntu-22.04` (glibc 2.35) for portability. Binaries
+  should run on Debian 12+, RHEL 9+, Fedora, Arch, openSUSE Leap 15.4+.
+- `macos-latest` is Apple Silicon. No Intel mac binary is produced.
