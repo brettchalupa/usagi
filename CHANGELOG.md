@@ -3,6 +3,8 @@
 History of Usagi releases and what changed in each release. User-facing notes.
 Doesn't contain updates relating to developing the engine itself.
 
+## v0.1.0-dev.3 - UNRELEASED
+
 ## v0.1.0-dev.2 - Apr 27, 2026
 
 Features:
