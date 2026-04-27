@@ -163,7 +163,11 @@ Drawing. Positions are in game-space pixels (320×180). Colors are palette
 indices 0-15; use the named constants.
 
 - `gfx.clear(color)` — fill the screen.
-- `gfx.rect(x, y, w, h, color)` — filled rectangle.
+- `gfx.rect(x, y, w, h, color)` — rectangle outline.
+- `gfx.rect_fill(x, y, w, h, color)` — filled rectangle.
+- `gfx.circ(x, y, r, color)` — circle outline centered at `(x, y)`.
+- `gfx.circ_fill(x, y, r, color)` — filled circle centered at `(x, y)`.
+- `gfx.line(x1, y1, x2, y2, color)` — line from `(x1, y1)` to `(x2, y2)`.
 - `gfx.text(text, x, y, color)` — default font, 8px tall.
 - `gfx.spr(index, x, y)` — draw the 16×16 sprite at `index` (1 = top-left) from
   `sprites.png`.

@@ -217,6 +217,22 @@ mod tests {
                 scope.create_function(|_, _a: (f32, f32, f32, f32, i32)| Ok(()))?,
             )?;
             gfx.set(
+                "rect_fill",
+                scope.create_function(|_, _a: (f32, f32, f32, f32, i32)| Ok(()))?,
+            )?;
+            gfx.set(
+                "circ",
+                scope.create_function(|_, _a: (f32, f32, f32, i32)| Ok(()))?,
+            )?;
+            gfx.set(
+                "circ_fill",
+                scope.create_function(|_, _a: (f32, f32, f32, i32)| Ok(()))?,
+            )?;
+            gfx.set(
+                "line",
+                scope.create_function(|_, _a: (f32, f32, f32, f32, i32)| Ok(()))?,
+            )?;
+            gfx.set(
                 "text",
                 scope.create_function(|_, _a: (String, f32, f32, i32)| Ok(()))?,
             )?;
@@ -236,6 +252,10 @@ mod tests {
                 r#"
                 gfx.clear(gfx.COLOR_BLACK)
                 gfx.rect(10, 20, 30, 40, gfx.COLOR_RED)
+                gfx.rect_fill(10, 20, 30, 40, gfx.COLOR_BLUE)
+                gfx.circ(50, 50, 8, gfx.COLOR_GREEN)
+                gfx.circ_fill(60, 60, 4, gfx.COLOR_YELLOW)
+                gfx.line(0, 0, 100, 100, gfx.COLOR_WHITE)
                 gfx.text("hi", 0, 0, gfx.COLOR_WHITE)
                 gfx.spr(1, usagi.GAME_W / 2, usagi.GAME_H / 2)
                 assert(type(input.pressed(input.LEFT)) == "boolean")

@@ -49,6 +49,28 @@ function gfx.rect(x, y, w, h, color) end
 ---@param color  integer  a gfx.COLOR_* constant
 function gfx.rect_fill(x, y, w, h, color) end
 
+---Draws a circle outline centered at (x, y).
+---@param x      number
+---@param y      number
+---@param r      number  radius in pixels
+---@param color  integer  a gfx.COLOR_* constant
+function gfx.circ(x, y, r, color) end
+
+---Draws a filled circle centered at (x, y).
+---@param x      number
+---@param y      number
+---@param r      number  radius in pixels
+---@param color  integer  a gfx.COLOR_* constant
+function gfx.circ_fill(x, y, r, color) end
+
+---Draws a line from (x1, y1) to (x2, y2).
+---@param x1     number
+---@param y1     number
+---@param x2     number
+---@param y2     number
+---@param color  integer  a gfx.COLOR_* constant
+function gfx.line(x1, y1, x2, y2, color) end
+
 ---Draws a 16×16 sprite from the loaded sheet at (x, y). The sheet is
 ---`sprites.png` next to the game's main .lua; indices run left-to-right,
 ---top-to-bottom. Alpha-channel pixels render as transparent.

@@ -386,6 +386,37 @@ impl Session {
                             Ok(())
                         },
                     )?;
+                    let circ = scope.create_function(|_, (x, y, r, c): (f32, f32, f32, i32)| {
+                        d_rt_cell.borrow_mut().draw_circle_lines(
+                            x.round() as i32,
+                            y.round() as i32,
+                            r,
+                            palette(c),
+                        );
+                        Ok(())
+                    })?;
+                    let circ_fill =
+                        scope.create_function(|_, (x, y, r, c): (f32, f32, f32, i32)| {
+                            d_rt_cell.borrow_mut().draw_circle(
+                                x.round() as i32,
+                                y.round() as i32,
+                                r,
+                                palette(c),
+                            );
+                            Ok(())
+                        })?;
+                    let line = scope.create_function(
+                        |_, (x1, y1, x2, y2, c): (f32, f32, f32, f32, i32)| {
+                            d_rt_cell.borrow_mut().draw_line(
+                                x1.round() as i32,
+                                y1.round() as i32,
+                                x2.round() as i32,
+                                y2.round() as i32,
+                                palette(c),
+                            );
+                            Ok(())
+                        },
+                    )?;
                     let spr = scope.create_function(|_, (idx, x, y): (i32, f32, f32)| {
                         // 1-based indexing to match Lua conventions.
                         if idx < 1 {
@@ -420,6 +451,9 @@ impl Session {
                     gfx_tbl.set("text", text)?;
                     gfx_tbl.set("rect", rect)?;
                     gfx_tbl.set("rect_fill", rect_fill)?;
+                    gfx_tbl.set("circ", circ)?;
+                    gfx_tbl.set("circ_fill", circ_fill)?;
+                    gfx_tbl.set("line", line)?;
                     gfx_tbl.set("spr", spr)?;
 
                     let sfx_tbl: LuaTable = lua.globals().get("sfx")?;

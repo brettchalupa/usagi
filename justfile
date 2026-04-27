@@ -111,6 +111,7 @@ example name:
 
 examples:
     just example hello_usagi
+    just example shapes
     just example input
     just example input_test
     just example spr

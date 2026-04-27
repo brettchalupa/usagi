@@ -5,6 +5,14 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## v0.1.0-dev.2 - UNRELEASED
 
+Features:
+
+- `gfx.rect` now draws a rectangle outline; use `gfx.rect_fill` for the
+  filled variant
+- `gfx.circ(x, y, r, color)` — circle outline
+- `gfx.circ_fill(x, y, r, color)` — filled circle
+- `gfx.line(x1, y1, x2, y2, color)` — line
+
 Fixes:
 
 - Properly exit games with `0` status, don't segfault on close
