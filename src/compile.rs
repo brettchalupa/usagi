@@ -478,7 +478,8 @@ fn exec_mode_of(_path: &Path) -> u32 {
 fn entry_modified_time(path: &Path) -> Option<zip::DateTime> {
     let mtime = std::fs::metadata(path).ok()?.modified().ok()?;
     let odt = time::OffsetDateTime::from(mtime);
-    zip::DateTime::try_from(odt).ok()
+    let pdt = time::PrimitiveDateTime::new(odt.date(), odt.time());
+    zip::DateTime::try_from(pdt).ok()
 }
 
 #[cfg(test)]

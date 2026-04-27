@@ -308,7 +308,8 @@ pub fn verify_sha256(path: &Path, expected_hex: &str) -> Result<()> {
         }
         hasher.update(&buf[..n]);
     }
-    let actual = format!("{:x}", hasher.finalize());
+    let digest = hasher.finalize();
+    let actual: String = digest.iter().map(|b| format!("{b:02x}")).collect();
     if actual != expected_hex.to_ascii_lowercase() {
         return Err(Error::Cli(format!(
             "sha256 mismatch for {}: expected {expected_hex}, got {actual}",
@@ -460,7 +461,10 @@ mod tests {
 
     fn sha256_hex(bytes: &[u8]) -> String {
         use sha2::{Digest, Sha256};
-        format!("{:x}", Sha256::digest(bytes))
+        Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
     }
 
     /// Spins up a one-shot HTTP/1.1 server on 127.0.0.1, accepts a single

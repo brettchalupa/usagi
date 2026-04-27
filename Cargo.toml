@@ -28,7 +28,7 @@ sola-raylib = { version = "6.0" }
 # scratch dir.
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 tar = "0.4"
-zip = { version = "2", default-features = false, features = ["deflate", "time"] }
+zip = { version = "8", default-features = false, features = ["deflate", "time"] }
 # `time` for converting std SystemTime mtimes into zip's DateTime when
 # stamping zip entries. The zip crate exposes its own DateTime type but
 # it only takes time::OffsetDateTime for std-compatible conversions.
@@ -41,7 +41,7 @@ ureq = { version = "3", default-features = false, features = ["rustls"] }
 # Per-OS cache directory resolver for runtime templates.
 directories = "6"
 # SHA-256 verification of downloaded templates against published sidecars.
-sha2 = "0.10"
+sha2 = "0.11"
 
 # Smaller binaries on all targets. Cargo automatically uses panic=unwind
 # for the test profile so `cargo test` is unaffected. Note this does NOT
