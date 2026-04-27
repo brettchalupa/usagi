@@ -25,9 +25,6 @@ You can also install Usagi with `cargo` if you have
 cargo install --git https://github.com/brettchalupa/usagi.git
 ```
 
-**NOTE:** the Windows build and installing via `cargo` don't support the web
-target with `usagi compile` yet.
-
 _More ways of installing Usagi will be added in the future._
 
 ## Hello, Usagi
@@ -92,9 +89,9 @@ Run with:
 - `usagi run path/to/my_game` to run without live-reload.
 - `usagi tools [path]` opens the Usagi tools window (jukebox, tile picker). See
   the **Tools** section below.
-- `usagi compile path/to/my_game` produces a standalone executable for the host
-  platform with the game's script, sprites, and sfx fused into the binary. No
-  Usagi install needed to run the output. See the **Compile** section below.
+- `usagi compile path/to/my_game` packages a game for distribution: zips for
+  Linux, macOS, Windows, and the web, plus a portable `.usagi` bundle. See the
+  **Compile** section below.
 
 While developing Usagi itself, replace `usagi` with `cargo run --` (for example
 `cargo run -- dev examples/hello_usagi.lua`).
@@ -123,8 +120,6 @@ editor could be nice in the future as part of the `usagi tools`.
 
 Here's what Usagi will support as it heads towards 1.0 release:
 
-- `usagi compile` creates exports for all target plaforms (Linux, macOS,
-  Windows, and web)
 - Music playback with looping support
 - Mouse functions and ability to hide cursor
 - Arbitrary source rectangle rendering from the spritesheet
@@ -237,8 +232,8 @@ progress.
 - `_init()` is **not** called on a save-triggered reload.
 - Press **F5** (or **Ctrl+R** / **Cmd+R**) for a hard reset: Usagi runs
   `_init()` to reinitialize state.
-- Press **~** (grave/tilde) to toggle the FPS overlay. On by default in `dev`,
-  off in `run`.
+- Press **~** (grave/tilde) to toggle the FPS overlay. Hidden by default in
+  `dev`.
 - Press **Alt+Enter** to toggle borderless fullscreen.
 
 ### Writing Reload-Friendly Scripts
@@ -290,56 +285,72 @@ Lua code).
 
 ## Compile
 
-`usagi compile <path>` packages a game for distribution. **NOTE:** `compile`
-will be improved soon to support cross-platform compilation. Right now it only
-supports compiling for the current operating system. Web builds won't work
-unless you install Usagi from source and follow the Web Builds section below. By
-default it produces all artifacts in one export directory:
+`usagi compile <path>` packages a game for distribution. Default output is every
+platform plus a portable bundle:
 
 ```
 $ usagi compile examples/snake
-[usagi] compiled snake-export/snake (3 file(s), 37125 bytes bundled)
-[usagi] wrote snake-export/snake.usagi (3 file(s), 37125 bytes)
-[usagi] wrote snake-export/web/ (3 game file(s), 37125 bundle bytes; runtime from embedded)
-[usagi] export ready at snake-export/
-
 $ tree snake-export
 snake-export
-├── snake             # native fused executable (./snake to run)
-├── snake.usagi       # portable bundle (usagi run snake.usagi)
-└── web/              # zip and upload to itch.io
-    ├── index.html
-    ├── usagi.{js,wasm}
-    └── game.usagi
+├── snake-linux.zip      # Linux x86_64 fused exe
+├── snake-macos.zip      # macOS arm64 fused exe
+├── snake-windows.zip    # Windows x86_64 fused exe
+├── snake-web.zip        # web export: index.html + usagi.{js,wasm} + game.usagi
+└── snake.usagi          # portable bundle (usagi run snake.usagi)
 ```
 
-Or pick one with `--target {all,exe,bundle,web}`:
+Or pick one with `--target`:
 
 ```
-$ usagi compile examples/snake --target bundle
 $ usagi compile examples/snake --target web
-$ usagi compile examples/snake --target exe
+$ usagi compile examples/snake --target windows
+$ usagi compile examples/snake --target bundle
 ```
 
-Notes:
+### Cross-platform Templates
 
-- Output defaults: `./<name>-export/` for `all`, `./<name>` for `exe`,
-  `./<name>.usagi` for `bundle`, `./<name>-web/` for `web`. `<name>` is the
-  project directory name (or the script's stem for flat `.lua` files).
-  `-o <path>` overrides.
-- A fused exe is cross-platform only insofar as the Usagi binary that produced
-  it is: a Linux `usagi` produces a Linux executable, a Windows one produces a
-  `.exe`, etc. `.usagi` bundles are platform-agnostic.
-- `--target web` (and the `web/` slice of `--target all`) needs the wasm
-  runtime. **Release builds of `usagi` embed it at compile time**, so an
-  installed `usagi` Just Works. Debug builds (`cargo run`) fall back to reading
-  the runtime from `target/web/`. See [docs/web-build.md](docs/web-build.md) for
-  the build dance.
+Non-host platforms come from "runtime templates" published alongside each
+release. The CLI fetches them on first use, caches them per-OS, and verifies
+each archive against its `sha256` sidecar before extracting.
+
+- **Cache**: Linux `~/.cache/usagi/templates/`, macOS
+  `~/Library/Caches/com.usagiengine.usagi/templates/`, Windows
+  `%LOCALAPPDATA%\usagiengine\usagi\cache\templates\`.
+- **Inspect / wipe**: `usagi templates list`, `usagi templates clear`.
+- **Force re-download**: `--no-cache`.
+- **Mirror or fork**: set `USAGI_TEMPLATE_BASE` to override the default GitHub
+  Releases base URL.
+
+The host platform always works offline. Linux x86_64 running
+`usagi compile
+--target linux` (or the linux slice of `--target all`) fuses
+against the running binary directly: no cache lookup, no network. First-time
+cross-compile to other platforms needs network; subsequent runs are offline.
+
+Override the template source explicitly:
+
+- `--template-path PATH/TO/usagi-<ver>-<os>.{tar.gz|zip}` to point at a local
+  archive. Skips verification and the cache.
+- `--template-url https://example.com/usagi-...` to fetch from an arbitrary URL.
+  Verification still runs (the URL must have a sibling `.sha256`).
+
+### Web Shell
+
+The web export ships a default HTML page that hosts the canvas. To use a custom
+page, drop a `shell.html` next to your script and `usagi compile` picks it up
+automatically. Override per-build with `--web-shell PATH`.
+
+### Notes
+
+- Native zips contain a single fused executable named after the project (the
+  windows zip names it `<name>.exe`). The web zip is unzip-and-serve.
+- `<name>` is the project directory name (or the script's stem for flat `.lua`
+  files). `-o <path>` overrides the output location.
 - Live-reload is disabled in compiled artifacts; F5 still resets state via
   `_init()`.
 - The fuse format is simple and additive: a magic footer at the end of the exe
   points back to an appended bundle. A `.usagi` file is the same bundle bytes
-  without the footer.
+  without the footer; it runs on any platform via `usagi run`.
 
 ## Web Builds
 
