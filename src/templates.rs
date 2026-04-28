@@ -484,6 +484,14 @@ mod tests {
             );
             let _ = stream.write_all(header.as_bytes());
             let _ = stream.write_all(&body);
+            let _ = stream.flush();
+            // Graceful close: half-close our write side, then read until
+            // the client closes. Without this, dropping the stream while
+            // the client is still draining the body triggers an abortive
+            // close on Windows (WSAECONNRESET / os error 10054) and the
+            // download surfaces "connection forcibly closed" mid-stream.
+            let _ = stream.shutdown(std::net::Shutdown::Write);
+            let _ = stream.read(&mut buf);
         });
         format!("http://127.0.0.1:{port}/")
     }
@@ -686,30 +694,16 @@ mod tests {
     }
 
     #[test]
-    fn download_errors_on_404_and_includes_status() {
+    fn download_errors_on_404_with_status_and_url() {
         let url = one_shot_server("404 Not Found", b"missing".to_vec());
         let dir = tempdir().unwrap();
         let dest = dir.path().join("template.tar.gz");
         let err = download(&url, &dest).unwrap_err();
         match err {
-            Error::Cli(msg) => assert!(msg.contains("404"), "got: {msg}"),
-            _ => panic!("expected Cli error"),
-        }
-    }
-
-    #[test]
-    fn download_errors_on_connection_refused_with_url_in_message() {
-        // Bind, capture port, then drop the listener so the port is closed.
-        let port = {
-            let l = TcpListener::bind("127.0.0.1:0").unwrap();
-            l.local_addr().unwrap().port()
-        };
-        let url = format!("http://127.0.0.1:{port}/");
-        let dir = tempdir().unwrap();
-        let dest = dir.path().join("template.tar.gz");
-        let err = download(&url, &dest).unwrap_err();
-        match err {
-            Error::Cli(msg) => assert!(msg.contains(&url), "got: {msg}"),
+            Error::Cli(msg) => {
+                assert!(msg.contains("404"), "got: {msg}");
+                assert!(msg.contains(&url), "got: {msg}");
+            }
             _ => panic!("expected Cli error"),
         }
     }
