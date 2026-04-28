@@ -21,6 +21,14 @@ pub trait VirtualFs {
     fn read_sfx(&self, stem: &str) -> Option<Vec<u8>>;
     fn sfx_manifest(&self) -> HashMap<String, SystemTime>;
 
+    /// Returns `(stem, ext)` for every recognized music file in the
+    /// project's `music/` dir. ext is the lower-cased extension
+    /// without the dot — the format raylib's `LoadMusicStreamFromMemory`
+    /// expects (e.g. `("invincible", "ogg")`).
+    fn music_entries(&self) -> Vec<(String, String)>;
+    fn read_music(&self, stem: &str, ext: &str) -> Option<Vec<u8>>;
+    fn music_manifest(&self) -> HashMap<String, SystemTime>;
+
     /// Resolves a Lua module name (e.g. `"enemies"` or `"world.tiles"`) to
     /// `(bytes, chunk_name)`. Tries `name.lua` first, then `name/init.lua`,
     /// matching stock Lua's `?.lua;?/init.lua` convention. The chunk name is
@@ -64,6 +72,15 @@ pub(crate) fn is_meta_chunk(bytes: &[u8]) -> bool {
     }
     false
 }
+
+/// File extensions accepted in the `music/` directory. raylib's
+/// `LoadMusicStreamFromMemory` reads the type tag (".ogg", ".mp3", etc.)
+/// to pick a decoder. OGG is the safest format for cross-platform
+/// shipping since the emscripten build explicitly enables `USE_OGG=1`
+/// and `USE_VORBIS=1`; the others rely on raylib's bundled header-only
+/// parsers (dr_wav, dr_mp3, dr_flac) which do work on web but get less
+/// testing in the emscripten path.
+pub(crate) const MUSIC_EXTS: &[&str] = &["ogg", "mp3", "wav", "flac"];
 
 /// Translates a dotted Lua module name into the relative paths that should
 /// be checked, in order. Returns None for names that contain path
@@ -129,6 +146,10 @@ impl FsBacked {
     fn sfx_dir(&self) -> PathBuf {
         self.root.join("sfx")
     }
+
+    fn music_dir(&self) -> PathBuf {
+        self.root.join("music")
+    }
 }
 
 impl VirtualFs for FsBacked {
@@ -186,6 +207,59 @@ impl VirtualFs for FsBacked {
         for entry in entries.flatten() {
             let p = entry.path();
             if p.extension().and_then(|s| s.to_str()) != Some("wav") {
+                continue;
+            }
+            let Some(stem) = p.file_stem().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            let Ok(mtime) = entry.metadata().and_then(|m| m.modified()) else {
+                continue;
+            };
+            out.insert(stem.to_string(), mtime);
+        }
+        out
+    }
+
+    fn music_entries(&self) -> Vec<(String, String)> {
+        let Ok(entries) = std::fs::read_dir(self.music_dir()) else {
+            return Vec::new();
+        };
+        entries
+            .flatten()
+            .filter_map(|e| {
+                let p = e.path();
+                let ext = p
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .map(str::to_ascii_lowercase)?;
+                if !MUSIC_EXTS.contains(&ext.as_str()) {
+                    return None;
+                }
+                let stem = p.file_stem().and_then(|s| s.to_str())?.to_string();
+                Some((stem, ext))
+            })
+            .collect()
+    }
+
+    fn read_music(&self, stem: &str, ext: &str) -> Option<Vec<u8>> {
+        std::fs::read(self.music_dir().join(format!("{stem}.{ext}"))).ok()
+    }
+
+    fn music_manifest(&self) -> HashMap<String, SystemTime> {
+        let Ok(entries) = std::fs::read_dir(self.music_dir()) else {
+            return HashMap::new();
+        };
+        let mut out = HashMap::new();
+        for entry in entries.flatten() {
+            let p = entry.path();
+            let Some(ext) = p
+                .extension()
+                .and_then(|s| s.to_str())
+                .map(str::to_ascii_lowercase)
+            else {
+                continue;
+            };
+            if !MUSIC_EXTS.contains(&ext.as_str()) {
                 continue;
             }
             let Some(stem) = p.file_stem().and_then(|s| s.to_str()) else {
@@ -283,6 +357,32 @@ impl VirtualFs for BundleBacked {
     }
 
     fn sfx_manifest(&self) -> HashMap<String, SystemTime> {
+        HashMap::new()
+    }
+
+    fn music_entries(&self) -> Vec<(String, String)> {
+        self.bundle
+            .names()
+            .filter_map(|name| {
+                let rel = name.strip_prefix("music/")?;
+                let dot = rel.rfind('.')?;
+                let stem = &rel[..dot];
+                let ext = rel[dot + 1..].to_ascii_lowercase();
+                if !MUSIC_EXTS.contains(&ext.as_str()) {
+                    return None;
+                }
+                Some((stem.to_string(), ext))
+            })
+            .collect()
+    }
+
+    fn read_music(&self, stem: &str, ext: &str) -> Option<Vec<u8>> {
+        self.bundle
+            .get(&format!("music/{stem}.{ext}"))
+            .map(<[u8]>::to_vec)
+    }
+
+    fn music_manifest(&self) -> HashMap<String, SystemTime> {
         HashMap::new()
     }
 

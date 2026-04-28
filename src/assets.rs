@@ -241,6 +241,136 @@ impl<'a> SfxLibrary<'a> {
     }
 }
 
+/// Owns the loaded music streams and tracks which one (if any) is
+/// currently playing. raylib's music streams are decoded incrementally,
+/// so `update` MUST run every frame to refill the audio buffer — the
+/// session loop calls it from `frame()`. Lifetime is tied to
+/// `RaylibAudio`.
+pub struct MusicLibrary<'a> {
+    tracks: HashMap<String, Music<'a>>,
+    manifest: HashMap<String, SystemTime>,
+    /// Stem of the track that's currently playing, if any. Used by
+    /// `update` to know which stream to refill, and by `play` / `loop_`
+    /// to know what to stop before starting a new one.
+    current: Option<String>,
+}
+
+impl<'a> MusicLibrary<'a> {
+    pub fn empty() -> Self {
+        Self {
+            tracks: HashMap::new(),
+            manifest: HashMap::new(),
+            current: None,
+        }
+    }
+
+    pub fn load(audio: &'a RaylibAudio, vfs: &dyn VirtualFs) -> Self {
+        let mut tracks = HashMap::new();
+        for (stem, ext) in vfs.music_entries() {
+            let Some(bytes) = vfs.read_music(&stem, &ext) else {
+                continue;
+            };
+            // raylib's `LoadMusicStreamFromMemory` stores a raw pointer
+            // to the input buffer (stb_vorbis_open_memory, dr_mp3,
+            // dr_flac all do this) and reads from it on every
+            // `UpdateMusicStream` call. It does not copy the data
+            // up front. Dropping `bytes` here would dangle that
+            // pointer, the decoder would return 0 frames forever, and
+            // raylib's refill loop would spin holding the audio mutex.
+            // Leak to give the bytes program lifetime; the data would
+            // have lived this long anyway since music plays for the
+            // lifetime of the session.
+            let leaked: &'static [u8] = Box::leak(bytes.into_boxed_slice());
+            let type_tag = format!(".{ext}");
+            match audio.new_music_from_memory(&type_tag, leaked) {
+                Ok(music) => {
+                    tracks.insert(stem, music);
+                }
+                Err(e) => eprintln!("[usagi] failed to load music '{stem}.{ext}': {e}"),
+            }
+        }
+        Self {
+            tracks,
+            manifest: vfs.music_manifest(),
+            current: None,
+        }
+    }
+
+    /// Returns true if the library was rebuilt this call. Stops any
+    /// currently-playing track on rebuild — its `Music` handle is
+    /// about to be dropped.
+    pub fn reload_if_changed(&mut self, audio: &'a RaylibAudio, vfs: &dyn VirtualFs) -> bool {
+        let new_manifest = vfs.music_manifest();
+        if new_manifest == self.manifest {
+            return false;
+        }
+        // Drop current first so the underlying Music value unloads
+        // cleanly before we replace the library.
+        self.current = None;
+        *self = Self::load(audio, vfs);
+        true
+    }
+
+    /// Plays `name` once. If another track is playing it stops first.
+    /// Unknown names silently no-op, matching `sfx.play`.
+    pub fn play(&mut self, name: &str) {
+        self.start(name, false);
+    }
+
+    /// Plays `name` and loops it forever. If another track is playing
+    /// it stops first.
+    pub fn loop_(&mut self, name: &str) {
+        self.start(name, true);
+    }
+
+    fn start(&mut self, name: &str, looping: bool) {
+        if !self.tracks.contains_key(name) {
+            return;
+        }
+        // Stop whatever was playing — even if it's the same track
+        // the user is asking to (re)start.
+        if let Some(current) = self.current.take()
+            && let Some(track) = self.tracks.get(&current)
+        {
+            track.stop_stream();
+        }
+        let Some(track) = self.tracks.get_mut(name) else {
+            return;
+        };
+        // raylib has no `SetMusicLooping` function — the `looping`
+        // field on the Music struct is read directly at end-of-stream.
+        // sola-raylib's `Music` derefs to `ffi::Music` via `AsMut`.
+        track.as_mut().looping = looping;
+        track.play_stream();
+        self.current = Some(name.to_string());
+    }
+
+    pub fn stop(&mut self) {
+        if let Some(current) = self.current.take()
+            && let Some(track) = self.tracks.get(&current)
+        {
+            track.stop_stream();
+        }
+    }
+
+    /// Drives the active stream's audio buffer. raylib needs this
+    /// every frame or playback drops out; cheap no-op when nothing's
+    /// playing.
+    pub fn update(&mut self) {
+        let Some(name) = self.current.as_deref() else {
+            return;
+        };
+        let Some(track) = self.tracks.get_mut(name) else {
+            return;
+        };
+        track.update_stream();
+    }
+
+    pub fn len(&self) -> usize {
+        self.tracks.len()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

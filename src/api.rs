@@ -46,6 +46,9 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     let sfx = lua.create_table()?;
     lua.globals().set("sfx", sfx)?;
 
+    let music = lua.create_table()?;
+    lua.globals().set("music", music)?;
+
     // `gfx` / `input` are top-level globals (see above). The `usagi` table is
     // reserved for engine-level info: runtime constants, current frame stats,
     // etc. Not a namespace for the per-domain APIs.
@@ -98,6 +101,7 @@ mod tests {
         let gfx: LuaTable = lua.globals().get("gfx").unwrap();
         let input: LuaTable = lua.globals().get("input").unwrap();
         let sfx: LuaTable = lua.globals().get("sfx").unwrap();
+        let music: LuaTable = lua.globals().get("music").unwrap();
         let usagi: LuaTable = lua.globals().get("usagi").unwrap();
 
         assert_eq!(gfx.get::<i32>("COLOR_BLACK").unwrap(), 0);
@@ -111,8 +115,13 @@ mod tests {
         assert!(input.get::<u32>("BTN2").is_ok());
         assert!(input.get::<u32>("BTN3").is_ok());
 
-        // sfx is registered but empty of fields at static-setup time.
+        // sfx and music are registered but empty of fields at
+        // static-setup time — their per-frame closures live in the
+        // session loop.
         assert!(sfx.get::<LuaValue>("play").unwrap().is_nil());
+        assert!(music.get::<LuaValue>("play").unwrap().is_nil());
+        assert!(music.get::<LuaValue>("loop").unwrap().is_nil());
+        assert!(music.get::<LuaValue>("stop").unwrap().is_nil());
 
         assert_eq!(usagi.get::<f32>("GAME_W").unwrap(), GAME_WIDTH);
         assert_eq!(usagi.get::<f32>("GAME_H").unwrap(), GAME_HEIGHT);
@@ -280,6 +289,11 @@ mod tests {
             let sfx: LuaTable = lua.globals().get("sfx")?;
             sfx.set("play", scope.create_function(|_, _n: String| Ok(()))?)?;
 
+            let music: LuaTable = lua.globals().get("music")?;
+            music.set("play", scope.create_function(|_, _n: String| Ok(()))?)?;
+            music.set("loop", scope.create_function(|_, _n: String| Ok(()))?)?;
+            music.set("stop", scope.create_function(|_, ()| Ok(()))?)?;
+
             lua.load(
                 r#"
                 gfx.clear(gfx.COLOR_BLACK)
@@ -302,6 +316,9 @@ mod tests {
                 assert(type(input.pressed(input.BTN2)) == "boolean")
                 assert(type(input.pressed(input.BTN3)) == "boolean")
                 sfx.play("missing")
+                music.play("missing")
+                music.loop("missing")
+                music.stop()
                 "#,
             )
             .exec()?;

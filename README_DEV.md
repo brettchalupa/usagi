@@ -112,6 +112,9 @@ my_game/
   sfx/           -- optional: .wav files, file stems become sfx names
     jump.wav
     coin.wav
+  music/         -- optional: .ogg/.mp3/.wav/.flac, file stems become track names
+    overworld.ogg
+    boss.ogg
 ```
 
 `require "name"` resolves to `name.lua` in the project root, falling back to
@@ -157,7 +160,6 @@ editor could be nice in the future as part of the `usagi tools`.
 
 Here's what Usagi will support as it heads towards 1.0 release:
 
-- Music playback with looping support
 - Mouse functions and ability to hide cursor
 
 ## Lua API
@@ -291,6 +293,24 @@ analog sticks; track stick state in Lua if you need that.
 - `sfx.play(name)` — play `sfx/<name>.wav`. Unknown names silently no-op.
   Playing a sound while it's already playing restarts it.
 
+### `music`
+
+Background music streamed from disk (or the fused bundle). Only one track plays
+at a time; calling `play` or `loop` while another is playing stops the old one
+first.
+
+- `music.play(name)` — play `music/<name>.<ext>` once and stop at the end.
+- `music.loop(name)` — play and loop forever.
+- `music.stop()` — stop whatever's playing. No-op if nothing is.
+
+Recognized extensions: `.ogg`, `.mp3`, `.wav`, `.flac`. **Use OGG is recommended
+for music as they're small and cross-platform.**
+
+The file stem is the name; `music/intro.ogg` is `music.play("intro")`. Music
+lives in a separate directory from sfx because the formats and lifetimes differ
+— sfx is loaded fully into memory and one-shotted, music is decoded
+incrementally on the audio thread.
+
 ### `usagi`
 
 Engine-level info.
@@ -305,6 +325,7 @@ Engine-level info.
     gfx.text("debug", 0, 0, gfx.COLOR_GREEN)
   end
   ```
+
 - `usagi.elapsed` — wall-clock seconds since the session started, updated once
   per frame before `_update`. Frame-stable (every read in one frame returns the
   same value). Doesn't reset on F5; track your own counter from `_init` if you

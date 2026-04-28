@@ -132,6 +132,25 @@ sfx = {}
 ---@param name string  file stem of a `.wav` under `sfx/`
 function sfx.play(name) end
 
+---@class Usagi.Music
+music = {}
+
+---Plays a music track once and stops at the end. Names are file stems
+---from the `music/` directory next to the game's main .lua (e.g.
+---`music/intro.ogg` → "intro"). Recognized extensions: ogg, mp3, wav,
+---flac. Stops the currently-playing track first if there is one.
+---Unknown names silently no-op.
+---@param name string  file stem under `music/`
+function music.play(name) end
+
+---Plays a music track and loops it forever. Stops the currently-
+---playing track first.
+---@param name string  file stem under `music/`
+function music.loop(name) end
+
+---Stops whatever music is currently playing. No-op when nothing is.
+function music.stop() end
+
 ---Abstract input actions. Each is a union over keyboard keys, gamepad
 ---buttons, and analog-stick directions:
 ---

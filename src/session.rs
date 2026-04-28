@@ -9,7 +9,8 @@
 
 use crate::api::{record_err, setup_api};
 use crate::assets::{
-    SfxLibrary, SpriteSheet, clear_user_modules, freshest_lua_mtime, install_require, load_script,
+    MusicLibrary, SfxLibrary, SpriteSheet, clear_user_modules, freshest_lua_mtime, install_require,
+    load_script,
 };
 use crate::input;
 use crate::palette::palette;
@@ -129,6 +130,7 @@ struct Session {
     /// not a real leak (process exit reclaims it).
     audio: Option<&'static RaylibAudio>,
     sfx: SfxLibrary<'static>,
+    music: MusicLibrary<'static>,
 
     last_error: Option<String>,
     last_modified: Option<SystemTime>,
@@ -236,9 +238,12 @@ impl Session {
             .ok()
             .map(|a| &*Box::leak(Box::new(a)));
 
-        let sfx = match audio {
-            Some(a) => SfxLibrary::load(a, vfs.as_ref()),
-            None => SfxLibrary::empty(),
+        let (sfx, music) = match audio {
+            Some(a) => (
+                SfxLibrary::load(a, vfs.as_ref()),
+                MusicLibrary::load(a, vfs.as_ref()),
+            ),
+            None => (SfxLibrary::empty(), MusicLibrary::empty()),
         };
 
         Ok(Self {
@@ -250,6 +255,7 @@ impl Session {
             draw,
             audio,
             sfx,
+            music,
             last_error,
             last_modified,
             show_fps: false,
@@ -286,6 +292,13 @@ impl Session {
         if let Ok(usagi_tbl) = self.lua.globals().get::<LuaTable>("usagi") {
             let _ = usagi_tbl.set("elapsed", self.elapsed);
         }
+
+        // Music streams decode incrementally — raylib needs this every
+        // frame or the active track stutters. Cheap no-op if nothing's
+        // playing. Run before _update so user code observing
+        // music state via `music.play` calls in the same frame sees a
+        // freshly-buffered stream.
+        self.music.update();
 
         self.run_update(dt);
         self.run_draw(dt, fps);
@@ -336,6 +349,12 @@ impl Session {
         {
             println!("[usagi] reloaded sfx ({} sound(s))", self.sfx.len());
         }
+
+        if let Some(a) = self.audio
+            && self.music.reload_if_changed(a, self.vfs.as_ref())
+        {
+            println!("[usagi] reloaded music ({} track(s))", self.music.len());
+        }
     }
 
     fn handle_global_shortcuts(&mut self) {
@@ -384,6 +403,7 @@ impl Session {
             lua,
             rl,
             sfx,
+            music,
             update,
             last_error,
             ..
@@ -393,6 +413,9 @@ impl Session {
         };
         let rl_ref: &RaylibHandle = rl;
         let sfx_ref: &SfxLibrary<'static> = sfx;
+        // MusicLibrary mutates state on play/stop, so wrap in a RefCell
+        // so the per-frame Lua closures can borrow_mut into it.
+        let music_cell = std::cell::RefCell::new(music);
         record_err(
             last_error,
             "_update",
@@ -412,6 +435,23 @@ impl Session {
                 })?;
                 sfx_tbl.set("play", play)?;
 
+                let music_tbl: LuaTable = lua.globals().get("music")?;
+                let m_play = scope.create_function(|_, name: String| {
+                    music_cell.borrow_mut().play(&name);
+                    Ok(())
+                })?;
+                let m_loop = scope.create_function(|_, name: String| {
+                    music_cell.borrow_mut().loop_(&name);
+                    Ok(())
+                })?;
+                let m_stop = scope.create_function(|_, ()| {
+                    music_cell.borrow_mut().stop();
+                    Ok(())
+                })?;
+                music_tbl.set("play", m_play)?;
+                music_tbl.set("loop", m_loop)?;
+                music_tbl.set("stop", m_stop)?;
+
                 update_fn.call::<()>(dt)?;
                 Ok(())
             }),
@@ -425,6 +465,7 @@ impl Session {
             thread,
             rt,
             sfx,
+            music,
             sprites,
             font,
             draw,
@@ -438,6 +479,7 @@ impl Session {
             let sprites_ref = sprites.texture();
             let font_ref: &Font = font;
             let sfx_ref: &SfxLibrary<'static> = sfx;
+            let music_cell = std::cell::RefCell::new(music);
             record_err(
                 last_error,
                 "_draw",
@@ -668,6 +710,23 @@ impl Session {
                         Ok(())
                     })?;
                     sfx_tbl.set("play", play)?;
+
+                    let music_tbl: LuaTable = lua.globals().get("music")?;
+                    let m_play = scope.create_function(|_, name: String| {
+                        music_cell.borrow_mut().play(&name);
+                        Ok(())
+                    })?;
+                    let m_loop = scope.create_function(|_, name: String| {
+                        music_cell.borrow_mut().loop_(&name);
+                        Ok(())
+                    })?;
+                    let m_stop = scope.create_function(|_, ()| {
+                        music_cell.borrow_mut().stop();
+                        Ok(())
+                    })?;
+                    music_tbl.set("play", m_play)?;
+                    music_tbl.set("loop", m_loop)?;
+                    music_tbl.set("stop", m_stop)?;
 
                     draw_fn.call::<()>(dt)?;
                     Ok(())

@@ -123,3 +123,4 @@ examples:
     just example snake
     just example pico8
     just example dialog
+    just example music

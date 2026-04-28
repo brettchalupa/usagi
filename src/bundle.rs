@@ -158,6 +158,27 @@ impl Bundle {
             }
         }
 
+        let music_dir = root.join("music");
+        if music_dir.is_dir() {
+            for entry in std::fs::read_dir(&music_dir)?.flatten() {
+                let p = entry.path();
+                let Some(ext) = p
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map(str::to_ascii_lowercase)
+                else {
+                    continue;
+                };
+                if !crate::vfs::MUSIC_EXTS.contains(&ext.as_str()) {
+                    continue;
+                }
+                let Some(name) = p.file_name().and_then(|n| n.to_str()) else {
+                    continue;
+                };
+                bundle.insert(format!("music/{name}"), std::fs::read(&p)?);
+            }
+        }
+
         Ok(bundle)
     }
 

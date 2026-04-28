@@ -42,6 +42,13 @@ Features:
   `(width, height)` in pixels for the bundled font. Lives on `usagi` rather than
   `gfx` because measurement has no rendering side-effect, and is callable from
   any callback (including `_init`) so layouts can be pre-computed once.
+- Music playback: `music.play(name)` plays once, `music.loop(name)` loops,
+  `music.stop()` stops the current track. Files live in `<project>/music/`;
+  recognized extensions are `.ogg`, `.mp3`, `.wav`, `.flac` (OGG as smaller than
+  WAV and is cross-platform ). Only one track plays at a time; calling `play` or
+  `loop` while another track is playing stops the old one first. Streams are
+  bundled into `.usagi` exports alongside `sfx/` and `sprites.png`. New
+  `examples/music`.
 
 Breaking:
 
