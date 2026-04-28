@@ -1,7 +1,7 @@
 # Usagi - Simple 2D Game Engine for Rapid Prototyping
 
 Usagi is a simple 2D game engine for quickly making games with **Lua** 5.4. It
-features live-reloading as your change your game code and assets. Its API is
+features live-reloading as you change your game code and assets. Its API is
 clear, consistent, and familiar.
 
 [Watch the intro video!](https://www.youtube.com/watch?v=byp3rKd626M)
