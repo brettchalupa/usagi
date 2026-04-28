@@ -33,6 +33,15 @@ Features:
     fixed signature; no optional trailing args.
 - New `usagi.elapsed` field — wall-clock seconds since the session started,
   updated once per frame before `_update`. Frame-stable; doesn't reset on F5.
+- The bundled font is now [monogram](https://datagoblin.itch.io/monogram) by
+  datagoblin (CC0), replacing raylib's built-in 8 px font. Used for `gfx.text`,
+  the FPS overlay, the error overlay, and the tools window. The TTF
+  (`assets/monogram.ttf`, ~10 KB) is embedded in the binary at compile time, so
+  no runtime filesystem dependency.
+- New text-measurement helper: `usagi.measure_text(text)` returns rendered
+  `(width, height)` in pixels for the bundled font. Lives on `usagi` rather than
+  `gfx` because measurement has no rendering side-effect, and is callable from
+  any callback (including `_init`) so layouts can be pre-computed once.
 
 Breaking:
 
@@ -40,6 +49,9 @@ Breaking:
   `input.BTN2`. The gamepad mapping also shifts: BTN1 is the south face only
   (was south + west) and BTN2 is the east face only (was east + north). The
   north and west faces are now BTN3.
+- monogram has a 16 px line height vs raylib's previous 8 px default. Layouts
+  that hugged `usagi.GAME_H - 8` or stacked text on 8-pixel rows will need to
+  bump offsets to 16 (or read `usagi.measure_text(...)` for an exact value).
 
 ## v0.1.0 - Apr 27, 2026
 

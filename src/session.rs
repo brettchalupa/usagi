@@ -26,6 +26,21 @@ use std::time::SystemTime;
 /// flip_x, flip_y)`. Aliased so the closure signature stays readable.
 type SsprExArgs = (f32, f32, f32, f32, f32, f32, f32, f32, bool, bool);
 
+/// Installs `usagi.measure_text(text)` once at session creation. The
+/// closure captures a `&'static Font` so it's not tied to a per-frame
+/// `lua.scope`; user Lua can call it from `_init` for layout-time
+/// pre-measurement, or from `_update` / `_draw` for dynamic strings.
+/// Returns two values: width and height in pixels.
+fn register_usagi_measure_text(lua: &Lua, font: &'static Font) -> LuaResult<()> {
+    let usagi: LuaTable = lua.globals().get("usagi")?;
+    let measure = lua.create_function(move |_, s: String| {
+        let m = font.measure_text(&s, crate::font::MONOGRAM_SIZE as f32, 0.0);
+        Ok((m.x as i32, m.y as i32))
+    })?;
+    usagi.set("measure_text", measure)?;
+    Ok(())
+}
+
 /// User-visible engine config returned by `_config()`. Read once before the
 /// window opens. All fields are optional; missing fields fall back to
 /// engine defaults.
@@ -86,6 +101,12 @@ struct Session {
     // GPU resources: dropped first, while the GL context is still alive.
     rt: RenderTexture2D,
     sprites: SpriteSheet,
+    /// Bundled monogram font. Leaked to `'static` so `usagi.measure_text`
+    /// can capture a reference in a non-scoped Lua closure (callable
+    /// from `_init` / `_update` / `_draw` alike). The font lives for
+    /// program lifetime in practice; this matches how `audio` is leaked
+    /// and is reclaimed by process exit.
+    font: &'static Font,
 
     lua: Lua,
     update: Option<LuaFunction>,
@@ -179,6 +200,16 @@ impl Session {
             .load_render_texture(&thread, GAME_WIDTH as u32, GAME_HEIGHT as u32)
             .unwrap();
 
+        // Load the font before `_init` runs so we can register
+        // `usagi.measure_text` against a leaked `&'static Font`. That
+        // makes the function callable from any callback (including
+        // `_init`), not just from inside per-frame scopes.
+        let sprites = SpriteSheet::load(&mut rl, &thread, vfs.as_ref());
+        let font: &'static Font = &*Box::leak(Box::new(crate::font::load(&mut rl, &thread)));
+
+        register_usagi_measure_text(&lua, font)
+            .map_err(|e| crate::Error::Cli(format!("registering usagi.measure_text: {e}")))?;
+
         if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
             record_err(&mut last_error, "_init", init.call::<()>(()));
         }
@@ -188,8 +219,6 @@ impl Session {
         // the first frame doesn't spuriously reload just because a sibling
         // module's mtime is newer than main.lua's.
         let last_modified = freshest_lua_mtime(&lua, vfs.as_ref());
-
-        let sprites = SpriteSheet::load(&mut rl, &thread, vfs.as_ref());
 
         let audio: Option<&'static RaylibAudio> = RaylibAudio::init_audio_device()
             .map_err(|e| eprintln!("[usagi] audio init failed: {}", e))
@@ -204,6 +233,7 @@ impl Session {
         Ok(Self {
             rt,
             sprites,
+            font,
             lua,
             update,
             draw,
@@ -385,6 +415,7 @@ impl Session {
             rt,
             sfx,
             sprites,
+            font,
             draw,
             last_error,
             show_fps,
@@ -394,6 +425,7 @@ impl Session {
         if let Some(draw_fn) = draw.as_ref() {
             let d_rt_cell = std::cell::RefCell::new(&mut d_rt);
             let sprites_ref = sprites.texture();
+            let font_ref: &Font = font;
             let sfx_ref: &SfxLibrary<'static> = sfx;
             record_err(
                 last_error,
@@ -406,11 +438,12 @@ impl Session {
                     })?;
                     let text =
                         scope.create_function(|_, (s, x, y, c): (String, f32, f32, i32)| {
-                            d_rt_cell.borrow_mut().draw_text(
+                            d_rt_cell.borrow_mut().draw_text_ex(
+                                font_ref,
                                 &s,
-                                x.round() as i32,
-                                y.round() as i32,
-                                8,
+                                Vector2::new(x.round(), y.round()),
+                                crate::font::MONOGRAM_SIZE as f32,
+                                0.0,
                                 palette(c),
                             );
                             Ok(())
@@ -631,7 +664,14 @@ impl Session {
             );
         }
         if *show_fps {
-            d_rt.draw_text(&format!("FPS: {}", fps), 0, 0, 8, Color::GREEN);
+            d_rt.draw_text_ex(
+                font,
+                &format!("FPS: {}", fps),
+                Vector2::new(0.0, 0.0),
+                crate::font::MONOGRAM_SIZE as f32,
+                0.0,
+                Color::GREEN,
+            );
         }
     }
 
@@ -646,7 +686,7 @@ impl Session {
             self.config.pixel_perfect,
         );
         if let Some(ref err) = self.last_error {
-            draw_error_overlay(&mut d, err, screen_w, screen_h);
+            draw_error_overlay(&mut d, self.font, err, screen_w, screen_h);
         }
     }
 }

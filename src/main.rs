@@ -17,6 +17,7 @@ mod assets;
 mod bundle;
 mod cli;
 mod error;
+mod font;
 mod input;
 mod palette;
 mod preprocess;

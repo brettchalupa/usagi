@@ -78,6 +78,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     };
 
     let mut sprites = vfs.as_ref().map(|v| SpriteSheet::load(&mut rl, &thread, v));
+    let font = crate::font::load(&mut rl, &thread);
 
     let mut state = State {
         active: Tool::Jukebox,
@@ -143,6 +144,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
             match state.active {
                 Tool::Jukebox => jukebox::draw(
                     &mut d,
+                    &font,
                     &mut state.jukebox,
                     &sfx.sounds,
                     project_path,
@@ -150,6 +152,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
                 ),
                 Tool::TilePicker => tilepicker::draw(
                     &mut d,
+                    &font,
                     &state.tilepicker,
                     tex,
                     sprites_path_display.as_deref(),
@@ -157,7 +160,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
             }
 
             if let Some(toast) = &state.toast {
-                draw_toast(&mut d, &toast.message);
+                draw_toast(&mut d, &font, &toast.message);
             }
         }
 
@@ -186,17 +189,18 @@ fn resolve_project_dir(path: &str) -> Option<PathBuf> {
         .map(|parent| parent.to_path_buf())
 }
 
-fn draw_toast(d: &mut RaylibDrawHandle, message: &str) {
+fn draw_toast(d: &mut RaylibDrawHandle, font: &Font, message: &str) {
     let w = 360.0;
     let h = 48.0;
     let x = WINDOW_W - w - 20.0;
     let y = WINDOW_H - h - 20.0;
     d.gui_panel(Rectangle::new(x, y, w, h), "");
-    d.draw_text(
+    d.draw_text_ex(
+        font,
         message,
-        (x + 12.0) as i32,
-        (y + 16.0) as i32,
-        14,
+        Vector2::new(x + 12.0, y + 14.0),
+        crate::font::MONOGRAM_SIZE as f32,
+        0.0,
         Color::BLACK,
     );
 }

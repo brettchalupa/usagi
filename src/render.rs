@@ -48,52 +48,81 @@ pub fn draw_render_target(
 
 /// Draws a full-width error banner at the bottom of the window. Shown only
 /// when user Lua has errored; cleared on successful reload or F5 reset.
-pub fn draw_error_overlay(d: &mut RaylibDrawHandle, err: &str, screen_w: i32, screen_h: i32) {
+pub fn draw_error_overlay(
+    d: &mut RaylibDrawHandle,
+    font: &Font,
+    err: &str,
+    screen_w: i32,
+    screen_h: i32,
+) {
     const PADDING: i32 = 12;
-    const TITLE_SIZE: i32 = 20;
-    const MSG_SIZE: i32 = 16;
-    const LINE_H: i32 = MSG_SIZE + 4;
-    const FOOTER_SIZE: i32 = 14;
+    // Everything renders at monogram's 16px design size: it's the only
+    // size we can draw at without scaling the atlas. The previous
+    // bigger-title look fought monogram's pixel-font aesthetic anyway.
+    const TITLE_SIZE: f32 = 16.0;
+    const MSG_SIZE: f32 = 16.0;
+    const LINE_H: f32 = MSG_SIZE + 4.0;
+    const FOOTER_SIZE: f32 = 16.0;
     const MAX_LINES: usize = 8;
 
     let lines: Vec<&str> = err.lines().collect();
-    let shown = lines.len().min(MAX_LINES) as i32;
+    let shown = lines.len().min(MAX_LINES) as f32;
     let truncated = lines.len() > MAX_LINES;
     let footer = "fix & save to reload   \u{00b7}   F5 to reset";
 
-    let content_h =
-        TITLE_SIZE + 8 + shown * LINE_H + if truncated { LINE_H } else { 0 } + 10 + FOOTER_SIZE;
-    let box_h = content_h + PADDING * 2;
+    let content_h = TITLE_SIZE
+        + 8.0
+        + shown * LINE_H
+        + if truncated { LINE_H } else { 0.0 }
+        + 10.0
+        + FOOTER_SIZE;
+    let box_h = content_h as i32 + PADDING * 2;
     let box_y = screen_h - box_h;
 
     d.draw_rectangle(0, box_y, screen_w, box_h, Color::new(30, 10, 10, 235));
     d.draw_rectangle(0, box_y, screen_w, 2, Color::new(220, 60, 60, 255));
 
-    let mut y = box_y + PADDING;
-    d.draw_text(
+    let mut y = (box_y + PADDING) as f32;
+    d.draw_text_ex(
+        font,
         "Lua error",
-        PADDING,
-        y,
+        Vector2::new(PADDING as f32, y),
         TITLE_SIZE,
+        0.0,
         Color::new(220, 60, 60, 255),
     );
-    y += TITLE_SIZE + 8;
+    y += TITLE_SIZE + 8.0;
 
     for line in lines.iter().take(MAX_LINES) {
-        d.draw_text(line, PADDING, y, MSG_SIZE, Color::WHITE);
+        d.draw_text_ex(
+            font,
+            line,
+            Vector2::new(PADDING as f32, y),
+            MSG_SIZE,
+            0.0,
+            Color::WHITE,
+        );
         y += LINE_H;
     }
     if truncated {
-        d.draw_text("\u{2026}", PADDING, y, MSG_SIZE, Color::WHITE);
+        d.draw_text_ex(
+            font,
+            "\u{2026}",
+            Vector2::new(PADDING as f32, y),
+            MSG_SIZE,
+            0.0,
+            Color::WHITE,
+        );
         y += LINE_H;
     }
 
-    y += 10;
-    d.draw_text(
+    y += 10.0;
+    d.draw_text_ex(
+        font,
         footer,
-        PADDING,
-        y,
+        Vector2::new(PADDING as f32, y),
         FOOTER_SIZE,
+        0.0,
         Color::new(180, 180, 180, 255),
     );
 }

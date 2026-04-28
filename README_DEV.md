@@ -228,7 +228,11 @@ indices 0-15; use the named constants.
 - `gfx.circ_fill(x, y, r, color)` — filled circle centered at `(x, y)`.
 - `gfx.line(x1, y1, x2, y2, color)` — line from `(x1, y1)` to `(x2, y2)`.
 - `gfx.pixel(x, y, color)` — set a single pixel.
-- `gfx.text(text, x, y, color)` — default font, 8px tall.
+- `gfx.text(text, x, y, color)` — bundled monogram font (5×7 pixel font, 16 px
+  line height; see Credits below). To measure text dimensions, use
+  `usagi.measure_text` — it lives on `usagi` rather than `gfx` because
+  measurement is a pure utility (no render side-effect) and is callable from any
+  callback, including `_init`.
 - `gfx.spr(index, x, y)` — draw the 16×16 sprite at `index` (1 = top-left) from
   `sprites.png`.
 - `gfx.spr_ex(index, x, y, flip_x, flip_y)` — extended `spr`: requires both flip
@@ -299,6 +303,16 @@ Engine-level info.
   per frame before `_update`. Frame-stable (every read in one frame returns the
   same value). Doesn't reset on F5; track your own counter from `_init` if you
   need a per-run timer.
+- `usagi.measure_text(text)` — returns two values, `width, height` in pixels,
+  for `text` rendered in the bundled font. Pure utility (no rendering); call it
+  from `_init` to pre-compute layouts, or from `_update` / `_draw` for dynamic
+  strings.
+
+  ```lua
+  local w, h = usagi.measure_text("Game Over")
+  gfx.text("Game Over", (usagi.GAME_W - w) / 2, (usagi.GAME_H - h) / 2,
+           gfx.COLOR_WHITE)
+  ```
 
 ### Indexing
 
@@ -495,6 +509,13 @@ tips, and the (non-obvious) wasm exception ABI requirements.
 - Love2D
 - Playdate SDK
 - DragonRuby Game Toolkit (DRGTK)
+
+## Credits
+
+- **monogram** — the bundled font (`assets/monogram.ttf`) used by `gfx.text`,
+  the FPS overlay, the error overlay, and the tools window. A 5×7 pixel font by
+  [datagoblin](https://datagoblin.itch.io/monogram), released under Creative
+  Commons Zero (CC0). No attribution required, but kindly given.
 
 ## (Un)license
 

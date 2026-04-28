@@ -26,12 +26,14 @@ gfx = {}
 ---@param color integer  a gfx.COLOR_* constant
 function gfx.clear(color) end
 
----Draws text at (x, y) in the given color. Default 8px font.
+---Draws text at (x, y) in the given color. Uses the bundled monogram
+---font at its 16px design size (a 5×7 pixel font with 16px line height).
 ---@param text  string  string to render
 ---@param x     number  left edge in game-space pixels
 ---@param y     number  top edge in game-space pixels
 ---@param color integer  a gfx.COLOR_* constant
 function gfx.text(text, x, y, color) end
+
 
 ---Draws a rectangle outline.
 ---@param x     number  left edge in game-space pixels
@@ -168,6 +170,15 @@ function input.down(action) end
 ---@field IS_DEV  boolean  true under `usagi dev`; false for `usagi run` and compiled binaries
 ---@field elapsed number   wall-clock seconds since session start; updated once per frame before _update
 usagi = {}
+
+---Measures `text` in the bundled font and returns its rendered size
+---in pixels. Returns two values: `width, height`. Available from any
+---callback (`_init`, `_update`, `_draw`) — useful for pre-computing
+---layout once in `_init` and reusing the result every frame.
+---@param text string  string to measure
+---@return integer width   pixel width
+---@return integer height  pixel height (equals the font's line height)
+function usagi.measure_text(text) end
 
 ---Config table returned by `_config()`. All fields optional; missing
 ---fields fall back to engine defaults.

@@ -120,10 +120,13 @@ pub(super) fn handle_input(
 
 pub(super) fn draw(
     d: &mut RaylibDrawHandle,
+    font: &Font,
     state: &State,
     texture: Option<&Texture2D>,
     sprites_path: Option<&Path>,
 ) {
+    const SMALL: f32 = crate::font::MONOGRAM_SIZE as f32;
+
     d.gui_panel(
         Rectangle::new(PANEL_X, PANEL_Y, PANEL_W, PANEL_H),
         "TilePicker",
@@ -132,7 +135,8 @@ pub(super) fn draw(
     if let Some(tex) = texture {
         let tw = tex.width / TILE_SIZE;
         let th = tex.height / TILE_SIZE;
-        d.draw_text(
+        d.draw_text_ex(
+            font,
             &format!(
                 "{}x{}px  |  {}x{} tiles ({} total)  |  zoom {:.1}x  overlay: {}",
                 tex.width,
@@ -143,9 +147,9 @@ pub(super) fn draw(
                 state.zoom,
                 if state.show_overlay { "on" } else { "off" },
             ),
-            30,
-            (PANEL_Y + 30.0) as i32,
-            12,
+            Vector2::new(30.0, PANEL_Y + 30.0),
+            SMALL,
+            0.0,
             Color::DARKGRAY,
         );
     } else {
@@ -153,7 +157,14 @@ pub(super) fn draw(
             Some(p) => format!("no sprites.png at {}", p.display()),
             None => "no project loaded (pass a path: `usagi tools path/to/project`)".to_string(),
         };
-        d.draw_text(&msg, 30, (PANEL_Y + 30.0) as i32, 14, Color::DARKGRAY);
+        d.draw_text_ex(
+            font,
+            &msg,
+            Vector2::new(30.0, PANEL_Y + 30.0),
+            SMALL,
+            0.0,
+            Color::DARKGRAY,
+        );
     }
 
     d.draw_rectangle(
@@ -169,20 +180,21 @@ pub(super) fn draw(
             d.begin_scissor_mode(VIEW_X as i32, VIEW_Y as i32, VIEW_W as i32, VIEW_H as i32);
         clip.draw_texture_ex(tex, state.pos, 0., state.zoom, Color::WHITE);
         if state.show_overlay {
-            draw_overlay(&mut clip, tex, state);
+            draw_overlay(&mut clip, font, tex, state);
         }
     }
 
-    d.draw_text(
+    d.draw_text_ex(
+        font,
         "WASD: pan   QE: zoom   R: overlay   B: bg   0: reset   click: copy 1-based index",
-        30,
-        HINT_Y as i32,
-        12,
+        Vector2::new(30.0, HINT_Y),
+        SMALL,
+        0.0,
         Color::new(140, 140, 140, 255),
     );
 }
 
-fn draw_overlay<T: RaylibDraw>(d: &mut T, tex: &Texture2D, state: &State) {
+fn draw_overlay<T: RaylibDraw>(d: &mut T, font: &Font, tex: &Texture2D, state: &State) {
     let cols = tex.width / TILE_SIZE;
     let rows = tex.height / TILE_SIZE;
     if cols <= 0 || rows <= 0 {
@@ -192,13 +204,24 @@ fn draw_overlay<T: RaylibDraw>(d: &mut T, tex: &Texture2D, state: &State) {
     // Semi-transparent cyan. Readable on any bg without a per-bg palette.
     let overlay = Color::new(0, 180, 200, 220);
 
-    let font = ((12.0 * state.zoom / 3.0) as i32).max(8);
+    // monogram only stays crisp at its 16px design size, so always
+    // draw the index labels at 16. They become tiny relative to the
+    // tile at high zoom levels but stay readable; that's a better
+    // tradeoff than blurry scaled glyphs.
+    let size = crate::font::MONOGRAM_SIZE as f32;
     for row in 0..rows {
         for col in 0..cols {
             let idx = row * cols + col + 1;
             let x = state.pos.x + col as f32 * cell + 2.0;
             let y = state.pos.y + row as f32 * cell + 2.0;
-            d.draw_text(&idx.to_string(), x as i32, y as i32, font, overlay);
+            d.draw_text_ex(
+                font,
+                &idx.to_string(),
+                Vector2::new(x, y),
+                size,
+                0.0,
+                overlay,
+            );
         }
     }
 

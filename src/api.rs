@@ -60,6 +60,14 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     // this once per frame before _update; tests and tools that don't
     // drive a frame loop see the seed value below. Doesn't reset on F5.
     usagi.set("elapsed", 0.0_f64)?;
+    // `usagi.measure_text` is registered later, once the bundled font
+    // is loaded, so the closure can capture it. Stubbed here so tests
+    // and tools that don't drive a session can still reference the
+    // field without erroring.
+    usagi.set(
+        "measure_text",
+        lua.create_function(|_, _s: String| Ok((0i32, 0i32)))?,
+    )?;
     lua.globals().set("usagi", usagi)?;
 
     Ok(())
@@ -286,6 +294,8 @@ mod tests {
                 gfx.sspr(0, 0, 16, 16, 10, 10)
                 gfx.sspr_ex(0, 0, 16, 16, 10, 10, 32, 32, true, false)
                 gfx.pixel(5, 5, gfx.COLOR_WHITE)
+                local mw, mh = usagi.measure_text("hello")
+                assert(type(mw) == "number" and type(mh) == "number")
                 assert(type(usagi.elapsed) == "number")
                 assert(type(input.pressed(input.LEFT)) == "boolean")
                 assert(type(input.down(input.BTN1)) == "boolean")

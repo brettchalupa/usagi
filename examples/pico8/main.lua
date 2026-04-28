@@ -19,7 +19,7 @@ end
 function _init()
   state = {
     p = { x = 50, y = 80, spd = 200 },
-    fired = 0,
+    count = 0,
     spin = 0,
   }
 end
@@ -38,7 +38,7 @@ function _update(dt)
     state.p.y = state.p.y + state.p.spd * dt
   end
   if btnp(4) then
-    state.fired = state.fired + 1
+    state.count += 1
   end
 
   state.p.x = mid(0, state.p.x, usagi.GAME_W - 16)
@@ -50,9 +50,9 @@ function _draw(_dt)
   cls(gfx.COLOR_DARK_BLUE)
 
   -- HUD bar drawn with rectfill (inclusive corners, Pico-8 style).
-  rectfill(0, 0, usagi.GAME_W - 1, 8, gfx.COLOR_BLACK)
+  rectfill(0, 0, usagi.GAME_W - 1, 13, gfx.COLOR_BLACK)
   print("pico-8 flavor", 2, 1, gfx.COLOR_PEACH)
-  print("fired " .. state.fired, 200, 1, gfx.COLOR_YELLOW)
+  print("count: " .. state.count, 200, 1, gfx.COLOR_YELLOW)
 
   -- Sprite from the spr example. Pico-8 is 0-based; pico8.lua adds 1.
   spr(SPR.BUNNY, 20, 30)
@@ -74,6 +74,4 @@ function _draw(_dt)
     local sy = flr(rnd(usagi.GAME_H - 16)) + 16
     line(sx, sy, sx, sy, gfx.COLOR_WHITE)
   end
-
-  print("arrows move, btn1 fires", 2, usagi.GAME_H - 8, gfx.COLOR_LIGHT_GRAY)
 end

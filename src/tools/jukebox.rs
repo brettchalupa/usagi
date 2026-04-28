@@ -96,38 +96,48 @@ pub(super) fn auto_play(state: &mut State, sounds: &HashMap<String, Sound<'_>>) 
 
 pub(super) fn draw(
     d: &mut RaylibDrawHandle,
+    font: &Font,
     state: &mut State,
     sounds: &HashMap<String, Sound<'_>>,
     project_path: Option<&str>,
     sfx_dir: Option<&Path>,
 ) {
+    // Tools window draws monogram at its 16px design size everywhere
+    // — that's the only size that stays crisp without scaling the
+    // glyph atlas. If we want a "header" feel later we can use bold
+    // formatting or a frame, not a bigger draw size.
+    const SMALL: f32 = crate::font::MONOGRAM_SIZE as f32;
+
     d.gui_panel(
         Rectangle::new(PANEL_X, PANEL_Y, PANEL_W, PANEL_H),
         "Jukebox",
     );
 
     match project_path {
-        Some(p) => d.draw_text(
+        Some(p) => d.draw_text_ex(
+            font,
             &format!("project: {}", p),
-            30,
-            (PANEL_Y + 30.0) as i32,
-            14,
+            Vector2::new(30.0, PANEL_Y + 30.0),
+            SMALL,
+            0.0,
             Color::DARKGRAY,
         ),
-        None => d.draw_text(
+        None => d.draw_text_ex(
+            font,
             "no project. Run `usagi tools path/to/project`.",
-            30,
-            (PANEL_Y + 30.0) as i32,
-            14,
+            Vector2::new(30.0, PANEL_Y + 30.0),
+            SMALL,
+            0.0,
             Color::DARKGRAY,
         ),
     }
     if let Some(dir) = sfx_dir {
-        d.draw_text(
+        d.draw_text_ex(
+            font,
             &format!("sfx: {}", dir.display()),
-            30,
-            (PANEL_Y + 50.0) as i32,
-            12,
+            Vector2::new(30.0, PANEL_Y + 50.0),
+            SMALL,
+            0.0,
             Color::GRAY,
         );
     }
@@ -145,11 +155,12 @@ pub(super) fn draw(
     );
 
     if state.names.is_empty() {
-        d.draw_text(
+        d.draw_text_ex(
+            font,
             "no .wav files found",
-            (list_x + 10.0) as i32,
-            (list_y + 20.0) as i32,
-            14,
+            Vector2::new(list_x + 10.0, list_y + 20.0),
+            SMALL,
+            0.0,
             Color::new(140, 140, 140, 255),
         );
     }
@@ -158,11 +169,12 @@ pub(super) fn draw(
         && let Some(name) = state.names.get(state.active as usize)
     {
         let right_x = list_x + list_w + 30.0;
-        d.draw_text(
+        d.draw_text_ex(
+            font,
             name,
-            right_x as i32,
-            (list_y + 10.0) as i32,
-            22,
+            Vector2::new(right_x, list_y + 10.0),
+            SMALL,
+            0.0,
             Color::BLACK,
         );
         if d.gui_button(Rectangle::new(right_x, list_y + 54.0, 140.0, 40.0), "Play")
@@ -172,11 +184,12 @@ pub(super) fn draw(
         }
     }
 
-    d.draw_text(
+    d.draw_text_ex(
+        font,
         "up/down or W/S: select   space/enter: replay   click: select+play",
-        30,
-        HINT_Y as i32,
-        12,
+        Vector2::new(30.0, HINT_Y),
+        SMALL,
+        0.0,
         Color::new(140, 140, 140, 255),
     );
 }
