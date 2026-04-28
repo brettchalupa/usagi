@@ -22,6 +22,7 @@ mod input;
 mod palette;
 mod preprocess;
 mod render;
+mod save;
 mod session;
 mod tools;
 mod vfs;

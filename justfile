@@ -124,3 +124,4 @@ examples:
     just example pico8
     just example dialog
     just example music
+    just example save

@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -108,10 +108,11 @@
 
         try {
           const res = await fetch(bundleUrl);
-          if (!res.ok)
+          if (!res.ok) {
             throw new Error(
               `${bundleUrl}: HTTP ${res.status} ${res.statusText}`,
             );
+          }
           const bytes = new Uint8Array(await res.arrayBuffer());
           Module.FS.writeFile("/game.usagi", bytes);
         } catch (e) {

@@ -199,11 +199,24 @@ usagi = {}
 ---@return integer height  pixel height (equals the font's line height)
 function usagi.measure_text(text) end
 
----Config table returned by `_config()`. All fields optional; missing
----fields fall back to engine defaults.
+---Persist a Lua table as JSON. Saves are per-game, namespaced by
+---`game_id` from `_config()`. One file per game; nest your own
+---structure inside (settings, run state, unlocks).
+---@param t table   table to serialize. functions, userdata, NaN, and cycles error
+function usagi.save(t) end
+
+---Read the persisted save table back. Returns `nil` on first run
+---(no save file). Idiomatic call: `state = usagi.load() or { ... defaults ... }`.
+---@return table?
+function usagi.load() end
+
+---Config table returned by `_config()`. All fields optional except
+---`game_id`, which is only required if you call `usagi.save` /
+---`usagi.load`. Missing fields fall back to engine defaults.
 ---@class Usagi.Config
 ---@field title? string  window title (default: "Usagi")
 ---@field pixel_perfect? boolean false (default) = any scale that fits the window while preserving aspect ratio; true = integer scale only with letterbox bars
+---@field game_id? string  reverse-DNS identifier (e.g. "com.you.mygame"), required for save/load
 
 ---Optional. Returns engine config read once before the window opens.
 ---Omit if the defaults are fine.

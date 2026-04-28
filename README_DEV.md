@@ -215,7 +215,7 @@ Define any of these as globals; Usagi calls them:
 
 ```lua
 function _config()
-  return { title = "Snake", pixel_perfect = true }
+  return { title = "Snake", pixel_perfect = true, game_id = "com.example.snake" }
 end
 ```
 
@@ -340,6 +340,45 @@ Engine-level info.
   gfx.text("Game Over", (usagi.GAME_W - w) / 2, (usagi.GAME_H - h) / 2,
            gfx.COLOR_WHITE)
   ```
+
+- `usagi.save(t)` — serialize a Lua table as JSON and persist it. Saves are
+  per-game (namespaced by `game_id` in `_config()`) so games made with usagi
+  don't clobber each other.
+- `usagi.load()` — return the previously saved table, or `nil` on first run.
+
+  ```lua
+  function _config()
+    return { title = "My Game", game_id = "com.you.mygame" }
+  end
+
+  function _init()
+    state = usagi.load() or { score = 0, best = 0 }
+  end
+
+  function _update(dt)
+    -- ... gameplay updates state.score, state.best ...
+    usagi.save(state)  -- call whenever you want to persist
+  end
+  ```
+
+  Save data is one JSON file. Nest your own structure inside it (settings,
+  unlocks, run state). There are no slots at the engine level.
+
+  Where saves live:
+  - linux: `~/.local/share/<game_id>/save.json`
+  - macOS: `~/Library/Application Support/<game_id>/save.json`
+  - windows: `%APPDATA%\<game_id>\save.json`
+  - web: `localStorage`, key `usagi.save.<game_id>`
+
+  `game_id` is a reverse-DNS string like `com.brettmakesgames.snake`. It's
+  required for save / load (called helpfully if missing) but optional for games
+  that never persist anything. The same string is forward-compatible with macOS
+  / iOS / Windows app bundle IDs, so you only pick it once.
+
+  Native writes are atomic (`save.json.tmp` + rename), so a crash mid-write
+  leaves the previous save intact. JSON values must be representable: tables,
+  strings, numbers, booleans, nil. Functions, userdata, NaN, and circular tables
+  raise an error.
 
 ### Indexing
 

@@ -42,6 +42,51 @@ fn register_usagi_measure_text(lua: &Lua, font: &'static Font) -> LuaResult<()> 
     Ok(())
 }
 
+/// Installs `usagi.save(t)` and `usagi.load()` against the dev-supplied
+/// `game_id`. Both validate `game_id` at call time (not at session
+/// creation), so games that never persist data don't need to declare
+/// one in `_config()`. The closures clone `game_id` because mlua
+/// requires `'static` captures.
+fn register_save_api(lua: &Lua, game_id: Option<String>) -> LuaResult<()> {
+    let usagi: LuaTable = lua.globals().get("usagi")?;
+
+    let id_for_save = game_id.clone();
+    let save = lua.create_function(move |lua, value: mlua::Value| {
+        let id = require_game_id(id_for_save.as_deref(), "usagi.save")?;
+        let json = crate::save::lua_to_json(lua, value)?;
+        crate::save::write_save(id, &json)
+            .map_err(|e| mlua::Error::external(format!("usagi.save: write: {e}")))?;
+        Ok(())
+    })?;
+    usagi.set("save", save)?;
+
+    let id_for_load = game_id;
+    let load = lua.create_function(move |lua, ()| {
+        let id = require_game_id(id_for_load.as_deref(), "usagi.load")?;
+        match crate::save::read_save(id) {
+            Ok(None) => Ok(mlua::Value::Nil),
+            Ok(Some(s)) => crate::save::json_to_lua(lua, &s),
+            Err(e) => Err(mlua::Error::external(format!("usagi.load: read: {e}"))),
+        }
+    })?;
+    usagi.set("load", load)?;
+
+    Ok(())
+}
+
+/// Resolves and validates `game_id` when `usagi.save` / `usagi.load` is
+/// invoked. Splits the "missing entirely" and "set but garbage" cases
+/// into distinct messages so each tells the dev exactly what to fix.
+fn require_game_id<'a>(id: Option<&'a str>, fn_name: &str) -> LuaResult<&'a str> {
+    let Some(id) = id else {
+        return Err(mlua::Error::external(format!(
+            "{fn_name}: game_id is required. Add it to _config():\n  function _config()\n    return {{ game_id = \"com.example.yourgame\" }}\n  end"
+        )));
+    };
+    crate::save::validate_game_id(id).map_err(mlua::Error::external)?;
+    Ok(id)
+}
+
 /// User-visible engine config returned by `_config()`. Read once before the
 /// window opens. All fields are optional; missing fields fall back to
 /// engine defaults.
@@ -59,6 +104,17 @@ struct Config {
     /// in windowed mode players generally prefer "fills the window"
     /// over "stays crisp with thick bars."
     pixel_perfect: bool,
+    /// Stable identifier for this game, used to namespace persistent
+    /// data like saves so games made with usagi don't clobber each
+    /// other. Convention is reverse-DNS:
+    /// `com.brettmakesgames.snake`. Same string applies cleanly to
+    /// macOS / iOS bundle IDs and Windows packaged-app identities,
+    /// so future packaging targets can reuse it. Required only when
+    /// `usagi.save` / `usagi.load` is called; games that never
+    /// persist can omit it. We do NOT auto-derive it from `title`
+    /// because a title rename would silently orphan every save in
+    /// the wild.
+    game_id: Option<String>,
 }
 
 impl Default for Config {
@@ -66,6 +122,7 @@ impl Default for Config {
         Self {
             title: "Usagi".to_string(),
             pixel_perfect: false,
+            game_id: None,
         }
     }
 }
@@ -90,6 +147,9 @@ fn read_config(lua: &Lua, last_error: &mut Option<String>) -> Config {
             }
             if let Ok(Some(t)) = tbl.get::<Option<bool>>("pixel_perfect") {
                 config.pixel_perfect = t;
+            }
+            if let Ok(Some(t)) = tbl.get::<Option<String>>("game_id") {
+                config.game_id = Some(t);
             }
         }
         Err(e) => {
@@ -222,6 +282,13 @@ impl Session {
 
         register_usagi_measure_text(&lua, font)
             .map_err(|e| crate::Error::Cli(format!("registering usagi.measure_text: {e}")))?;
+
+        // Register before `_init` so games can `usagi.load()` their
+        // save state at startup. Closures capture `game_id` by clone;
+        // they validate it at call time, so games that never save
+        // don't need to declare one in `_config()`.
+        register_save_api(&lua, config.game_id.clone())
+            .map_err(|e| crate::Error::Cli(format!("registering usagi.save / usagi.load: {e}")))?;
 
         if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
             record_err(&mut last_error, "_init", init.call::<()>(()));

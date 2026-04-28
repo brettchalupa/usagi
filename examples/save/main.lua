@@ -1,0 +1,60 @@
+-- Save/load demo: data that persists across runs.
+--
+--   usagi.save(t)  -- writes a Lua table as JSON to a per-game file
+--   usagi.load()   -- returns the table, or nil if there's no save yet
+--
+-- `game_id` (reverse-DNS) namespaces the save so it doesn't clobber
+-- saves from other usagi games on the same machine. Required for
+-- save / load. Convention matches Playdate bundle IDs and macOS /
+-- iOS app bundle identifiers, so the same string is reusable when
+-- packaging targets land in future versions.
+--
+-- Saves live at:
+--   linux  : ~/.local/share/com.usagi.savedemo/save.json
+--   macos  : ~/Library/Application Support/com.usagi.savedemo/save.json
+--   windows: %APPDATA%\com.usagi.savedemo\save.json
+--   web    : window.localStorage, key "usagi.save.com.usagi.savedemo"
+
+function _config()
+  return { title = "Save Demo", game_id = "com.usagi.savedemo" }
+end
+
+local function fresh_state()
+  return { last_saved_at = nil, playtime = 0 }
+end
+
+function _init()
+  state = usagi.load() or fresh_state()
+end
+
+function _update(dt)
+  state.playtime += dt
+
+  if input.pressed(input.BTN1) then
+    state.last_saved_at = tonumber(os.time())
+    usagi.save(state)
+    print("Saved!")
+  end
+
+  if input.pressed(input.BTN2) then
+    state = fresh_state()
+    usagi.save(state)
+    print("Reset save!")
+  end
+
+  if input.pressed(input.BTN3) then
+    state = usagi.load() or fresh_state()
+    print("Loaded!")
+  end
+end
+
+function _draw(_dt)
+  gfx.clear(gfx.COLOR_BLACK)
+  gfx.text("SAVE DEMO", 10, 10, gfx.COLOR_WHITE)
+  local now = os.date("%Y-%m-%d %H:%M:%S", os.time())
+  gfx.text("current time: " .. now, 10, 30, gfx.COLOR_PEACH)
+  local saved = state.last_saved_at and os.date("%Y-%m-%d %H:%M:%S", state.last_saved_at) or "never"
+  gfx.text("last saved at: " .. saved, 10, 46, gfx.COLOR_PINK)
+  gfx.text(string.format("playtime: %.1fs", state.playtime), 10, 62, gfx.COLOR_YELLOW)
+  gfx.text("BTN1 to save; BTN2 to reset; BTN3 to load", 10, usagi.GAME_H - 18, gfx.COLOR_LIGHT_GRAY)
+end

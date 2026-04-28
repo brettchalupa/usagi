@@ -22,6 +22,11 @@ rustflags = [
   # `SUPPORT_LONGJMP=emscripten` + wasm-eh, not ASYNCIFY).
   "-C", "link-arg=-sASYNCIFY=1",
   "-C", "link-arg=-sEXPORTED_RUNTIME_METHODS=['ccall','callMain','wasmMemory','HEAPU8','HEAP32','HEAPF32','FS']",
+  # `usagi.save` / `usagi.load` route through `localStorage` on web via
+  # this library file. emcc inlines its contents into `usagi.js` at link
+  # time; the source file is no longer needed at runtime. Path is
+  # relative to the project root, where cargo is invoked.
+  "-C", "link-arg=--js-library=web/usagi_save.js",
 ]
 
 # C/C++ deps must use the same exception ABI rustc uses at link time. See

@@ -23,6 +23,11 @@ Features:
   actions, and hot-swapping no longer drops input when a pad lands on a
   different slot.
 - New `gfx.pixel(x, y, color)` for single-pixel drawing.
+- Save data: `usagi.save(t)` persists a Lua table as JSON, `usagi.load()` reads
+  it back (`nil` on first run). One file per game, namespaced by a new `game_id`
+  field in `_config()` (reverse-DNS, e.g. `com.you.mygame`). Native writes are
+  atomic; web routes through `localStorage` so saves persist even when games are
+  hosted in custom shells. New `examples/save/`.
 - Sprite drawing splits into a basic and an extended form:
   - `gfx.spr(index, x, y)` — basic, already existed in v0.1.
   - `gfx.spr_ex(index, x, y, flip_x, flip_y)` — extended, all flip flags
