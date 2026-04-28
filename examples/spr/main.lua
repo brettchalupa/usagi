@@ -43,7 +43,7 @@ function _update(dt)
   if input.down(input.UP) then
     state.p.y = state.p.y - state.p.spd * dt
   end
-  if input.pressed(input.CONFIRM) then
+  if input.pressed(input.BTN1) then
     print("fire!")
   end
 

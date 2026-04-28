@@ -86,7 +86,7 @@ end
 
 function _update(dt)
   if not state.alive then
-    if input.pressed(input.CONFIRM) then
+    if input.pressed(input.BTN1) then
       _init()
     end
     return
@@ -117,6 +117,6 @@ function _draw(dt)
 
   if not state.alive then
     gfx.text("game over", 128, 80, gfx.COLOR_RED)
-    gfx.text("press CONFIRM", 116, 96, gfx.COLOR_WHITE)
+    gfx.text("press BTN1", 116, 96, gfx.COLOR_WHITE)
   end
 end

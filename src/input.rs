@@ -11,8 +11,9 @@ pub const ACTION_LEFT: u32 = 1;
 pub const ACTION_RIGHT: u32 = 2;
 pub const ACTION_UP: u32 = 3;
 pub const ACTION_DOWN: u32 = 4;
-pub const ACTION_CONFIRM: u32 = 5;
-pub const ACTION_CANCEL: u32 = 6;
+pub const ACTION_BTN1: u32 = 5;
+pub const ACTION_BTN2: u32 = 6;
+pub const ACTION_BTN3: u32 = 7;
 
 /// Deadzone for analog-stick direction checks. Values within +/- this
 /// range count as centered.
@@ -32,7 +33,7 @@ struct Binding {
 /// Add a new row and a matching `ACTION_*` constant to introduce a new
 /// action; `is_valid_action` / `action_down` / `action_pressed` will
 /// automatically include it.
-const BINDINGS: [Binding; 6] = [
+const BINDINGS: [Binding; 7] = [
     // LEFT
     Binding {
         keys: &[KeyboardKey::KEY_LEFT, KeyboardKey::KEY_A],
@@ -57,23 +58,26 @@ const BINDINGS: [Binding; 6] = [
         buttons: &[GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_DOWN],
         axes: &[(GamepadAxis::GAMEPAD_AXIS_LEFT_Y, 1)],
     },
-    // CONFIRM: Z or J on keyboard; the "positive" face buttons on gamepad
-    // (south + west: Xbox A/X, PS Cross/Square).
+    // BTN1: Z or J on keyboard; south face button (Xbox A, PS Cross).
     Binding {
         keys: &[KeyboardKey::KEY_Z, KeyboardKey::KEY_J],
-        buttons: &[
-            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
-            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_LEFT,
-        ],
+        buttons: &[GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN],
         axes: &[],
     },
-    // CANCEL: X or K on keyboard; the "negative" face buttons on gamepad
-    // (east + north: Xbox B/Y, PS Circle/Triangle).
+    // BTN2: X or K on keyboard; east face button (Xbox B, PS Circle).
     Binding {
         keys: &[KeyboardKey::KEY_X, KeyboardKey::KEY_K],
+        buttons: &[GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT],
+        axes: &[],
+    },
+    // BTN3: C or L on keyboard; north + west face buttons on gamepad
+    // (Xbox Y/X, PS Triangle/Square). Both faces fire BTN3 because either
+    // is much easier to hit than reaching across the diamond from A.
+    Binding {
+        keys: &[KeyboardKey::KEY_C, KeyboardKey::KEY_L],
         buttons: &[
-            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT,
             GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_UP,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_LEFT,
         ],
         axes: &[],
     },
@@ -150,8 +154,9 @@ mod tests {
             ACTION_RIGHT,
             ACTION_UP,
             ACTION_DOWN,
-            ACTION_CONFIRM,
-            ACTION_CANCEL,
+            ACTION_BTN1,
+            ACTION_BTN2,
+            ACTION_BTN3,
         ] {
             assert!(is_valid_action(a), "action {a} should be valid");
         }
@@ -160,7 +165,7 @@ mod tests {
     #[test]
     fn unknown_actions_are_not_valid() {
         assert!(!is_valid_action(0));
-        assert!(!is_valid_action(7));
+        assert!(!is_valid_action(8));
         assert!(!is_valid_action(99));
         assert!(!is_valid_action(u32::MAX));
     }

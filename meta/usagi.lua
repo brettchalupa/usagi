@@ -91,28 +91,30 @@ function sfx.play(name) end
 ---Abstract input actions. Each is a union over keyboard keys, gamepad
 ---buttons, and analog-stick directions:
 ---
----- LEFT:    arrow left, A, dpad left, left stick left
----- RIGHT:   arrow right, D, dpad right, left stick right
----- UP:      arrow up, W, dpad up, left stick up
----- DOWN:    arrow down, S, dpad down, left stick down
----- CONFIRM: Z, J; gamepad south + west face (Xbox A/X, PS Cross/Square)
----- CANCEL:  X, K; gamepad east + north face (Xbox B/Y, PS Circle/Triangle)
+---- LEFT:  arrow left, A, dpad left, left stick left
+---- RIGHT: arrow right, D, dpad right, left stick right
+---- UP:    arrow up, W, dpad up, left stick up
+---- DOWN:  arrow down, S, dpad down, left stick down
+---- BTN1:  Z, J; gamepad south face (Xbox A, PS Cross)
+---- BTN2:  X, K; gamepad east face  (Xbox B, PS Circle)
+---- BTN3:  C, L; gamepad north + west face (Xbox Y/X, PS Triangle/Square)
 ---@class Usagi.Input
----@field LEFT    integer
----@field RIGHT   integer
----@field UP      integer
----@field DOWN    integer
----@field CONFIRM integer
----@field CANCEL  integer
+---@field LEFT  integer
+---@field RIGHT integer
+---@field UP    integer
+---@field DOWN  integer
+---@field BTN1  integer
+---@field BTN2  integer
+---@field BTN3  integer
 input = {}
 
 ---Returns true the frame any source bound to `action` first went down.
----@param action integer  one of input.LEFT / RIGHT / UP / DOWN / CONFIRM / CANCEL
+---@param action integer  one of input.LEFT / RIGHT / UP / DOWN / BTN1 / BTN2 / BTN3
 ---@return boolean
 function input.pressed(action) end
 
 ---Returns true while any source bound to `action` is held.
----@param action integer  one of input.LEFT / RIGHT / UP / DOWN / CONFIRM / CANCEL
+---@param action integer  one of input.LEFT / RIGHT / UP / DOWN / BTN1 / BTN2 / BTN3
 ---@return boolean
 function input.down(action) end
 

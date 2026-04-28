@@ -7,41 +7,19 @@ function _init()
   right_down = false
   up_down = false
   down_down = false
-  confirm_down = false
-  cancel_down = false
+  btn1_down = false
+  btn2_down = false
+  btn3_down = false
 end
 
 function _update(_dt)
-  if input.down(input.UP) then
-    up_down = true
-  else
-    up_down = false
-  end
-  if input.down(input.DOWN) then
-    down_down = true
-  else
-    down_down = false
-  end
-  if input.down(input.LEFT) then
-    left_down = true
-  else
-    left_down = false
-  end
-  if input.down(input.RIGHT) then
-    right_down = true
-  else
-    right_down = false
-  end
-  if input.down(input.CONFIRM) then
-    confirm_down = true
-  else
-    confirm_down = false
-  end
-  if input.down(input.CANCEL) then
-    cancel_down = true
-  else
-    cancel_down = false
-  end
+  up_down = input.down(input.UP)
+  down_down = input.down(input.DOWN)
+  left_down = input.down(input.LEFT)
+  right_down = input.down(input.RIGHT)
+  btn1_down = input.down(input.BTN1)
+  btn2_down = input.down(input.BTN2)
+  btn3_down = input.down(input.BTN3)
 end
 
 function _draw(_dt)
@@ -77,17 +55,24 @@ function _draw(_dt)
   end
   gfx.text("RIGHT", 100, 80, gfx.COLOR_WHITE)
 
-  if confirm_down then
-    gfx.spr(2, 180, 40)
+  if btn1_down then
+    gfx.spr(2, 180, 30)
   else
-    gfx.spr(1, 180, 40)
+    gfx.spr(1, 180, 30)
   end
-  gfx.text("CONFIRM", 180, 60, gfx.COLOR_WHITE)
+  gfx.text("BTN1", 180, 50, gfx.COLOR_WHITE)
 
-  if cancel_down then
-    gfx.spr(2, 180, 80)
+  if btn2_down then
+    gfx.spr(2, 180, 70)
   else
-    gfx.spr(1, 180, 80)
+    gfx.spr(1, 180, 70)
   end
-  gfx.text("CANCEL", 180, 100, gfx.COLOR_WHITE)
+  gfx.text("BTN2", 180, 90, gfx.COLOR_WHITE)
+
+  if btn3_down then
+    gfx.spr(2, 180, 110)
+  else
+    gfx.spr(1, 180, 110)
+  end
+  gfx.text("BTN3", 180, 130, gfx.COLOR_WHITE)
 end
