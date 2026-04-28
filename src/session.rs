@@ -47,9 +47,16 @@ fn register_usagi_measure_text(lua: &Lua, font: &'static Font) -> LuaResult<()> 
 struct Config {
     /// title shown in the window chrome and app switcher
     title: String,
-    /// when true, the render target is upscaled at integer multiples (with
-    /// black bars on non-multiple window sizes); when false, it stretches
-    /// to fill the window. Defaults to `true` for crisp pixel art.
+    /// When `true`, the render target is upscaled at integer multiples
+    /// only (1×, 2×, 3×, ...), with black letterbox bars filling any
+    /// leftover window space. When `false` (default) the game scales
+    /// at any factor that fits the window while preserving the game's
+    /// aspect ratio — so bars only appear on the axis with extra room,
+    /// never distorting the image. Default is `false` because at
+    /// common fullscreen resolutions (720p / 1080p / 4K) the game's
+    /// 320×180 native size lands on an integer multiple anyway, and
+    /// in windowed mode players generally prefer "fills the window"
+    /// over "stays crisp with thick bars."
     pixel_perfect: bool,
 }
 
@@ -57,7 +64,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             title: "Usagi".to_string(),
-            pixel_perfect: true,
+            pixel_perfect: false,
         }
     }
 }
@@ -73,10 +80,14 @@ fn read_config(lua: &Lua, last_error: &mut Option<String>) -> Config {
     };
     match config_fn.call::<LuaTable>(()) {
         Ok(tbl) => {
-            if let Ok(t) = tbl.get::<String>("title") {
+            // Use `Option<T>` so missing fields stay None (and the
+            // Default value sticks). Reading a bool field directly
+            // would coerce a missing/nil value to `false`, silently
+            // overriding the default.
+            if let Ok(Some(t)) = tbl.get::<Option<String>>("title") {
                 config.title = t;
             }
-            if let Ok(t) = tbl.get::<bool>("pixel_perfect") {
+            if let Ok(Some(t)) = tbl.get::<Option<bool>>("pixel_perfect") {
                 config.pixel_perfect = t;
             }
         }
@@ -786,12 +797,37 @@ mod tests {
     }
 
     #[test]
-    fn missing_config_pixel_perfect_defaults_to_true() {
+    fn missing_config_pixel_perfect_defaults_to_false() {
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
         let mut err = None;
         let config = read_config(&lua, &mut err);
-        assert!(config.pixel_perfect, "default should be pixel-perfect on");
+        assert!(
+            !config.pixel_perfect,
+            "default should be pixel-perfect off (fill the window)"
+        );
+    }
+
+    /// Regression: `_config()` returning a table without `pixel_perfect`
+    /// must keep the default value. mlua coerces missing/nil to
+    /// `Ok(false)` for `bool` fields, so the read path has to use
+    /// `Option<bool>` to preserve "field absent → keep default".
+    #[test]
+    fn config_without_pixel_perfect_field_keeps_default() {
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+        lua.load(r#"function _config() return { title = "Game" } end"#)
+            .exec()
+            .unwrap();
+        let mut err = None;
+        let config = read_config(&lua, &mut err);
+        assert_eq!(
+            config.pixel_perfect,
+            Config::default().pixel_perfect,
+            "missing pixel_perfect field must not override the default"
+        );
+        assert_eq!(config.title, "Game");
+        assert!(err.is_none());
     }
 
     #[test]

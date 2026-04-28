@@ -198,8 +198,14 @@ Define any of these as globals; Usagi calls them:
 
 - `_config()` — optional. Called **once at startup, before the window opens**;
   returns a config table. Currently supports `title` (defaults to "Usagi") and
-  `pixel_perfect` (defaults to `true`, set `false` to stretch the game to fill
-  the window instead of integer-scaling with bars).
+  `pixel_perfect` (defaults to `false`). When `true`, the game renders at
+  integer scale multiples only (1×, 2×, 3×, ...) with black letterbox bars
+  filling any leftover window space. When `false`, the game scales at any factor
+  that fits the window while preserving the game's aspect ratio, so bars only
+  appear on the axis with extra room, never distorting the image. The default is
+  `false` because at common fullscreen resolutions (720p, 1080p, 4K) the game's
+  320×180 native size lands on an integer multiple anyway, and in windowed mode
+  it looks good still.
 - `_init()` — once at start, and when the user presses **F5**. Put state setup
   here.
 - `_update(dt)` — each frame, before draw. `dt` is seconds since last frame.

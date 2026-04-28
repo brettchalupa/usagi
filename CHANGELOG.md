@@ -52,6 +52,12 @@ Breaking:
 - monogram has a 16 px line height vs raylib's previous 8 px default. Layouts
   that hugged `usagi.GAME_H - 8` or stacked text on 8-pixel rows will need to
   bump offsets to 16 (or read `usagi.measure_text(...)` for an exact value).
+- `_config().pixel_perfect` now defaults to `false` (was `true`). At common
+  fullscreen resolutions (720p, 1080p, 4K) 320×180 hits an integer multiple
+  regardless, and windowed it looks good. Set `pixel_perfect = true` explicitly
+  to keep the strict integer-scale-with-bars behavior. (Also fixes a related bug
+  where omitting the field from a partially-populated `_config()` table silently
+  set it to `false`. Now the default is preserved unless explicitly overridden.)
 
 ## v0.1.0 - Apr 27, 2026
 
