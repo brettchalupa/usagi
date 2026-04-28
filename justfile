@@ -121,3 +121,4 @@ examples:
     just example multifile
     just example operators
     just example snake
+    just example pico8

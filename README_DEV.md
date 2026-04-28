@@ -306,6 +306,25 @@ If you want a deterministic sequence (replays, tests, repeatable level
 generation) call stock Lua's `math.randomseed(n)` from `_init`. See
 `examples/rng.lua` for a small demo.
 
+### Coming from Pico-8?
+
+Check out
+[`./examples/pico8`](https://github.com/brettchalupa/usagi/tree/main/examples/pico8)
+to see how you can drop in a `pico8.lua`, `require "pico8"`, and have a lot of
+the same functions as Pico-8.
+
+The Pico-8 shim allows you to write code like in Pico-8:
+
+```lua
+-- check for input
+if btn(0) then
+  state.p.x = state.p.x - state.p.spd * dt
+end
+
+-- draw a sprite from sprites.png
+spr(0, 20, 30)
+```
+
 ## Live Reload
 
 Usagi watches the running script file and re-executes it when you save. The new
