@@ -108,13 +108,36 @@ impl Bundle {
     }
 
     /// Builds a bundle from a game's script path. Includes the script as
-    /// `main.lua`, `sprites.png` if present, and any `sfx/*.wav` in the
-    /// script's parent directory.
+    /// `main.lua`, every other `.lua` under the project root (so `require`
+    /// can find them at runtime), `sprites.png` if present, and any
+    /// `sfx/*.wav` in the script's parent directory.
     pub fn from_project(script_path: &Path) -> io::Result<Self> {
         let mut bundle = Self::new();
         bundle.insert("main.lua", std::fs::read(script_path)?);
 
         let root = script_path.parent().unwrap_or_else(|| Path::new("."));
+
+        // Walk the root for additional .lua files. Each one is keyed by
+        // its relative path with `/` separators so the BundleBacked vfs
+        // resolves `require "world.tiles"` to `world/tiles.lua` the same
+        // way FsBacked does on disk. The script itself is skipped — it's
+        // already inserted as `main.lua` above, regardless of its on-disk
+        // filename.
+        let script_canon = std::fs::canonicalize(script_path).ok();
+        for (rel, path) in walk_lua_files(root)? {
+            if script_canon.as_deref() == std::fs::canonicalize(&path).ok().as_deref() {
+                continue;
+            }
+            let bytes = std::fs::read(&path)?;
+            // `---@meta` files are LSP type stubs (e.g. `meta/usagi.lua`
+            // from `usagi init`). Bundling them would waste space and let
+            // a stray `require "meta.usagi"` clobber the engine's real
+            // globals at runtime.
+            if crate::vfs::is_meta_chunk(&bytes) {
+                continue;
+            }
+            bundle.insert(rel, bytes);
+        }
 
         let sprites = root.join("sprites.png");
         if sprites.is_file() {
@@ -201,6 +224,51 @@ impl Bundle {
     }
 }
 
+/// Recursively collects `(relative_path, full_path)` pairs for every
+/// `.lua` file under `root`. Relative paths use `/` separators on every
+/// platform so bundle keys round-trip across Windows and Unix. Hidden
+/// directories (those starting with `.`) are skipped — they're typically
+/// editor metadata (`.zed`, `.vscode`) or version control (`.git`) and
+/// shouldn't end up in a shipped game.
+fn walk_lua_files(root: &Path) -> io::Result<Vec<(String, std::path::PathBuf)>> {
+    let mut out = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir)?.flatten() {
+            let p = entry.path();
+            let name = match p.file_name().and_then(|n| n.to_str()) {
+                Some(n) => n,
+                None => continue,
+            };
+            if name.starts_with('.') {
+                continue;
+            }
+            if p.is_dir() {
+                stack.push(p);
+                continue;
+            }
+            if p.extension().and_then(|e| e.to_str()) != Some("lua") {
+                continue;
+            }
+            let rel = match p.strip_prefix(root) {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
+            // Force `/` even on Windows so bundle keys are stable.
+            let rel_str: String = rel
+                .components()
+                .filter_map(|c| match c {
+                    std::path::Component::Normal(s) => s.to_str().map(String::from),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("/");
+            out.push((rel_str, p));
+        }
+    }
+    Ok(out)
+}
+
 fn read_u32(r: &mut impl Read) -> io::Result<u32> {
     let mut b = [0u8; 4];
     r.read_exact(&mut b)?;
@@ -269,6 +337,67 @@ mod tests {
         assert!(bundle.get("sfx/jump.wav").is_some());
         assert!(bundle.get("sfx/coin.wav").is_some());
         assert!(bundle.get("sfx/notes.txt").is_none());
+    }
+
+    #[test]
+    fn from_project_picks_up_sibling_and_nested_lua_modules() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("main.lua"), b"-- main").unwrap();
+        fs::write(root.join("enemies.lua"), b"-- enemies").unwrap();
+        fs::create_dir_all(root.join("world")).unwrap();
+        fs::write(root.join("world/tiles.lua"), b"-- tiles").unwrap();
+        // Hidden directory contents must NOT be bundled.
+        fs::create_dir_all(root.join(".zed")).unwrap();
+        fs::write(root.join(".zed/secret.lua"), b"-- secret").unwrap();
+
+        let bundle = Bundle::from_project(&root.join("main.lua")).unwrap();
+        assert_eq!(bundle.get("main.lua"), Some(b"-- main".as_slice()));
+        assert_eq!(bundle.get("enemies.lua"), Some(b"-- enemies".as_slice()));
+        assert_eq!(bundle.get("world/tiles.lua"), Some(b"-- tiles".as_slice()));
+        assert!(bundle.get(".zed/secret.lua").is_none());
+    }
+
+    #[test]
+    fn from_project_excludes_meta_marked_files() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("main.lua"), b"-- main").unwrap();
+        fs::create_dir_all(root.join("meta")).unwrap();
+        fs::write(
+            root.join("meta/usagi.lua"),
+            b"---@meta\nfunction gfx.clear(c) end\n",
+        )
+        .unwrap();
+        // A meta-marked file outside the conventional `meta/` dir must
+        // also be excluded — the rule is the marker, not the path.
+        fs::write(root.join("local_stubs.lua"), b"---@meta\nlocal _ = 1\n").unwrap();
+        // A normal sibling file in the same project still gets bundled.
+        fs::write(root.join("util.lua"), b"return {}").unwrap();
+
+        let bundle = Bundle::from_project(&root.join("main.lua")).unwrap();
+        assert!(bundle.get("meta/usagi.lua").is_none());
+        assert!(bundle.get("local_stubs.lua").is_none());
+        assert_eq!(bundle.get("util.lua"), Some(b"return {}".as_slice()));
+    }
+
+    #[test]
+    fn from_project_renames_alt_script_to_main_without_duplicating() {
+        // When the user runs `usagi export game.lua`, game.lua is the
+        // entry point — it goes in the bundle as `main.lua`, and the walk
+        // must NOT also drop a `game.lua` entry.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("game.lua"), b"-- game").unwrap();
+        fs::write(root.join("util.lua"), b"-- util").unwrap();
+
+        let bundle = Bundle::from_project(&root.join("game.lua")).unwrap();
+        assert_eq!(bundle.get("main.lua"), Some(b"-- game".as_slice()));
+        assert!(
+            bundle.get("game.lua").is_none(),
+            "entry script should not be double-inserted under its source name"
+        );
+        assert_eq!(bundle.get("util.lua"), Some(b"-- util".as_slice()));
     }
 
     #[test]
