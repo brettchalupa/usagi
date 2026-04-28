@@ -6,13 +6,14 @@
 -- This is NOT a Pico-8 compatibility layer. It covers the subset that
 -- maps cleanly onto usagi's current API:
 --
---   covered: cls, rect, rectfill, circ, circfill, line, print, spr,
---            btn, btnp, flr, ceil, abs, min, max, mid, sqrt, cos, sin,
---            rnd, srand
+--   covered: cls, rect, rectfill, circ, circfill, line, print, pset,
+--            spr (with flip args), sspr (with stretch + flip args), btn,
+--            btnp, flr, ceil, abs, min, max, mid, sqrt, cos, sin, rnd,
+--            srand, time, t
 --
---   missing: music, pset, palette swap (pal/palt), camera, clip, fillp,
---            peek/poke, map, sspr, mget/mset, sfx (index-keyed; usagi
---            sfx are name-keyed), atan2, time/t.
+--   missing: music, palette swap (pal/palt), camera, clip, fillp,
+--            peek/poke, map, mget/mset, sfx (index-keyed; usagi sfx are
+--            name-keyed), atan2.
 --
 -- Notable behaviors preserved from Pico-8:
 --   * `spr(0)` draws the first sprite (Pico-8 is 0-based; usagi is
@@ -58,8 +59,37 @@ print = function(s, x, y, c)
   gfx.text(tostring(s), x or 0, y or 0, c or gfx.COLOR_WHITE)
 end
 
-spr = function(n, x, y)
-  gfx.spr(n + 1, x, y)
+-- Pico-8 `spr(n, x, y, [w, h, [flip_x, [flip_y]]])`. Usagi's spr is a
+-- fixed (idx, x, y); the extended `spr_ex` adds required flip args. We
+-- forward to whichever fits the call. The Pico-8 `w, h` (multi-tile)
+-- args are ignored — usagi doesn't have multi-tile sprite draws yet;
+-- pass single-tile indices.
+spr = function(n, x, y, _w, _h, flip_x, flip_y)
+  if flip_x or flip_y then
+    gfx.spr_ex(n + 1, x, y, flip_x or false, flip_y or false)
+  else
+    gfx.spr(n + 1, x, y)
+  end
+end
+
+-- Pico-8 `sspr(sx, sy, sw, sh, dx, dy, [dw, [dh, [flip_x, [flip_y]]]])`.
+-- Forwards to `gfx.sspr` for plain 1:1 draws and `gfx.sspr_ex` when any
+-- power arg (dest size or flip) is given.
+sspr = function(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)
+  local plain = dw == nil and dh == nil and not flip_x and not flip_y
+  if plain then
+    gfx.sspr(sx, sy, sw, sh, dx, dy)
+  else
+    gfx.sspr_ex(
+      sx, sy, sw, sh, dx, dy,
+      dw or sw, dh or sh,
+      flip_x or false, flip_y or false
+    )
+  end
+end
+
+pset = function(x, y, c)
+  gfx.pixel(x, y, c)
 end
 
 local BTN_TO_ACTION = {
@@ -130,5 +160,12 @@ end
 srand = function(s)
   math.randomseed(s)
 end
+
+-- Pico-8 exposes both `time()` and the shorthand `t()`; both return
+-- seconds since the cart started running. Maps to `usagi.elapsed`.
+time = function()
+  return usagi.elapsed
+end
+t = time
 
 return {}
