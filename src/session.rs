@@ -8,7 +8,9 @@
 //! is what lets us drop ASYNCIFY entirely.
 
 use crate::api::{record_err, setup_api};
-use crate::assets::{SfxLibrary, SpriteSheet, load_script};
+use crate::assets::{
+    SfxLibrary, SpriteSheet, clear_user_modules, freshest_lua_mtime, install_require, load_script,
+};
 use crate::input;
 use crate::palette::palette;
 use crate::render::{draw_error_overlay, draw_render_target};
@@ -17,6 +19,7 @@ use crate::{GAME_HEIGHT, GAME_WIDTH};
 
 use mlua::prelude::*;
 use sola_raylib::prelude::*;
+use std::rc::Rc;
 use std::time::SystemTime;
 
 /// User-visible engine config returned by `_config()`. Read once before the
@@ -96,7 +99,7 @@ struct Session {
     show_fps: bool,
     config: Config,
 
-    vfs: Box<dyn VirtualFs>,
+    vfs: Rc<dyn VirtualFs>,
     reload: bool,
 
     // Raylib handle last: drops after every GPU resource above, so
@@ -106,7 +109,7 @@ struct Session {
 }
 
 impl Session {
-    fn new(vfs: Box<dyn VirtualFs>, dev: bool) -> crate::Result<Self> {
+    fn new(vfs: Rc<dyn VirtualFs>, dev: bool) -> crate::Result<Self> {
         let reload = dev && vfs.supports_reload();
 
         let lua = Lua::new();
@@ -114,6 +117,8 @@ impl Session {
         // allocations, small set of long-lived state).
         lua.gc_gen(0, 0);
         setup_api(&lua, dev)?;
+        install_require(&lua, vfs.clone())
+            .map_err(|e| crate::Error::Cli(format!("installing require: {e}")))?;
 
         let mut last_error: Option<String> = None;
 
@@ -170,7 +175,10 @@ impl Session {
         }
         let update: Option<LuaFunction> = lua.globals().get("_update").ok();
         let draw: Option<LuaFunction> = lua.globals().get("_draw").ok();
-        let last_modified = vfs.script_mtime();
+        // Baseline includes every module main.lua already required, so
+        // the first frame doesn't spuriously reload just because a sibling
+        // module's mtime is newer than main.lua's.
+        let last_modified = freshest_lua_mtime(&lua, vfs.as_ref());
 
         let sprites = SpriteSheet::load(&mut rl, &thread, vfs.as_ref());
 
@@ -231,9 +239,13 @@ impl Session {
         // _init); F5 is the explicit reset. Errors are logged and the
         // previous callbacks keep running so a half-saved file can't kill
         // the session.
-        let new_mtime = self.vfs.script_mtime();
+        let new_mtime = freshest_lua_mtime(&self.lua, self.vfs.as_ref());
         if new_mtime.is_some() && new_mtime != self.last_modified {
-            self.last_modified = new_mtime;
+            // Drop cached require results so dependencies re-execute when
+            // main.lua re-runs. Built-in libs are untouched.
+            if let Err(e) = clear_user_modules(&self.lua, self.vfs.as_ref()) {
+                eprintln!("[usagi] clear_user_modules: {e}");
+            }
             match load_script(&self.lua, self.vfs.as_ref()) {
                 Ok(()) => {
                     println!("[usagi] reloaded {}", self.vfs.script_name());
@@ -247,6 +259,10 @@ impl Session {
                     self.last_error = Some(msg);
                 }
             }
+            // Recompute after reload: the just-required modules are now
+            // in package.loaded with their fresh mtimes, and we want to
+            // baseline against THOSE rather than the pre-reload value.
+            self.last_modified = freshest_lua_mtime(&self.lua, self.vfs.as_ref());
         }
 
         if self
@@ -512,7 +528,7 @@ impl Session {
 /// sfx (either from disk or a fused bundle). When `dev` is true AND the
 /// vfs supports reload, files are re-read on mtime change. F5 always
 /// resets state via `_init()`.
-pub fn run(vfs: Box<dyn VirtualFs>, dev: bool) -> crate::Result<()> {
+pub fn run(vfs: Rc<dyn VirtualFs>, dev: bool) -> crate::Result<()> {
     let session = Session::new(vfs, dev)?;
 
     #[cfg(target_os = "emscripten")]

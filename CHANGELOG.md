@@ -3,6 +3,13 @@
 History of Usagi releases and what changed in each release. User-facing notes.
 Doesn't contain updates relating to developing the engine itself.
 
+## UNRELEASED
+
+Features:
+
+- Multiple Lua source files are now supported; use `require("file")` to load
+  `file.lua`.
+
 ## v0.1.0 - Apr 27, 2026
 
 Initial release of Usagi, introducing the CLI with `usagi dev`, `usagi run`,

@@ -121,4 +121,5 @@ examples:
     just example input_test
     just example spr
     just example sound
+    just example multifile
     just example snake

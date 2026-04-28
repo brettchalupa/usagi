@@ -213,12 +213,12 @@ fn start_session(path_arg: &str, dev: bool) -> Result<()> {
     }
 
     let script_path = cli::resolve_script_path(path_arg)?;
-    let vfs = Box::new(FsBacked::from_script_path(Path::new(&script_path)));
+    let vfs = std::rc::Rc::new(FsBacked::from_script_path(Path::new(&script_path)));
     session::run(vfs, dev)
 }
 
 fn run_bundled(bundle: Bundle) -> Result<()> {
-    let vfs = Box::new(BundleBacked::new(bundle));
+    let vfs = std::rc::Rc::new(BundleBacked::new(bundle));
     session::run(vfs, false)
 }
 
