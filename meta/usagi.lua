@@ -184,7 +184,7 @@ function usagi.measure_text(text) end
 ---fields fall back to engine defaults.
 ---@class Usagi.Config
 ---@field title? string  window title (default: "Usagi")
----@field pixel_perfect? boolean integer scaling with bars (default: true)
+---@field pixel_perfect? boolean false (default) = any scale that fits the window while preserving aspect ratio; true = integer scale only with letterbox bars
 
 ---Optional. Returns engine config read once before the window opens.
 ---Omit if the defaults are fine.
