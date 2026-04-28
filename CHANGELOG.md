@@ -18,6 +18,10 @@ Features:
   Triangle and Square) so it's reachable from either side of the diamond.
 - New `examples/rng.lua` demonstrates `math.random` (PRNG is auto-seeded on
   startup) and how to call `math.randomseed(n)` for deterministic sequences.
+- Input now polls every connected gamepad slot rather than only slot 0. Any
+  connected pad (Steam Deck built-in, external pad over USB/Bluetooth)
+  triggers actions, and hot-swapping no longer drops input when a pad lands
+  on a different slot.
 
 Breaking:
 

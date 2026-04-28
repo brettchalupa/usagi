@@ -19,6 +19,12 @@ pub const ACTION_BTN3: u32 = 7;
 /// range count as centered.
 const STICK_DEADZONE: f32 = 0.3;
 
+/// Upper bound on gamepad slots to poll. Matches sola-raylib max. Any connected
+/// pad (Steam Deck built-in, external pad over USB/Bluetooth, dongle) fires
+/// every action, independent of slot index. So hot-swapping works no problem.
+/// This is naive but works for what Usagi needs.
+const MAX_GAMEPADS: i32 = 4;
+
 /// Bindings for a single action: the keyboard keys, gamepad buttons, and
 /// analog-axis directions that all count as "this action is pressed".
 struct Binding {
@@ -104,14 +110,17 @@ pub fn action_down(rl: &RaylibHandle, action: u32) -> bool {
             return true;
         }
     }
-    if rl.is_gamepad_available(0) {
+    for pad in 0..MAX_GAMEPADS {
+        if !rl.is_gamepad_available(pad) {
+            continue;
+        }
         for btn in b.buttons {
-            if rl.is_gamepad_button_down(0, *btn) {
+            if rl.is_gamepad_button_down(pad, *btn) {
                 return true;
             }
         }
         for (axis, sign) in b.axes {
-            let v = rl.get_gamepad_axis_movement(0, *axis);
+            let v = rl.get_gamepad_axis_movement(pad, *axis);
             if (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE) {
                 return true;
             }
@@ -133,9 +142,12 @@ pub fn action_pressed(rl: &RaylibHandle, action: u32) -> bool {
             return true;
         }
     }
-    if rl.is_gamepad_available(0) {
+    for pad in 0..MAX_GAMEPADS {
+        if !rl.is_gamepad_available(pad) {
+            continue;
+        }
         for btn in b.buttons {
-            if rl.is_gamepad_button_pressed(0, *btn) {
+            if rl.is_gamepad_button_pressed(pad, *btn) {
                 return true;
             }
         }
