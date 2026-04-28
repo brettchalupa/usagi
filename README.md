@@ -1,8 +1,10 @@
-# Usagi - Simple, Rapid 2D Game Engine
+# Usagi - Simple 2D Game Engine for Rapid Prototyping
 
-Usagi is a simple 2D game engine for quickly prototyping simple games with Lua
-5.4. It features live-reloading as your change your game code and assets. Its
-API is clear, consistent, and familiar.
+Usagi is a simple 2D game engine for quickly making games with _Lua_* 5.4. It
+features live-reloading as your change your game code and assets. Its API is
+clear, consistent, and familiar.
+
+[Watch the intro video!](https://www.youtube.com/watch?v=byp3rKd626M)
 
 Usagi is built with [Rust](https://rust-lang.org/) and
 [sola-raylib](https://crates.io/crates/sola-raylib).
@@ -42,7 +44,19 @@ and `USAGI.md` tells you which `usagi` produced them.
 ## Hello, Usagi
 
 You now have the `usagi` CLI that you can run from your shell (`usagi.exe` on
-Windows). Bootstrap a new project and start it in dev mode:
+Windows).
+
+Starting development is as simple as creating `main.lua`, running `usagi dev`,
+and coding:
+
+```lua
+function _draw(_dt)
+  gfx.clear(gfx.COLOR_BLACK)
+  gfx.text("Hello, Usagi!", 10, 10, gfx.COLOR_WHITE)
+end
+```
+
+You can quickly bootstrap a new project and start it in dev mode:
 
 ```sh
 usagi init my_game
