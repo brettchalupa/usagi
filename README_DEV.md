@@ -283,6 +283,22 @@ Enum-like constants (palette colors, key codes) keep their conventional
 numbering. `gfx.COLOR_RED` is 8 because that's its Pico-8 number, not because
 it's the 9th color.
 
+### Randomness
+
+Lua's `math.random` is available as-is. Lua auto-seeds its PRNG at startup, so
+each run of `usagi dev` / `usagi run` (and each launch of an exported binary)
+produces a fresh sequence. No engine call is needed before calling
+`math.random()`.
+
+```lua
+local n = math.random(1, 100)   -- integer in [1, 100]
+local f = math.random()         -- float in [0, 1)
+```
+
+If you want a deterministic sequence (replays, tests, repeatable level
+generation) call stock Lua's `math.randomseed(n)` from `_init`. See
+`examples/rng.lua` for a small demo.
+
 ## Live Reload
 
 Usagi watches the running script file and re-executes it when you save. The new
