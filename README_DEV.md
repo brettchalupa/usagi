@@ -235,7 +235,9 @@ indices 0-15; use the named constants.
 ### `input`
 
 Abstract input actions. Each action is a union over keyboard, gamepad buttons,
-and the left analog stick; the first connected gamepad is used.
+and the left analog stick; any connected gamepad fires every action, so the
+Steam Deck's built-in pad and an external pad both work, and hot-swapping is
+transparent.
 
 - `input.pressed(action)` — true only the frame the action first went down. Use
   for one-shot actions (fire, jump, menu select).
