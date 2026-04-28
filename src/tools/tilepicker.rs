@@ -125,7 +125,9 @@ pub(super) fn draw(
     texture: Option<&Texture2D>,
     sprites_path: Option<&Path>,
 ) {
-    const SMALL: f32 = crate::font::MONOGRAM_SIZE as f32;
+    // 2× the game-canvas font size for desktop-sized tools text. See
+    // jukebox::draw for the rationale.
+    const SMALL: f32 = (crate::font::MONOGRAM_SIZE * 2) as f32;
 
     d.gui_panel(
         Rectangle::new(PANEL_X, PANEL_Y, PANEL_W, PANEL_H),
@@ -204,11 +206,11 @@ fn draw_overlay<T: RaylibDraw>(d: &mut T, font: &Font, tex: &Texture2D, state: &
     // Semi-transparent cyan. Readable on any bg without a per-bg palette.
     let overlay = Color::new(0, 180, 200, 220);
 
-    // monogram only stays crisp at its 16px design size, so always
-    // draw the index labels at 16. They become tiny relative to the
-    // tile at high zoom levels but stay readable; that's a better
-    // tradeoff than blurry scaled glyphs.
-    let size = crate::font::MONOGRAM_SIZE as f32;
+    // 2× the design size — same crisp integer scale as the rest of
+    // the tools panel text, and large enough to read at the default
+    // 3× zoom (48 px tiles). monogram is bitmap with POINT filter so
+    // any integer multiple stays crisp.
+    let size = (crate::font::MONOGRAM_SIZE * 2) as f32;
     for row in 0..rows {
         for col in 0..cols {
             let idx = row * cols + col + 1;

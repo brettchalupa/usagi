@@ -122,3 +122,4 @@ examples:
     just example operators
     just example snake
     just example pico8
+    just example dialog

@@ -52,7 +52,15 @@ circfill = function(x, y, r, c)
 end
 
 line = function(x0, y0, x1, y1, c)
-  gfx.line(x0, y0, x1, y1, c)
+  -- Pico-8 treats `line(x,y,x,y)` as a single-pixel draw because its
+  -- endpoints are inclusive; raylib's DrawLine on a zero-length line
+  -- draws nothing. Bridge that with gfx.pixel to keep `for star in
+  -- ... line(sx, sy, sx, sy, c) end` working as Pico-8 users expect.
+  if x0 == x1 and y0 == y1 then
+    gfx.pixel(x0, y0, c)
+  else
+    gfx.line(x0, y0, x1, y1, c)
+  end
 end
 
 print = function(s, x, y, c)

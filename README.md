@@ -152,6 +152,7 @@ Here's what Usagi will support as it heads towards 1.0 release:
 
 - Music playback with looping support
 - Mouse functions and ability to hide cursor
+- Arbitrary source rectangle rendering from the spritesheet
 
 ## Lua API
 

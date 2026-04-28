@@ -102,11 +102,11 @@ pub(super) fn draw(
     project_path: Option<&str>,
     sfx_dir: Option<&Path>,
 ) {
-    // Tools window draws monogram at its 16px design size everywhere
-    // — that's the only size that stays crisp without scaling the
-    // glyph atlas. If we want a "header" feel later we can use bold
-    // formatting or a frame, not a bigger draw size.
-    const SMALL: f32 = crate::font::MONOGRAM_SIZE as f32;
+    // Tools window is 1280×720 desktop-size, so the 12 px game-canvas
+    // font reads as tiny. Bitmap monogram + POINT filter scales
+    // crisply at integer multiples — 2× (24 px) is comfortable for
+    // tools at desktop resolution.
+    const SMALL: f32 = (crate::font::MONOGRAM_SIZE * 2) as f32;
 
     d.gui_panel(
         Rectangle::new(PANEL_X, PANEL_Y, PANEL_W, PANEL_H),
