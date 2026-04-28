@@ -56,6 +56,10 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     // fused/compiled binaries. Lets games gate debug overlays, dev menus,
     // verbose logging, etc.
     usagi.set("IS_DEV", dev)?;
+    // Wall-clock seconds since the session started. The session updates
+    // this once per frame before _update; tests and tools that don't
+    // drive a frame loop see the seed value below. Doesn't reset on F5.
+    usagi.set("elapsed", 0.0_f64)?;
     lua.globals().set("usagi", usagi)?;
 
     Ok(())
@@ -104,6 +108,7 @@ mod tests {
 
         assert_eq!(usagi.get::<f32>("GAME_W").unwrap(), GAME_WIDTH);
         assert_eq!(usagi.get::<f32>("GAME_H").unwrap(), GAME_HEIGHT);
+        assert_eq!(usagi.get::<f64>("elapsed").unwrap(), 0.0);
     }
 
     #[test]
@@ -242,6 +247,23 @@ mod tests {
                 "spr",
                 scope.create_function(|_, _a: (i32, f32, f32)| Ok(()))?,
             )?;
+            gfx.set(
+                "spr_ex",
+                scope.create_function(|_, _a: (i32, f32, f32, bool, bool)| Ok(()))?,
+            )?;
+            gfx.set(
+                "sspr",
+                scope.create_function(|_, _a: (f32, f32, f32, f32, f32, f32)| Ok(()))?,
+            )?;
+            type SsprExArgs = (f32, f32, f32, f32, f32, f32, f32, f32, bool, bool);
+            gfx.set(
+                "sspr_ex",
+                scope.create_function(|_, _a: SsprExArgs| Ok(()))?,
+            )?;
+            gfx.set(
+                "pixel",
+                scope.create_function(|_, _a: (f32, f32, i32)| Ok(()))?,
+            )?;
 
             let input: LuaTable = lua.globals().get("input")?;
             input.set("pressed", scope.create_function(|_, _k: u32| Ok(false))?)?;
@@ -260,6 +282,11 @@ mod tests {
                 gfx.line(0, 0, 100, 100, gfx.COLOR_WHITE)
                 gfx.text("hi", 0, 0, gfx.COLOR_WHITE)
                 gfx.spr(1, usagi.GAME_W / 2, usagi.GAME_H / 2)
+                gfx.spr_ex(1, 0, 0, true, true)
+                gfx.sspr(0, 0, 16, 16, 10, 10)
+                gfx.sspr_ex(0, 0, 16, 16, 10, 10, 32, 32, true, false)
+                gfx.pixel(5, 5, gfx.COLOR_WHITE)
+                assert(type(usagi.elapsed) == "number")
                 assert(type(input.pressed(input.LEFT)) == "boolean")
                 assert(type(input.down(input.BTN1)) == "boolean")
                 assert(type(input.pressed(input.BTN2)) == "boolean")

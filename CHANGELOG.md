@@ -19,9 +19,20 @@ Features:
 - New `examples/rng.lua` demonstrates `math.random` (PRNG is auto-seeded on
   startup) and how to call `math.randomseed(n)` for deterministic sequences.
 - Input now polls every connected gamepad slot rather than only slot 0. Any
-  connected pad (Steam Deck built-in, external pad over USB/Bluetooth)
-  triggers actions, and hot-swapping no longer drops input when a pad lands
-  on a different slot.
+  connected pad (Steam Deck built-in, external pad over USB/Bluetooth) triggers
+  actions, and hot-swapping no longer drops input when a pad lands on a
+  different slot.
+- New `gfx.pixel(x, y, color)` for single-pixel drawing.
+- Sprite drawing splits into a basic and an extended form:
+  - `gfx.spr(index, x, y)` — basic, already existed in v0.1.
+  - `gfx.spr_ex(index, x, y, flip_x, flip_y)` — extended, all flip flags
+    required.
+  - `gfx.sspr(sx, sy, sw, sh, dx, dy)` — arbitrary source rect at 1:1 size.
+  - `gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)` — extended,
+    all power args required (stretch + both flips). Each function has a single
+    fixed signature; no optional trailing args.
+- New `usagi.elapsed` field — wall-clock seconds since the session started,
+  updated once per frame before `_update`. Frame-stable; doesn't reset on F5.
 
 Breaking:
 

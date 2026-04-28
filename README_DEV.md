@@ -159,9 +159,13 @@ Here's what Usagi will support as it heads towards 1.0 release:
 
 - Music playback with looping support
 - Mouse functions and ability to hide cursor
-- Arbitrary source rectangle rendering from the spritesheet
 
 ## Lua API
+
+**Philosophy:** keep it simple, name things clearly, and prefer fixed function
+signatures.
+
+**Style**: for Lua, 2 spaces indent with snake_case is used throughout.
 
 ### Compound assignment operators
 
@@ -223,9 +227,25 @@ indices 0-15; use the named constants.
 - `gfx.circ(x, y, r, color)` — circle outline centered at `(x, y)`.
 - `gfx.circ_fill(x, y, r, color)` — filled circle centered at `(x, y)`.
 - `gfx.line(x1, y1, x2, y2, color)` — line from `(x1, y1)` to `(x2, y2)`.
+- `gfx.pixel(x, y, color)` — set a single pixel.
 - `gfx.text(text, x, y, color)` — default font, 8px tall.
 - `gfx.spr(index, x, y)` — draw the 16×16 sprite at `index` (1 = top-left) from
   `sprites.png`.
+- `gfx.spr_ex(index, x, y, flip_x, flip_y)` — extended `spr`: requires both flip
+  booleans.
+- `gfx.sspr(sx, sy, sw, sh, dx, dy)` — draw an arbitrary `(sx, sy, sw, sh)`
+  rectangle from `sprites.png` at `(dx, dy)` at original size.
+- `gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)` — extended
+  `sspr`: stretches to `(dw, dh)` and flips per the booleans, all required.
+
+The `_ex` variants pack every power-arg into one fixed signature instead of
+trailing optionals. Lua has no keyword args, so a 10-arg call with four optional
+booleans at the end is hostile to read at the call site, and chains of
+`_flipped`/`_stretched`/`_flipped_stretched` blow up combinatorially. With a
+single `_ex` per primitive there's exactly one decision per draw ("simple or
+extended?") and games that want shorter call sites can write a thin wrapper for
+the specific combination they hit often.
+
 - `gfx.COLOR_BLACK`, `COLOR_DARK_BLUE`, `COLOR_DARK_PURPLE`, `COLOR_DARK_GREEN`,
   `COLOR_BROWN`, `COLOR_DARK_GRAY`, `COLOR_LIGHT_GRAY`, `COLOR_WHITE`,
   `COLOR_RED`, `COLOR_ORANGE`, `COLOR_YELLOW`, `COLOR_GREEN`, `COLOR_BLUE`,
@@ -279,6 +299,10 @@ Engine-level info.
     gfx.text("debug", 0, 0, gfx.COLOR_GREEN)
   end
   ```
+- `usagi.elapsed` — wall-clock seconds since the session started, updated once
+  per frame before `_update`. Frame-stable (every read in one frame returns the
+  same value). Doesn't reset on F5; track your own counter from `_init` if you
+  need a per-run timer.
 
 ### Indexing
 

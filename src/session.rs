@@ -22,6 +22,10 @@ use sola_raylib::prelude::*;
 use std::rc::Rc;
 use std::time::SystemTime;
 
+/// Argument tuple for `gfx.sspr_ex`: `(sx, sy, sw, sh, dx, dy, dw, dh,
+/// flip_x, flip_y)`. Aliased so the closure signature stays readable.
+type SsprExArgs = (f32, f32, f32, f32, f32, f32, f32, f32, bool, bool);
+
 /// User-visible engine config returned by `_config()`. Read once before the
 /// window opens. All fields are optional; missing fields fall back to
 /// engine defaults.
@@ -98,6 +102,11 @@ struct Session {
     last_modified: Option<SystemTime>,
     show_fps: bool,
     config: Config,
+
+    /// Wall-clock seconds since the session started. Mirrored into the
+    /// `usagi.elapsed` Lua field at the start of each frame, before
+    /// `_update`. f64 to avoid f32 precision drift over hour-long runs.
+    elapsed: f64,
 
     vfs: Rc<dyn VirtualFs>,
     reload: bool,
@@ -204,6 +213,7 @@ impl Session {
             last_modified,
             show_fps: false,
             config,
+            elapsed: 0.0,
             vfs,
             reload,
             thread,
@@ -227,6 +237,14 @@ impl Session {
         let screen_w = self.rl.get_screen_width();
         let screen_h = self.rl.get_screen_height();
         let fps = self.rl.get_fps();
+
+        // Bump elapsed and mirror it into Lua before _update sees the
+        // frame. Best-effort: if the Lua side has clobbered `usagi`
+        // somehow, don't tear down the session over it.
+        self.elapsed += dt as f64;
+        if let Ok(usagi_tbl) = self.lua.globals().get::<LuaTable>("usagi") {
+            let _ = usagi_tbl.set("elapsed", self.elapsed);
+        }
 
         self.run_update(dt);
         self.run_draw(dt, fps);
@@ -452,28 +470,45 @@ impl Session {
                             Ok(())
                         },
                     )?;
-                    let spr = scope.create_function(|_, (idx, x, y): (i32, f32, f32)| {
-                        // 1-based indexing to match Lua conventions.
+                    let pixel = scope.create_function(|_, (x, y, c): (f32, f32, i32)| {
+                        d_rt_cell.borrow_mut().draw_pixel(
+                            x.round() as i32,
+                            y.round() as i32,
+                            palette(c),
+                        );
+                        Ok(())
+                    })?;
+                    // Resolves a 1-based sprite index into a (col, row,
+                    // CELL) tuple on the loaded sheet, or None for
+                    // out-of-range / no-sheet. Shared between `spr`
+                    // and `spr_flipped` so the bookkeeping stays in
+                    // one place.
+                    fn cell_for(tex: &Texture2D, idx: i32) -> Option<(i32, i32, i32)> {
+                        const CELL: i32 = 16;
                         if idx < 1 {
-                            return Ok(());
+                            return None;
+                        }
+                        let cols = tex.width / CELL;
+                        if cols <= 0 {
+                            return None;
                         }
                         let idx0 = idx - 1;
-                        if let Some(tex) = sprites_ref {
-                            const CELL: i32 = 16;
-                            let cols = tex.width / CELL;
-                            if cols <= 0 {
-                                return Ok(());
-                            }
-                            let col = idx0 % cols;
-                            let row = idx0 / cols;
-                            if row * CELL >= tex.height {
-                                return Ok(());
-                            }
+                        let col = idx0 % cols;
+                        let row = idx0 / cols;
+                        if row * CELL >= tex.height {
+                            return None;
+                        }
+                        Some((col, row, CELL))
+                    }
+                    let spr = scope.create_function(|_, (idx, x, y): (i32, f32, f32)| {
+                        if let Some(tex) = sprites_ref
+                            && let Some((col, row, cell)) = cell_for(tex, idx)
+                        {
                             let source = Rectangle {
-                                x: (col * CELL) as f32,
-                                y: (row * CELL) as f32,
-                                width: CELL as f32,
-                                height: CELL as f32,
+                                x: (col * cell) as f32,
+                                y: (row * cell) as f32,
+                                width: cell as f32,
+                                height: cell as f32,
                             };
                             let pos = Vector2::new(x.round(), y.round());
                             d_rt_cell
@@ -482,6 +517,94 @@ impl Session {
                         }
                         Ok(())
                     })?;
+                    let spr_ex = scope.create_function(
+                        |_, (idx, x, y, flip_x, flip_y): (i32, f32, f32, bool, bool)| {
+                            if let Some(tex) = sprites_ref
+                                && let Some((col, row, cell)) = cell_for(tex, idx)
+                            {
+                                // Negative source dimensions flip the
+                                // texture in `draw_texture_pro`.
+                                let sw = if flip_x { -cell } else { cell } as f32;
+                                let sh = if flip_y { -cell } else { cell } as f32;
+                                let source = Rectangle {
+                                    x: (col * cell) as f32,
+                                    y: (row * cell) as f32,
+                                    width: sw,
+                                    height: sh,
+                                };
+                                let dest = Rectangle {
+                                    x: x.round(),
+                                    y: y.round(),
+                                    width: cell as f32,
+                                    height: cell as f32,
+                                };
+                                d_rt_cell.borrow_mut().draw_texture_pro(
+                                    tex,
+                                    source,
+                                    dest,
+                                    Vector2::zero(),
+                                    0.0,
+                                    Color::WHITE,
+                                );
+                            }
+                            Ok(())
+                        },
+                    )?;
+                    let sspr = scope.create_function(
+                        |_, (sx, sy, sw, sh, dx, dy): (f32, f32, f32, f32, f32, f32)| {
+                            if let Some(tex) = sprites_ref {
+                                let source = Rectangle {
+                                    x: sx,
+                                    y: sy,
+                                    width: sw,
+                                    height: sh,
+                                };
+                                let pos = Vector2::new(dx.round(), dy.round());
+                                d_rt_cell.borrow_mut().draw_texture_rec(
+                                    tex,
+                                    source,
+                                    pos,
+                                    Color::WHITE,
+                                );
+                            }
+                            Ok(())
+                        },
+                    )?;
+                    // Source-rect draw with full power: arbitrary
+                    // source rect, arbitrary dest size, plus flips.
+                    // All 10 args required — if you want a quick 1:1
+                    // draw use `gfx.sspr`, and write your own thin
+                    // wrapper if a particular flag combination shows
+                    // up often in your code.
+                    let sspr_ex = scope.create_function(
+                        |_, (sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y): SsprExArgs| {
+                            if let Some(tex) = sprites_ref {
+                                let src_w = if flip_x { -sw } else { sw };
+                                let src_h = if flip_y { -sh } else { sh };
+                                let source = Rectangle {
+                                    x: sx,
+                                    y: sy,
+                                    width: src_w,
+                                    height: src_h,
+                                };
+                                let dest = Rectangle {
+                                    x: dx.round(),
+                                    y: dy.round(),
+                                    width: dw,
+                                    height: dh,
+                                };
+                                d_rt_cell.borrow_mut().draw_texture_pro(
+                                    tex,
+                                    source,
+                                    dest,
+                                    Vector2::zero(),
+                                    0.0,
+                                    Color::WHITE,
+                                );
+                            }
+                            Ok(())
+                        },
+                    )?;
                     gfx_tbl.set("clear", clear)?;
                     gfx_tbl.set("text", text)?;
                     gfx_tbl.set("rect", rect)?;
@@ -489,7 +612,11 @@ impl Session {
                     gfx_tbl.set("circ", circ)?;
                     gfx_tbl.set("circ_fill", circ_fill)?;
                     gfx_tbl.set("line", line)?;
+                    gfx_tbl.set("pixel", pixel)?;
                     gfx_tbl.set("spr", spr)?;
+                    gfx_tbl.set("spr_ex", spr_ex)?;
+                    gfx_tbl.set("sspr", sspr)?;
+                    gfx_tbl.set("sspr_ex", sspr_ex)?;
 
                     let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
                     let play = scope.create_function(|_, name: String| {

@@ -152,7 +152,6 @@ Here's what Usagi will support as it heads towards 1.0 release:
 
 - Music playback with looping support
 - Mouse functions and ability to hide cursor
-- Arbitrary source rectangle rendering from the spritesheet
 
 ## Lua API
 
@@ -209,18 +208,14 @@ and the left analog stick; the first connected gamepad is used.
   for one-shot actions (fire, jump, menu select).
 - `input.down(action)` — true while the action is held. Use for movement.
 
-| Action  | Keyboard        | Gamepad                              |
-| ------- | --------------- | ------------------------------------ |
-| `LEFT`  | arrow left / A  | dpad left / left stick left          |
-| `RIGHT` | arrow right / D | dpad right / left stick right        |
-| `UP`    | arrow up / W    | dpad up / left stick up              |
-| `DOWN`  | arrow down / S  | dpad down / left stick down          |
-| `BTN1`  | Z / J           | south face (Xbox A, PS Cross)        |
-| `BTN2`  | X / K           | east face (Xbox B, PS Circle)        |
-| `BTN3`  | C / L           | north face (Xbox Y, PS Triangle)     |
-
-`BTN1`/`BTN2`/`BTN3` are abstract action buttons. The west face button (Xbox X
-/ PS Square) is intentionally unbound for now.
+| Action    | Keyboard        | Gamepad                                          |
+| --------- | --------------- | ------------------------------------------------ |
+| `LEFT`    | arrow left / A  | dpad left / left stick left                      |
+| `RIGHT`   | arrow right / D | dpad right / left stick right                    |
+| `UP`      | arrow up / W    | dpad up / left stick up                          |
+| `DOWN`    | arrow down / S  | dpad down / left stick down                      |
+| `CONFIRM` | Z / J           | south + west face (Xbox A/X, PS Cross/Square)    |
+| `CANCEL`  | X / K           | east + north face (Xbox B/Y, PS Circle/Triangle) |
 
 `input.pressed` is edge-detected on keyboard and gamepad buttons but not on
 analog sticks; track stick state in Lua if you need that.
