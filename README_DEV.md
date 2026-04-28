@@ -237,20 +237,16 @@ indices 0-15; use the named constants.
   rectangle from `sprites.png` at `(dx, dy)` at original size.
 - `gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)` — extended
   `sspr`: stretches to `(dw, dh)` and flips per the booleans, all required.
-
-The `_ex` variants pack every power-arg into one fixed signature instead of
-trailing optionals. Lua has no keyword args, so a 10-arg call with four optional
-booleans at the end is hostile to read at the call site, and chains of
-`_flipped`/`_stretched`/`_flipped_stretched` blow up combinatorially. With a
-single `_ex` per primitive there's exactly one decision per draw ("simple or
-extended?") and games that want shorter call sites can write a thin wrapper for
-the specific combination they hit often.
-
 - `gfx.COLOR_BLACK`, `COLOR_DARK_BLUE`, `COLOR_DARK_PURPLE`, `COLOR_DARK_GREEN`,
   `COLOR_BROWN`, `COLOR_DARK_GRAY`, `COLOR_LIGHT_GRAY`, `COLOR_WHITE`,
   `COLOR_RED`, `COLOR_ORANGE`, `COLOR_YELLOW`, `COLOR_GREEN`, `COLOR_BLUE`,
   `COLOR_INDIGO`, `COLOR_PINK`, `COLOR_PEACH` — the Pico-8 palette, indices
   0-15.
+
+The `_ex` variants pack every power-arg into one fixed signature instead of
+trailing optionals. With a single `_ex` per primitive there's exactly one
+decision per draw ("simple or extended?"). If you want shorter call sites, write
+a thin wrapper.
 
 ### `input`
 
