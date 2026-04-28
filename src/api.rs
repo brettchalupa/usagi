@@ -3,7 +3,7 @@
 //! live in the game loop because they need to borrow frame-local state.
 
 use crate::input::{
-    ACTION_CANCEL, ACTION_CONFIRM, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
+    ACTION_BTN1, ACTION_BTN2, ACTION_BTN3, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
 };
 use crate::{GAME_HEIGHT, GAME_WIDTH};
 use mlua::prelude::*;
@@ -38,8 +38,9 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     input.set("RIGHT", ACTION_RIGHT)?;
     input.set("UP", ACTION_UP)?;
     input.set("DOWN", ACTION_DOWN)?;
-    input.set("CONFIRM", ACTION_CONFIRM)?;
-    input.set("CANCEL", ACTION_CANCEL)?;
+    input.set("BTN1", ACTION_BTN1)?;
+    input.set("BTN2", ACTION_BTN2)?;
+    input.set("BTN3", ACTION_BTN3)?;
     lua.globals().set("input", input)?;
 
     let sfx = lua.create_table()?;
@@ -94,8 +95,9 @@ mod tests {
 
         // Input constants just need to be present; values are action IDs.
         assert!(input.get::<u32>("LEFT").is_ok());
-        assert!(input.get::<u32>("CONFIRM").is_ok());
-        assert!(input.get::<u32>("CANCEL").is_ok());
+        assert!(input.get::<u32>("BTN1").is_ok());
+        assert!(input.get::<u32>("BTN2").is_ok());
+        assert!(input.get::<u32>("BTN3").is_ok());
 
         // sfx is registered but empty of fields at static-setup time.
         assert!(sfx.get::<LuaValue>("play").unwrap().is_nil());
@@ -196,8 +198,8 @@ mod tests {
             checked += 1;
         }
         assert!(
-            checked >= 6,
-            "expected at least 6 input.* actions, got {checked}"
+            checked >= 7,
+            "expected at least 7 input.* actions, got {checked}"
         );
     }
 
@@ -259,8 +261,9 @@ mod tests {
                 gfx.text("hi", 0, 0, gfx.COLOR_WHITE)
                 gfx.spr(1, usagi.GAME_W / 2, usagi.GAME_H / 2)
                 assert(type(input.pressed(input.LEFT)) == "boolean")
-                assert(type(input.down(input.CONFIRM)) == "boolean")
-                assert(type(input.pressed(input.CANCEL)) == "boolean")
+                assert(type(input.down(input.BTN1)) == "boolean")
+                assert(type(input.pressed(input.BTN2)) == "boolean")
+                assert(type(input.pressed(input.BTN3)) == "boolean")
                 sfx.play("missing")
                 "#,
             )

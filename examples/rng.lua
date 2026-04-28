@@ -1,6 +1,6 @@
 -- Lua's `math.random` is already wired up: usagi's Lua state auto-seeds
 -- the PRNG at startup, so a fresh launch produces a fresh sequence.
--- Press CONFIRM to reroll the scene from the current PRNG. Press CANCEL
+-- Press BTN1 to reroll the scene from the current PRNG. Press BTN2
 -- to pin `math.randomseed(42)` so you can watch the same sequence
 -- replay across runs.
 
@@ -34,10 +34,10 @@ function _init()
 end
 
 function _update(_dt)
-  if input.pressed(input.CONFIRM) then
+  if input.pressed(input.BTN1) then
     reroll()
   end
-  if input.pressed(input.CANCEL) then
+  if input.pressed(input.BTN2) then
     math.randomseed(42)
     state.pinned = true
     reroll()
@@ -59,7 +59,7 @@ function _draw(_dt)
   end
   gfx.text(label, 4, 12, gfx.COLOR_LIGHT_GRAY)
 
-  local hint = "CONFIRM: reroll  CANCEL: seed(42)"
+  local hint = "BTN1: reroll  BTN2: seed(42)"
   if state.pinned then
     hint = hint .. "  [pinned]"
   end

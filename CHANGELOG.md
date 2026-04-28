@@ -12,6 +12,19 @@ Features:
 - Compound assignment operators: `+=`, `-=`, `*=`, `/=`, `%=` are rewritten to
   plain Lua before parsing, with `runtime.nonstandardSymbol` set in the shipped
   `.luarc.json` so the language server accepts them.
+- Three action buttons: `input.BTN1`, `input.BTN2`, `input.BTN3` replace the
+  previous `CONFIRM` / `CANCEL` pair. Keyboard: Z/J, X/K, C/L. Gamepad: south,
+  east, and (north or west) face buttons. BTN3 fires for both Xbox Y and X (PS
+  Triangle and Square) so it's reachable from either side of the diamond.
+- New `examples/rng.lua` demonstrates `math.random` (PRNG is auto-seeded on
+  startup) and how to call `math.randomseed(n)` for deterministic sequences.
+
+Breaking:
+
+- `input.CONFIRM` / `input.CANCEL` are removed; rename to `input.BTN1` /
+  `input.BTN2`. The gamepad mapping also shifts: BTN1 is the south face only
+  (was south + west) and BTN2 is the east face only (was east + north). The
+  north and west faces are now BTN3.
 
 ## v0.1.0 - Apr 27, 2026
 

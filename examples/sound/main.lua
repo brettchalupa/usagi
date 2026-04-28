@@ -3,16 +3,16 @@ function _config()
 end
 
 function _update(dt)
-  if input.pressed(input.CONFIRM) then
+  if input.pressed(input.BTN1) then
     sfx.play("jump")
   end
-  if input.pressed(input.CANCEL) then
+  if input.pressed(input.BTN2) then
     sfx.play("explosion")
   end
 end
 
 function _draw(dt)
   gfx.clear(gfx.COLOR_BLACK)
-  gfx.text("Press CONFIRM for jump.wav", 20, 20, gfx.COLOR_WHITE)
-  gfx.text("Press CANCEL for explosion.wav", 20, 40, gfx.COLOR_WHITE)
+  gfx.text("Press BTN1 for jump.wav", 20, 20, gfx.COLOR_WHITE)
+  gfx.text("Press BTN2 for explosion.wav", 20, 40, gfx.COLOR_WHITE)
 end
