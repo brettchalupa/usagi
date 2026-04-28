@@ -387,10 +387,14 @@ mod tests {
         let baseline = freshest_lua_mtime(&lua, vfs.as_ref()).expect("have an mtime baseline");
 
         // Bump helper.lua's mtime to a known-later instant. `set_modified`
-        // is the cleanest way to make this test deterministic on fast
-        // filesystems where writes finish in the same mtime tick.
+        // requires a write-capable handle on Windows (FILE_WRITE_ATTRIBUTES
+        // permission); a plain `File::open` is read-only and fails with
+        // "Access is denied." Use OpenOptions with write to portably
+        // get the right access bits.
         let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
-        std::fs::File::open(root.join("helper.lua"))
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(root.join("helper.lua"))
             .unwrap()
             .set_modified(later)
             .unwrap();
