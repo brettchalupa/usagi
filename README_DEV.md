@@ -457,10 +457,11 @@ tools. The path is optional; pass a project directory (or a `.lua` file) to load
 its `sprites.png` and `sfx/` assets. Without a path the tools open with empty
 state.
 
-Switch tools via the tab buttons or with **1** (Jukebox) / **2** (TilePicker).
+Switch tools via the tab buttons or with **1** (Jukebox), **2** (TilePicker), or
+**3** (SaveInspector).
 
-Both tools live-reload their assets: drop a new WAV in `sfx/` or save a new
-`sprites.png` and the tools pick it up on the next frame.
+Jukebox and TilePicker live-reload their assets: drop a new WAV in `sfx/` or
+save a new `sprites.png` and the tools pick it up on the next frame.
 
 ### Jukebox
 
@@ -485,6 +486,20 @@ Lua code).
 - **B** cycles the viewport background color (gray / black / white) so tiles
   stay visible regardless of palette.
 - Left click a tile to copy its 1-based index; a toast confirms the value.
+
+### SaveInspector
+
+Reads the project's `_config().game_id` and shows the current `save.json`
+contents alongside the resolved file path. Useful for debugging save formats and
+inspecting state between runs without leaving the editor.
+
+- Rendered as written since engine output is already formatted, so no
+  reformatting happens here.
+- **R** or the **Refresh** button rereads the file from disk; the inspector
+  doesn't auto-poll, so hit refresh after the running game has saved.
+- **Clear** deletes the save file. The next `usagi.load()` returns `nil`.
+- **Open in File Manager** reveals the containing directory in the OS default
+  file manager (`xdg-open` on Linux, `open` on macOS, `explorer` on Windows).
 
 ## Export
 

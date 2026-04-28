@@ -107,6 +107,7 @@ fn module_candidates(name: &str) -> Option<Vec<String>> {
 /// Disk-backed vfs. `root` is the directory that holds `sprites.png` and
 /// `sfx/`. `script_filename` is the main Lua file inside `root` (None when
 /// the vfs is used purely for asset browsing, e.g. the tools window).
+#[derive(Clone)]
 pub struct FsBacked {
     root: PathBuf,
     script_filename: Option<String>,

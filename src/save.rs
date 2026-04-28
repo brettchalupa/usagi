@@ -84,7 +84,7 @@ pub fn validate_game_id(id: &str) -> Result<(), String> {
 }
 
 #[cfg(not(target_os = "emscripten"))]
-fn save_dir(game_id: &str) -> std::io::Result<PathBuf> {
+pub fn save_dir(game_id: &str) -> std::io::Result<PathBuf> {
     use directories::ProjectDirs;
     // ProjectDirs::from(qualifier, organization, application). Empty
     // qualifier and organization keep the path short on macOS. We get
@@ -93,6 +93,28 @@ fn save_dir(game_id: &str) -> std::io::Result<PathBuf> {
     ProjectDirs::from("", "", game_id)
         .map(|p| p.data_dir().to_path_buf())
         .ok_or_else(|| std::io::Error::other("could not resolve data dir for this OS"))
+}
+
+/// Absolute path to the save file for `game_id`. Returns the path even
+/// if the file or its parent directory don't exist yet, so callers can
+/// display "would be saved at: ..." messaging.
+#[cfg(not(target_os = "emscripten"))]
+pub fn save_path(game_id: &str) -> std::io::Result<PathBuf> {
+    Ok(save_dir(game_id)?.join(SAVE_FILE))
+}
+
+/// Removes the save file. No-op if it doesn't exist (a "clear" of an
+/// empty save shouldn't error). The parent directory is left in
+/// place; an empty `<game_id>/` dir is harmless and gets reused on
+/// next write.
+#[cfg(not(target_os = "emscripten"))]
+pub fn clear_save(game_id: &str) -> std::io::Result<()> {
+    let path = save_path(game_id)?;
+    match std::fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
+    }
 }
 
 #[cfg(not(target_os = "emscripten"))]

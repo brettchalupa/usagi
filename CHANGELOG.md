@@ -28,6 +28,9 @@ Features:
   field in `_config()` (reverse-DNS, e.g. `com.you.mygame`). Native writes are
   atomic; web routes through `localStorage` so saves persist even when games are
   hosted in custom shells. New `examples/save/`.
+- New `usagi tools` tab: SaveInspector. Renders the current project's
+  `save.json` with buttons to refresh, clear, and open the containing folder in
+  the OS file manager. Press **3** to switch to it.
 - Sprite drawing splits into a basic and an extended form:
   - `gfx.spr(index, x, y)` — basic, already existed in v0.1.
   - `gfx.spr_ex(index, x, y, flip_x, flip_y)` — extended, all flip flags

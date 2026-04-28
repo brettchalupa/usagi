@@ -4,6 +4,7 @@
 //! API.
 
 mod jukebox;
+mod save_inspector;
 mod tilepicker;
 
 use crate::assets::{SfxLibrary, SpriteSheet};
@@ -29,6 +30,7 @@ const TOAST_SECS: f32 = 2.5;
 enum Tool {
     Jukebox,
     TilePicker,
+    SaveInspector,
 }
 
 pub(super) struct Toast {
@@ -49,6 +51,7 @@ struct State {
     active: Tool,
     jukebox: jukebox::State,
     tilepicker: tilepicker::State,
+    save_inspector: save_inspector::State,
     toast: Option<Toast>,
 }
 
@@ -84,6 +87,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         active: Tool::Jukebox,
         jukebox: jukebox::State::new(&sfx.sounds),
         tilepicker: tilepicker::State::new(),
+        save_inspector: save_inspector::State::new(project_path),
         toast: None,
     };
 
@@ -118,6 +122,9 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         if rl.is_key_pressed(KeyboardKey::KEY_TWO) {
             state.active = Tool::TilePicker;
         }
+        if rl.is_key_pressed(KeyboardKey::KEY_THREE) {
+            state.active = Tool::SaveInspector;
+        }
 
         let tex = sprites.as_ref().and_then(|s| s.texture());
         match state.active {
@@ -125,6 +132,11 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
             Tool::TilePicker => {
                 if let Some(msg) = tilepicker::handle_input(&mut rl, &mut state.tilepicker, tex, dt)
                 {
+                    state.toast = Some(Toast::new(msg));
+                }
+            }
+            Tool::SaveInspector => {
+                if let Some(msg) = save_inspector::handle_input(&rl, &mut state.save_inspector) {
                     state.toast = Some(Toast::new(msg));
                 }
             }
@@ -139,6 +151,9 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
             }
             if d.gui_button(Rectangle::new(160., 20., 150., 30.), "TilePicker [2]") {
                 state.active = Tool::TilePicker;
+            }
+            if d.gui_button(Rectangle::new(320., 20., 200., 30.), "SaveInspector [3]") {
+                state.active = Tool::SaveInspector;
             }
 
             match state.active {
@@ -157,6 +172,13 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
                     tex,
                     sprites_path_display.as_deref(),
                 ),
+                Tool::SaveInspector => {
+                    if let Some(msg) =
+                        save_inspector::draw(&mut d, &font, &mut state.save_inspector, project_path)
+                    {
+                        state.toast = Some(Toast::new(msg));
+                    }
+                }
             }
 
             if let Some(toast) = &state.toast {
