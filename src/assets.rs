@@ -369,6 +369,18 @@ impl<'a> MusicLibrary<'a> {
     pub fn len(&self) -> usize {
         self.tracks.len()
     }
+
+    /// Sorted list of track stems for tools UIs.
+    pub fn track_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.tracks.keys().cloned().collect();
+        names.sort();
+        names
+    }
+
+    /// Stem of the track currently playing, if any.
+    pub fn current(&self) -> Option<&str> {
+        self.current.as_deref()
+    }
 }
 
 #[cfg(test)]

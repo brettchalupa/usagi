@@ -91,7 +91,7 @@ pub fn record_err(state: &mut Option<String>, label: &str, result: LuaResult<()>
 mod tests {
     use super::*;
     use crate::input::is_valid_action;
-    use crate::palette::palette;
+    use crate::palette::color;
 
     #[test]
     fn setup_installs_expected_globals() {
@@ -159,16 +159,16 @@ mod tests {
         assert_eq!(state.as_deref(), Some("previous"));
     }
 
-    /// Every `gfx.COLOR_*` constant must map to a real palette() entry.
+    /// Every `gfx.COLOR_*` constant must map to a real palette entry.
     /// Guards against adding a new color constant without teaching
-    /// `palette()`, which would silently render as magenta.
+    /// `palette::color`, which would silently render as magenta.
     #[test]
     fn every_gfx_color_maps_to_a_distinct_palette_entry() {
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
         let gfx: LuaTable = lua.globals().get("gfx").unwrap();
 
-        let magenta = palette(i32::MAX); // known sentinel color
+        let magenta = color(i32::MAX); // known sentinel color
         let mut indices: Vec<i32> = Vec::new();
 
         for pair in gfx.pairs::<String, i32>() {
@@ -176,10 +176,10 @@ mod tests {
             if !name.starts_with("COLOR_") {
                 continue;
             }
-            let c = palette(idx);
+            let c = color(idx);
             assert!(
                 (c.r, c.g, c.b) != (magenta.r, magenta.g, magenta.b),
-                "{name}={idx} falls through to the magenta sentinel in palette()",
+                "{name}={idx} falls through to the magenta sentinel in palette::color",
             );
             indices.push(idx);
         }

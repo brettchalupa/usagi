@@ -2,6 +2,7 @@
 //! index overlay; clicking a tile copies its index to the clipboard.
 
 use super::{HINT_Y, PANEL_H, PANEL_W, PANEL_X, PANEL_Y};
+use crate::palette::{Pal, color};
 use sola_raylib::prelude::*;
 use std::path::Path;
 
@@ -152,7 +153,7 @@ pub(super) fn draw(
             Vector2::new(30.0, PANEL_Y + 30.0),
             SMALL,
             0.0,
-            Color::DARKGRAY,
+            color(Pal::DarkBlue),
         );
     } else {
         let msg = match sprites_path {
@@ -165,7 +166,7 @@ pub(super) fn draw(
             Vector2::new(30.0, PANEL_Y + 30.0),
             SMALL,
             0.0,
-            Color::DARKGRAY,
+            color(Pal::DarkBlue),
         );
     }
 
@@ -192,7 +193,7 @@ pub(super) fn draw(
         Vector2::new(30.0, HINT_Y),
         SMALL,
         0.0,
-        Color::new(140, 140, 140, 255),
+        color(Pal::DarkGray),
     );
 }
 

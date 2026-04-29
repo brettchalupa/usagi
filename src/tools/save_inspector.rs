@@ -18,6 +18,7 @@
 //! path, but inspection is cheap and explicit feels better here.
 
 use super::{HINT_Y, PANEL_H, PANEL_W, PANEL_X, PANEL_Y};
+use crate::palette::{Pal, color};
 use crate::vfs::FsBacked;
 use sola_raylib::prelude::*;
 use std::path::{Path, PathBuf};
@@ -166,6 +167,14 @@ pub(super) fn handle_input(rl: &RaylibHandle, state: &mut State) -> Option<Strin
         state.refresh();
         return Some("Refreshed.".into());
     }
+    if rl.is_key_pressed(KeyboardKey::KEY_F)
+        && let Some(p) = state.path.as_deref()
+    {
+        return match open_in_file_manager(p) {
+            Ok(()) => Some("Opened in file manager.".into()),
+            Err(e) => Some(format!("Open failed: {e}")),
+        };
+    }
     None
 }
 
@@ -194,7 +203,7 @@ pub(super) fn draw(
         Vector2::new(30.0, y),
         SMALL,
         0.0,
-        Color::DARKGRAY,
+        color(Pal::DarkBlue),
     );
     y += 24.0;
 
@@ -208,7 +217,7 @@ pub(super) fn draw(
         Vector2::new(30.0, y),
         SMALL,
         0.0,
-        Color::GRAY,
+        color(Pal::DarkPurple),
     );
     y += 24.0;
 
@@ -219,7 +228,7 @@ pub(super) fn draw(
             Vector2::new(30.0, y),
             SMALL,
             0.0,
-            Color::GRAY,
+            color(Pal::DarkPurple),
         );
         y += 24.0;
     }
@@ -243,8 +252,8 @@ pub(super) fn draw(
         }
     }
     if d.gui_button(
-        Rectangle::new(330.0, btn_y, 200.0, 40.0),
-        "Open in File Manager",
+        Rectangle::new(330.0, btn_y, 280.0, 40.0),
+        "Open in File Manager [F]",
     ) && let Some(p) = state.path.as_deref()
     {
         match open_in_file_manager(p) {
@@ -261,7 +270,7 @@ pub(super) fn draw(
             Vector2::new(30.0, y),
             SMALL,
             0.0,
-            Color::new(180, 60, 60, 255),
+            color(Pal::Red),
         );
         y += 24.0;
     }
@@ -286,7 +295,7 @@ pub(super) fn draw(
             Vector2::new(pane_x + 14.0, pane_y + 30.0),
             SMALL,
             0.0,
-            Color::new(140, 140, 140, 255),
+            color(Pal::DarkGray),
         );
     } else if let Some(content) = state.content.as_deref() {
         let mut line_y = pane_y + 26.0;
@@ -313,18 +322,18 @@ pub(super) fn draw(
                 Vector2::new(pane_x + 14.0, pane_y + pane_h - 22.0),
                 SMALL,
                 0.0,
-                Color::new(140, 140, 140, 255),
+                color(Pal::DarkGray),
             );
         }
     }
 
     d.draw_text_ex(
         font,
-        "R: refresh   Clear: delete save file   Open: reveal containing folder",
+        "R: refresh   F: reveal containing folder   Clear: delete save file",
         Vector2::new(30.0, HINT_Y),
         SMALL,
         0.0,
-        Color::new(140, 140, 140, 255),
+        color(Pal::DarkGray),
     );
 
     toast

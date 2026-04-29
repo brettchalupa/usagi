@@ -3,9 +3,44 @@
 
 use sola_raylib::prelude::*;
 
-/// Maps a palette index (0-15) to an RGBA color.
-pub fn palette(c: i32) -> Color {
-    match c {
+/// Typed palette entry for engine-side callers. Pass either a `Pal`
+/// variant or a raw `i32` to `palette(...)` — the function accepts
+/// anything that converts to `i32`. The Lua bridge keeps passing raw
+/// integers since it has to validate untrusted user input anyway.
+#[repr(i32)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum Pal {
+    Black = 0,
+    DarkBlue = 1,
+    DarkPurple = 2,
+    DarkGreen = 3,
+    Brown = 4,
+    DarkGray = 5,
+    LightGray = 6,
+    White = 7,
+    Red = 8,
+    Orange = 9,
+    Yellow = 10,
+    Green = 11,
+    Blue = 12,
+    Indigo = 13,
+    Pink = 14,
+    Peach = 15,
+}
+
+impl From<Pal> for i32 {
+    #[inline]
+    fn from(p: Pal) -> i32 {
+        p as i32
+    }
+}
+
+/// Maps a palette index (0-15) to an RGBA color. Accepts a `Pal`
+/// variant or any `i32`. Out-of-range indices return magenta as an
+/// obvious sentinel.
+pub fn color(c: impl Into<i32>) -> Color {
+    match c.into() {
         0 => Color::new(0, 0, 0, 255),        // black
         1 => Color::new(29, 43, 83, 255),     // dark blue
         2 => Color::new(126, 37, 83, 255),    // dark purple
@@ -36,28 +71,28 @@ mod tests {
 
     #[test]
     fn black() {
-        assert_rgb(palette(0), 0, 0, 0);
+        assert_rgb(color(0), 0, 0, 0);
     }
 
     #[test]
     fn white() {
-        assert_rgb(palette(7), 255, 241, 232);
+        assert_rgb(color(7), 255, 241, 232);
     }
 
     #[test]
     fn red() {
-        assert_rgb(palette(8), 255, 0, 77);
+        assert_rgb(color(8), 255, 0, 77);
     }
 
     #[test]
     fn peach() {
-        assert_rgb(palette(15), 255, 204, 170);
+        assert_rgb(color(15), 255, 204, 170);
     }
 
     #[test]
     fn every_palette_index_is_opaque() {
         for i in 0..=15 {
-            assert_eq!(palette(i).a, 255, "index {i} should be fully opaque");
+            assert_eq!(color(i).a, 255, "index {i} should be fully opaque");
         }
     }
 
@@ -65,7 +100,7 @@ mod tests {
     fn unknown_indices_return_magenta() {
         let magenta = Color::new(255, 0, 255, 255);
         for i in [-1, 16, 99, i32::MAX, i32::MIN] {
-            let c = palette(i);
+            let c = color(i);
             assert_eq!(
                 (c.r, c.g, c.b, c.a),
                 (magenta.r, magenta.g, magenta.b, magenta.a),

@@ -13,7 +13,7 @@ use crate::assets::{
     load_script,
 };
 use crate::input;
-use crate::palette::palette;
+use crate::palette::color;
 use crate::render::{draw_error_overlay, draw_render_target};
 use crate::vfs::VirtualFs;
 use crate::{GAME_HEIGHT, GAME_WIDTH};
@@ -553,7 +553,7 @@ impl Session {
                 lua.scope(|scope| {
                     let gfx_tbl: LuaTable = lua.globals().get("gfx")?;
                     let clear = scope.create_function(|_, c: i32| {
-                        d_rt_cell.borrow_mut().clear_background(palette(c));
+                        d_rt_cell.borrow_mut().clear_background(color(c));
                         Ok(())
                     })?;
                     let text =
@@ -564,7 +564,7 @@ impl Session {
                                 Vector2::new(x.round(), y.round()),
                                 crate::font::MONOGRAM_SIZE as f32,
                                 0.0,
-                                palette(c),
+                                color(c),
                             );
                             Ok(())
                         })?;
@@ -575,7 +575,7 @@ impl Session {
                                 y.round() as i32,
                                 w.round() as i32,
                                 h.round() as i32,
-                                palette(c),
+                                color(c),
                             );
                             Ok(())
                         },
@@ -587,7 +587,7 @@ impl Session {
                                 y.round() as i32,
                                 w.round() as i32,
                                 h.round() as i32,
-                                palette(c),
+                                color(c),
                             );
                             Ok(())
                         },
@@ -597,7 +597,7 @@ impl Session {
                             x.round() as i32,
                             y.round() as i32,
                             r,
-                            palette(c),
+                            color(c),
                         );
                         Ok(())
                     })?;
@@ -607,7 +607,7 @@ impl Session {
                                 x.round() as i32,
                                 y.round() as i32,
                                 r,
-                                palette(c),
+                                color(c),
                             );
                             Ok(())
                         })?;
@@ -618,7 +618,7 @@ impl Session {
                                 y1.round() as i32,
                                 x2.round() as i32,
                                 y2.round() as i32,
-                                palette(c),
+                                color(c),
                             );
                             Ok(())
                         },
@@ -627,7 +627,7 @@ impl Session {
                         d_rt_cell.borrow_mut().draw_pixel(
                             x.round() as i32,
                             y.round() as i32,
-                            palette(c),
+                            color(c),
                         );
                         Ok(())
                     })?;

@@ -7,7 +7,8 @@ mod jukebox;
 mod save_inspector;
 mod tilepicker;
 
-use crate::assets::{SfxLibrary, SpriteSheet};
+use crate::assets::{MusicLibrary, SfxLibrary, SpriteSheet};
+use crate::palette::{Pal, color};
 use crate::vfs::FsBacked;
 use sola_raylib::prelude::*;
 use std::path::{Path, PathBuf};
@@ -61,6 +62,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         .as_ref()
         .map(|d| FsBacked::from_project_dir(d.clone()));
     let sfx_dir_display = project_dir.as_ref().map(|d| d.join("sfx"));
+    let music_dir_display = project_dir.as_ref().map(|d| d.join("music"));
     let sprites_path_display = project_dir.as_ref().map(|d| d.join("sprites.png"));
 
     let (mut rl, thread) = sola_raylib::init()
@@ -79,13 +81,29 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         (Some(a), Some(v)) => SfxLibrary::load(a, v),
         _ => SfxLibrary::empty(),
     };
+    let mut music_lib: MusicLibrary<'_> = match (&audio, &vfs) {
+        (Some(a), Some(v)) => MusicLibrary::load(a, v),
+        _ => MusicLibrary::empty(),
+    };
 
     let mut sprites = vfs.as_ref().map(|v| SpriteSheet::load(&mut rl, &thread, v));
     let font = crate::font::load(&mut rl, &thread);
 
+    // Make raygui draw with monogram instead of raylib's built-in font.
+    // TEXT_SIZE = 2 * baseSize keeps the pixel-art glyphs on integer
+    // scale; TEXT_SPACING = 0 matches the engine's draw_text_ex calls.
+    rl.gui_set_font(&font);
+    rl.gui_set_style(
+        GuiControl::DEFAULT,
+        GuiDefaultProperty::TEXT_SIZE,
+        crate::font::MONOGRAM_SIZE * 2,
+    );
+    rl.gui_set_style(GuiControl::DEFAULT, GuiDefaultProperty::TEXT_SPACING, 0);
+    apply_theme(&mut rl);
+
     let mut state = State {
         active: Tool::Jukebox,
-        jukebox: jukebox::State::new(&sfx.sounds),
+        jukebox: jukebox::State::new(&sfx.sounds, music_lib.track_names()),
         tilepicker: tilepicker::State::new(),
         save_inspector: save_inspector::State::new(project_path),
         toast: None,
@@ -108,6 +126,19 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
             println!("[usagi] jukebox reloaded sfx ({} sound(s))", sfx.len());
         }
 
+        if let (Some(a), Some(v)) = (&audio, &vfs)
+            && music_lib.reload_if_changed(a, v)
+        {
+            state.jukebox.refresh_music_names(music_lib.track_names());
+            println!(
+                "[usagi] jukebox reloaded music ({} track(s))",
+                music_lib.len()
+            );
+        }
+        // raylib's music streams need an update each frame to refill the
+        // audio buffer, even when the jukebox tab isn't active.
+        music_lib.update();
+
         if let (Some(sheet), Some(v)) = (sprites.as_mut(), vfs.as_ref())
             && sheet.reload_if_changed(&mut rl, &thread, v)
         {
@@ -128,7 +159,9 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
 
         let tex = sprites.as_ref().and_then(|s| s.texture());
         match state.active {
-            Tool::Jukebox => jukebox::handle_input(&rl, &mut state.jukebox, &sfx.sounds),
+            Tool::Jukebox => {
+                jukebox::handle_input(&rl, &mut state.jukebox, &sfx.sounds, &mut music_lib)
+            }
             Tool::TilePicker => {
                 if let Some(msg) = tilepicker::handle_input(&mut rl, &mut state.tilepicker, tex, dt)
                 {
@@ -144,15 +177,30 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
 
         {
             let mut d = rl.begin_drawing(&thread);
-            d.clear_background(Color::RAYWHITE);
+            d.clear_background(color(Pal::Indigo));
 
-            if d.gui_button(Rectangle::new(20., 20., 130., 30.), "Jukebox [1]") {
+            if tab_button(
+                &mut d,
+                Rectangle::new(20., 20., 170., 36.),
+                "Jukebox [1]",
+                state.active == Tool::Jukebox,
+            ) {
                 state.active = Tool::Jukebox;
             }
-            if d.gui_button(Rectangle::new(160., 20., 150., 30.), "TilePicker [2]") {
+            if tab_button(
+                &mut d,
+                Rectangle::new(200., 20., 210., 36.),
+                "TilePicker [2]",
+                state.active == Tool::TilePicker,
+            ) {
                 state.active = Tool::TilePicker;
             }
-            if d.gui_button(Rectangle::new(320., 20., 200., 30.), "SaveInspector [3]") {
+            if tab_button(
+                &mut d,
+                Rectangle::new(420., 20., 250., 36.),
+                "SaveInspector [3]",
+                state.active == Tool::SaveInspector,
+            ) {
                 state.active = Tool::SaveInspector;
             }
 
@@ -162,8 +210,10 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
                     &font,
                     &mut state.jukebox,
                     &sfx.sounds,
+                    &mut music_lib,
                     project_path,
                     sfx_dir_display.as_deref(),
+                    music_dir_display.as_deref(),
                 ),
                 Tool::TilePicker => tilepicker::draw(
                     &mut d,
@@ -209,6 +259,131 @@ fn resolve_project_dir(path: &str) -> Option<PathBuf> {
     Path::new(&script)
         .parent()
         .map(|parent| parent.to_path_buf())
+}
+
+/// Theme drawn from the pico-8 / usagi 16-color palette so the tools
+/// window matches the engine. DEFAULT props (indices 0..=14) propagate
+/// to every control automatically; extended props like LINE_COLOR /
+/// BACKGROUND_COLOR only affect controls that look them up explicitly
+/// (e.g. GuiPanel uses LINE_COLOR for its border and BACKGROUND_COLOR
+/// for its body).
+fn apply_theme(rl: &mut RaylibHandle) {
+    use GuiControlProperty as P;
+    use GuiDefaultProperty as D;
+
+    let pal = |c: Pal| color(c).color_to_int();
+
+    // Normal: cream base, dark-blue ink + borders.
+    rl.gui_set_style(
+        GuiControl::DEFAULT,
+        P::BORDER_COLOR_NORMAL,
+        pal(Pal::DarkBlue),
+    );
+    rl.gui_set_style(GuiControl::DEFAULT, P::BASE_COLOR_NORMAL, pal(Pal::White));
+    rl.gui_set_style(
+        GuiControl::DEFAULT,
+        P::TEXT_COLOR_NORMAL,
+        pal(Pal::DarkBlue),
+    );
+    // Focused: pink border on peach.
+    rl.gui_set_style(GuiControl::DEFAULT, P::BORDER_COLOR_FOCUSED, pal(Pal::Pink));
+    rl.gui_set_style(GuiControl::DEFAULT, P::BASE_COLOR_FOCUSED, pal(Pal::Peach));
+    rl.gui_set_style(
+        GuiControl::DEFAULT,
+        P::TEXT_COLOR_FOCUSED,
+        pal(Pal::DarkBlue),
+    );
+    // Pressed: dark-purple base with cream text.
+    rl.gui_set_style(
+        GuiControl::DEFAULT,
+        P::BORDER_COLOR_PRESSED,
+        pal(Pal::DarkPurple),
+    );
+    rl.gui_set_style(
+        GuiControl::DEFAULT,
+        P::BASE_COLOR_PRESSED,
+        pal(Pal::DarkPurple),
+    );
+    rl.gui_set_style(GuiControl::DEFAULT, P::TEXT_COLOR_PRESSED, pal(Pal::White));
+    // Disabled: pico-8 grays.
+    rl.gui_set_style(
+        GuiControl::DEFAULT,
+        P::BORDER_COLOR_DISABLED,
+        pal(Pal::DarkGray),
+    );
+    rl.gui_set_style(
+        GuiControl::DEFAULT,
+        P::BASE_COLOR_DISABLED,
+        pal(Pal::LightGray),
+    );
+    rl.gui_set_style(
+        GuiControl::DEFAULT,
+        P::TEXT_COLOR_DISABLED,
+        pal(Pal::DarkGray),
+    );
+    rl.gui_set_style(GuiControl::DEFAULT, P::BORDER_WIDTH, 2);
+
+    // Tool panels (gui_panel) read BACKGROUND_COLOR for their body and
+    // LINE_COLOR for their border. PEACH sets the tool content area
+    // apart from the cream button bases without competing with the
+    // INDIGO window backdrop.
+    rl.gui_set_style(GuiControl::DEFAULT, D::BACKGROUND_COLOR, pal(Pal::Peach));
+    rl.gui_set_style(GuiControl::DEFAULT, D::LINE_COLOR, pal(Pal::DarkBlue));
+
+    // Panel header strip (raygui draws it as a STATUSBAR). Override to
+    // a dark-blue title bar with cream text so the header reads as a
+    // distinct title strip rather than a continuation of the body.
+    rl.gui_set_style(
+        GuiControl::STATUSBAR,
+        P::BORDER_COLOR_NORMAL,
+        pal(Pal::DarkBlue),
+    );
+    rl.gui_set_style(
+        GuiControl::STATUSBAR,
+        P::BASE_COLOR_NORMAL,
+        pal(Pal::DarkBlue),
+    );
+    rl.gui_set_style(GuiControl::STATUSBAR, P::TEXT_COLOR_NORMAL, pal(Pal::White));
+}
+
+/// Tab-bar button. When `active`, swaps the NORMAL/FOCUSED color slots
+/// to the PRESSED palette for the duration of this draw so the active
+/// tab consistently reads as depressed regardless of mouse hover.
+fn tab_button(d: &mut RaylibDrawHandle, rect: Rectangle, label: &str, active: bool) -> bool {
+    use GuiControlProperty as P;
+
+    if !active {
+        return d.gui_button(rect, label);
+    }
+
+    let stash = [
+        P::BASE_COLOR_NORMAL,
+        P::BORDER_COLOR_NORMAL,
+        P::TEXT_COLOR_NORMAL,
+        P::BASE_COLOR_FOCUSED,
+        P::BORDER_COLOR_FOCUSED,
+        P::TEXT_COLOR_FOCUSED,
+    ]
+    .map(|p| (p, d.gui_get_style(GuiControl::BUTTON, p)));
+    let pressed_base = d.gui_get_style(GuiControl::BUTTON, P::BASE_COLOR_PRESSED);
+    let pressed_border = d.gui_get_style(GuiControl::BUTTON, P::BORDER_COLOR_PRESSED);
+    let pressed_text = d.gui_get_style(GuiControl::BUTTON, P::TEXT_COLOR_PRESSED);
+    for p in [P::BASE_COLOR_NORMAL, P::BASE_COLOR_FOCUSED] {
+        d.gui_set_style(GuiControl::BUTTON, p, pressed_base);
+    }
+    for p in [P::BORDER_COLOR_NORMAL, P::BORDER_COLOR_FOCUSED] {
+        d.gui_set_style(GuiControl::BUTTON, p, pressed_border);
+    }
+    for p in [P::TEXT_COLOR_NORMAL, P::TEXT_COLOR_FOCUSED] {
+        d.gui_set_style(GuiControl::BUTTON, p, pressed_text);
+    }
+
+    let clicked = d.gui_button(rect, label);
+
+    for (p, v) in stash {
+        d.gui_set_style(GuiControl::BUTTON, p, v);
+    }
+    clicked
 }
 
 fn draw_toast(d: &mut RaylibDrawHandle, font: &Font, message: &str) {
