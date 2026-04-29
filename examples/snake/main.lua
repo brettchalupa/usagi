@@ -68,8 +68,14 @@ local function step()
     die()
     return
   end
-  for _, seg in ipairs(state.snake) do
+  -- Skip the tail when not growing: it'll vacate that cell on this same
+  -- step, so sliding into it is fair game (classic snake rule).
+  local will_grow = (new_head.x == state.food.x and new_head.y == state.food.y)
+  local check_to = will_grow and #state.snake or #state.snake - 1
+  for i = 1, check_to do
+    local seg = state.snake[i]
     if seg.x == new_head.x and seg.y == new_head.y then
+      die()
       return
     end
   end
@@ -116,7 +122,9 @@ function _draw(dt)
   gfx.text("score " .. state.score, 4, 4, gfx.COLOR_WHITE)
 
   if not state.alive then
-    gfx.text("game over", 128, 80, gfx.COLOR_RED)
-    gfx.text("press BTN1", 116, 96, gfx.COLOR_WHITE)
+    local game_over_txt = "game over"
+    gfx.text(game_over_txt, usagi.GAME_W / 2 - usagi.measure_text(game_over_txt) / 2, 80, gfx.COLOR_RED)
+    local restart_txt = "press BTN1"
+    gfx.text(restart_txt, usagi.GAME_W / 2 - usagi.measure_text(restart_txt) / 2, 96, gfx.COLOR_WHITE)
   end
 end
