@@ -5,38 +5,15 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+## v0.2.0 - Apr 29, 2026
+
 Features:
 
-- Engine-level pause menu. **Esc**, **P**, or gamepad **Start** opens it; the
-  same buttons (plus **BTN2**) close it. While open, `_update` and `_draw` are
-  skipped and the screen shows a black "PAUSED" overlay (music keeps streaming).
-  Foundation for a menu with volume, input remap, and game-registered hooks.
-  **Shift+Esc** in dev now quits the game, replacing raylib's default
-  Esc-quits-immediately default.
-- Multiple Lua source files are now supported; use `require("file")` to load
-  `file.lua`.
-- Compound assignment operators: `+=`, `-=`, `*=`, `/=`, `%=` are rewritten to
-  plain Lua before parsing, with `runtime.nonstandardSymbol` set in the shipped
-  `.luarc.json` so the language server accepts them.
-- Three action buttons: `input.BTN1`, `input.BTN2`, `input.BTN3` replace the
-  previous `CONFIRM` / `CANCEL` pair. Keyboard: Z/J, X/K, C/L. Gamepad: south,
-  east, and (north or west) face buttons. BTN3 fires for both Xbox Y and X (PS
-  Triangle and Square) so it's reachable from either side of the diamond.
-- New `examples/rng.lua` demonstrates `math.random` (PRNG is auto-seeded on
-  startup) and how to call `math.randomseed(n)` for deterministic sequences.
-- Input now polls every connected gamepad slot rather than only slot 0. Any
-  connected pad (Steam Deck built-in, external pad over USB/Bluetooth) triggers
-  actions, and hot-swapping no longer drops input when a pad lands on a
-  different slot.
-- New `gfx.pixel(x, y, color)` for single-pixel drawing.
 - Save data: `usagi.save(t)` persists a Lua table as JSON, `usagi.load()` reads
   it back (`nil` on first run). One file per game, namespaced by a new `game_id`
   field in `_config()` (reverse-DNS, e.g. `com.you.mygame`). Native writes are
   atomic; web routes through `localStorage` so saves persist even when games are
   hosted in custom shells. New `examples/save/`.
-- New `usagi tools` tab: SaveInspector. Renders the current project's
-  `save.json` with buttons to refresh, clear, and open the containing folder in
-  the OS file manager. Press **3** to switch to it.
 - Sprite drawing splits into a basic and an extended form:
   - `gfx.spr(index, x, y)` — basic, already existed in v0.1.
   - `gfx.spr_ex(index, x, y, flip_x, flip_y)` — extended, all flip flags
@@ -45,6 +22,32 @@ Features:
   - `gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)` — extended,
     all power args required (stretch + both flips). Each function has a single
     fixed signature; no optional trailing args.
+- New `gfx.pixel(x, y, color)` for single-pixel drawing.
+- Music playback: `music.play(name)` plays once, `music.loop(name)` loops,
+  `music.stop()` stops the current track. Files live in `<project>/music/`;
+  recognized extensions are `.ogg`, `.mp3`, `.wav`, `.flac` (OGG as smaller than
+  WAV and is cross-platform ). Only one track plays at a time; calling `play` or
+  `loop` while another track is playing stops the old one first. Streams are
+  bundled into `.usagi` exports alongside `sfx/` and `sprites.png`. New
+  `examples/music`.
+- Multiple Lua source files are now supported; use `require("file")` to load
+  `file.lua`.
+- Compound assignment operators: `+=`, `-=`, `*=`, `/=`, `%=` are rewritten to
+  plain Lua before parsing, with `runtime.nonstandardSymbol` set in the shipped
+  `.luarc.json` so the language server accepts them.
+- Input now polls every connected gamepad slot rather than only slot 0. Any
+  connected pad (Steam Deck built-in, external pad over USB/Bluetooth) triggers
+  actions, and hot-swapping no longer drops input when a pad lands on a
+  different slot.
+- Three action buttons: `input.BTN1`, `input.BTN2`, `input.BTN3` replace the
+  previous `CONFIRM` / `CANCEL` pair. Keyboard: Z/J, X/K, C/L. Gamepad: south,
+  east, and (north or west) face buttons. BTN3 fires for both Xbox Y and X (PS
+  Triangle and Square) so it's reachable from either side of the diamond.
+- New `examples/rng.lua` demonstrates `math.random` (PRNG is auto-seeded on
+  startup) and how to call `math.randomseed(n)` for deterministic sequences.
+- New `usagi tools` tab: SaveInspector. Renders the current project's
+  `save.json` with buttons to refresh, clear, and open the containing folder in
+  the OS file manager. Press **3** to switch to it.
 - New `usagi.elapsed` field — wall-clock seconds since the session started,
   updated once per frame before `_update`. Frame-stable; doesn't reset on F5.
 - The bundled font is now [monogram](https://datagoblin.itch.io/monogram) by
@@ -56,13 +59,15 @@ Features:
   `(width, height)` in pixels for the bundled font. Lives on `usagi` rather than
   `gfx` because measurement has no rendering side-effect, and is callable from
   any callback (including `_init`) so layouts can be pre-computed once.
-- Music playback: `music.play(name)` plays once, `music.loop(name)` loops,
-  `music.stop()` stops the current track. Files live in `<project>/music/`;
-  recognized extensions are `.ogg`, `.mp3`, `.wav`, `.flac` (OGG as smaller than
-  WAV and is cross-platform ). Only one track plays at a time; calling `play` or
-  `loop` while another track is playing stops the old one first. Streams are
-  bundled into `.usagi` exports alongside `sfx/` and `sprites.png`. New
-  `examples/music`.
+- Engine-level pause menu. **Esc**, **P**, or gamepad **Start** opens it; the
+  same buttons (plus **BTN2**) close it. While open, `_update` and `_draw` are
+  skipped and the screen shows a black "PAUSED" overlay (music keeps streaming).
+  Foundation for a menu with volume, input remap, and game-registered hooks.
+  **Shift+Esc** in dev now quits the game, replacing raylib's default
+  Esc-quits-immediately default.
+- Revised and improved documentation.
+- More [examples](https://github.com/brettchalupa/usagi/tree/main/examples),
+  including a Pico-8 shim, dialog box, save demo, music, multifile, and more.
 
 Breaking:
 
