@@ -438,6 +438,10 @@ progress.
 - Press **~** (grave/tilde) to toggle the FPS overlay. Hidden by default in
   `dev`.
 - Press **Alt+Enter** to toggle borderless fullscreen.
+- Press **Esc**, **P**, or gamepad **Start** to pause. The same keys (plus
+  **BTN2**) close the menu. While paused, `_update` and `_draw` are skipped
+  and the screen shows a black "PAUSED" overlay; music keeps streaming.
+- Press **Shift+Esc** in dev mode to quit the game 
 
 ### Writing Reload-Friendly Scripts
 

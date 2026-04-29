@@ -23,7 +23,7 @@ const STICK_DEADZONE: f32 = 0.3;
 /// pad (Steam Deck built-in, external pad over USB/Bluetooth, dongle) fires
 /// every action, independent of slot index. So hot-swapping works no problem.
 /// This is naive but works for what Usagi needs.
-const MAX_GAMEPADS: i32 = 4;
+pub const MAX_GAMEPADS: i32 = 4;
 
 /// Bindings for a single action: the keyboard keys, gamepad buttons, and
 /// analog-axis directions that all count as "this action is pressed".

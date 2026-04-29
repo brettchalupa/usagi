@@ -20,6 +20,7 @@ mod error;
 mod font;
 mod input;
 mod palette;
+mod pause;
 mod preprocess;
 mod render;
 mod save;

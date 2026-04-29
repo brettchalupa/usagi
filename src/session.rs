@@ -14,6 +14,7 @@ use crate::assets::{
 };
 use crate::input;
 use crate::palette::color;
+use crate::pause::PauseMenu;
 use crate::render::{draw_error_overlay, draw_render_target};
 use crate::vfs::VirtualFs;
 use crate::{GAME_HEIGHT, GAME_WIDTH};
@@ -202,6 +203,19 @@ struct Session {
     /// `_update`. f64 to avoid f32 precision drift over hour-long runs.
     elapsed: f64,
 
+    /// Engine-level pause overlay. While `pause.open` is true, `_update`
+    /// and `_draw` are skipped and the RT renders a black "PAUSED"
+    /// screen instead. Music keeps streaming so background tracks don't
+    /// stutter when the player taps in and out.
+    pause: PauseMenu,
+    /// Set by Shift+Esc in dev to request a clean exit out of the
+    /// frame loop. `frame()` checks it before doing any per-frame work.
+    should_quit: bool,
+    /// Mirror of the `dev` argument to `Session::new`. Stored so
+    /// `frame()` can gate the Shift+Esc quit shortcut without taking
+    /// `dev` as a parameter on every method.
+    dev: bool,
+
     vfs: Rc<dyn VirtualFs>,
     reload: bool,
 
@@ -262,13 +276,10 @@ impl Session {
         // resolution: smaller than that and `pixel_perfect` falls below 1×.
         #[cfg(not(target_os = "emscripten"))]
         rl.set_window_min_size(GAME_WIDTH as i32, GAME_HEIGHT as i32);
-        // raylib defaults Esc to quit, which is useful while iterating
-        // (`usagi dev`) but a foot-gun for shipped games where a player
-        // hitting Esc to dismiss a menu would close the game. Keep it in
-        // dev, drop it everywhere else.
-        if !dev {
-            rl.set_exit_key(None);
-        }
+        // raylib's Esc-to-quit is always disabled: Esc opens the engine
+        // pause menu in shipped builds, and dev gets Shift+Esc as the
+        // explicit quit shortcut (handled in `handle_pause_input`).
+        rl.set_exit_key(None);
         let rt: RenderTexture2D = rl
             .load_render_texture(&thread, GAME_WIDTH as u32, GAME_HEIGHT as u32)
             .unwrap();
@@ -328,6 +339,9 @@ impl Session {
             show_fps: false,
             config,
             elapsed: 0.0,
+            pause: PauseMenu::new(),
+            should_quit: false,
+            dev,
             vfs,
             reload,
             thread,
@@ -338,7 +352,7 @@ impl Session {
     /// Runs a single frame. Returns false when the user has closed the
     /// window (only meaningful on native — browsers handle close themselves).
     fn frame(&mut self) -> bool {
-        if self.rl.window_should_close() {
+        if self.rl.window_should_close() || self.should_quit {
             return false;
         }
 
@@ -346,6 +360,10 @@ impl Session {
             self.maybe_reload_assets();
         }
         self.handle_global_shortcuts();
+        self.handle_pause_input();
+        if self.should_quit {
+            return false;
+        }
 
         let dt = self.rl.get_frame_time();
         let screen_w = self.rl.get_screen_width();
@@ -364,13 +382,46 @@ impl Session {
         // frame or the active track stutters. Cheap no-op if nothing's
         // playing. Run before _update so user code observing
         // music state via `music.play` calls in the same frame sees a
-        // freshly-buffered stream.
+        // freshly-buffered stream. Keeps streaming while paused too, so
+        // background tracks don't hitch on menu open/close.
         self.music.update();
 
-        self.run_update(dt);
-        self.run_draw(dt, fps);
+        if self.pause.open {
+            self.draw_paused();
+        } else {
+            self.run_update(dt);
+            self.run_draw(dt, fps);
+        }
         self.blit_and_overlay(screen_w, screen_h);
         true
+    }
+
+    /// Reads pause-menu and dev-only quit inputs. Shift+Esc in dev sets
+    /// `should_quit` and short-circuits — without that early return the
+    /// same Esc press would also toggle the pause menu on the way out.
+    fn handle_pause_input(&mut self) {
+        let shift = self.rl.is_key_down(KeyboardKey::KEY_LEFT_SHIFT)
+            || self.rl.is_key_down(KeyboardKey::KEY_RIGHT_SHIFT);
+        if self.dev && shift && self.rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
+            self.should_quit = true;
+            return;
+        }
+        self.pause.handle_input(&self.rl);
+    }
+
+    /// Renders the pause overlay onto the RT in place of `_draw`. Split
+    /// out so the borrow-splitting destructure stays local.
+    fn draw_paused(&mut self) {
+        let Self {
+            rl,
+            thread,
+            rt,
+            pause,
+            font,
+            ..
+        } = self;
+        let mut d_rt = rl.begin_texture_mode(thread, rt);
+        pause.draw(&mut d_rt, font);
     }
 
     fn maybe_reload_assets(&mut self) {

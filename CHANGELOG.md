@@ -7,6 +7,12 @@ Doesn't contain updates relating to developing the engine itself.
 
 Features:
 
+- Engine-level pause menu. **Esc**, **P**, or gamepad **Start** opens it;
+  the same buttons (plus **BTN2**) close it. While open, `_update` and
+  `_draw` are skipped and the screen shows a black "PAUSED" overlay (music
+  keeps streaming). Foundation for a menu with volume, input
+  remap, and game-registered hooks. **Shift+Esc** in dev now quits the game,
+  replacing raylib's default Esc-quits-immediately default.
 - Multiple Lua source files are now supported; use `require("file")` to load
   `file.lua`.
 - Compound assignment operators: `+=`, `-=`, `*=`, `/=`, `%=` are rewritten to
