@@ -2,9 +2,33 @@
 
 Guide to how to work on the engine.
 
+## Style
+
+The Rust code uses the default styles from `cargo fmt`. Lua code uses 2 spaces
+for indentation and snake_case naming.
+
+Pull requests will be renamed to follow
+[the Conventional Commits spec](https://www.conventionalcommits.org/en/v1.0.0/).
+
 ## Dependencies
 
 Install Rust: https://rustup.rs
+
+## Docs
+
+Documentation is written in Markdown. It's formatted with `deno fmt`, but it's
+not a huge deal if there's drift there, so CI doesn't enforce this.
+
+Changes to the README should be made in `README_DEV.md`, which is used to stage
+docs for the next release. The `README.md` is for the most recently released
+version of Usagi, so that when people come to GitHub they don't see
+documentation for features that aren't in a shipped version yet.
+
+Only update `README.md` too when fixing a typo or adding something that's not
+version-specific.
+
+`CHANGELOG.md` contains a list of changes for each version. Pre-release notes
+get squashed into the full release when it happens.
 
 ## Local
 
@@ -24,6 +48,14 @@ locally on port 3535. Needs emscripten on PATH; run `./setup-emscripten.sh` once
 to install it on Fedora. `brew install emscripten` works on macOS.
 
 See `justfile` for the full list of recipes.
+
+## Developing
+
+- `just run` - run hello_usagi example
+- `just ok` - run all checks
+- `just fmt` - format Rust code
+- `just serve-web` - build and serve the web build at <http://localhost:3535>
+  (requires `emcc` on PATH; see [docs/web-build.md](docs/web-build.md))
 
 ## Testing the Web Build Locally
 
@@ -127,3 +159,153 @@ published version nor the upcoming version (yet).
 - The Linux runner is `ubuntu-22.04` (glibc 2.35) for portability. Binaries
   should run on Debian 12+, RHEL 9+, Fedora, Arch, openSUSE Leap 15.4+.
 - `macos-latest` is Apple Silicon. No Intel mac binary is produced.
+
+## Web Build (wasm32-unknown-emscripten) Notes
+
+The non-obvious bits of getting Usagi to compile and link for the web. If the
+web build breaks, start here.
+
+### Toolchain
+
+- Stable Rust (currently 1.95.0 verified). No `rust-toolchain.toml` pin.
+- Emscripten via emsdk. `setup-emscripten.sh` installs to `$XDG_DATA_HOME/emsdk`
+  (or `~/.local/share/emsdk`); source `~/.local/share/emsdk/emsdk_env.sh` to put
+  `emcc` on `PATH`. On macOS, you can do `brew install emscripten`.
+- emcc 5.0.6 verified.
+
+Build with `just build-web` (or `just build-web-release`).
+
+### The wasm exception ABI: what you need to know
+
+Rust 1.93+ unconditionally passes `-fwasm-exceptions` to emcc when targeting
+`wasm32-unknown-emscripten`. This was [rust-lang/rust#147224][r147224]. The
+older `panic = "abort"`-disables-it advice from blog posts and Stack Overflow no
+longer applies: rustc emits `-fwasm-exceptions` regardless of panic strategy
+because the prebuilt stable sysroot is itself built with wasm-eh (see
+[rust-lang/rust#135450][r135450]).
+
+That means _every_ C/C++ object file in the link must also use the wasm-eh ABI.
+If anything is built with the legacy JS-EH ABI, the link fails with undefined
+symbols like `__cxa_find_matching_catch_3`.
+
+[r147224]: https://github.com/rust-lang/rust/pull/147224
+[r135450]: https://github.com/rust-lang/rust/pull/135450
+
+#### Three places to keep in sync
+
+1. **rustc link args** in `.cargo/config.toml` rustflags:
+   `-C link-arg=-sSUPPORT_LONGJMP=wasm`. emcc rejects
+   `SUPPORT_LONGJMP=emscripten` (the legacy setjmp ABI) when wasm-eh is on, so
+   we use the wasm-native pairing. mlua's vendored Lua uses setjmp for error
+   handling, which is why this matters.
+2. **cc-rs CFLAGS** in `.cargo/config.toml` `[env]`:
+   `CFLAGS_wasm32_unknown_emscripten` and `CXXFLAGS_wasm32_unknown_emscripten`
+   set to `-fwasm-exceptions -sSUPPORT_LONGJMP=wasm`. cc-rs reads these when
+   compiling C deps for the target, including mlua's vendored Lua.
+3. **emcc CFLAGS** via `EMCC_CFLAGS` in the justfile recipes:
+   `-fwasm-exceptions -sSUPPORT_LONGJMP=wasm` (alongside the raylib port flags).
+   raylib's CMake build is invoked through emcc directly, bypassing cc-rs, so it
+   needs the same flags via `EMCC_CFLAGS`.
+
+If you change one of these, change them together. A mismatch shows up as either
+a `__cxa_find_matching_catch_*` undefined symbol error (some object file used
+JS-EH ABI) or as a
+`SUPPORT_LONGJMP=emscripten is not compatible
+with -fwasm-exceptions` rejection
+(legacy longjmp ABI).
+
+#### What `panic = "abort"` is and isn't doing
+
+The `[profile.dev]` and `[profile.release]` `panic = "abort"` settings in
+`Cargo.toml` are there for binary size, on all targets. They are NOT what makes
+the web build link. (The 2024-era articles claiming panic=abort disables
+`-fwasm-exceptions` are stale; that path was removed.)
+
+Cargo automatically uses `panic = "unwind"` for the test profile, so
+`cargo test` is unaffected by these settings.
+
+### Frame loop
+
+Usagi's wasm build uses `emscripten_set_main_loop_arg` (not ASYNCIFY). The
+browser drives the per-frame body at requestAnimationFrame rate. ASYNCIFY was
+tried earlier and rejected because it conflicts with `-fwasm-exceptions` and
+adds runtime overhead. The session struct owns all per-frame state so it can
+hand a single `&mut Session` to emscripten's main loop.
+
+### Game data: runtime is decoupled from the game
+
+The wasm runtime is game-agnostic. It does NOT have a game baked in via
+`--preload-file`. Instead:
+
+1. The JS shell (`web/shell.html`) fetches `game.usagi` (overridable via
+   `window.USAGI_BUNDLE_URL`) over HTTP after the runtime initializes.
+2. JS writes the bytes into the wasm virtual FS at `/game.usagi` using
+   `Module.FS.writeFile` (which is why `FS` is in `EXPORTED_RUNTIME_METHODS`).
+3. JS calls `Module.callMain([])`. Rust's `main()` on the emscripten target
+   loads `/game.usagi`, builds a `BundleBacked` vfs, and runs.
+
+This is the same `.usagi` bundle format `usagi export --target bundle` produces
+on native. So the build artifacts in `target/web/` are:
+
+| File         | Role                                     | Game-specific? |
+| ------------ | ---------------------------------------- | -------------- |
+| `index.html` | Shell with click-to-play overlay         | No             |
+| `usagi.js`   | Emscripten loader / glue                 | No             |
+| `usagi.wasm` | Usagi runtime                            | No             |
+| `game.usagi` | Bundled `main.lua` + `sprites.png` + sfx | **Yes**        |
+
+To swap games you only need to replace `game.usagi`; the other three files are
+reusable across games. That's also what makes `usagi export --target web` viable
+without an emcc rebuild on the user's machine.
+
+### Developing and testing examples in the browser
+
+Quickstart:
+
+1. One-time setup (per machine):
+   - `bash setup-emscripten.sh` (installs emsdk to `~/.local/share/emsdk`).
+   - `just setup-web` (adds the wasm target and a tiny static server).
+2. Each new shell session, source emsdk so `emcc` is on PATH:
+   ```sh
+   source ~/.local/share/emsdk/emsdk_env.sh
+   ```
+3. Build + serve at `http://localhost:3535`:
+   ```sh
+   just serve-web
+   ```
+   Or just build (no server):
+   ```sh
+   just build-web        # debug
+   just build-web-release # release, much smaller, no source maps
+   ```
+
+#### Running a different example
+
+The runtime in `target/web/` is game-agnostic. To swap the game without
+rebuilding the runtime:
+
+```sh
+just example-web spr           # rebundles examples/spr -> target/web/game.usagi
+# refresh the browser tab
+```
+
+This works for any path that `usagi export --target bundle` accepts: a directory
+with a `main.lua`, a single `.lua` file, etc. If you change something in the
+bundled game's source, rerun `just example-web <name>` and refresh.
+
+Skip `just build-web` between examples; the runtime is identical across games.
+
+### Click-to-play overlay
+
+`web/shell.html` shows a "Click to play" overlay that holds `Module.main()`
+until the user clicks. It does three things on click:
+
+1. Fetches `game.usagi` over HTTP and writes it to the wasm virtual FS.
+2. Resumes any suspended AudioContext (browsers gate audio behind a user
+   gesture).
+3. Calls `Module.callMain([])` to start the game.
+
+`Module.noInitialRun = true` is used so emscripten doesn't auto-run main() the
+moment the runtime initializes; the click handler drives it instead. The bundle
+URL defaults to `game.usagi` (relative to the page); set
+`window.USAGI_BUNDLE_URL` before loading `usagi.js` to override.

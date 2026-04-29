@@ -6,9 +6,6 @@ clear, consistent, and familiar.
 
 [Watch the intro video!](https://www.youtube.com/watch?v=byp3rKd626M)
 
-Usagi is built with [Rust](https://rust-lang.org/) and
-[sola-raylib](https://crates.io/crates/sola-raylib).
-
 **WARNING:** Usagi is very early in development and not stable. APIs and
 commands will change.
 
@@ -22,24 +19,10 @@ system.](https://github.com/brettchalupa/usagi/releases/latest)
 
 **Latest Usagi release:** v0.1.0
 
+You can keep the `usagi` executable in your project folder or install it
+globally on your computer.
+
 _More ways of installing Usagi may be added in the future._
-
-### Upgrading
-
-Replace the `usagi` binary with a newer release. **NOTE:** Usagi is pre-v1.0,
-meaning there's no guarantee of API compatibility between releases right now.
-
-To refresh engine-owned files in a project (the LSP type stubs and the embedded
-docs), delete them and re-run `usagi init` from the project root:
-
-```sh
-rm meta/usagi.lua USAGI.md
-usagi init .
-```
-
-`init` skips files that already exist, so your `main.lua`, `.luarc.json`, and
-`.gitignore` stay untouched. The version stamp at the top of `meta/usagi.lua`
-and `USAGI.md` tells you which `usagi` produced them.
 
 ## Hello, Usagi
 
@@ -64,7 +47,7 @@ cd my_game
 usagi dev
 ```
 
-`init` writes `main.lua` (with stubbed `_init` / `_update` / `_draw`),
+`init` writes `main.lua` (with stubbed `_init` / `_update` / `_draw` functions),
 `.luarc.json` for Lua LSP support, `.gitignore`, `meta/usagi.lua` (API type
 stubs), and `USAGI.md` (a copy of these docs).
 
@@ -76,14 +59,31 @@ your game's executable after making changes. Usagi lets you focus on coding and
 making art without losing the current game state, allowing for much faster
 iteration cycles.
 
-Need to revise a sprite quickly? Just open it in Aseprite, tweak it, save it,
-and see it update in the context of your game.
+Need to revise a sprite quickly? Just open `sprites.png` in your sprite editor,
+change it, save it, and see it update in the context of your game.
+
+## Upgrading Usagi
+
+Replace the `usagi` binary with a newer release. **NOTE:** Usagi is pre-v1.0,
+meaning there's no guarantee of API compatibility between releases right now.
+
+To refresh engine-owned files in a project (the LSP type stubs and the embedded
+docs), delete them and re-run `usagi init` from the project root:
+
+```sh
+rm meta/usagi.lua USAGI.md
+usagi init .
+```
+
+`init` skips files that already exist, so your `main.lua`, `.luarc.json`, and
+`.gitignore` stay untouched. The version stamp at the top of `meta/usagi.lua`
+and `USAGI.md` tells you which `usagi` produced them.
 
 ## Project Goal
 
 Usagi does not aim to be anything more than a rapid development engine for
-simple, lower res 2D games. It doesn't intend to support mobile platforms or
-touch or VR. It doesn't aim to replace Love2D or Pico-8 or Picotron. It's not a
+simple, pixel art games. It doesn't intend to support mobile platforms or mobile
+or VR. It doesn't aim to replace Love2D or Pico-8 or Picotron. It's not a
 fantasy console. It's a command-line program and suite of tools to help you make
 games quickly.
 
@@ -98,7 +98,7 @@ fit.
 
 ## Project Layout
 
-A Usagi game is either a single `.lua` file or a directory with a `main.lua` in
+An Usagi game is either a single `.lua` file or a directory with a `main.lua` in
 it. Additional `.lua` files anywhere under the project root can be loaded with
 stock Lua's `require`. Optional assets live alongside:
 
@@ -135,8 +135,8 @@ Run with:
   Linux, macOS, Windows, and the web, plus a portable `.usagi` bundle. See the
   **Export** section below.
 
-While developing Usagi itself, replace `usagi` with `cargo run --` (for example
-`cargo run -- dev examples/hello_usagi.lua`).
+Can you also run Usagi commands without the path to have it run in the current
+directory, like `usagi dev` or `usagi export`.
 
 ## Constraints
 
@@ -149,18 +149,19 @@ change in the future or be configurable.
 - **One Spritesheet**: `sprites.png` is the only image file for textures that
   can be loaded
 - **Sprite Size**: 16px by 16px - using `gfx.spr` uses the index based on this
-  sized sprite
+  sized sprite; you can draw larger sprites with `gfx.sspr`
 - **Limited Colors**: the color palette for drawing are the same as Pico-8 (but
   with constants for easy reference)
 
 You currently must bring your own sound effects and sprite editor. A sprite
 editor could be nice in the future as part of the `usagi tools`.
 
-## TODO - What's Missing
+## Roadmap
 
 Here's what Usagi will support as it heads towards 1.0 release:
 
 - Mouse functions and ability to hide cursor
+- macOS `.app` bundles in export
 
 ## Lua API
 
@@ -196,22 +197,25 @@ lua-language-server stops underlining them as syntax errors.
 
 ### Callbacks
 
-Define any of these as globals; Usagi calls them:
+Define any of these as globals for Usagi to call them:
 
-- `_config()` — optional. Called **once at startup, before the window opens**;
-  returns a config table. Currently supports `title` (defaults to "Usagi") and
-  `pixel_perfect` (defaults to `false`). When `true`, the game renders at
-  integer scale multiples only (1×, 2×, 3×, ...) with black letterbox bars
-  filling any leftover window space. When `false`, the game scales at any factor
-  that fits the window while preserving the game's aspect ratio, so bars only
-  appear on the axis with extra room, never distorting the image. The default is
-  `false` because at common fullscreen resolutions (720p, 1080p, 4K) the game's
-  320×180 native size lands on an integer multiple anyway, and in windowed mode
-  it looks good still.
 - `_init()` — once at start, and when the user presses **F5**. Put state setup
   here.
 - `_update(dt)` — each frame, before draw. `dt` is seconds since last frame.
 - `_draw(dt)` — each frame, after update. `dt` same as above.
+- `_config()` — optional. Called **once at startup, before the window opens**;
+  must return a config table.
+
+#### `_config`
+
+Currently supports `title` (defaults to "Usagi") and `pixel_perfect` (defaults
+to `false`). When `true`, the game renders at integer scale multiples only (1×,
+2×, 3×, ...) with black letterbox bars filling any leftover window space. When
+`false`, the game scales at any factor that fits the window while preserving the
+game's aspect ratio, so bars only appear on the axis with extra room, never
+distorting the image. The default is `false` because at common fullscreen
+resolutions (720p, 1080p, 4K) the game's 320×180 native size lands on an integer
+multiple anyway, and in windowed mode it looks good still.
 
 ```lua
 function _config()
@@ -226,8 +230,8 @@ config field on save; restart the session to pick up changes.
 
 ### `gfx`
 
-Drawing. Positions are in game-space pixels (320×180). Colors are palette
-indices 0-15; use the named constants.
+Draws to the screen. Positions are in game-space pixels (320×180). Colors are
+palette indices 0-15; use the named constants.
 
 - `gfx.clear(color)` — fill the screen.
 - `gfx.rect(x, y, w, h, color)` — rectangle outline.
@@ -303,8 +307,8 @@ first.
 - `music.loop(name)` — play and loop forever.
 - `music.stop()` — stop whatever's playing. No-op if nothing is.
 
-Recognized extensions: `.ogg`, `.mp3`, `.wav`, `.flac`. **Use OGG is recommended
-for music as they're small and cross-platform.**
+Recognized extensions: `.ogg`, `.mp3`, `.wav`, `.flac`. **OGG is recommended for
+music as they're small and cross-platform.**
 
 The file stem is the name; `music/intro.ogg` is `music.play("intro")`. Music
 lives in a separate directory from sfx because the formats and lifetimes differ
@@ -365,15 +369,13 @@ Engine-level info.
   unlocks, run state). There are no slots at the engine level.
 
   Where saves live:
-  - linux: `~/.local/share/<game_id>/save.json`
+  - Linux: `~/.local/share/<game_id>/save.json`
   - macOS: `~/Library/Application Support/<game_id>/save.json`
-  - windows: `%APPDATA%\<game_id>\save.json`
-  - web: `localStorage`, key `usagi.save.<game_id>`
+  - Windows: `%APPDATA%\<game_id>\save.json`
+  - Web: `localStorage`, key `usagi.save.<game_id>`
 
   `game_id` is a reverse-DNS string like `com.brettmakesgames.snake`. It's
-  required for save / load (called helpfully if missing) but optional for games
-  that never persist anything. The same string is forward-compatible with macOS
-  / iOS / Windows app bundle IDs, so you only pick it once.
+  required for save / load but optional for games that never persist anything.
 
   Native writes are atomic (`save.json.tmp` + rename), so a crash mid-write
   leaves the previous save intact. JSON values must be representable: tables,
@@ -404,7 +406,8 @@ local f = math.random()         -- float in [0, 1)
 
 If you want a deterministic sequence (replays, tests, repeatable level
 generation) call stock Lua's `math.randomseed(n)` from `_init`. See
-`examples/rng.lua` for a small demo.
+[`examples/rng.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/rng.lua)
+for a small demo.
 
 ### Coming from Pico-8?
 
@@ -439,9 +442,9 @@ progress.
   `dev`.
 - Press **Alt+Enter** to toggle borderless fullscreen.
 - Press **Esc**, **P**, or gamepad **Start** to pause. The same keys (plus
-  **BTN2**) close the menu. While paused, `_update` and `_draw` are skipped
-  and the screen shows a black "PAUSED" overlay; music keeps streaming.
-- Press **Shift+Esc** in dev mode to quit the game 
+  **BTN2**) close the menu. While paused, `_update` and `_draw` are skipped and
+  the screen shows a black "PAUSED" overlay; music keeps streaming.
+- Press **Shift+Esc** in dev mode to quit the game
 
 ### Writing Reload-Friendly Scripts
 
@@ -452,7 +455,19 @@ crash. The pattern:
 - **Mutable state** → globals, assigned only in `_init`.
 - **Constants and module aliases** → file-scope `local`.
 
-See `examples/hello_usagi.lua` and `examples/input.lua` for the layout.
+See
+[`examples/hello_usagi.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/hello_usagi.lua)
+and
+[`examples/input.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/input.lua)
+for the layout.
+
+## Examples
+
+[View the examples on GitHub.](https://github.com/brettchalupa/usagi/tree/main/examples)
+
+There are a variety of examples exercising the full Usagi API that you can
+browse and adapt. Their source is all public domain, so do with them what you
+want.
 
 ## Tools
 
@@ -478,7 +493,7 @@ can just arrow through the list to hear each one.
 - Click a name to select + play.
 - Click the **Play** button in the right pane to replay.
 
-### TilePicker
+### Tile Picker
 
 Shows `<project>/sprites.png` with a 1-based grid overlay matching `gfx.spr`.
 Click any tile to copy its index to the clipboard (paste it straight into your
@@ -491,7 +506,7 @@ Lua code).
   stay visible regardless of palette.
 - Left click a tile to copy its 1-based index; a toast confirms the value.
 
-### SaveInspector
+### Save Inspector
 
 Reads the project's `_config().game_id` and shows the current `save.json`
 contents alongside the resolved file path. Useful for debugging save formats and
@@ -558,7 +573,7 @@ Override the template source explicitly:
 ### Web Shell
 
 The web export ships a default HTML page that hosts the canvas. To use a custom
-page, drop a `shell.html` next to your script and `usagi export` picks it up
+page, drop a `shell.html` next to your `main.lua` and `usagi export` picks it up
 automatically. Override per-build with `--web-shell PATH`.
 
 ### Notes
@@ -572,12 +587,6 @@ automatically. Override per-build with `--web-shell PATH`.
 - The fuse format is simple and additive: a magic footer at the end of the exe
   points back to an appended bundle. A `.usagi` file is the same bundle bytes
   without the footer; it runs on any platform via `usagi run`.
-
-## Web Builds
-
-Usagi compiles to wasm via emscripten so games can run in a browser. See
-[docs/web-build.md](docs/web-build.md) for setup, the build/dev loop, debugging
-tips, and the (non-obvious) wasm exception ABI requirements.
 
 ## Developing
 
@@ -596,6 +605,9 @@ tips, and the (non-obvious) wasm exception ABI requirements.
 - DragonRuby Game Toolkit (DRGTK)
 
 ## Credits
+
+Usagi is built with [Rust](https://rust-lang.org/) and
+[sola-raylib](https://crates.io/crates/sola-raylib).
 
 - **monogram** — the bundled font (`assets/monogram.ttf`) used by `gfx.text`,
   the FPS overlay, the error overlay, and the tools window. A 5×7 pixel font by
