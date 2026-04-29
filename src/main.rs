@@ -24,8 +24,11 @@ mod preprocess;
 mod render;
 mod save;
 mod session;
-mod tools;
 mod vfs;
+
+// `tools` don't run on web
+#[cfg(not(target_os = "emscripten"))]
+mod tools;
 
 // Export + templates aren't reachable from the wasm runtime (no CLI on
 // web) and their dep chain (ureq -> rustls -> ring) doesn't build for
