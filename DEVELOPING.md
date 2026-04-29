@@ -14,6 +14,22 @@ Pull requests will be renamed to follow
 
 Install Rust: https://rustup.rs
 
+## Docs
+
+Documentation is written in Markdown. It's formatted with `deno fmt`, but it's
+not a huge deal if there's drift there, so CI doesn't enforce this.
+
+Changes to the README should be made in `README_DEV.md`, which is used to stage
+docs for the next release. The `README.md` is for the most recently released
+version of Usagi, so that when people come to GitHub they don't see
+documentation for features that aren't in a shipped version yet.
+
+Only update `README.md` too when fixing a typo or adding something that's not
+version-specific.
+
+`CHANGELOG.md` contains a list of changes for each version. Pre-release notes
+get squashed into the full release when it happens.
+
 ## Local
 
 After cloning, run `just setup` once. It points git at `.githooks/`, so
