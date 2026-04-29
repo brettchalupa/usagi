@@ -154,6 +154,8 @@ released, update it to `1.2.0-dev` and run `cargo update -p usagi`. Commit and
 push this to GitHub. This helps make it clear that what's on `main` is not the
 published version nor the upcoming version (yet).
 
+Push a new version of notetris to itch.io: `./examples/notetris/push.rb`
+
 ## Build Environment Notes
 
 - The Linux runner is `ubuntu-22.04` (glibc 2.35) for portability. Binaries

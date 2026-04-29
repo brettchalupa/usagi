@@ -121,6 +121,7 @@ examples:
     just example multifile
     just example operators
     just example snake
+    just example notetris
     just example pico8
     just example dialog
     just example music
