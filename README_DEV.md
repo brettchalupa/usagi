@@ -161,10 +161,13 @@ editor could be nice in the future as part of the `usagi tools`.
 
 ## Roadmap
 
-Here's what Usagi will support as it heads towards 1.0 release:
+Not sure yet what's next! Some ideas:
 
-- Mouse functions and ability to hide cursor
-- macOS `.app` bundles in export
+- Pause menu w/ settings and input mapping for players
+- A single shader
+- Code signing for macOS apps
+- Pixel art editor in `usagi tools`
+- Simple editor in `usagi tools` with a simple API to use
 
 ## Lua API
 
