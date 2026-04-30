@@ -1,1 +1,4 @@
 /target
+**/*/export/*
+**/*/captures/
+captures/

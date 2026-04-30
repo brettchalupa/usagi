@@ -470,6 +470,14 @@ progress.
   **BTN2**) close the menu. While paused, `_update` and `_draw` are skipped and
   the screen shows a black "PAUSED" overlay; music keeps streaming.
 - Press **Shift+Esc** in dev mode to quit the game
+- Press **F9** or **Cmd/Ctrl + G** to start recording a GIF. Press the same key
+  again to stop and save. Files land in `<cwd>/captures/` named
+  `usagi-YYYYMMDD-HHMMSS.gif`, upscaled 2x (640×360) so they read well when
+  embedded online. A small pulsing red "● REC" indicator shows in the top-right
+  while recording.
+- Press **F8** or **Cmd/Ctrl + F** to save a PNG screenshot to the same
+  `<cwd>/captures/` bucket. Same 2x upscale as the gif recorder, lossless,
+  palette-exact.
 
 ### Writing Reload-Friendly Scripts
 

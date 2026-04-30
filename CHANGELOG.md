@@ -7,9 +7,18 @@ Doesn't contain updates relating to developing the engine itself.
 
 Features:
 
-- `music.play(name)` / `music.loop(name)` / `music.stop()` are now callable from
-  `_init`, not only `_update` / `_draw`. Lets games start a title track the
-  moment the window opens without a one-frame gap.
+- In-game GIF recording. Press **F9** or **Cmd/Ctrl + G** to start recording;
+  press the same key again to save. Files land in `<cwd>/captures/` named
+  `usagi-YYYYMMDD-HHMMSS.gif`. Native-only (web has no real filesystem). A small
+  pulsing red "● REC" indicator shows in the top-right of the window while
+  recording. Encoder streams frames to disk as they're captured, so memory stays
+  bounded on long recordings, and Usagi's 16-color palette maps directly to
+  GIF's palette format with no quantization, so output is pixel-exact. Output is
+  upscaled 2x (640×360, nearest-neighbor) so the gif reads cleanly.
+- In-game PNG screenshots. Press **F8** or **Cmd/Ctrl + F** to save a single
+  frame as `usagi-YYYYMMDD-HHMMSS.png` in the same `<cwd>/captures/` bucket as
+  recordings. Same 2x upscale as the gif recorder, lossless, palette-exact.
+  `usagi init` now adds `captures/` to `.gitignore`.
 - Mouse input. `input.mouse()` returns the cursor position as `x, y` in
   game-space pixels (so it lines up with `gfx.*` coords regardless of window
   size or pixel-perfect scaling). When the cursor sits over the letterbox bars
@@ -24,6 +33,12 @@ Features:
   and a draggable box), `examples/mouse_physics` (drag a box to push others
   around with cascading AABB collision), and `examples/waypoint` (click to drop
   waypoints; a unit walks the path).
+
+Fixes:
+
+- `music.play(name)` / `music.loop(name)` / `music.stop()` are now callable from
+  `_init`, not only `_update` / `_draw`. Lets games start a title track the
+  moment the window opens without a one-frame gap.
 
 ## v0.2.0 - Apr 29, 2026
 

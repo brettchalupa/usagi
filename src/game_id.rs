@@ -42,6 +42,25 @@ pub fn resolve(explicit: Option<&str>, name_hint: Option<&str>, bundle: Option<&
     "com.usagiengine.unknown".to_string()
 }
 
+/// Friendly short name extracted from a resolved game id, suitable
+/// for use as a filename prefix on capture artifacts (gif, png, etc).
+/// Returns the last dot-separated segment of `game_id` so
+/// `com.brettmakesgames.snake` becomes `snake`. Substitutes `usagi`
+/// for the `com.usagiengine.unknown` sentinel because
+/// `unknown-20260101.gif` reads worse than `usagi-20260101.gif`.
+///
+/// `validate_game_id` already restricts ids to filesystem-safe
+/// characters, so the returned slice is always a usable filename
+/// component without further sanitization.
+pub fn short_name(game_id: &str) -> &str {
+    let last = game_id.rsplit('.').next().unwrap_or("");
+    if last.is_empty() || last == "unknown" {
+        "usagi"
+    } else {
+        last
+    }
+}
+
 /// Convenience entry for `usagi export`. Reads `_config().game_id` out of
 /// the project's main.lua before delegating to `resolve`. Native-only
 /// because export itself is native-only and pulling in `assets`+`vfs` here
@@ -138,6 +157,27 @@ mod tests {
     #[test]
     fn sanitize_lowercases_and_keeps_hyphens_underscores() {
         assert_eq!(sanitize("My-Cool_Game"), "my-cool_game");
+    }
+
+    #[test]
+    fn short_name_returns_last_dot_segment() {
+        assert_eq!(short_name("com.brettmakesgames.snake"), "snake");
+        assert_eq!(short_name("com.usagiengine.notetris"), "notetris");
+    }
+
+    #[test]
+    fn short_name_handles_id_without_dots() {
+        assert_eq!(short_name("snake"), "snake");
+    }
+
+    #[test]
+    fn short_name_substitutes_usagi_for_unknown_sentinel() {
+        assert_eq!(short_name("com.usagiengine.unknown"), "usagi");
+    }
+
+    #[test]
+    fn short_name_substitutes_usagi_for_empty() {
+        assert_eq!(short_name(""), "usagi");
     }
 
     #[test]
