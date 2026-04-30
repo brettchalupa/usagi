@@ -12,6 +12,8 @@ use crate::assets::{
     MusicLibrary, SfxLibrary, SpriteSheet, clear_user_modules, freshest_lua_mtime, install_require,
     load_script,
 };
+#[cfg(not(target_os = "emscripten"))]
+use crate::capture::{Recorder, save_screenshot};
 use crate::input;
 use crate::palette::color;
 use crate::pause::PauseMenu;
@@ -314,6 +316,22 @@ struct Session {
     /// snapshot, current cursor visibility, and any pending visibility
     /// toggle that the frame loop needs to apply via `&mut rl`.
     input_bridge: InputBridge,
+    /// In-game GIF recorder, toggled with F9 / Cmd+G. Native-only:
+    /// emscripten has no real filesystem to write to.
+    #[cfg(not(target_os = "emscripten"))]
+    recorder: Recorder,
+    /// Where the recorder and screenshot helper write their `*.gif`
+    /// and `*.png` files. One bucket so games have a single dir to
+    /// gitignore. Captured at session creation so we don't depend on
+    /// CWD changes mid-session.
+    #[cfg(not(target_os = "emscripten"))]
+    captures_dir: std::path::PathBuf,
+    /// Filename prefix for capture files. Derived from the resolved
+    /// `game_id` so artifacts read as `<game>-YYYYMMDD-HHMMSS.gif`
+    /// (e.g. `snake-...gif`). Stored on the session so the prefix
+    /// can't drift across captures within one run.
+    #[cfg(not(target_os = "emscripten"))]
+    capture_prefix: String,
     /// Set by Shift+Esc in dev to request a clean exit out of the
     /// frame loop. `frame()` checks it before doing any per-frame work.
     should_quit: bool,
@@ -418,6 +436,12 @@ impl Session {
             vfs.project_name_hint().as_deref(),
             vfs.as_bundle(),
         );
+        // Filename prefix for capture artifacts (gif + png). Derived
+        // from the same resolved id used for save data via
+        // `game_id::short_name`, so a game's captures and saves share
+        // a stable name (e.g. `snake-20260101-120000.gif`).
+        #[cfg(not(target_os = "emscripten"))]
+        let capture_prefix = crate::game_id::short_name(&resolved_game_id).to_string();
         register_save_api(&lua, resolved_game_id)
             .map_err(|e| crate::Error::Cli(format!("registering usagi.save / usagi.load: {e}")))?;
 
@@ -470,6 +494,18 @@ impl Session {
             elapsed: 0.0,
             pause: PauseMenu::new(),
             input_bridge,
+            #[cfg(not(target_os = "emscripten"))]
+            recorder: Recorder::new(),
+            // Captures (gifs + screenshots) land in `<cwd>/captures/`.
+            // CWD is the project dir for `usagi dev` / `usagi run`,
+            // and is the exec dir for fused / exported binaries.
+            // Print the absolute path on save.
+            #[cfg(not(target_os = "emscripten"))]
+            captures_dir: std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .join("captures"),
+            #[cfg(not(target_os = "emscripten"))]
+            capture_prefix,
             should_quit: false,
             dev,
             vfs,
@@ -539,6 +575,14 @@ impl Session {
             self.run_update(dt);
             self.run_draw(dt, fps);
         }
+
+        // Capture the clean game RT for the GIF before `blit_and_overlay`
+        // adds any error-overlay or REC indicator pixels onto the screen
+        #[cfg(not(target_os = "emscripten"))]
+        if self.recorder.is_recording() {
+            self.recorder.capture(&self.rt);
+        }
+
         self.blit_and_overlay(screen_w, screen_h);
         true
     }
@@ -660,6 +704,40 @@ impl Session {
             || self.rl.is_key_down(KeyboardKey::KEY_RIGHT_SHIFT);
         if self.dev && shift && self.rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
             self.should_quit = true;
+        }
+
+        // F9 / Cmd+G / Ctrl+G toggles GIF recording.
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            let mod_just_pressed = self.rl.is_key_pressed(KeyboardKey::KEY_LEFT_SUPER)
+                || self.rl.is_key_pressed(KeyboardKey::KEY_RIGHT_SUPER)
+                || self.rl.is_key_pressed(KeyboardKey::KEY_LEFT_CONTROL)
+                || self.rl.is_key_pressed(KeyboardKey::KEY_RIGHT_CONTROL);
+            let mod_held = ctrl_held || super_held;
+
+            // F9 / Cmd+G / Ctrl+G toggles GIF recording.
+            let g_pressed = self.rl.is_key_pressed(KeyboardKey::KEY_G);
+            let g_down = self.rl.is_key_down(KeyboardKey::KEY_G);
+            let cmd_g = (g_pressed && mod_held) || (mod_just_pressed && g_down);
+            let toggle_rec = self.rl.is_key_pressed(KeyboardKey::KEY_F9) || cmd_g;
+            if toggle_rec
+                && let Err(e) = self
+                    .recorder
+                    .toggle(&self.captures_dir, &self.capture_prefix)
+            {
+                eprintln!("[usagi] recorder toggle failed: {e}");
+            }
+
+            // F8 / Cmd+F / Ctrl+F saves a one-shot PNG screenshot.
+            let f_pressed = self.rl.is_key_pressed(KeyboardKey::KEY_F);
+            let f_down = self.rl.is_key_down(KeyboardKey::KEY_F);
+            let cmd_f = (f_pressed && mod_held) || (mod_just_pressed && f_down);
+            let take_shot = self.rl.is_key_pressed(KeyboardKey::KEY_F8) || cmd_f;
+            if take_shot
+                && let Err(e) = save_screenshot(&self.rt, &self.captures_dir, &self.capture_prefix)
+            {
+                eprintln!("[usagi] screenshot failed: {e}");
+            }
         }
     }
 
@@ -962,6 +1040,8 @@ impl Session {
 
     /// draw the renter target to the screen, on top of a true black bg
     fn blit_and_overlay(&mut self, screen_w: i32, screen_h: i32) {
+        #[cfg(not(target_os = "emscripten"))]
+        let recording = self.recorder.is_recording();
         let mut d = self.rl.begin_drawing(&self.thread);
         d.clear_background(Color::BLACK);
         draw_render_target(
@@ -973,6 +1053,28 @@ impl Session {
         );
         if let Some(ref err) = self.last_error {
             draw_error_overlay(&mut d, self.font, err, screen_w, screen_h);
+        }
+        // REC indicator drawn after the RT blit so the captured gif
+        // Lives on the screen overlay only so the player sees it, the recording
+        // doesn't.
+        #[cfg(not(target_os = "emscripten"))]
+        if recording {
+            const PADDING: i32 = 12;
+            let dot_r = 8.0;
+            let dot_x = (screen_w - PADDING - dot_r as i32 * 2) as f32 + dot_r;
+            let dot_y = (PADDING + dot_r as i32) as f32;
+            let pulse = 0.6 + 0.4 * (self.elapsed * 4.0).sin() as f32;
+            let alpha = (pulse * 255.0) as u8;
+            let red = Color::new(220, 60, 60, alpha);
+            d.draw_circle(dot_x as i32, dot_y as i32, dot_r, red);
+            d.draw_text_ex(
+                self.font,
+                "REC",
+                Vector2::new(dot_x - dot_r - 40.0, dot_y - 11.0),
+                (crate::font::MONOGRAM_SIZE * 2) as f32,
+                0.0,
+                red,
+            );
         }
     }
 }

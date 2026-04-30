@@ -34,6 +34,12 @@ mod vfs;
 #[cfg(not(target_os = "emscripten"))]
 mod tools;
 
+// In-game capture: GIF recorder (F9 / Cmd+G) + PNG screenshots
+// (F8 / Cmd+F). Both write to `<cwd>/captures/`. Native-only:
+// emscripten has no real filesystem to write artifacts to.
+#[cfg(not(target_os = "emscripten"))]
+mod capture;
+
 // game_id is universal: same id namespaces save data on every target,
 // including web localStorage, the macOS CFBundleIdentifier, and any future
 // per-game preference. Runtime save/load resolves through this module too,
