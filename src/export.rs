@@ -72,7 +72,10 @@ pub fn run(
         template_url,
         no_cache,
         web_shell_override: web_shell_override.as_deref(),
-        bundle_id: &bundle_id,
+        // CFBundleIdentifier and platform package identifiers want a
+        // plain string; we hand the inner str off here rather than
+        // pass `GameId` through every export-target helper.
+        bundle_id: bundle_id.as_str(),
     };
     let out_path = output
         .map(PathBuf::from)

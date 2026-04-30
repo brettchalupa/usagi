@@ -7,6 +7,19 @@ Doesn't contain updates relating to developing the engine itself.
 
 Features:
 
+- Per-game settings stored in `settings.json` next to save data
+  (`~/Library/Application Support/<game_id>/settings.json` on macOS,
+  matching paths via `directories::ProjectDirs` on Linux/Windows; on web,
+  routed through `localStorage` under `usagi.settings.<game_id>` like saves).
+  First field is `volume` (master output, `0.0..=1.0`, defaults to `0.5`).
+  Loaded once at session boot and applied to the audio device before the
+  first frame; missing or malformed files fall back to defaults so a fresh
+  install Just Works.
+- **Shift+M** toggles audio mute, flipping master volume between `0.0` and
+  `0.5` (the default). The new value is written back to `settings.json`
+  on every toggle, so a muted game stays muted across quit/relaunch.
+  Available in both dev and shipped builds. Shift required so a stray
+  `M` keypress can't clobber a game that binds `M` to gameplay.
 - In-game GIF recording. Press **F9** or **Cmd/Ctrl + G** to start recording;
   press the same key again to save. Files land in `<cwd>/captures/` named
   `<game>-YYYYMMDD-HHMMSS.gif`, where `<game>` comes from your

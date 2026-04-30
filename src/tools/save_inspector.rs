@@ -28,7 +28,7 @@ pub(super) struct State {
     /// one, when the script can't be loaded, or when the tools window
     /// was opened with no project. All three cases render the same
     /// "no game_id" message.
-    pub game_id: Option<String>,
+    pub game_id: Option<crate::game_id::GameId>,
     /// Resolved save file path. None when `game_id` is None.
     pub path: Option<PathBuf>,
     /// JSON content as it currently lives on disk. None means "no save
@@ -79,7 +79,7 @@ impl State {
     /// it: the inspector keeps rendering with whatever it last knew
     /// about, plus the error message above it.
     pub fn refresh(&mut self) {
-        let Some(id) = self.game_id.as_deref() else {
+        let Some(id) = self.game_id.as_ref() else {
             return;
         };
         match crate::save::save_path(id) {
@@ -99,7 +99,7 @@ impl State {
     }
 
     pub fn clear(&mut self) -> Result<(), String> {
-        let Some(id) = self.game_id.as_deref() else {
+        let Some(id) = self.game_id.as_ref() else {
             return Err("no game_id".into());
         };
         crate::save::clear_save(id).map_err(|e| format!("clear: {e}"))?;
@@ -124,7 +124,7 @@ fn script_aware_vfs(project_path: &str) -> Result<FsBacked, String> {
     Ok(FsBacked::from_script_path(Path::new(&script)))
 }
 
-fn read_game_id(vfs: &FsBacked) -> Result<Option<String>, String> {
+fn read_game_id(vfs: &FsBacked) -> Result<Option<crate::game_id::GameId>, String> {
     use mlua::{Lua, Table as LuaTable};
     let lua = Lua::new();
     crate::api::setup_api(&lua, false).map_err(|e| format!("setup_api: {e}"))?;
@@ -141,7 +141,12 @@ fn read_game_id(vfs: &FsBacked) -> Result<Option<String>, String> {
     let id: Option<String> = tbl
         .get::<Option<String>>("game_id")
         .map_err(|e| format!("_config.game_id: {e}"))?;
-    Ok(id)
+    // Validate the explicit id directly via `try_from_explicit`
+    // rather than running the full resolver chain: the inspector
+    // wants to show a "no game_id" message when the project didn't
+    // set one, not silently fall back to a name-hint or
+    // bundle-hash sentinel.
+    Ok(id.and_then(|s| crate::game_id::GameId::try_from_explicit(&s)))
 }
 
 /// Spawns the OS file manager to show the directory containing the
@@ -207,7 +212,7 @@ pub(super) fn draw(
     );
     y += 24.0;
 
-    let game_id_line = match state.game_id.as_deref() {
+    let game_id_line = match state.game_id.as_ref().map(|g| g.as_str()) {
         Some(id) => format!("game_id: {}", id),
         None => "game_id: (not set; add `game_id` to _config())".into(),
     };

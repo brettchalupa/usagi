@@ -159,12 +159,12 @@ fn register_music_api(
 
 /// Installs `usagi.save(t)` and `usagi.load()` against the resolved
 /// `game_id`. Resolution happens once at session creation via
-/// `game_id::resolve` (preferring `_config().game_id`, falling back to
+/// `GameId::resolve` (preferring `_config().game_id`, falling back to
 /// the project name, then a bundle-hash sentinel), so games that don't
 /// set `game_id` still get stable per-game persistence instead of an
-/// error. The closures clone the id because mlua requires `'static`
-/// captures.
-fn register_save_api(lua: &Lua, game_id: String) -> LuaResult<()> {
+/// error. The closures each take their own `GameId` clone because
+/// mlua requires `'static` captures.
+fn register_save_api(lua: &Lua, game_id: crate::game_id::GameId) -> LuaResult<()> {
     let usagi: LuaTable = lua.globals().get("usagi")?;
 
     let id_for_save = game_id.clone();
@@ -332,6 +332,15 @@ struct Session {
     /// can't drift across captures within one run.
     #[cfg(not(target_os = "emscripten"))]
     capture_prefix: String,
+    /// Per-game settings loaded from disk (or localStorage on web)
+    /// at boot. Held on the session so the global mute hotkey can
+    /// flip the volume in-place and persist the change.
+    settings: crate::settings::Settings,
+    /// Resolved game id, kept on the session so settings writes
+    /// (mute toggles) can address the same per-game storage as save
+    /// data. Cloned out of the resolver since `register_save_api`
+    /// consumes the original.
+    game_id: crate::game_id::GameId,
     /// Set by Shift+Esc in dev to request a clean exit out of the
     /// frame loop. `frame()` checks it before doing any per-frame work.
     should_quit: bool,
@@ -431,17 +440,30 @@ impl Session {
         // web), then a literal sentinel. Same chain that drives the macOS
         // CFBundleIdentifier at export time, so save data and packaging
         // stay aligned for any given game.
-        let resolved_game_id = crate::game_id::resolve(
+        let resolved_game_id = crate::game_id::GameId::resolve(
             config.game_id.as_deref(),
             vfs.project_name_hint().as_deref(),
             vfs.as_bundle(),
         );
         // Filename prefix for capture artifacts (gif + png). Derived
         // from the same resolved id used for save data via
-        // `game_id::short_name`, so a game's captures and saves share
+        // `GameId::short_name`, so a game's captures and saves share
         // a stable name (e.g. `snake-20260101-120000.gif`).
         #[cfg(not(target_os = "emscripten"))]
-        let capture_prefix = crate::game_id::short_name(&resolved_game_id).to_string();
+        let capture_prefix = resolved_game_id.short_name().to_string();
+
+        // Per-game settings (volume, future knobs) namespaced by
+        // `game_id`, sharing the same per-OS data dir as save data on
+        // native and the same `localStorage` shim on web. Loaded
+        // before `_init` so settings effects (currently just master
+        // volume) take effect on first frame. Failures fall back to
+        // `Settings::default`, so a fresh install Just Works.
+        let settings = crate::settings::load(&resolved_game_id);
+
+        // Clone for the session-level retain (mute toggle writes
+        // back to settings under this id) before handing the owned
+        // string off to `register_save_api`.
+        let game_id = resolved_game_id.clone();
         register_save_api(&lua, resolved_game_id)
             .map_err(|e| crate::Error::Cli(format!("registering usagi.save / usagi.load: {e}")))?;
 
@@ -455,6 +477,14 @@ impl Session {
             .map_err(|e| eprintln!("[usagi] audio init failed: {}", e))
             .ok()
             .map(|a| &*Box::leak(Box::new(a)));
+
+        // Apply the user-configured master volume to the audio
+        // device. Clamped to `0.0..=1.0` so a hand-edited
+        // settings.json with an out-of-range value can't blow
+        // speakers or silently disable audio.
+        if let Some(a) = audio {
+            a.set_master_volume(settings.volume.clamp(0.0, 1.0));
+        }
 
         let (sfx, music) = match audio {
             Some(a) => (
@@ -506,6 +536,8 @@ impl Session {
                 .join("captures"),
             #[cfg(not(target_os = "emscripten"))]
             capture_prefix,
+            settings,
+            game_id,
             should_quit: false,
             dev,
             vfs,
@@ -596,10 +628,11 @@ impl Session {
             rt,
             pause,
             font,
+            settings,
             ..
         } = self;
         let mut d_rt = rl.begin_texture_mode(thread, rt);
-        pause.draw(&mut d_rt, font);
+        pause.draw(&mut d_rt, font, settings);
     }
 
     fn maybe_reload_assets(&mut self) {
@@ -704,6 +737,35 @@ impl Session {
             || self.rl.is_key_down(KeyboardKey::KEY_RIGHT_SHIFT);
         if self.dev && shift && self.rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
             self.should_quit = true;
+        }
+
+        // Shift+M toggles audio mute. Flips master volume between 0.0
+        // and the default volume, persisting the new value to
+        // settings.json so the mute state survives a quit/relaunch.
+        // Single-source-of-truth model: `settings.volume == 0.0` IS
+        // muted, anything > 0 is unmuted. A future volume slider
+        // would write the same field, with sliding to 0 == mute and
+        // sliding up == unmute, so this hotkey stays compatible.
+        // Available in both dev and shipped builds. Shift required
+        // so a stray `M` keypress can't clobber a game that binds
+        // `M` to gameplay. Audio device may be `None` if init
+        // failed at boot, in which case the toggle is a silent
+        // no-op.
+        if self.rl.is_key_pressed(KeyboardKey::KEY_M)
+            && shift
+            && let Some(audio) = self.audio
+        {
+            let next = if self.settings.volume > 0.0 {
+                0.0
+            } else {
+                crate::settings::DEFAULT_VOLUME
+            };
+            self.settings.volume = next;
+            audio.set_master_volume(next.clamp(0.0, 1.0));
+            if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
+                eprintln!("[usagi] settings write failed: {e}");
+            }
+            eprintln!("[usagi] master volume: {next:.2}");
         }
 
         // F9 / Cmd+G / Ctrl+G toggles GIF recording.

@@ -5,6 +5,7 @@
 use crate::input::{self, ACTION_BTN2, MAX_GAMEPADS};
 use crate::palette;
 use crate::palette::Pal;
+use crate::settings::Settings;
 use crate::{GAME_HEIGHT, GAME_WIDTH};
 use sola_raylib::prelude::*;
 
@@ -37,8 +38,11 @@ impl PauseMenu {
         }
     }
 
-    /// Renders the pause menu overlay into the active texture-mode draw handle.
-    pub fn draw<D: RaylibDraw>(&self, d: &mut D, font: &Font) {
+    /// Renders the pause menu overlay into the active texture-mode
+    /// draw handle. `settings` is shown as live read-only state (just
+    /// audio volume for now); when a future menu adds slider input,
+    /// pass it through here mutably.
+    pub fn draw<D: RaylibDraw>(&self, d: &mut D, font: &Font, settings: &Settings) {
         d.draw_rectangle(
             0,
             0,
@@ -56,13 +60,27 @@ impl PauseMenu {
         );
 
         let size = crate::font::MONOGRAM_SIZE as f32;
-        let m = font.measure_text("PAUSED", size, 0.0);
-        let x = ((GAME_WIDTH - m.x) * 0.5).round();
-        let y = 20.;
+        let title_m = font.measure_text("PAUSED", size, 0.0);
+        let title_x = ((GAME_WIDTH - title_m.x) * 0.5).round();
+        let title_y = 20.;
         d.draw_text_ex(
             font,
             "PAUSED",
-            Vector2::new(x, y),
+            Vector2::new(title_x, title_y),
+            size,
+            0.0,
+            palette::color(Pal::White),
+        );
+
+        let volume_pct = (settings.volume.clamp(0.0, 1.0) * 100.0).round() as i32;
+        let line = format!("Volume: {volume_pct}%");
+        let line_m = font.measure_text(&line, size, 0.0);
+        let line_x = ((GAME_WIDTH - line_m.x) * 0.5).round();
+        let line_y = title_y + size + 8.0;
+        d.draw_text_ex(
+            font,
+            &line,
+            Vector2::new(line_x, line_y),
             size,
             0.0,
             palette::color(Pal::White),

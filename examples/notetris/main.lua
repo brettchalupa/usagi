@@ -19,7 +19,7 @@ local draw = require("draw")
 local POPUP_LABELS = { "single", "double", "triple", "tetris" }
 
 function _config()
-  return { title = "notetris" }
+  return { title = "notetris", game_id = "com.brettmakesgames.notetris" }
 end
 
 local function spawn(key)

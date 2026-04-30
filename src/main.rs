@@ -40,6 +40,12 @@ mod tools;
 #[cfg(not(target_os = "emscripten"))]
 mod capture;
 
+// Per-game settings (volume, future user knobs). Native: persisted to
+// `settings.json` next to save.json in the OS data dir. Web: routed
+// through localStorage under `usagi.settings.<game_id>`, sharing the
+// same JS storage shim that powers `usagi.save` / `usagi.load`.
+mod settings;
+
 // game_id is universal: same id namespaces save data on every target,
 // including web localStorage, the macOS CFBundleIdentifier, and any future
 // per-game preference. Runtime save/load resolves through this module too,

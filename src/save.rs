@@ -40,6 +40,7 @@
 //! same filesystem; Windows `MoveFileEx` with `MOVEFILE_REPLACE_EXISTING`
 //! has the same semantics, which is what `std::fs::rename` uses.
 
+use crate::game_id::GameId;
 use mlua::{Lua, LuaSerdeExt, Value};
 
 #[cfg(not(target_os = "emscripten"))]
@@ -84,13 +85,13 @@ pub fn validate_game_id(id: &str) -> Result<(), String> {
 }
 
 #[cfg(not(target_os = "emscripten"))]
-pub fn save_dir(game_id: &str) -> std::io::Result<PathBuf> {
+pub fn save_dir(game_id: &GameId) -> std::io::Result<PathBuf> {
     use directories::ProjectDirs;
     // ProjectDirs::from(qualifier, organization, application). Empty
     // qualifier and organization keep the path short on macOS. We get
     // `~/Library/Application Support/<game_id>` instead of
     // `.../<org>.<game_id>`.
-    ProjectDirs::from("", "", game_id)
+    ProjectDirs::from("", "", game_id.as_str())
         .map(|p| p.data_dir().to_path_buf())
         .ok_or_else(|| std::io::Error::other("could not resolve data dir for this OS"))
 }
@@ -99,7 +100,7 @@ pub fn save_dir(game_id: &str) -> std::io::Result<PathBuf> {
 /// if the file or its parent directory don't exist yet, so callers can
 /// display "would be saved at: ..." messaging.
 #[cfg(not(target_os = "emscripten"))]
-pub fn save_path(game_id: &str) -> std::io::Result<PathBuf> {
+pub fn save_path(game_id: &GameId) -> std::io::Result<PathBuf> {
     Ok(save_dir(game_id)?.join(SAVE_FILE))
 }
 
@@ -108,7 +109,7 @@ pub fn save_path(game_id: &str) -> std::io::Result<PathBuf> {
 /// place; an empty `<game_id>/` dir is harmless and gets reused on
 /// next write.
 #[cfg(not(target_os = "emscripten"))]
-pub fn clear_save(game_id: &str) -> std::io::Result<()> {
+pub fn clear_save(game_id: &GameId) -> std::io::Result<()> {
     let path = save_path(game_id)?;
     match std::fs::remove_file(&path) {
         Ok(()) => Ok(()),
@@ -118,7 +119,7 @@ pub fn clear_save(game_id: &str) -> std::io::Result<()> {
 }
 
 #[cfg(not(target_os = "emscripten"))]
-pub fn write_save(game_id: &str, contents: &str) -> std::io::Result<()> {
+pub fn write_save(game_id: &GameId, contents: &str) -> std::io::Result<()> {
     let dir = save_dir(game_id)?;
     std::fs::create_dir_all(&dir)?;
     let final_path = dir.join(SAVE_FILE);
@@ -129,7 +130,7 @@ pub fn write_save(game_id: &str, contents: &str) -> std::io::Result<()> {
 }
 
 #[cfg(not(target_os = "emscripten"))]
-pub fn read_save(game_id: &str) -> std::io::Result<Option<String>> {
+pub fn read_save(game_id: &GameId) -> std::io::Result<Option<String>> {
     let path = save_dir(game_id)?.join(SAVE_FILE);
     match std::fs::read_to_string(&path) {
         Ok(s) => Ok(Some(s)),
@@ -154,20 +155,26 @@ mod web {
         fn usagi_save_free(val: *mut c_char);
     }
 
-    pub fn write_save(game_id: &str, contents: &str) -> std::io::Result<()> {
-        let key = CString::new(format!("usagi.save.{game_id}"))
-            .map_err(|_| std::io::Error::other("game_id contained NUL byte"))?;
-        let val = CString::new(contents)
-            .map_err(|_| std::io::Error::other("save data contained NUL byte"))?;
+    /// Generic key/value write into the JS-side storage shim. Despite
+    /// the FFI symbols being named `usagi_save_*`, the JS side just
+    /// proxies localStorage with no opinion on the key. Exposed
+    /// `pub(crate)` so siblings (settings, future per-game state)
+    /// can share one localStorage-shaped backend without duplicating
+    /// the FFI declarations.
+    pub(crate) fn kv_write(key: &str, val: &str) -> std::io::Result<()> {
+        let key = CString::new(key).map_err(|_| std::io::Error::other("key contained NUL byte"))?;
+        let val =
+            CString::new(val).map_err(|_| std::io::Error::other("value contained NUL byte"))?;
         unsafe {
             usagi_save_write(key.as_ptr(), val.as_ptr());
         }
         Ok(())
     }
 
-    pub fn read_save(game_id: &str) -> std::io::Result<Option<String>> {
-        let key = CString::new(format!("usagi.save.{game_id}"))
-            .map_err(|_| std::io::Error::other("game_id contained NUL byte"))?;
+    /// Generic key/value read from the JS-side storage shim. See
+    /// `kv_write` for the rationale on the shared shim.
+    pub(crate) fn kv_read(key: &str) -> std::io::Result<Option<String>> {
+        let key = CString::new(key).map_err(|_| std::io::Error::other("key contained NUL byte"))?;
         unsafe {
             let p = usagi_save_read(key.as_ptr());
             if p.is_null() {
@@ -178,10 +185,24 @@ mod web {
             Ok(Some(s))
         }
     }
+
+    pub fn write_save(game_id: &super::GameId, contents: &str) -> std::io::Result<()> {
+        kv_write(&format!("usagi.save.{}", game_id.as_str()), contents)
+    }
+
+    pub fn read_save(game_id: &super::GameId) -> std::io::Result<Option<String>> {
+        kv_read(&format!("usagi.save.{}", game_id.as_str()))
+    }
 }
 
 #[cfg(target_os = "emscripten")]
 pub use web::{read_save, write_save};
+
+// Shared key/value primitives backed by the same JS storage shim as
+// save data. Used by `settings.rs` to land on web localStorage with
+// the same persistence semantics as `usagi.save` / `usagi.load`.
+#[cfg(target_os = "emscripten")]
+pub(crate) use web::{kv_read, kv_write};
 
 #[cfg(test)]
 mod tests {
