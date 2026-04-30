@@ -32,8 +32,12 @@ else
 fi
 
 cd "$EMSDK_DIR"
-./emsdk install latest
-./emsdk activate latest
+# Pinned: `latest` started shipping a wasm-opt whose --asyncify pass fails on
+# wasm built with -fwasm-exceptions. We need both. 5.0.6 matches CI and the
+# version documented as verified in DEVELOPING.md.
+EMSDK_VERSION="${EMSDK_VERSION:-5.0.6}"
+./emsdk install "$EMSDK_VERSION"
+./emsdk activate "$EMSDK_VERSION"
 
 cat <<EOF
 
