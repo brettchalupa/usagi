@@ -465,7 +465,10 @@ progress.
   `_init()` to reinitialize state.
 - Press **~** (grave/tilde) to toggle the FPS overlay. Hidden by default in
   `dev`.
-- Press **Alt+Enter** to toggle borderless fullscreen.
+- Press **Alt+Enter** to toggle borderless fullscreen. Persists in
+  `settings.json` and applies before the first frame on the next
+  launch. No Lua or `_config` surface by design; the player owns
+  this setting.
 - Press **Esc**, **P**, or gamepad **Start** to pause. The same keys (plus
   **BTN2**) close the menu. While paused, `_update` and `_draw` are skipped and
   the screen shows a black "PAUSED" overlay; music keeps streaming.
