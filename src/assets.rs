@@ -317,6 +317,29 @@ impl<'a> MusicLibrary<'a> {
         self.start(name, false);
     }
 
+    /// Pauses current track.
+    /// No current track and unknown names silently no-op, matching `sfx.play`.
+    pub fn pause(&mut self) {
+        let Some(name) = self.current.as_deref() else {
+            return;
+        };
+        let Some(track) = self.tracks.get_mut(name) else {
+            return;
+        };
+        track.pause_stream();
+    }
+    /// Resumes current track.
+    /// No current track and unknown names silently no-op, matching `sfx.play`.
+    pub fn resume(&mut self) {
+        let Some(name) = self.current.as_deref() else {
+            return;
+        };
+        let Some(track) = self.tracks.get_mut(name) else {
+            return;
+        };
+        track.resume_stream();
+    }
+
     /// Plays `name` and loops it forever. If another track is playing
     /// it stops first.
     pub fn loop_(&mut self, name: &str) {

@@ -3,23 +3,27 @@
 //! that pauses the game's drawing and updating until the player closes it.
 
 use crate::input::{self, ACTION_BTN2, MAX_GAMEPADS};
+use crate::palette;
+use crate::palette::Pal;
 use crate::{GAME_HEIGHT, GAME_WIDTH};
 use sola_raylib::prelude::*;
 
 pub struct PauseMenu {
     pub open: bool,
+    last_open: bool,
 }
 
 impl PauseMenu {
     pub fn new() -> Self {
-        Self { open: false }
+        Self {
+            open: false,
+            last_open: false,
+        }
     }
 
-    /// Toggles `open` based on this frame's input. Esc / P / gamepad
-    /// Start open or close; BTN2 only closes (so the same button players
-    /// use to confirm in-game can dismiss the menu without also being a
-    /// way to summon it during play).
-    pub fn handle_input(&mut self, rl: &RaylibHandle) {
+    /// Handles input for opening the Pause Menu and processing input when open
+    pub fn update(&mut self, rl: &RaylibHandle) {
+        self.last_open = self.open;
         let toggle = rl.is_key_pressed(KeyboardKey::KEY_ESCAPE)
             || rl.is_key_pressed(KeyboardKey::KEY_P)
             || gamepad_start_pressed(rl);
@@ -33,21 +37,44 @@ impl PauseMenu {
         }
     }
 
-    /// Renders the overlay into the active texture-mode draw handle.
-    /// Clears the RT to black and draws "PAUSED" centered at the game's
-    /// native resolution so it scales identically to in-game text.
+    /// Renders the pause menu overlay into the active texture-mode draw handle.
     pub fn draw<D: RaylibDraw>(&self, d: &mut D, font: &Font) {
-        let bg_w = 200;
-        let bg_h = 100;
-        let bg_x = GAME_WIDTH as i32 / 2 - bg_w / 2;
-        let bg_y = GAME_HEIGHT as i32 / 2 - bg_h / 2;
-        d.draw_rectangle(bg_x, bg_y, bg_w, bg_h, Color::BLACK);
+        d.draw_rectangle(
+            0,
+            0,
+            GAME_WIDTH as i32,
+            GAME_HEIGHT as i32,
+            palette::color(Pal::Black).alpha(0.7),
+        );
+        let border_padding = 4;
+        d.draw_rectangle_lines(
+            border_padding,
+            border_padding,
+            GAME_WIDTH as i32 - border_padding * 2,
+            GAME_HEIGHT as i32 - border_padding * 2,
+            palette::color(Pal::White),
+        );
 
         let size = crate::font::MONOGRAM_SIZE as f32;
         let m = font.measure_text("PAUSED", size, 0.0);
         let x = ((GAME_WIDTH - m.x) * 0.5).round();
-        let y = ((GAME_HEIGHT - m.y) * 0.5).round();
-        d.draw_text_ex(font, "PAUSED", Vector2::new(x, y), size, 0.0, Color::WHITE);
+        let y = 20.;
+        d.draw_text_ex(
+            font,
+            "PAUSED",
+            Vector2::new(x, y),
+            size,
+            0.0,
+            palette::color(Pal::White),
+        );
+    }
+
+    pub fn just_opened(&self) -> bool {
+        self.open && !self.last_open
+    }
+
+    pub fn just_closed(&self) -> bool {
+        !self.open && self.last_open
     }
 }
 

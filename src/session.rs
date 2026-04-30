@@ -261,9 +261,6 @@ impl Session {
         // resolution: smaller than that and `pixel_perfect` falls below 1×.
         #[cfg(not(target_os = "emscripten"))]
         rl.set_window_min_size(GAME_WIDTH as i32, GAME_HEIGHT as i32);
-        // raylib's Esc-to-quit is always disabled: Esc opens the engine
-        // pause menu in shipped builds, and dev gets Shift+Esc as the
-        // explicit quit shortcut (handled in `handle_pause_input`).
         rl.set_exit_key(None);
         let rt: RenderTexture2D = rl
             .load_render_texture(&thread, GAME_WIDTH as u32, GAME_HEIGHT as u32)
@@ -353,7 +350,7 @@ impl Session {
             self.maybe_reload_assets();
         }
         self.handle_global_shortcuts();
-        self.handle_pause_input();
+        self.pause.update(&self.rl);
         if self.should_quit {
             return false;
         }
@@ -371,15 +368,16 @@ impl Session {
             let _ = usagi_tbl.set("elapsed", self.elapsed);
         }
 
-        // Music streams decode incrementally — raylib needs this every
-        // frame or the active track stutters. Cheap no-op if nothing's
-        // playing. Run before _update so user code observing
-        // music state via `music.play` calls in the same frame sees a
-        // freshly-buffered stream. Keeps streaming while paused too, so
-        // background tracks don't hitch on menu open/close.
+        if self.pause.just_opened() {
+            self.music.pause()
+        }
+        if self.pause.just_closed() {
+            self.music.resume()
+        }
         self.music.update();
 
         if self.pause.open {
+            self.run_draw(dt, fps);
             self.draw_paused();
         } else {
             self.run_update(dt);
@@ -387,19 +385,6 @@ impl Session {
         }
         self.blit_and_overlay(screen_w, screen_h);
         true
-    }
-
-    /// Reads pause-menu and dev-only quit inputs. Shift+Esc in dev sets
-    /// `should_quit` and short-circuits — without that early return the
-    /// same Esc press would also toggle the pause menu on the way out.
-    fn handle_pause_input(&mut self) {
-        let shift = self.rl.is_key_down(KeyboardKey::KEY_LEFT_SHIFT)
-            || self.rl.is_key_down(KeyboardKey::KEY_RIGHT_SHIFT);
-        if self.dev && shift && self.rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
-            self.should_quit = true;
-            return;
-        }
-        self.pause.handle_input(&self.rl);
     }
 
     /// Renders the pause overlay onto the RT in place of `_draw`. Split
@@ -506,6 +491,13 @@ impl Session {
                     self.last_error = Some(msg);
                 }
             }
+        }
+
+        // Shift + Esc quits in dev builds
+        let shift = self.rl.is_key_down(KeyboardKey::KEY_LEFT_SHIFT)
+            || self.rl.is_key_down(KeyboardKey::KEY_RIGHT_SHIFT);
+        if self.dev && shift && self.rl.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
+            self.should_quit = true;
         }
     }
 
@@ -856,6 +848,7 @@ impl Session {
         }
     }
 
+    /// draw the renter target to the screen, on top of a true black bg
     fn blit_and_overlay(&mut self, screen_w: i32, screen_h: i32) {
         let mut d = self.rl.begin_drawing(&self.thread);
         d.clear_background(Color::BLACK);
