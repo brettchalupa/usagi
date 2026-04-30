@@ -139,12 +139,13 @@ music = {}
 ---from the `music/` directory next to the game's main .lua (e.g.
 ---`music/intro.ogg` → "intro"). Recognized extensions: ogg, mp3, wav,
 ---flac. Stops the currently-playing track first if there is one.
----Unknown names silently no-op.
+---Unknown names silently no-op. Callable from `_init` so a title
+---track can start the moment the window opens.
 ---@param name string  file stem under `music/`
 function music.play(name) end
 
 ---Plays a music track and loops it forever. Stops the currently-
----playing track first.
+---playing track first. Callable from `_init`.
 ---@param name string  file stem under `music/`
 function music.loop(name) end
 

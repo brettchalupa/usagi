@@ -329,6 +329,9 @@ first.
 - `music.loop(name)` — play and loop forever.
 - `music.stop()` — stop whatever's playing. No-op if nothing is.
 
+All three are callable from `_init`, so a title track can start the moment the
+window opens (no one-frame gap waiting for `_update`).
+
 Recognized extensions: `.ogg`, `.mp3`, `.wav`, `.flac`. **OGG is recommended for
 music as they're small and cross-platform.**
 

@@ -7,6 +7,9 @@ Doesn't contain updates relating to developing the engine itself.
 
 Features:
 
+- `music.play(name)` / `music.loop(name)` / `music.stop()` are now callable from
+  `_init`, not only `_update` / `_draw`. Lets games start a title track the
+  moment the window opens without a one-frame gap.
 - Mouse input. `input.mouse()` returns the cursor position as `x, y` in
   game-space pixels (so it lines up with `gfx.*` coords regardless of window
   size or pixel-perfect scaling). When the cursor sits over the letterbox bars

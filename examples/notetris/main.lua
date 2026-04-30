@@ -73,6 +73,8 @@ local function commit_piece()
 end
 
 function _init()
+  music.loop("korobeiniki")
+
   state = {
     board = board.new(),
     bag = pieces.new_bag(),
@@ -151,11 +153,6 @@ local function step_gravity()
 end
 
 function _update(dt)
-  if not state.music_started then
-    music.loop("korobeiniki")
-    state.music_started = true
-  end
-
   effects.update(state.fx, dt)
 
   if state.clearing_rows then

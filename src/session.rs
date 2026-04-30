@@ -119,6 +119,42 @@ fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
     Ok(())
 }
 
+/// Installs `music.play` / `music.loop` / `music.stop` once at session
+/// startup against a shared `MusicLibrary`. The closures `borrow_mut`
+/// the library on each call, so they can be invoked from `_init` (e.g.
+/// to start a title track before the first frame), `_update`, or any
+/// other callback. Lua is single-threaded and no Lua callback recurses
+/// into another, so the runtime borrow check stays satisfied.
+fn register_music_api(
+    lua: &Lua,
+    music: &Rc<std::cell::RefCell<MusicLibrary<'static>>>,
+) -> LuaResult<()> {
+    let music_tbl: LuaTable = lua.globals().get("music")?;
+
+    let m = Rc::clone(music);
+    let play = lua.create_function(move |_, name: String| {
+        m.borrow_mut().play(&name);
+        Ok(())
+    })?;
+    music_tbl.set("play", play)?;
+
+    let m = Rc::clone(music);
+    let loop_ = lua.create_function(move |_, name: String| {
+        m.borrow_mut().loop_(&name);
+        Ok(())
+    })?;
+    music_tbl.set("loop", loop_)?;
+
+    let m = Rc::clone(music);
+    let stop = lua.create_function(move |_, ()| {
+        m.borrow_mut().stop();
+        Ok(())
+    })?;
+    music_tbl.set("stop", stop)?;
+
+    Ok(())
+}
+
 /// Installs `usagi.save(t)` and `usagi.load()` against the resolved
 /// `game_id`. Resolution happens once at session creation via
 /// `game_id::resolve` (preferring `_config().game_id`, falling back to
@@ -252,7 +288,12 @@ struct Session {
     /// not a real leak (process exit reclaims it).
     audio: Option<&'static RaylibAudio>,
     sfx: SfxLibrary<'static>,
-    music: MusicLibrary<'static>,
+    /// `MusicLibrary` mutates on play/loop/stop/pause/update, so it
+    /// lives behind an `Rc<RefCell>`. The session and the Lua-side
+    /// `music.*` closures both hold an `Rc`, which lets the closures
+    /// be registered once at startup (callable from `_init`) instead
+    /// of being scoped per-frame like draw closures.
+    music: Rc<std::cell::RefCell<MusicLibrary<'static>>>,
 
     last_error: Option<String>,
     last_modified: Option<SystemTime>,
@@ -380,16 +421,12 @@ impl Session {
         register_save_api(&lua, resolved_game_id)
             .map_err(|e| crate::Error::Cli(format!("registering usagi.save / usagi.load: {e}")))?;
 
-        if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
-            record_err(&mut last_error, "_init", init.call::<()>(()));
-        }
-        let update: Option<LuaFunction> = lua.globals().get("_update").ok();
-        let draw: Option<LuaFunction> = lua.globals().get("_draw").ok();
-        // Baseline includes every module main.lua already required, so
-        // the first frame doesn't spuriously reload just because a sibling
-        // module's mtime is newer than main.lua's.
-        let last_modified = freshest_lua_mtime(&lua, vfs.as_ref());
-
+        // Audio and the music library load before `_init` so games can
+        // call `music.play` / `music.loop` from `_init` (e.g. start a
+        // title track immediately). The `music.*` Lua closures are
+        // registered against an `Rc<RefCell<MusicLibrary>>` that the
+        // session also holds, so user calls flow through the same
+        // library that the engine drives every frame.
         let audio: Option<&'static RaylibAudio> = RaylibAudio::init_audio_device()
             .map_err(|e| eprintln!("[usagi] audio init failed: {}", e))
             .ok()
@@ -402,6 +439,19 @@ impl Session {
             ),
             None => (SfxLibrary::empty(), MusicLibrary::empty()),
         };
+        let music = Rc::new(std::cell::RefCell::new(music));
+        register_music_api(&lua, &music)
+            .map_err(|e| crate::Error::Cli(format!("registering music.* API: {e}")))?;
+
+        if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
+            record_err(&mut last_error, "_init", init.call::<()>(()));
+        }
+        let update: Option<LuaFunction> = lua.globals().get("_update").ok();
+        let draw: Option<LuaFunction> = lua.globals().get("_draw").ok();
+        // Baseline includes every module main.lua already required, so
+        // the first frame doesn't spuriously reload just because a sibling
+        // module's mtime is newer than main.lua's.
+        let last_modified = freshest_lua_mtime(&lua, vfs.as_ref());
 
         Ok(Self {
             rt,
@@ -475,12 +525,12 @@ impl Session {
         }
 
         if self.pause.just_opened() {
-            self.music.pause()
+            self.music.borrow_mut().pause()
         }
         if self.pause.just_closed() {
-            self.music.resume()
+            self.music.borrow_mut().resume()
         }
-        self.music.update();
+        self.music.borrow_mut().update();
 
         if self.pause.open {
             self.run_draw(dt, fps);
@@ -553,9 +603,15 @@ impl Session {
         }
 
         if let Some(a) = self.audio
-            && self.music.reload_if_changed(a, self.vfs.as_ref())
+            && self
+                .music
+                .borrow_mut()
+                .reload_if_changed(a, self.vfs.as_ref())
         {
-            println!("[usagi] reloaded music ({} track(s))", self.music.len());
+            println!(
+                "[usagi] reloaded music ({} track(s))",
+                self.music.borrow().len()
+            );
         }
     }
 
@@ -611,7 +667,6 @@ impl Session {
         let Self {
             lua,
             sfx,
-            music,
             update,
             last_error,
             ..
@@ -620,9 +675,6 @@ impl Session {
             return;
         };
         let sfx_ref: &SfxLibrary<'static> = sfx;
-        // MusicLibrary mutates state on play/stop, so wrap in a RefCell
-        // so the per-frame Lua closures can borrow_mut into it.
-        let music_cell = std::cell::RefCell::new(music);
         record_err(
             last_error,
             "_update",
@@ -633,23 +685,6 @@ impl Session {
                     Ok(())
                 })?;
                 sfx_tbl.set("play", play)?;
-
-                let music_tbl: LuaTable = lua.globals().get("music")?;
-                let m_play = scope.create_function(|_, name: String| {
-                    music_cell.borrow_mut().play(&name);
-                    Ok(())
-                })?;
-                let m_loop = scope.create_function(|_, name: String| {
-                    music_cell.borrow_mut().loop_(&name);
-                    Ok(())
-                })?;
-                let m_stop = scope.create_function(|_, ()| {
-                    music_cell.borrow_mut().stop();
-                    Ok(())
-                })?;
-                music_tbl.set("play", m_play)?;
-                music_tbl.set("loop", m_loop)?;
-                music_tbl.set("stop", m_stop)?;
 
                 update_fn.call::<()>(dt)?;
                 Ok(())
@@ -664,7 +699,6 @@ impl Session {
             thread,
             rt,
             sfx,
-            music,
             sprites,
             font,
             draw,
@@ -678,7 +712,6 @@ impl Session {
             let sprites_ref = sprites.texture();
             let font_ref: &Font = font;
             let sfx_ref: &SfxLibrary<'static> = sfx;
-            let music_cell = std::cell::RefCell::new(music);
             record_err(
                 last_error,
                 "_draw",
@@ -909,23 +942,6 @@ impl Session {
                         Ok(())
                     })?;
                     sfx_tbl.set("play", play)?;
-
-                    let music_tbl: LuaTable = lua.globals().get("music")?;
-                    let m_play = scope.create_function(|_, name: String| {
-                        music_cell.borrow_mut().play(&name);
-                        Ok(())
-                    })?;
-                    let m_loop = scope.create_function(|_, name: String| {
-                        music_cell.borrow_mut().loop_(&name);
-                        Ok(())
-                    })?;
-                    let m_stop = scope.create_function(|_, ()| {
-                        music_cell.borrow_mut().stop();
-                        Ok(())
-                    })?;
-                    music_tbl.set("play", m_play)?;
-                    music_tbl.set("loop", m_loop)?;
-                    music_tbl.set("stop", m_stop)?;
 
                     draw_fn.call::<()>(dt)?;
                     Ok(())
