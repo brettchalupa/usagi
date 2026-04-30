@@ -4,6 +4,8 @@
 
 use crate::bundle::Bundle;
 use crate::cli;
+use crate::game_id;
+use crate::macos_app;
 use crate::templates;
 use crate::{Error, Result};
 use clap::ValueEnum;
@@ -64,11 +66,13 @@ pub fn run(
     }
 
     let web_shell_override = resolve_web_shell_override(&script_path, web_shell)?;
+    let bundle_id = game_id::resolve_for_export(&script_path, &name, &bundle);
     let opts = Opts {
         template_path,
         template_url,
         no_cache,
         web_shell_override: web_shell_override.as_deref(),
+        bundle_id: &bundle_id,
     };
     let out_path = output
         .map(PathBuf::from)
@@ -91,11 +95,20 @@ struct Opts<'a> {
     template_url: Option<&'a str>,
     no_cache: bool,
     web_shell_override: Option<&'a Path>,
+    /// Pre-resolved id from `game_id::resolve`. Same string the save layer
+    /// keys off, so save data and CFBundleIdentifier stay aligned.
+    bundle_id: &'a str,
 }
 
 /// Builds every cross-platform zip plus the portable `.usagi` bundle.
 /// The host target fuses against the running binary (offline); the
 /// others come from the cache, downloading on first use.
+///
+/// Per-target failures are logged and the loop keeps going. The common
+/// case for this is a dev checkout exporting at a version that hasn't
+/// been published yet (`0.x-dev`): the network template fetch 404s,
+/// but the host-fuse zip plus the portable `.usagi` bundle should
+/// still land. The whole call only fails if every target failed.
 fn export_all(bundle: &Bundle, name: &str, out_dir: &Path, opts: &Opts) -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::Cli(format!("creating export dir {}: {e}", out_dir.display())))?;
@@ -106,12 +119,28 @@ fn export_all(bundle: &Bundle, name: &str, out_dir: &Path, opts: &Opts) -> Resul
         template_url: None,
         no_cache: opts.no_cache,
         web_shell_override: opts.web_shell_override,
+        bundle_id: opts.bundle_id,
     };
+    let mut succeeded = 0;
+    let mut last_err: Option<Error> = None;
     for target in templates::Target::ALL {
         let zip = out_dir.join(format!("{name}-{}.zip", target.as_str()));
-        export_one_target(bundle, name, target, &inner, &zip)?;
+        match export_one_target(bundle, name, target, &inner, &zip) {
+            Ok(()) => succeeded += 1,
+            Err(e) => {
+                eprintln!("[usagi] skipping {target:?}: {e}");
+                last_err = Some(e);
+            }
+        }
     }
+    // The portable bundle never depends on a runtime template, so it stands
+    // on its own as a successful artifact.
     write_bundle(bundle, &out_dir.join(format!("{name}.usagi")))?;
+    if succeeded == 0
+        && let Some(e) = last_err
+    {
+        return Err(e);
+    }
     println!("[usagi] export ready at {}/", out_dir.display());
     Ok(())
 }
@@ -139,6 +168,7 @@ fn export_one_target(
                 path,
                 target,
                 opts.web_shell_override,
+                opts.bundle_id,
                 out_path,
             );
         }
@@ -148,6 +178,7 @@ fn export_one_target(
             path,
             target,
             opts.web_shell_override,
+            opts.bundle_id,
             out_path,
         );
     }
@@ -163,11 +194,12 @@ fn export_one_target(
             &archive,
             target,
             opts.web_shell_override,
+            opts.bundle_id,
             out_path,
         );
     }
     if templates::Target::host() == Some(target) {
-        return export_from_host_exe(bundle, name, target, out_path);
+        return export_from_host_exe(bundle, name, target, opts.bundle_id, out_path);
     }
     let cache_root = templates::cache_dir()?;
     let base = templates::template_base();
@@ -184,6 +216,7 @@ fn export_one_target(
         &runtime_dir,
         target,
         opts.web_shell_override,
+        opts.bundle_id,
         out_path,
     )
 }
@@ -194,13 +227,14 @@ fn export_from_host_exe(
     bundle: &Bundle,
     name: &str,
     target: templates::Target,
+    bundle_id: &str,
     out_path: &Path,
 ) -> Result<()> {
     let current_exe =
         std::env::current_exe().map_err(|e| Error::Cli(format!("locating current exe: {e}")))?;
     let stage =
         tempfile::tempdir().map_err(|e| Error::Cli(format!("creating zip stage dir: {e}")))?;
-    let staged_exe = stage.path().join(staged_exe_name(name, target));
+    let staged_exe = staged_binary_path(stage.path(), name, target, bundle_id)?;
     fuse_exe(bundle, &current_exe, &staged_exe)?;
     ensure_parent(out_path)?;
     zip_dir(stage.path(), out_path)?;
@@ -220,6 +254,7 @@ fn export_from_archive(
     archive: &Path,
     target: templates::Target,
     web_shell_override: Option<&Path>,
+    bundle_id: &str,
     out_path: &Path,
 ) -> Result<()> {
     if !archive.is_file() {
@@ -238,6 +273,7 @@ fn export_from_archive(
         &extract_dir,
         target,
         web_shell_override,
+        bundle_id,
         out_path,
     )
 }
@@ -252,6 +288,7 @@ fn export_from_runtime_dir(
     runtime_dir: &Path,
     target: templates::Target,
     web_shell_override: Option<&Path>,
+    bundle_id: &str,
     out_path: &Path,
 ) -> Result<()> {
     let runtime = templates::locate(runtime_dir, target)?;
@@ -259,7 +296,7 @@ fn export_from_runtime_dir(
         tempfile::tempdir().map_err(|e| Error::Cli(format!("creating zip stage dir: {e}")))?;
     match runtime {
         templates::Runtime::Native { exe } => {
-            let staged_exe = stage.path().join(staged_exe_name(name, target));
+            let staged_exe = staged_binary_path(stage.path(), name, target, bundle_id)?;
             fuse_exe(bundle, &exe, &staged_exe)?;
         }
         templates::Runtime::Web { js, wasm, html } => {
@@ -403,6 +440,23 @@ fn staged_exe_name(name: &str, target: templates::Target) -> String {
     match target {
         templates::Target::Windows => format!("{name}.exe"),
         _ => name.to_owned(),
+    }
+}
+
+/// Where in `stage` the fused binary should land. macOS gets the full
+/// `<name>.app/Contents/MacOS/<name>` layout (Info.plist + PkgInfo are
+/// written as a side-effect, with `bundle_id` going into CFBundleIdentifier);
+/// other native targets stay flat at the stage root so the zip contains a
+/// bare exe like before.
+fn staged_binary_path(
+    stage: &Path,
+    name: &str,
+    target: templates::Target,
+    bundle_id: &str,
+) -> Result<PathBuf> {
+    match target {
+        templates::Target::Macos => macos_app::stage_app_layout(stage, name, bundle_id),
+        _ => Ok(stage.join(staged_exe_name(name, target))),
     }
 }
 

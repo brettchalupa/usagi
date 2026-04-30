@@ -34,6 +34,12 @@ mod vfs;
 #[cfg(not(target_os = "emscripten"))]
 mod tools;
 
+// game_id is universal: same id namespaces save data on every target,
+// including web localStorage, the macOS CFBundleIdentifier, and any future
+// per-game preference. Runtime save/load resolves through this module too,
+// so it's not export-only.
+mod game_id;
+
 // Export + templates aren't reachable from the wasm runtime (no CLI on
 // web) and their dep chain (ureq -> rustls -> ring) doesn't build for
 // emscripten anyway. Native-only.
@@ -41,6 +47,8 @@ mod tools;
 mod export;
 #[cfg(not(target_os = "emscripten"))]
 mod init;
+#[cfg(not(target_os = "emscripten"))]
+mod macos_app;
 #[cfg(not(target_os = "emscripten"))]
 mod templates;
 

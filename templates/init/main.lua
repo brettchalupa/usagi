@@ -1,3 +1,7 @@
+function _config()
+  return { name = "Game", game_id = "com.usagiengine.YOURGAMENAME" }
+end
+
 function _init()
 end
 

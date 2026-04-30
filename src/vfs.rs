@@ -49,6 +49,24 @@ pub trait VirtualFs {
     /// Whether filesystem reload checks are meaningful on this vfs.
     /// `FsBacked` returns true; `BundleBacked` always returns false.
     fn supports_reload(&self) -> bool;
+
+    /// Best-effort project-name hint, used by `game_id::resolve` as a
+    /// fallback when `_config().game_id` is unset. `FsBacked` returns the
+    /// project's directory or script-stem name; `BundleBacked` returns
+    /// None because in-memory bundles carry no original name. None at
+    /// runtime is fine: the resolver drops to a bundle-hash fallback.
+    fn project_name_hint(&self) -> Option<String> {
+        None
+    }
+
+    /// Borrow the bundle that backs this vfs, if any. `BundleBacked`
+    /// returns Some so `game_id::resolve` can hash the bundle as a
+    /// last-resort fallback; `FsBacked` returns None because the project
+    /// lives as loose files (and the directory name covers the fallback
+    /// case there).
+    fn as_bundle(&self) -> Option<&Bundle> {
+        None
+    }
 }
 
 /// True when a `.lua` file is annotated as type-stubs-only via the
@@ -305,6 +323,32 @@ impl VirtualFs for FsBacked {
     fn supports_reload(&self) -> bool {
         true
     }
+
+    fn project_name_hint(&self) -> Option<String> {
+        // Mirror `export::project_name`: when the script is `main.lua` the
+        // parent directory's name is the project; otherwise the file stem.
+        // Keeping the two in sync means a runtime save and an export's
+        // CFBundleIdentifier line up on the same name fallback.
+        if let Some(name) = self.script_filename.as_deref() {
+            let stem = std::path::Path::new(name)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("game");
+            if stem == "main" {
+                self.root
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .map(String::from)
+            } else {
+                Some(stem.to_string())
+            }
+        } else {
+            self.root
+                .file_name()
+                .and_then(|s| s.to_str())
+                .map(String::from)
+        }
+    }
 }
 
 /// Bundle-backed vfs. All reads go against the in-memory bundle. Mtimes
@@ -399,6 +443,10 @@ impl VirtualFs for BundleBacked {
 
     fn supports_reload(&self) -> bool {
         false
+    }
+
+    fn as_bundle(&self) -> Option<&Bundle> {
+        Some(&self.bundle)
     }
 }
 
@@ -562,5 +610,63 @@ mod tests {
         assert_eq!(vfs.sfx_stems(), vec!["jump".to_string()]);
         assert!(!vfs.supports_reload());
         assert!(vfs.script_mtime().is_none());
+    }
+
+    #[test]
+    fn fs_backed_name_hint_uses_parent_for_main_lua() {
+        let dir = TempDir::new().unwrap();
+        let project = dir.path().join("snake");
+        fs::create_dir(&project).unwrap();
+        fs::write(project.join("main.lua"), b"").unwrap();
+        let vfs = FsBacked::from_script_path(&project.join("main.lua"));
+        assert_eq!(vfs.project_name_hint().as_deref(), Some("snake"));
+    }
+
+    #[test]
+    fn fs_backed_name_hint_uses_stem_for_flat_script() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("hello.lua"), b"").unwrap();
+        let vfs = FsBacked::from_script_path(&dir.path().join("hello.lua"));
+        assert_eq!(vfs.project_name_hint().as_deref(), Some("hello"));
+    }
+
+    #[test]
+    fn fs_backed_name_hint_falls_back_to_root_dir_when_no_script_filename() {
+        let dir = TempDir::new().unwrap();
+        let project = dir.path().join("my-project");
+        fs::create_dir(&project).unwrap();
+        let vfs = FsBacked::from_project_dir(project);
+        assert_eq!(vfs.project_name_hint().as_deref(), Some("my-project"));
+    }
+
+    #[test]
+    fn fs_backed_does_not_expose_a_bundle() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("main.lua"), b"").unwrap();
+        let vfs = FsBacked::from_script_path(&dir.path().join("main.lua"));
+        assert!(vfs.as_bundle().is_none());
+    }
+
+    #[test]
+    fn bundle_backed_exposes_its_bundle_for_hashing() {
+        let mut b = Bundle::new();
+        b.insert("main.lua", b"-- a".to_vec());
+        let vfs = BundleBacked::new(b);
+        let exposed = vfs
+            .as_bundle()
+            .expect("BundleBacked must expose its bundle");
+        // Sanity: bundle round-trip lookup via the trait sees the same data.
+        assert_eq!(
+            exposed.get("main.lua").map(<[u8]>::to_vec),
+            Some(b"-- a".to_vec())
+        );
+    }
+
+    #[test]
+    fn bundle_backed_has_no_name_hint() {
+        // In-memory bundles don't carry the original project name; the
+        // resolver falls through to the bundle-hash layer instead.
+        let vfs = BundleBacked::new(Bundle::new());
+        assert!(vfs.project_name_hint().is_none());
     }
 }

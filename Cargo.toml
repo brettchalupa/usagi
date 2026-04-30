@@ -15,6 +15,9 @@ exclude = ["examples", ".zed", "docs", "justfile", "*.sh"]
 clap = { version = "4", features = ["derive"] }
 mlua = { version = "0.11", features = ["lua54", "vendored", "serde"] }
 serde_json = "1"
+# Used for SHA-256 verification of downloaded templates against published
+# sidecars and game_id hash fallback.
+sha2 = "0.11"
 sola-raylib = { version = "6.0" }
 
 # Export-only deps. The wasm runtime never reaches `usagi export`
@@ -41,8 +44,6 @@ tempfile = "3"
 ureq = { version = "3", default-features = false, features = ["rustls"] }
 # Per-OS cache directory resolver for runtime templates.
 directories = "6"
-# SHA-256 verification of downloaded templates against published sidecars.
-sha2 = "0.11"
 
 # Smaller binaries on all targets. Cargo automatically uses panic=unwind
 # for the test profile so `cargo test` is unaffected. Note this does NOT
