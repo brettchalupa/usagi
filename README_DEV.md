@@ -12,6 +12,9 @@ commands will change.
 Usagi is made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to
 the public domain.
 
+[There's a chill Discord if you want to chat about the engine, share what you
+make, and get help.](https://discord.gg/a92ZjE4NUx)
+
 ## Install
 
 [Download the latest Usagi build for your operating
