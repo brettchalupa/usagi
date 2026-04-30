@@ -12,6 +12,9 @@
 //! shell fetches a `.usagi` bundle and writes it to `/game.usagi` in the
 //! wasm virtual FS before `main()` runs, and that bundle is executed.
 
+// Don't show the Raylib log pop-up when running Windows release binaries
+#![windows_subsystem = "windows"]
+
 mod api;
 mod assets;
 mod bundle;
