@@ -4,6 +4,28 @@
 use crate::{GAME_HEIGHT, GAME_WIDTH};
 use sola_raylib::prelude::*;
 
+/// Maps the game's render target onto the window. Returned tuple is
+/// `(scale, top_left_x, top_left_y)`: the integer-or-fractional upscale
+/// applied to the RT, and the screen-space pixel where the upscaled
+/// texture's top-left corner lands. Shared with `crate::input` so mouse
+/// coords can be inverted back into game space using exactly the same
+/// transform that drew the frame; if these drift, click positions will
+/// fall offset from where the player visually aimed.
+pub fn game_view_transform(screen_w: i32, screen_h: i32, pixel_perfect: bool) -> (f32, f32, f32) {
+    let mut scale = (screen_w as f32 / GAME_WIDTH).min(screen_h as f32 / GAME_HEIGHT);
+    if pixel_perfect {
+        scale = scale.floor();
+    }
+    if scale < 1.0 {
+        scale = 1.0;
+    }
+    let scaled_w = GAME_WIDTH * scale;
+    let scaled_h = GAME_HEIGHT * scale;
+    let top_left_x = (screen_w / 2) as f32 - scaled_w / 2.0;
+    let top_left_y = (screen_h / 2) as f32 - scaled_h / 2.0;
+    (scale, top_left_x, top_left_y)
+}
+
 /// Draws the game's render target to the screen, scaled to fit.
 pub fn draw_render_target(
     d: &mut RaylibDrawHandle,
@@ -12,17 +34,9 @@ pub fn draw_render_target(
     screen_h: i32,
     pixel_perfect: bool,
 ) {
-    let game_w = GAME_WIDTH;
-    let game_h = GAME_HEIGHT;
-    let mut scale = (screen_w as f32 / game_w).min(screen_h as f32 / game_h);
-    if pixel_perfect {
-        scale = scale.floor();
-    }
-    if scale < 1.0 {
-        scale = 1.0;
-    }
-    let scaled_w = game_w * scale;
-    let scaled_h = game_h * scale;
+    let (scale, _, _) = game_view_transform(screen_w, screen_h, pixel_perfect);
+    let scaled_w = GAME_WIDTH * scale;
+    let scaled_h = GAME_HEIGHT * scale;
     let dest_rect = Rectangle {
         x: (screen_w / 2) as f32,
         y: (screen_h / 2) as f32,
@@ -36,8 +50,8 @@ pub fn draw_render_target(
         Rectangle {
             x: 0.0,
             y: 0.0,
-            width: game_w,
-            height: -game_h,
+            width: GAME_WIDTH,
+            height: -GAME_HEIGHT,
         },
         dest_rect,
         origin,

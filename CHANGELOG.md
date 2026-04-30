@@ -5,6 +5,23 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Features:
+
+- Mouse input. `input.mouse()` returns the cursor position as `x, y` in
+  game-space pixels (so it lines up with `gfx.*` coords regardless of window
+  size or pixel-perfect scaling). When the cursor sits over the letterbox bars
+  the values fall outside `0..GAME_W` / `0..GAME_H`, so games can detect
+  off-viewport cursors with a simple bounds check rather than getting clamped
+  values. New `input.MOUSE_LEFT` / `input.MOUSE_RIGHT` constants pair with
+  `input.mouse_down(button)` / `input.mouse_pressed(button)` (mirroring
+  `input.down` / `input.pressed`). `input.set_mouse_visible(visible)` toggles
+  the OS cursor (callable from `_init` to hide it before the first frame),
+  paired with `input.mouse_visible()`. New examples: `examples/mouse` (custom
+  cursor with a particle trail), `examples/mouse_ui` (a click-to-toggle button
+  and a draggable box), `examples/mouse_physics` (drag a box to push others
+  around with cascading AABB collision), and `examples/waypoint` (click to drop
+  waypoints; a unit walks the path).
+
 ## v0.2.0 - Apr 29, 2026
 
 Features:
