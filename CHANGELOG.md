@@ -9,14 +9,16 @@ Features:
 
 - In-game GIF recording. Press **F9** or **Cmd/Ctrl + G** to start recording;
   press the same key again to save. Files land in `<cwd>/captures/` named
-  `usagi-YYYYMMDD-HHMMSS.gif`. Native-only (web has no real filesystem). A small
-  pulsing red "● REC" indicator shows in the top-right of the window while
-  recording. Encoder streams frames to disk as they're captured, so memory stays
-  bounded on long recordings, and Usagi's 16-color palette maps directly to
-  GIF's palette format with no quantization, so output is pixel-exact. Output is
-  upscaled 2x (640×360, nearest-neighbor) so the gif reads cleanly.
+  `<game>-YYYYMMDD-HHMMSS.gif`, where `<game>` comes from your
+  `_config().game_id` (e.g. `snake-20260101-120000.gif`). Native-only (web has
+  no real filesystem). A small pulsing red "● REC" indicator shows in the
+  top-right of the window while recording. Encoder streams frames to disk as
+  they're captured, so memory stays bounded on long recordings, and Usagi's
+  16-color palette maps directly to GIF's palette format with no quantization,
+  so output is pixel-exact. Output is upscaled 2x (640×360, nearest-neighbor) so
+  the gif reads cleanly.
 - In-game PNG screenshots. Press **F8** or **Cmd/Ctrl + F** to save a single
-  frame as `usagi-YYYYMMDD-HHMMSS.png` in the same `<cwd>/captures/` bucket as
+  frame as `<game>-YYYYMMDD-HHMMSS.png` in the same `<cwd>/captures/` bucket as
   recordings. Same 2x upscale as the gif recorder, lossless, palette-exact.
   `usagi init` now adds `captures/` to `.gitignore`.
 - Mouse input. `input.mouse()` returns the cursor position as `x, y` in
