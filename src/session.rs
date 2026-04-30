@@ -187,78 +187,14 @@ fn register_save_api(lua: &Lua, game_id: crate::game_id::GameId) -> LuaResult<()
     Ok(())
 }
 
-/// User-visible engine config returned by `_config()`. Read once before the
-/// window opens. All fields are optional; missing fields fall back to
-/// engine defaults.
-struct Config {
-    /// title shown in the window chrome and app switcher
-    title: String,
-    /// When `true`, the render target is upscaled at integer multiples
-    /// only (1×, 2×, 3×, ...), with black letterbox bars filling any
-    /// leftover window space. When `false` (default) the game scales
-    /// at any factor that fits the window while preserving the game's
-    /// aspect ratio — so bars only appear on the axis with extra room,
-    /// never distorting the image. Default is `false` because at
-    /// common fullscreen resolutions (720p / 1080p / 4K) the game's
-    /// 320×180 native size lands on an integer multiple anyway, and
-    /// in windowed mode players generally prefer "fills the window"
-    /// over "stays crisp with thick bars."
-    pixel_perfect: bool,
-    /// Stable identifier for this game, used to namespace persistent
-    /// data like saves so games made with usagi don't clobber each
-    /// other. Convention is reverse-DNS:
-    /// `com.brettmakesgames.snake`. Same string applies cleanly to
-    /// macOS / iOS bundle IDs and Windows packaged-app identities, so
-    /// future packaging targets reuse it. Optional: when omitted,
-    /// `game_id::resolve` falls back to `com.usagiengine.<project-name>`
-    /// (or a bundle hash on web). Setting this explicitly is the only
-    /// way to keep saves stable across project renames, so any shipping
-    /// game should declare one.
-    game_id: Option<String>,
-}
+use crate::config::Config;
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            title: "Usagi".to_string(),
-            pixel_perfect: false,
-            game_id: None,
-        }
-    }
-}
-
-/// Calls the user's `_config()` if defined and reads supported fields out
-/// of its return table. `_config()` raising or returning a non-table is
-/// surfaced via `last_error` so the user sees it on the overlay; missing
-/// fields silently fall back to defaults.
+/// Reads project config from the live session Lua VM. Errors flow
+/// into `last_error` for the on-screen overlay; missing fields fall
+/// back to defaults. Thin wrapper over `Config::read_from_lua`,
+/// kept here so the call site reads naturally.
 fn read_config(lua: &Lua, last_error: &mut Option<String>) -> Config {
-    let mut config = Config::default();
-    let Ok(config_fn) = lua.globals().get::<LuaFunction>("_config") else {
-        return config;
-    };
-    match config_fn.call::<LuaTable>(()) {
-        Ok(tbl) => {
-            // Use `Option<T>` so missing fields stay None (and the
-            // Default value sticks). Reading a bool field directly
-            // would coerce a missing/nil value to `false`, silently
-            // overriding the default.
-            if let Ok(Some(t)) = tbl.get::<Option<String>>("title") {
-                config.title = t;
-            }
-            if let Ok(Some(t)) = tbl.get::<Option<bool>>("pixel_perfect") {
-                config.pixel_perfect = t;
-            }
-            if let Ok(Some(t)) = tbl.get::<Option<String>>("game_id") {
-                config.game_id = Some(t);
-            }
-        }
-        Err(e) => {
-            let msg = format!("_config: {}", e);
-            eprintln!("[usagi] {}", msg);
-            *last_error = Some(msg);
-        }
-    }
-    config
+    Config::read_from_lua(lua, Some(last_error))
 }
 
 /// All long-lived session state. Constructed once, frame() called once per
@@ -413,6 +349,15 @@ impl Session {
         }
 
         let (mut rl, thread) = builder.build();
+
+        // Apply window icon: configured tile from sprites.png if set,
+        // otherwise the embedded usagi default. macOS title bars
+        // ignore this (Cocoa limitation); the bundle path in
+        // `usagi export` is what makes the Dock icon stick there.
+        match (config.icon, vfs.read_sprites()) {
+            (Some(n), Some(bytes)) => crate::icon::apply_from_sprites(&mut rl, &bytes, n),
+            _ => crate::icon::apply(&mut rl),
+        }
 
         // Apply persisted fullscreen as soon as the window exists.
         // Has a visible windowed-frame flash on macOS (raylib's

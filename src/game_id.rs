@@ -108,38 +108,13 @@ impl std::fmt::Display for GameId {
     }
 }
 
-/// Convenience entry for `usagi export`. Reads `_config().game_id` out of
-/// the project's main.lua before delegating to `GameId::resolve`.
-/// Native-only because export itself is native-only and pulling in
-/// `assets`+`vfs` here would just be ceremony for the wasm build.
+/// Convenience entry for `usagi export`. Resolves the game id from a
+/// pre-read `Config` (so the export path doesn't spin up its own
+/// throwaway Lua VM just for this one field) plus the bundle for
+/// the hash fallback. Native-only because export itself is.
 #[cfg(not(target_os = "emscripten"))]
-pub fn resolve_for_export(script_path: &std::path::Path, name: &str, bundle: &Bundle) -> GameId {
-    let explicit = read_game_id_from_project(script_path);
-    GameId::resolve(explicit.as_deref(), Some(name), Some(bundle))
-}
-
-/// Spins up a throwaway Lua VM, runs the project's main.lua, calls
-/// `_config()`, and reads `game_id`. Returns None on any failure (script
-/// load error, no `_config`, non-table return, missing field, invalid id).
-/// Errors are swallowed by design so the resolver can fall through.
-#[cfg(not(target_os = "emscripten"))]
-fn read_game_id_from_project(script_path: &std::path::Path) -> Option<String> {
-    use crate::api::setup_api;
-    use crate::assets::{install_require, load_script};
-    use crate::vfs::{FsBacked, VirtualFs};
-    use mlua::prelude::*;
-    use std::rc::Rc;
-
-    let vfs: Rc<dyn VirtualFs> = Rc::new(FsBacked::from_script_path(script_path));
-    let lua = Lua::new();
-    setup_api(&lua, false).ok()?;
-    install_require(&lua, vfs.clone()).ok()?;
-    load_script(&lua, vfs.as_ref()).ok()?;
-    let config_fn: LuaFunction = lua.globals().get("_config").ok()?;
-    let tbl: LuaTable = config_fn.call(()).ok()?;
-    let id: String = tbl.get::<Option<String>>("game_id").ok()??;
-    validate_game_id(&id).ok()?;
-    Some(id)
+pub fn resolve_for_export(config: &crate::config::Config, name: &str, bundle: &Bundle) -> GameId {
+    GameId::resolve(config.game_id.as_deref(), Some(name), Some(bundle))
 }
 
 /// Validates an explicit, dev-supplied id. Returns None when missing or
@@ -357,60 +332,66 @@ mod tests {
         use std::fs;
         use tempfile::tempdir;
 
-        fn project_with_main(body: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+        /// Stages a temp project with the given main.lua body and
+        /// reads its `_config()` table once, returning the
+        /// `Config` the export-time resolvers operate on. Wraps the
+        /// throwaway-VM dance in a single call so each test reads
+        /// like `read → resolve → assert` without re-spinning Lua.
+        fn config_from_main(body: &str) -> (tempfile::TempDir, crate::config::Config) {
             let dir = tempdir().unwrap();
             let script = dir.path().join("main.lua");
             fs::write(&script, body).unwrap();
-            (dir, script)
+            let cfg = crate::config::Config::read_for_export(&script);
+            (dir, cfg)
         }
 
         #[test]
         fn resolve_for_export_reads_explicit_game_id_from_config() {
-            let (_d, script) =
-                project_with_main(r#"function _config() return { game_id = "com.test.foo" } end"#);
+            let (_d, cfg) =
+                config_from_main(r#"function _config() return { game_id = "com.test.foo" } end"#);
             let bundle = Bundle::new();
             assert_eq!(
-                resolve_for_export(&script, "ignored", &bundle).as_str(),
+                resolve_for_export(&cfg, "ignored", &bundle).as_str(),
                 "com.test.foo",
             );
         }
 
         #[test]
         fn resolve_for_export_falls_through_invalid_explicit_to_name() {
-            let (_d, script) =
-                project_with_main(r#"function _config() return { game_id = "../bad" } end"#);
+            let (_d, cfg) =
+                config_from_main(r#"function _config() return { game_id = "../bad" } end"#);
             let bundle = Bundle::new();
             assert_eq!(
-                resolve_for_export(&script, "snake", &bundle).as_str(),
+                resolve_for_export(&cfg, "snake", &bundle).as_str(),
                 "com.usagiengine.snake",
             );
         }
 
         #[test]
         fn resolve_for_export_falls_through_missing_config_to_name() {
-            let (_d, script) = project_with_main(r#"-- no _config defined"#);
+            let (_d, cfg) = config_from_main(r#"-- no _config defined"#);
             let bundle = Bundle::new();
             assert_eq!(
-                resolve_for_export(&script, "snake", &bundle).as_str(),
+                resolve_for_export(&cfg, "snake", &bundle).as_str(),
                 "com.usagiengine.snake",
             );
         }
 
         #[test]
         fn resolve_for_export_falls_through_to_bundle_hash_when_name_empty() {
-            let (_d, script) = project_with_main(r#"-- no _config defined"#);
+            let (_d, cfg) = config_from_main(r#"-- no _config defined"#);
             let mut bundle = Bundle::new();
             bundle.insert("main.lua", b"-- contents".to_vec());
-            let id = resolve_for_export(&script, "!!!", &bundle);
+            let id = resolve_for_export(&cfg, "!!!", &bundle);
             assert!(id.as_str().starts_with("com.usagiengine.auto"));
         }
 
         #[test]
         fn resolve_for_export_swallows_top_level_script_errors() {
-            let (_d, script) = project_with_main(r#"function _config( -- broken"#);
+            let (_d, cfg) = config_from_main(r#"function _config( -- broken"#);
             let bundle = Bundle::new();
             assert_eq!(
-                resolve_for_export(&script, "snake", &bundle).as_str(),
+                resolve_for_export(&cfg, "snake", &bundle).as_str(),
                 "com.usagiengine.snake",
             );
         }

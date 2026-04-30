@@ -1,4 +1,6 @@
 /target
-**/*/export/*
-**/*/captures/
 captures/
+**/*/captures/
+export/
+**/*/export/*
+*.app

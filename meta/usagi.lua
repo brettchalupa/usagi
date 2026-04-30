@@ -257,6 +257,7 @@ function usagi.load() end
 ---@field title? string  window title (default: "Usagi")
 ---@field pixel_perfect? boolean false (default) = any scale that fits the window while preserving aspect ratio; true = integer scale only with letterbox bars
 ---@field game_id? string  reverse-DNS identifier (e.g. "com.you.mygame"), required for save/load
+---@field icon? integer  1-based tile index into sprites.png to use as the window icon (same indexing as gfx.spr); omit for the default Usagi bunny
 
 ---Optional. Returns engine config read once before the window opens.
 ---Omit if the defaults are fine.

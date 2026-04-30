@@ -7,25 +7,34 @@ Doesn't contain updates relating to developing the engine itself.
 
 Features:
 
+- Window icon. The Usagi bunny ships embedded as the default; games can override
+  via `_config().icon = N` (1-based index into the project's `sprites.png`, same
+  indexing as `gfx.spr`). Applied to the game window on Linux/Windows (Cocoa
+  doesn't support per-window icons on macOS, so the title bar there always shows
+  the system default). The `usagi tools` window also picks up the bunny default.
+- macOS `.app` exports now include an `AppIcon.icns` in `Resources/`
+  (multi-resolution: 256/512/1024 nearest-neighbor scales of the 16×16 source)
+  and reference it via `CFBundleIconFile` in `Info.plist`. Source is the same
+  `_config().icon` tile or the embedded default. macOS Dock and Finder show the
+  game's icon starting with `usagi export --target macos` builds.
 - Per-game settings stored in `settings.json` next to save data
-  (`~/Library/Application Support/<game_id>/settings.json` on macOS,
-  matching paths via `directories::ProjectDirs` on Linux/Windows; on web,
-  routed through `localStorage` under `usagi.settings.<game_id>` like saves).
-  First field is `volume` (master output, `0.0..=1.0`, defaults to `0.5`).
-  Loaded once at session boot and applied to the audio device before the
-  first frame; missing or malformed files fall back to defaults so a fresh
-  install Just Works.
-- **Shift+M** toggles audio mute, flipping master volume between `0.0` and
-  `0.5` (the default). The new value is written back to `settings.json`
-  on every toggle, so a muted game stays muted across quit/relaunch.
-  Available in both dev and shipped builds. Shift required so a stray
-  `M` keypress can't clobber a game that binds `M` to gameplay.
+  (`~/Library/Application Support/<game_id>/settings.json` on macOS, matching
+  paths via `directories::ProjectDirs` on Linux/Windows; on web, routed through
+  `localStorage` under `usagi.settings.<game_id>` like saves). First field is
+  `volume` (master output, `0.0..=1.0`, defaults to `0.5`). Loaded once at
+  session boot and applied to the audio device before the first frame; missing
+  or malformed files fall back to defaults so a fresh install Just Works.
+- **Shift+M** toggles audio mute, flipping master volume between `0.0` and `0.5`
+  (the default). The new value is written back to `settings.json` on every
+  toggle, so a muted game stays muted across quit/relaunch. Available in both
+  dev and shipped builds. Shift required so a stray `M` keypress can't clobber a
+  game that binds `M` to gameplay.
 - Fullscreen state now persists. **Alt+Enter** still toggles borderless
-  fullscreen, and the new value is written to `settings.json` so a player
-  who fullscreens stays in fullscreen across relaunches. Applied before
-  the first frame so a fullscreen launch doesn't flash a windowed frame.
-  No Lua API or `_config` field on purpose: the player's preference owns
-  this setting. Pause menu now shows `Volume: NN%` and `Fullscreen: on/off`.
+  fullscreen, and the new value is written to `settings.json` so a player who
+  fullscreens stays in fullscreen across relaunches. Applied before the first
+  frame so a fullscreen launch doesn't flash a windowed frame. No Lua API or
+  `_config` field on purpose: the player's preference owns this setting. Pause
+  menu now shows `Volume: NN%` and `Fullscreen: on/off`.
 - In-game GIF recording. Press **F9** or **Cmd/Ctrl + G** to start recording;
   press the same key again to save. Files land in `<cwd>/captures/` named
   `<game>-YYYYMMDD-HHMMSS.gif`, where `<game>` comes from your

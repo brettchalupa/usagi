@@ -222,9 +222,22 @@ multiple anyway, and in windowed mode it looks good still.
 
 ```lua
 function _config()
-  return { title = "Snake", pixel_perfect = true, game_id = "com.example.snake" }
+  return {
+    title = "Snake",
+    pixel_perfect = true,
+    game_id = "com.example.snake",
+    icon = 1,
+  }
 end
 ```
+
+`icon` (optional) is a 1-based tile index into your `sprites.png`, same indexing
+as `gfx.spr`. Omitted, the embedded Usagi bunny is used. The chosen tile is
+applied to the game window on Linux/Windows (Cocoa ignores per-window icons on
+macOS, so the title bar there always shows the system default). At
+`usagi export --target macos` time the same tile is scaled up and packed into
+`Resources/AppIcon.icns` inside the `.app`, which is what the macOS Dock/Finder
+pick up.
 
 `_config()` runs before the runtime is fully alive (the window doesn't exist
 yet), so its return value is **read once at startup and cached**. Editing
@@ -466,9 +479,8 @@ progress.
 - Press **~** (grave/tilde) to toggle the FPS overlay. Hidden by default in
   `dev`.
 - Press **Alt+Enter** to toggle borderless fullscreen. Persists in
-  `settings.json` and applies before the first frame on the next
-  launch. No Lua or `_config` surface by design; the player owns
-  this setting.
+  `settings.json` and applies before the first frame on the next launch. No Lua
+  or `_config` surface by design; the player owns this setting.
 - Press **Esc**, **P**, or gamepad **Start** to pause. The same keys (plus
   **BTN2**) close the menu. While paused, `_update` and `_draw` are skipped and
   the screen shows a black "PAUSED" overlay; music keeps streaming.
@@ -482,9 +494,9 @@ progress.
 - Press **F8** or **Cmd/Ctrl + F** to save a PNG screenshot to the same
   `<cwd>/captures/` bucket. Same 2x upscale as the gif recorder, lossless,
   palette-exact.
-- Press **Shift+M** to toggle audio mute. Master volume flips between `0.0`
-  and the value in `settings.json` (defaults to `0.5`). Settings live in the
-  same per-game OS data dir as `save.json`; on web they're routed through
+- Press **Shift+M** to toggle audio mute. Master volume flips between `0.0` and
+  the value in `settings.json` (defaults to `0.5`). Settings live in the same
+  per-game OS data dir as `save.json`; on web they're routed through
   `localStorage` under `usagi.settings.<game_id>`.
 
 ### Writing Reload-Friendly Scripts

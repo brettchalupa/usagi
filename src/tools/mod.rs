@@ -71,6 +71,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         .highdpi()
         .resizable()
         .build();
+    crate::icon::apply(&mut rl);
     rl.set_target_fps(60);
 
     let audio = RaylibAudio::init_audio_device()

@@ -66,7 +66,24 @@ pub fn run(
     }
 
     let web_shell_override = resolve_web_shell_override(&script_path, web_shell)?;
-    let bundle_id = game_id::resolve_for_export(&script_path, &name, &bundle);
+    // Read `_config()` once for the whole export (game_id, icon,
+    // and any future bundle metadata all consume this struct).
+    // Failures fall back to defaults so a broken project file
+    // doesn't fail the export.
+    let project_config = crate::config::Config::read_for_export(&script_path);
+    let bundle_id = game_id::resolve_for_export(&project_config, &name, &bundle);
+    // Slice the configured sprite tile (or use the embedded
+    // default) and pack it as a multi-resolution ICNS for the
+    // macOS bundle. Errors are logged and the export continues
+    // without an icon.
+    let app_icns: Option<Vec<u8>> =
+        match crate::icon::resolve_icns_for_export(&project_config, &script_path) {
+            Ok(bytes) => Some(bytes),
+            Err(e) => {
+                eprintln!("[usagi] icon: {e}; macOS bundle will ship without an icon");
+                None
+            }
+        };
     let opts = Opts {
         template_path,
         template_url,
@@ -76,6 +93,7 @@ pub fn run(
         // plain string; we hand the inner str off here rather than
         // pass `GameId` through every export-target helper.
         bundle_id: bundle_id.as_str(),
+        icns_bytes: app_icns.as_deref(),
     };
     let out_path = output
         .map(PathBuf::from)
@@ -101,6 +119,10 @@ struct Opts<'a> {
     /// Pre-resolved id from `game_id::resolve`. Same string the save layer
     /// keys off, so save data and CFBundleIdentifier stay aligned.
     bundle_id: &'a str,
+    /// Pre-encoded ICNS bytes for the macOS bundle. `None` means the
+    /// `.app` ships without an icon (Linux/Windows/web targets ignore
+    /// this field).
+    icns_bytes: Option<&'a [u8]>,
 }
 
 /// Builds every cross-platform zip plus the portable `.usagi` bundle.
@@ -123,6 +145,7 @@ fn export_all(bundle: &Bundle, name: &str, out_dir: &Path, opts: &Opts) -> Resul
         no_cache: opts.no_cache,
         web_shell_override: opts.web_shell_override,
         bundle_id: opts.bundle_id,
+        icns_bytes: opts.icns_bytes,
     };
     let mut succeeded = 0;
     let mut last_err: Option<Error> = None;
@@ -165,25 +188,9 @@ fn export_one_target(
         // through extract first. This is what makes local web iteration
         // ergonomic (`--template-path target/wasm32-.../release`).
         if path.is_dir() {
-            return export_from_runtime_dir(
-                bundle,
-                name,
-                path,
-                target,
-                opts.web_shell_override,
-                opts.bundle_id,
-                out_path,
-            );
+            return export_from_runtime_dir(bundle, name, path, target, opts, out_path);
         }
-        return export_from_archive(
-            bundle,
-            name,
-            path,
-            target,
-            opts.web_shell_override,
-            opts.bundle_id,
-            out_path,
-        );
+        return export_from_archive(bundle, name, path, target, opts, out_path);
     }
     if let Some(url) = opts.template_url {
         let dl = tempfile::tempdir()
@@ -191,18 +198,10 @@ fn export_one_target(
         let archive = dl.path().join(archive_name_from_url(url));
         println!("[usagi] downloading {url}");
         templates::download_with_verify(url, &archive)?;
-        return export_from_archive(
-            bundle,
-            name,
-            &archive,
-            target,
-            opts.web_shell_override,
-            opts.bundle_id,
-            out_path,
-        );
+        return export_from_archive(bundle, name, &archive, target, opts, out_path);
     }
     if templates::Target::host() == Some(target) {
-        return export_from_host_exe(bundle, name, target, opts.bundle_id, out_path);
+        return export_from_host_exe(bundle, name, target, opts, out_path);
     }
     let cache_root = templates::cache_dir()?;
     let base = templates::template_base();
@@ -213,15 +212,7 @@ fn export_one_target(
         target,
         opts.no_cache,
     )?;
-    export_from_runtime_dir(
-        bundle,
-        name,
-        &runtime_dir,
-        target,
-        opts.web_shell_override,
-        opts.bundle_id,
-        out_path,
-    )
+    export_from_runtime_dir(bundle, name, &runtime_dir, target, opts, out_path)
 }
 
 /// Fuses against the currently-running binary. Used when the requested
@@ -230,14 +221,15 @@ fn export_from_host_exe(
     bundle: &Bundle,
     name: &str,
     target: templates::Target,
-    bundle_id: &str,
+    opts: &Opts,
     out_path: &Path,
 ) -> Result<()> {
     let current_exe =
         std::env::current_exe().map_err(|e| Error::Cli(format!("locating current exe: {e}")))?;
     let stage =
         tempfile::tempdir().map_err(|e| Error::Cli(format!("creating zip stage dir: {e}")))?;
-    let staged_exe = staged_binary_path(stage.path(), name, target, bundle_id)?;
+    let staged_exe =
+        staged_binary_path(stage.path(), name, target, opts.bundle_id, opts.icns_bytes)?;
     fuse_exe(bundle, &current_exe, &staged_exe)?;
     ensure_parent(out_path)?;
     zip_dir(stage.path(), out_path)?;
@@ -256,8 +248,7 @@ fn export_from_archive(
     name: &str,
     archive: &Path,
     target: templates::Target,
-    web_shell_override: Option<&Path>,
-    bundle_id: &str,
+    opts: &Opts,
     out_path: &Path,
 ) -> Result<()> {
     if !archive.is_file() {
@@ -270,15 +261,7 @@ fn export_from_archive(
         .map_err(|e| Error::Cli(format!("creating template scratch dir: {e}")))?;
     let extract_dir = scratch.path().join("extracted");
     templates::extract(archive, &extract_dir)?;
-    export_from_runtime_dir(
-        bundle,
-        name,
-        &extract_dir,
-        target,
-        web_shell_override,
-        bundle_id,
-        out_path,
-    )
+    export_from_runtime_dir(bundle, name, &extract_dir, target, opts, out_path)
 }
 
 /// Fuses a bundle onto the runtime in `runtime_dir` and zips the result.
@@ -290,8 +273,7 @@ fn export_from_runtime_dir(
     name: &str,
     runtime_dir: &Path,
     target: templates::Target,
-    web_shell_override: Option<&Path>,
-    bundle_id: &str,
+    opts: &Opts,
     out_path: &Path,
 ) -> Result<()> {
     let runtime = templates::locate(runtime_dir, target)?;
@@ -299,11 +281,12 @@ fn export_from_runtime_dir(
         tempfile::tempdir().map_err(|e| Error::Cli(format!("creating zip stage dir: {e}")))?;
     match runtime {
         templates::Runtime::Native { exe } => {
-            let staged_exe = staged_binary_path(stage.path(), name, target, bundle_id)?;
+            let staged_exe =
+                staged_binary_path(stage.path(), name, target, opts.bundle_id, opts.icns_bytes)?;
             fuse_exe(bundle, &exe, &staged_exe)?;
         }
         templates::Runtime::Web { js, wasm, html } => {
-            let html_src = web_shell_override.unwrap_or(&html);
+            let html_src = opts.web_shell_override.unwrap_or(&html);
             stage_file(html_src, &stage.path().join("index.html"))?;
             stage_file(&js, &stage.path().join("usagi.js"))?;
             stage_file(&wasm, &stage.path().join("usagi.wasm"))?;
@@ -456,9 +439,10 @@ fn staged_binary_path(
     name: &str,
     target: templates::Target,
     bundle_id: &str,
+    icns_bytes: Option<&[u8]>,
 ) -> Result<PathBuf> {
     match target {
-        templates::Target::Macos => macos_app::stage_app_layout(stage, name, bundle_id),
+        templates::Target::Macos => macos_app::stage_app_layout(stage, name, bundle_id, icns_bytes),
         _ => Ok(stage.join(staged_exe_name(name, target))),
     }
 }

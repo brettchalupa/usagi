@@ -44,6 +44,11 @@ tempfile = "3"
 ureq = { version = "3", default-features = false, features = ["rustls"] }
 # Per-OS cache directory resolver for runtime templates.
 directories = "6"
+# ICNS encoder for macOS .app bundles. Pure Rust, encodes a multi-
+# resolution Apple icon container from raw RGBA pixel buffers (the
+# crate handles PNG-encoding the entries internally). Only the
+# `usagi export --target macos` path needs it.
+icns = "0.3"
 # GIF encoder for the in-game recorder (F9 / Cmd+G). Pure Rust, streams
 # frames to disk so memory stays bounded on long recordings. Web has no
 # file system to write to, hence non-emscripten only.

@@ -36,13 +36,23 @@ function _update(dt)
     y = usagi.GAME_H - text_h
     vy = -vy
   end
+
+  local cx, cy, r = 100, 50, 20
+  local speed = 2 -- radians / sec
+  local angle = usagi.elapsed * speed
+  sx = cx + math.cos(angle) * r
+  sy = cy + math.sin(angle) * r
 end
 
 function _draw(dt)
   gfx.clear(gfx.COLOR_BLACK)
-  gfx.text(MSG, x, y, gfx.COLOR_WHITE)
+  local padding = 10
+  gfx.text(MSG, padding, padding, gfx.COLOR_WHITE)
 
   if usagi.IS_DEV then
-    gfx.text("DEV mode!", 10, 10, gfx.COLOR_PINK)
+    gfx.text("DEV mode!", usagi.GAME_W - usagi.measure_text("DEV mode!") - padding, padding, gfx.COLOR_PINK)
   end
+
+  gfx.spr(1, x, y)
+  gfx.spr(2, sx, sy)
 end
