@@ -1,6 +1,6 @@
--- Adapted from a DragonRuby touch playground: click anywhere to drop a
--- waypoint. The unit walks the waypoints in the order they were placed,
--- consuming each one as it arrives. Right-click clears the queue.
+-- Click anywhere to drop a waypoint. The unit walks the waypoints in the order
+-- they were placed, consuming each one as it arrives. Right-click clears the
+-- queue.
 
 function _config()
   return { title = "Waypoint" }
