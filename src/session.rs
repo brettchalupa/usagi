@@ -43,6 +43,82 @@ fn register_usagi_measure_text(lua: &Lua, font: &'static Font) -> LuaResult<()> 
     Ok(())
 }
 
+/// Shared cells that bridge the Lua `input.*` closures to raylib state.
+/// All four are `Rc`s so they can be captured by individual closures
+/// while the session also retains them for the per-frame
+/// sample/apply step. `Cell` is enough because Lua is single-threaded
+/// and the values are `Copy`. Bundled into a struct so the session
+/// only holds one field instead of four.
+struct InputBridge {
+    /// Latest input snapshot. Refreshed at the top of every frame so
+    /// `_update` and `_draw` see the same values.
+    state: Rc<std::cell::Cell<input::InputState>>,
+    /// Last visibility the user requested via `input.set_mouse_visible`.
+    /// Read by `input.mouse_visible` so it reflects the latest
+    /// request even before the session has applied it to raylib.
+    cursor_visible: Rc<std::cell::Cell<bool>>,
+    /// Set by `input.set_mouse_visible(v)` and consumed by the session
+    /// at frame start. Deferring lets the closure stay safe (no
+    /// `&mut RaylibHandle`) while still toggling actual raylib state
+    /// before the first draw call sees the new visibility.
+    pending_cursor: Rc<std::cell::Cell<Option<bool>>>,
+}
+
+impl InputBridge {
+    fn new() -> Self {
+        Self {
+            state: Rc::new(std::cell::Cell::new(input::InputState::default())),
+            cursor_visible: Rc::new(std::cell::Cell::new(true)),
+            pending_cursor: Rc::new(std::cell::Cell::new(None)),
+        }
+    }
+}
+
+/// Installs the full `input.*` Lua surface (queries plus cursor
+/// toggles) once at session startup. Closures read from / write to the
+/// shared cells in `InputBridge`, so they're callable from `_init`,
+/// `_update`, and `_draw` without per-frame `lua.scope` rewiring.
+fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
+    let input: LuaTable = lua.globals().get("input")?;
+
+    let s = Rc::clone(&bridge.state);
+    let pressed = lua.create_function(move |_, action: u32| Ok(s.get().action_pressed(action)))?;
+    input.set("pressed", pressed)?;
+
+    let s = Rc::clone(&bridge.state);
+    let down = lua.create_function(move |_, action: u32| Ok(s.get().action_down(action)))?;
+    input.set("down", down)?;
+
+    let s = Rc::clone(&bridge.state);
+    let mouse = lua.create_function(move |_, ()| Ok(s.get().mouse_position()))?;
+    input.set("mouse", mouse)?;
+
+    let s = Rc::clone(&bridge.state);
+    let mouse_down =
+        lua.create_function(move |_, button: u32| Ok(s.get().mouse_button_down(button)))?;
+    input.set("mouse_down", mouse_down)?;
+
+    let s = Rc::clone(&bridge.state);
+    let mouse_pressed =
+        lua.create_function(move |_, button: u32| Ok(s.get().mouse_button_pressed(button)))?;
+    input.set("mouse_pressed", mouse_pressed)?;
+
+    let cv = Rc::clone(&bridge.cursor_visible);
+    let pc = Rc::clone(&bridge.pending_cursor);
+    let set_visible = lua.create_function(move |_, visible: bool| {
+        cv.set(visible);
+        pc.set(Some(visible));
+        Ok(())
+    })?;
+    input.set("set_mouse_visible", set_visible)?;
+
+    let cv = Rc::clone(&bridge.cursor_visible);
+    let is_visible = lua.create_function(move |_, ()| Ok(cv.get()))?;
+    input.set("mouse_visible", is_visible)?;
+
+    Ok(())
+}
+
 /// Installs `usagi.save(t)` and `usagi.load()` against the resolved
 /// `game_id`. Resolution happens once at session creation via
 /// `game_id::resolve` (preferring `_config().game_id`, falling back to
@@ -193,6 +269,10 @@ struct Session {
     /// screen instead. Music keeps streaming so background tracks don't
     /// stutter when the player taps in and out.
     pause: PauseMenu,
+    /// Shared cells backing the Lua `input.*` API: the latest input
+    /// snapshot, current cursor visibility, and any pending visibility
+    /// toggle that the frame loop needs to apply via `&mut rl`.
+    input_bridge: InputBridge,
     /// Set by Shift+Esc in dev to request a clean exit out of the
     /// frame loop. `frame()` checks it before doing any per-frame work.
     should_quit: bool,
@@ -276,6 +356,15 @@ impl Session {
         register_usagi_measure_text(&lua, font)
             .map_err(|e| crate::Error::Cli(format!("registering usagi.measure_text: {e}")))?;
 
+        let input_bridge = InputBridge::new();
+        // Seed the snapshot once so `_init` reads real values (mouse
+        // position over the live window, etc.) instead of zeroed defaults.
+        input_bridge
+            .state
+            .set(input::InputState::sample(&rl, config.pixel_perfect));
+        register_input_api(&lua, &input_bridge)
+            .map_err(|e| crate::Error::Cli(format!("registering input.* API: {e}")))?;
+
         // Register before `_init` so games can `usagi.load()` their save
         // state at startup. Resolve the id once via `game_id::resolve`:
         // explicit `_config().game_id` wins; otherwise the project name
@@ -330,6 +419,7 @@ impl Session {
             config,
             elapsed: 0.0,
             pause: PauseMenu::new(),
+            input_bridge,
             should_quit: false,
             dev,
             vfs,
@@ -359,6 +449,22 @@ impl Session {
         let screen_w = self.rl.get_screen_width();
         let screen_h = self.rl.get_screen_height();
         let fps = self.rl.get_fps();
+
+        // Refresh the input snapshot once per frame so the Lua-side
+        // `input.*` closures see consistent values throughout `_update`
+        // and `_draw`. raylib polls input once per frame anyway, so
+        // sampling here matches what live calls would return.
+        self.input_bridge.state.set(input::InputState::sample(
+            &self.rl,
+            self.config.pixel_perfect,
+        ));
+
+        // Apply any cursor-visibility toggle that user Lua requested
+        // last frame (or during `_init`). Done here while `&mut rl` is
+        // free, before `begin_texture_mode` borrows it.
+        if let Some(visible) = self.input_bridge.pending_cursor.take() {
+            input::set_mouse_visible(&mut self.rl, visible);
+        }
 
         // Bump elapsed and mirror it into Lua before _update sees the
         // frame. Best-effort: if the Lua side has clobbered `usagi`
@@ -504,7 +610,6 @@ impl Session {
     fn run_update(&mut self, dt: f32) {
         let Self {
             lua,
-            rl,
             sfx,
             music,
             update,
@@ -514,7 +619,6 @@ impl Session {
         let Some(update_fn) = update.as_ref() else {
             return;
         };
-        let rl_ref: &RaylibHandle = rl;
         let sfx_ref: &SfxLibrary<'static> = sfx;
         // MusicLibrary mutates state on play/stop, so wrap in a RefCell
         // so the per-frame Lua closures can borrow_mut into it.
@@ -523,14 +627,6 @@ impl Session {
             last_error,
             "_update",
             lua.scope(|scope| {
-                let input_tbl: LuaTable = lua.globals().get("input")?;
-                let pressed = scope
-                    .create_function(|_, action: u32| Ok(input::action_pressed(rl_ref, action)))?;
-                input_tbl.set("pressed", pressed)?;
-                let down = scope
-                    .create_function(|_, action: u32| Ok(input::action_down(rl_ref, action)))?;
-                input_tbl.set("down", down)?;
-
                 let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
                 let play = scope.create_function(|_, name: String| {
                     sfx_ref.play(&name);

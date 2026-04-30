@@ -4,6 +4,7 @@
 
 use crate::input::{
     ACTION_BTN1, ACTION_BTN2, ACTION_BTN3, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
+    MOUSE_LEFT, MOUSE_RIGHT,
 };
 use crate::{GAME_HEIGHT, GAME_WIDTH};
 use mlua::prelude::*;
@@ -41,6 +42,8 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     input.set("BTN1", ACTION_BTN1)?;
     input.set("BTN2", ACTION_BTN2)?;
     input.set("BTN3", ACTION_BTN3)?;
+    input.set("MOUSE_LEFT", MOUSE_LEFT)?;
+    input.set("MOUSE_RIGHT", MOUSE_RIGHT)?;
     lua.globals().set("input", input)?;
 
     let sfx = lua.create_table()?;
@@ -114,6 +117,8 @@ mod tests {
         assert!(input.get::<u32>("BTN1").is_ok());
         assert!(input.get::<u32>("BTN2").is_ok());
         assert!(input.get::<u32>("BTN3").is_ok());
+        assert!(input.get::<u32>("MOUSE_LEFT").is_ok());
+        assert!(input.get::<u32>("MOUSE_RIGHT").is_ok());
 
         // sfx and music are registered but empty of fields at
         // static-setup time — their per-frame closures live in the
@@ -204,7 +209,9 @@ mod tests {
     /// Every `input.*` constant must map to a valid action in
     /// `crate::input`. Guards against adding a new input action to
     /// `setup_api` without extending `BINDINGS`, which would make
-    /// `input.down(input.X)` always return false.
+    /// `input.down(input.X)` always return false. `MOUSE_*` constants
+    /// are skipped here because they're indexes into a separate raylib
+    /// enum, not action IDs.
     #[test]
     fn every_input_constant_is_a_valid_action() {
         let lua = Lua::new();
@@ -213,6 +220,9 @@ mod tests {
         let mut checked = 0;
         for pair in input.pairs::<String, u32>() {
             let (name, code) = pair.unwrap();
+            if name.starts_with("MOUSE_") {
+                continue;
+            }
             assert!(
                 is_valid_action(code),
                 "input.{name} = {code} is not a valid action",
@@ -285,6 +295,17 @@ mod tests {
             let input: LuaTable = lua.globals().get("input")?;
             input.set("pressed", scope.create_function(|_, _k: u32| Ok(false))?)?;
             input.set("down", scope.create_function(|_, _k: u32| Ok(false))?)?;
+            input.set("mouse", scope.create_function(|_, ()| Ok((0i32, 0i32)))?)?;
+            input.set("mouse_down", scope.create_function(|_, _b: u32| Ok(false))?)?;
+            input.set(
+                "mouse_pressed",
+                scope.create_function(|_, _b: u32| Ok(false))?,
+            )?;
+            input.set(
+                "set_mouse_visible",
+                scope.create_function(|_, _v: bool| Ok(()))?,
+            )?;
+            input.set("mouse_visible", scope.create_function(|_, ()| Ok(true))?)?;
 
             let sfx: LuaTable = lua.globals().get("sfx")?;
             sfx.set("play", scope.create_function(|_, _n: String| Ok(()))?)?;
@@ -315,6 +336,13 @@ mod tests {
                 assert(type(input.down(input.BTN1)) == "boolean")
                 assert(type(input.pressed(input.BTN2)) == "boolean")
                 assert(type(input.pressed(input.BTN3)) == "boolean")
+                local mx, my = input.mouse()
+                assert(type(mx) == "number" and type(my) == "number")
+                assert(type(input.mouse_down(input.MOUSE_LEFT)) == "boolean")
+                assert(type(input.mouse_pressed(input.MOUSE_RIGHT)) == "boolean")
+                input.set_mouse_visible(false)
+                input.set_mouse_visible(true)
+                assert(type(input.mouse_visible()) == "boolean")
                 sfx.play("missing")
                 music.play("missing")
                 music.loop("missing")

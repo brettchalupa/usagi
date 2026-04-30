@@ -295,6 +295,25 @@ from BTN1's south position.
 `input.pressed` is edge-detected on keyboard and gamepad buttons but not on
 analog sticks; track stick state in Lua if you need that.
 
+#### Mouse
+
+- `input.mouse()` — returns `x, y` for the cursor in game-space pixels (so the
+  values line up with `gfx.*` coords regardless of window size or pixel-perfect
+  scaling). When the cursor sits over the letterbox bars the values fall outside
+  `0..usagi.GAME_W` / `0..usagi.GAME_H`, so a bounds check is the idiomatic way
+  to detect "cursor is off the play area." See
+  [`examples/mouse`](https://github.com/brettchalupa/usagi/blob/main/examples/mouse/main.lua).
+- `input.mouse_down(button)` — true while `button` is held.
+- `input.mouse_pressed(button)` — true the frame `button` first went down.
+- `input.MOUSE_LEFT`, `input.MOUSE_RIGHT` — the supported buttons. Wheel
+  scrolling and middle-click aren't exposed yet.
+- `input.set_mouse_visible(visible)` — show or hide the OS cursor over the game
+  window. Callable from `_init` to hide the cursor before the first frame draws
+  (handy for games that render their own cursor sprite).
+- `input.mouse_visible()` — true when the OS cursor is currently shown. Reflects
+  the latest `set_mouse_visible` call synchronously, so toggling reads
+  consistently: `input.set_mouse_visible(not input.mouse_visible())`.
+
 ### `sfx`
 
 - `sfx.play(name)` — play `sfx/<name>.wav`. Unknown names silently no-op.

@@ -2,6 +2,13 @@
 //! etc. (integer IDs); at runtime each action is a union over keyboard
 //! keys, gamepad buttons, and analog-stick directions. Adding a binding
 //! only requires extending the `BINDINGS` table.
+//!
+//! Input is sampled into an `InputState` snapshot once per frame and
+//! shared with the Lua side via `Rc<Cell<InputState>>`. That lets a
+//! single closure registration cover every Lua callback (`_init`,
+//! `_update`, `_draw`) without per-frame `lua.scope` rewiring, and
+//! lets the closures sit alongside `gfx.*` in `_draw` without fighting
+//! the `&mut RaylibHandle` borrow that `begin_texture_mode` holds.
 
 use sola_raylib::prelude::*;
 
@@ -14,6 +21,12 @@ pub const ACTION_DOWN: u32 = 4;
 pub const ACTION_BTN1: u32 = 5;
 pub const ACTION_BTN2: u32 = 6;
 pub const ACTION_BTN3: u32 = 7;
+
+// Mouse button IDs. Values match raylib's `MouseButton` enum so we can
+// cast straight through; `setup_api` exposes them as `input.MOUSE_LEFT`
+// / `input.MOUSE_RIGHT` on the Lua side.
+pub const MOUSE_LEFT: u32 = 0;
+pub const MOUSE_RIGHT: u32 = 1;
 
 /// Deadzone for analog-stick direction checks. Values within +/- this
 /// range count as centered.
@@ -155,6 +168,129 @@ pub fn action_pressed(rl: &RaylibHandle, action: u32) -> bool {
     false
 }
 
+/// Inverts the screen-to-game render transform so a window-pixel mouse
+/// position becomes game-pixel coords. Pure (no raylib handle), so tests
+/// can exercise the math directly. May return values outside
+/// `0..GAME_WIDTH` / `0..GAME_HEIGHT` when the cursor is over the
+/// letterbox bars; games can detect that with a simple bounds check.
+pub fn screen_to_game(
+    mouse_x: f32,
+    mouse_y: f32,
+    screen_w: i32,
+    screen_h: i32,
+    pixel_perfect: bool,
+) -> (i32, i32) {
+    let (scale, ox, oy) = crate::render::game_view_transform(screen_w, screen_h, pixel_perfect);
+    let gx = ((mouse_x - ox) / scale).floor() as i32;
+    let gy = ((mouse_y - oy) / scale).floor() as i32;
+    (gx, gy)
+}
+
+fn mouse_button_from_u32(button: u32) -> Option<MouseButton> {
+    match button {
+        MOUSE_LEFT => Some(MouseButton::MOUSE_BUTTON_LEFT),
+        MOUSE_RIGHT => Some(MouseButton::MOUSE_BUTTON_RIGHT),
+        _ => None,
+    }
+}
+
+/// Toggles the OS cursor's visibility. Called by the session at frame
+/// start when a Lua-side `input.set_mouse_visible` is pending; the
+/// closure itself just records the request into a `Cell` so it can be
+/// applied here, where `&mut RaylibHandle` is freely available outside
+/// of any `begin_texture_mode` borrow.
+pub fn set_mouse_visible(rl: &mut RaylibHandle, visible: bool) {
+    if visible {
+        rl.show_cursor();
+    } else {
+        rl.hide_cursor();
+    }
+}
+
+/// One frame's worth of input state, sampled from raylib. `Copy` so the
+/// session can stash the latest snapshot in a `Cell<InputState>` and
+/// the Lua closures can read whole snapshots cheaply on each call. The
+/// action fields are bitmasks indexed by `action - 1`.
+#[derive(Default, Copy, Clone)]
+pub struct InputState {
+    actions_down: u32,
+    actions_pressed: u32,
+    mouse_left_down: bool,
+    mouse_right_down: bool,
+    mouse_left_pressed: bool,
+    mouse_right_pressed: bool,
+    mouse_x: i32,
+    mouse_y: i32,
+}
+
+impl InputState {
+    /// Polls raylib once and rolls the result into a snapshot. Called
+    /// at the top of each frame, before user Lua runs.
+    pub fn sample(rl: &RaylibHandle, pixel_perfect: bool) -> Self {
+        let mut down = 0u32;
+        let mut pressed = 0u32;
+        for (i, _) in BINDINGS.iter().enumerate() {
+            let action = (i + 1) as u32;
+            if action_down(rl, action) {
+                down |= 1 << i;
+            }
+            if action_pressed(rl, action) {
+                pressed |= 1 << i;
+            }
+        }
+        let m = rl.get_mouse_position();
+        let sw = rl.get_screen_width();
+        let sh = rl.get_screen_height();
+        let (mx, my) = screen_to_game(m.x, m.y, sw, sh, pixel_perfect);
+        Self {
+            actions_down: down,
+            actions_pressed: pressed,
+            mouse_left_down: rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT),
+            mouse_right_down: rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_RIGHT),
+            mouse_left_pressed: rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT),
+            mouse_right_pressed: rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_RIGHT),
+            mouse_x: mx,
+            mouse_y: my,
+        }
+    }
+
+    pub fn action_down(&self, action: u32) -> bool {
+        action
+            .checked_sub(1)
+            .filter(|i| (*i as usize) < BINDINGS.len())
+            .map(|i| self.actions_down & (1 << i) != 0)
+            .unwrap_or(false)
+    }
+
+    pub fn action_pressed(&self, action: u32) -> bool {
+        action
+            .checked_sub(1)
+            .filter(|i| (*i as usize) < BINDINGS.len())
+            .map(|i| self.actions_pressed & (1 << i) != 0)
+            .unwrap_or(false)
+    }
+
+    pub fn mouse_button_down(&self, button: u32) -> bool {
+        match mouse_button_from_u32(button) {
+            Some(MouseButton::MOUSE_BUTTON_LEFT) => self.mouse_left_down,
+            Some(MouseButton::MOUSE_BUTTON_RIGHT) => self.mouse_right_down,
+            _ => false,
+        }
+    }
+
+    pub fn mouse_button_pressed(&self, button: u32) -> bool {
+        match mouse_button_from_u32(button) {
+            Some(MouseButton::MOUSE_BUTTON_LEFT) => self.mouse_left_pressed,
+            Some(MouseButton::MOUSE_BUTTON_RIGHT) => self.mouse_right_pressed,
+            _ => false,
+        }
+    }
+
+    pub fn mouse_position(&self) -> (i32, i32) {
+        (self.mouse_x, self.mouse_y)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,5 +329,73 @@ mod tests {
                 i + 1
             );
         }
+    }
+
+    /// Mouse constants must match raylib's enum values, since
+    /// `mouse_button_from_u32` casts through them. If raylib renumbers
+    /// these in a future release, this test catches it before users hit
+    /// silently wrong button mappings.
+    #[test]
+    fn mouse_constants_match_raylib_enum() {
+        assert_eq!(MOUSE_LEFT, MouseButton::MOUSE_BUTTON_LEFT as u32);
+        assert_eq!(MOUSE_RIGHT, MouseButton::MOUSE_BUTTON_RIGHT as u32);
+    }
+
+    #[test]
+    fn unknown_mouse_buttons_map_to_none() {
+        assert!(mouse_button_from_u32(2).is_none());
+        assert!(mouse_button_from_u32(99).is_none());
+    }
+
+    /// 1280x720 window with a 320x180 game gives a clean 4x scale, so
+    /// the screen center maps to the game center. Spot-check a couple
+    /// of corners too.
+    #[test]
+    fn screen_to_game_at_clean_4x_scale() {
+        let (sw, sh) = (1280, 720);
+        assert_eq!(screen_to_game(640.0, 360.0, sw, sh, false), (160, 90));
+        assert_eq!(screen_to_game(0.0, 0.0, sw, sh, false), (0, 0));
+        // Pixel just past the right edge: outside the game viewport
+        // (game is 320 wide, so 320 itself is one past the last pixel).
+        assert_eq!(
+            screen_to_game(1280.0, 720.0, sw, sh, false),
+            (320, 180),
+            "should return out-of-range, not clamp"
+        );
+    }
+
+    /// A non-integer scale window letterboxes either side. Verify the
+    /// cursor over a letterbox bar produces a negative x, and that the
+    /// game-space center is still hit when the cursor is at the window
+    /// center.
+    #[test]
+    fn screen_to_game_letterbox_yields_out_of_range() {
+        // 800x600: width-limited scale = 800/320 = 2.5, height fits
+        // 600/180 = 3.33, so scale = 2.5 (non-pixel-perfect). Scaled
+        // height = 450, leaving 75px black bars top and bottom.
+        let (sw, sh) = (800, 600);
+        let (cx, cy) = screen_to_game(400.0, 300.0, sw, sh, false);
+        assert_eq!((cx, cy), (160, 90));
+        // Click on the top letterbox bar: y should be negative.
+        let (_, top_y) = screen_to_game(400.0, 10.0, sw, sh, false);
+        assert!(top_y < 0, "expected negative y for top bar, got {top_y}");
+    }
+
+    /// Pixel-perfect mode floors the scale, so 800x600 (width-limited
+    /// scale 2.5) drops to integer 2x. That changes both the game-space
+    /// mapping and the size of the letterbox bars.
+    #[test]
+    fn screen_to_game_pixel_perfect_floors_scale() {
+        let (sw, sh) = (800, 600);
+        let (free, _) = screen_to_game(400.0, 300.0, sw, sh, false);
+        let (pp, _) = screen_to_game(400.0, 300.0, sw, sh, true);
+        assert_eq!(free, 160);
+        assert_eq!(pp, 160, "center stays mapped to game center either way");
+        // Off-center: free scale = 2.5, pp scale = 2.0, so a 100px
+        // window offset yields different game offsets.
+        let (free_x, _) = screen_to_game(500.0, 300.0, sw, sh, false);
+        let (pp_x, _) = screen_to_game(500.0, 300.0, sw, sh, true);
+        assert_eq!(free_x, 200);
+        assert_eq!(pp_x, 210);
     }
 }

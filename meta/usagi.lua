@@ -161,14 +161,21 @@ function music.stop() end
 ---- BTN1:  Z, J; gamepad south face (Xbox A, PS Cross)
 ---- BTN2:  X, K; gamepad east face  (Xbox B, PS Circle)
 ---- BTN3:  C, L; gamepad north + west face (Xbox Y/X, PS Triangle/Square)
+---
+---Mouse buttons (separate from the action constants above):
+---
+---- MOUSE_LEFT:  left mouse button
+---- MOUSE_RIGHT: right mouse button
 ---@class Usagi.Input
----@field LEFT  integer
----@field RIGHT integer
----@field UP    integer
----@field DOWN  integer
----@field BTN1  integer
----@field BTN2  integer
----@field BTN3  integer
+---@field LEFT        integer
+---@field RIGHT       integer
+---@field UP          integer
+---@field DOWN        integer
+---@field BTN1        integer
+---@field BTN2        integer
+---@field BTN3        integer
+---@field MOUSE_LEFT  integer
+---@field MOUSE_RIGHT integer
 input = {}
 
 ---Returns true the frame any source bound to `action` first went down.
@@ -180,6 +187,38 @@ function input.pressed(action) end
 ---@param action integer  one of input.LEFT / RIGHT / UP / DOWN / BTN1 / BTN2 / BTN3
 ---@return boolean
 function input.down(action) end
+
+---Cursor position in game-space pixels (so it lines up with `gfx.*`
+---coords regardless of window size or pixel-perfect scaling). Returns
+---two values: `x, y`. When the cursor sits over the letterbox bars,
+---the values fall outside `0..usagi.GAME_W` / `0..usagi.GAME_H` —
+---bounds-check before treating them as in-game coords.
+---@return integer x  game-space x in pixels
+---@return integer y  game-space y in pixels
+function input.mouse() end
+
+---Returns true while the given mouse button is held.
+---@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT
+---@return boolean
+function input.mouse_down(button) end
+
+---Returns true the frame the given mouse button first went down.
+---@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT
+---@return boolean
+function input.mouse_pressed(button) end
+
+---Show or hide the OS cursor over the game window. Persists until
+---changed. Callable from `_init` so games can hide the cursor before
+---the first frame draws (e.g. when rendering a custom in-game cursor).
+---@param visible boolean  true to show, false to hide
+function input.set_mouse_visible(visible) end
+
+---Returns true when the OS cursor is currently shown over the window.
+---Reflects the latest `input.set_mouse_visible` call synchronously, so
+---it's safe to use as part of a toggle:
+---`input.set_mouse_visible(not input.mouse_visible())`.
+---@return boolean
+function input.mouse_visible() end
 
 ---Engine-level info. The per-domain APIs (`gfx`, `input`) are top-level
 ---globals, not fields on this table.
