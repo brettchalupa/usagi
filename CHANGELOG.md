@@ -20,6 +20,12 @@ Features:
   on every toggle, so a muted game stays muted across quit/relaunch.
   Available in both dev and shipped builds. Shift required so a stray
   `M` keypress can't clobber a game that binds `M` to gameplay.
+- Fullscreen state now persists. **Alt+Enter** still toggles borderless
+  fullscreen, and the new value is written to `settings.json` so a player
+  who fullscreens stays in fullscreen across relaunches. Applied before
+  the first frame so a fullscreen launch doesn't flash a windowed frame.
+  No Lua API or `_config` field on purpose: the player's preference owns
+  this setting. Pause menu now shows `Volume: NN%` and `Fullscreen: on/off`.
 - In-game GIF recording. Press **F9** or **Cmd/Ctrl + G** to start recording;
   press the same key again to save. Files land in `<cwd>/captures/` named
   `<game>-YYYYMMDD-HHMMSS.gif`, where `<game>` comes from your

@@ -39,9 +39,8 @@ impl PauseMenu {
     }
 
     /// Renders the pause menu overlay into the active texture-mode
-    /// draw handle. `settings` is shown as live read-only state (just
-    /// audio volume for now); when a future menu adds slider input,
-    /// pass it through here mutably.
+    /// draw handle. `settings` is read-only here; when interactive
+    /// editing lands, swap to `&mut`.
     pub fn draw<D: RaylibDraw>(&self, d: &mut D, font: &Font, settings: &Settings) {
         d.draw_rectangle(
             0,
@@ -73,14 +72,28 @@ impl PauseMenu {
         );
 
         let volume_pct = (settings.volume.clamp(0.0, 1.0) * 100.0).round() as i32;
-        let line = format!("Volume: {volume_pct}%");
-        let line_m = font.measure_text(&line, size, 0.0);
-        let line_x = ((GAME_WIDTH - line_m.x) * 0.5).round();
-        let line_y = title_y + size + 8.0;
+        let volume_line = format!("Volume: {volume_pct}%");
+        let volume_m = font.measure_text(&volume_line, size, 0.0);
+        let volume_x = ((GAME_WIDTH - volume_m.x) * 0.5).round();
+        let volume_y = title_y + size + 8.0;
         d.draw_text_ex(
             font,
-            &line,
-            Vector2::new(line_x, line_y),
+            &volume_line,
+            Vector2::new(volume_x, volume_y),
+            size,
+            0.0,
+            palette::color(Pal::White),
+        );
+
+        let fs_label = if settings.fullscreen { "On" } else { "Off" };
+        let fs_line = format!("Fullscreen: {fs_label}");
+        let fs_m = font.measure_text(&fs_line, size, 0.0);
+        let fs_x = ((GAME_WIDTH - fs_m.x) * 0.5).round();
+        let fs_y = volume_y + size + 4.0;
+        d.draw_text_ex(
+            font,
+            &fs_line,
+            Vector2::new(fs_x, fs_y),
             size,
             0.0,
             palette::color(Pal::White),

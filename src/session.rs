@@ -380,6 +380,20 @@ impl Session {
 
         let config = read_config(&lua, &mut last_error);
 
+        // Resolve game_id and load settings before the window opens
+        // so the fullscreen state can be applied immediately after
+        // `builder.build()`. Doing the toggle later (after audio /
+        // font / Lua setup) leaves a visible windowed frame on
+        // macOS while raylib animates the transition.
+        let resolved_game_id = crate::game_id::GameId::resolve(
+            config.game_id.as_deref(),
+            vfs.project_name_hint().as_deref(),
+            vfs.as_bundle(),
+        );
+        let settings = crate::settings::load(&resolved_game_id);
+        #[cfg(not(target_os = "emscripten"))]
+        let capture_prefix = resolved_game_id.short_name().to_string();
+
         // `.highdpi()` and `.resizable()` are desktop-only: on emscripten
         // they fight the JS shell's CSS scaling. `.highdpi()` doubles the
         // canvas backing-store via devicePixelRatio. `.resizable()` makes
@@ -397,7 +411,18 @@ impl Session {
         {
             builder.highdpi().resizable();
         }
+
         let (mut rl, thread) = builder.build();
+
+        // Apply persisted fullscreen as soon as the window exists.
+        // Has a visible windowed-frame flash on macOS (raylib's
+        // builder doesn't expose `FLAG_BORDERLESS_WINDOWED_MODE`
+        // yet); revisit once sola-raylib ships
+        // `builder.borderless_windowed()`.
+        if settings.fullscreen {
+            rl.toggle_borderless_windowed();
+        }
+
         // On web, the browser drives the frame rate through
         // `emscripten_set_main_loop_arg` at requestAnimationFrame rate
         // (60 Hz on most monitors). Don't call `set_target_fps`: raylib's
@@ -433,36 +458,11 @@ impl Session {
         register_input_api(&lua, &input_bridge)
             .map_err(|e| crate::Error::Cli(format!("registering input.* API: {e}")))?;
 
-        // Register before `_init` so games can `usagi.load()` their save
-        // state at startup. Resolve the id once via `game_id::resolve`:
-        // explicit `_config().game_id` wins; otherwise the project name
-        // (vfs-supplied hint), then a hash of the bundle (BundleBacked /
-        // web), then a literal sentinel. Same chain that drives the macOS
-        // CFBundleIdentifier at export time, so save data and packaging
-        // stay aligned for any given game.
-        let resolved_game_id = crate::game_id::GameId::resolve(
-            config.game_id.as_deref(),
-            vfs.project_name_hint().as_deref(),
-            vfs.as_bundle(),
-        );
-        // Filename prefix for capture artifacts (gif + png). Derived
-        // from the same resolved id used for save data via
-        // `GameId::short_name`, so a game's captures and saves share
-        // a stable name (e.g. `snake-20260101-120000.gif`).
-        #[cfg(not(target_os = "emscripten"))]
-        let capture_prefix = resolved_game_id.short_name().to_string();
-
-        // Per-game settings (volume, future knobs) namespaced by
-        // `game_id`, sharing the same per-OS data dir as save data on
-        // native and the same `localStorage` shim on web. Loaded
-        // before `_init` so settings effects (currently just master
-        // volume) take effect on first frame. Failures fall back to
-        // `Settings::default`, so a fresh install Just Works.
-        let settings = crate::settings::load(&resolved_game_id);
-
-        // Clone for the session-level retain (mute toggle writes
-        // back to settings under this id) before handing the owned
-        // string off to `register_save_api`.
+        // Clone for session retain (mute toggle and fullscreen
+        // toggle write settings back under this id) before handing
+        // ownership to `register_save_api`. Capture filename prefix
+        // is derived from the same id so saves and captures share a
+        // name (e.g. `snake-...gif`).
         let game_id = resolved_game_id.clone();
         register_save_api(&lua, resolved_game_id)
             .map_err(|e| crate::Error::Cli(format!("registering usagi.save / usagi.load: {e}")))?;
@@ -478,9 +478,8 @@ impl Session {
             .ok()
             .map(|a| &*Box::leak(Box::new(a)));
 
-        // Apply the user-configured master volume to the audio
-        // device. Clamped to `0.0..=1.0` so a hand-edited
-        // settings.json with an out-of-range value can't blow
+        // Apply the user-configured master volume. Clamped to
+        // `0.0..=1.0` so a hand-edited settings.json can't blow
         // speakers or silently disable audio.
         if let Some(a) = audio {
             a.set_master_volume(settings.volume.clamp(0.0, 1.0));
@@ -693,12 +692,16 @@ impl Session {
     }
 
     fn handle_global_shortcuts(&mut self) {
-        // Alt+Enter toggles borderless fullscreen.
+        // Alt+Enter toggles borderless fullscreen and persists.
         if self.rl.is_key_pressed(KeyboardKey::KEY_ENTER)
             && (self.rl.is_key_down(KeyboardKey::KEY_LEFT_ALT)
                 || self.rl.is_key_down(KeyboardKey::KEY_RIGHT_ALT))
         {
             self.rl.toggle_borderless_windowed();
+            self.settings.fullscreen = !self.settings.fullscreen;
+            if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
+                eprintln!("[usagi] settings write failed: {e}");
+            }
         }
 
         // ~ toggles the FPS overlay.
@@ -739,18 +742,9 @@ impl Session {
             self.should_quit = true;
         }
 
-        // Shift+M toggles audio mute. Flips master volume between 0.0
-        // and the default volume, persisting the new value to
-        // settings.json so the mute state survives a quit/relaunch.
-        // Single-source-of-truth model: `settings.volume == 0.0` IS
-        // muted, anything > 0 is unmuted. A future volume slider
-        // would write the same field, with sliding to 0 == mute and
-        // sliding up == unmute, so this hotkey stays compatible.
-        // Available in both dev and shipped builds. Shift required
-        // so a stray `M` keypress can't clobber a game that binds
-        // `M` to gameplay. Audio device may be `None` if init
-        // failed at boot, in which case the toggle is a silent
-        // no-op.
+        // Shift+M toggles audio mute and persists. Volume == 0.0 is
+        // muted; toggle restores to DEFAULT_VOLUME. Shift gates the
+        // hotkey so games can bind plain `M` to gameplay.
         if self.rl.is_key_pressed(KeyboardKey::KEY_M)
             && shift
             && let Some(audio) = self.audio
