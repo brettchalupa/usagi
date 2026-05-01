@@ -62,13 +62,16 @@ async function handler(req: Request): Promise<Response> {
         },
       });
     }
-    if (url.pathname == "/favicon.png") {
+    if (url.pathname.toLowerCase().replace(/\/$/, "") === "/discord") {
+      return Response.redirect("https://discord.gg/a92ZjE4NUx", 302);
+    }
+    if (url.pathname === "/favicon.png") {
       return serveFile(req, "./favicon.png");
     }
-    if (url.pathname == "/website/card-logo.png") {
+    if (url.pathname === "/website/card-logo.png") {
       return serveFile(req, "./card-logo.png");
     }
-    if (url.pathname == "/og.png") {
+    if (url.pathname === "/og.png") {
       return serveFile(req, "./og.png");
     }
 
