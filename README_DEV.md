@@ -489,6 +489,11 @@ game's 320x180 grid for clean shareable artifacts. If you need the shader baked
 into a capture, use your OS's screen recorder or screenshot tool against the
 game window.
 
+Shaders resources:
+
+- [Raylib shaders demo](https://www.raylib.com/examples/shaders/loader.html?name=shaders_postprocessing)
+- [Raylib shaders source](https://github.com/raysan5/raylib/blob/master/examples/shaders/shaders_postprocessing.c)
+
 ### Indexing
 
 Sequence-style APIs (`gfx.spr`, and any future sound/tile indexing) are
