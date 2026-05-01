@@ -49,6 +49,27 @@ Features:
   frame as `<game>-YYYYMMDD-HHMMSS.png` in the same `<cwd>/captures/` bucket as
   recordings. Same 2x upscale as the gif recorder, lossless, palette-exact.
   `usagi init` now adds `captures/` to `.gitignore`.
+- Post-process shaders (advanced, **experimental**). New
+  `gfx.shader_set("name")` / `gfx.shader_set(nil)` /
+  `gfx.shader_uniform(name,
+  value)` Lua API. Drops `shaders/<name>.fs` (and an
+  optional `<name>.vs`) from the project root through raylib's GLSL pipeline as
+  a final pass when the game render target blits to the window. Web targets
+  prefer `<name>_es.fs` (GLSL ES 100, WebGL 1) and desktop prefers `<name>.fs`
+  (GLSL 330) so one project can ship both, with a same-name fallback if only one
+  variant is present. `gfx.shader_uniform` accepts a number (float) or a
+  2/3/4-length numeric table (vec2/vec3/vec4). Live-reloads on save in
+  `usagi dev`, with cached uniforms replayed onto the rebuilt shader; compile
+  errors print to the terminal and keep the previous shader live. `usagi export`
+  walks `shaders/` and bundles every `.fs`/`.vs` so shaders work the same in
+  `usagi run`, `.usagi` files, and fused exes on every platform. New
+  `examples/shader/` ships a CRT effect and a Game Boy palette swap, cycled with
+  BTN1. **Caveats:** the API surface and dual-file convention may still change.
+  F8/F9 captures (PNG screenshot, GIF recorder) read the unshaded game RT, so
+  post-process effects are visible on screen but **not** in the saved file; use
+  your OS's screen recorder or screenshot tool against the game window if you
+  need the shader baked into a capture. See the Shaders section in
+  `README_DEV.md` for the full writeup.
 - Mouse input. `input.mouse()` returns the cursor position as `x, y` in
   game-space pixels (so it lines up with `gfx.*` coords regardless of window
   size or pixel-perfect scaling). When the cursor sits over the letterbox bars

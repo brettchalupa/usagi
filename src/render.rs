@@ -27,8 +27,11 @@ pub fn game_view_transform(screen_w: i32, screen_h: i32, pixel_perfect: bool) ->
 }
 
 /// Draws the game's render target to the screen, scaled to fit.
-pub fn draw_render_target(
-    d: &mut RaylibDrawHandle,
+/// Generic over the draw handle so this composes with `RaylibShaderMode`
+/// (the post-process wrapper used by `gfx.shader_set`) as well as the
+/// plain `RaylibDrawHandle`.
+pub fn draw_render_target<D: RaylibDraw>(
+    d: &mut D,
     rt: &mut RenderTexture2D,
     screen_w: i32,
     screen_h: i32,

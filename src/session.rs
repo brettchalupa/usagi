@@ -7,7 +7,7 @@
 //! browser between frames). Avoiding a blocking native loop on emscripten
 //! is what lets us drop ASYNCIFY entirely.
 
-use crate::api::{record_err, setup_api};
+use crate::api::{record_err, register_shader_api, setup_api};
 use crate::assets::{
     MusicLibrary, SfxLibrary, SpriteSheet, clear_user_modules, freshest_lua_mtime, install_require,
     load_script,
@@ -18,6 +18,7 @@ use crate::input;
 use crate::palette::color;
 use crate::pause::PauseMenu;
 use crate::render::{draw_error_overlay, draw_render_target};
+use crate::shader::ShaderManager;
 use crate::vfs::VirtualFs;
 use crate::{GAME_HEIGHT, GAME_WIDTH};
 
@@ -209,6 +210,10 @@ struct Session {
     // GPU resources: dropped first, while the GL context is still alive.
     rt: RenderTexture2D,
     sprites: SpriteSheet,
+    /// Owns the active post-process `Shader` (a GPU resource) so its
+    /// `Drop` (UnloadShader) runs while the GL context is still alive.
+    /// Must come before `rl` for the same reason `rt` does.
+    shader: Rc<std::cell::RefCell<ShaderManager>>,
     /// Bundled monogram font. Leaked to `'static` so `usagi.measure_text`
     /// can capture a reference in a non-scoped Lua closure (callable
     /// from `_init` / `_update` / `_draw` alike). The font lives for
@@ -441,6 +446,10 @@ impl Session {
         register_music_api(&lua, &music)
             .map_err(|e| crate::Error::Cli(format!("registering music.* API: {e}")))?;
 
+        let shader = Rc::new(std::cell::RefCell::new(ShaderManager::new()));
+        register_shader_api(&lua, &shader)
+            .map_err(|e| crate::Error::Cli(format!("registering gfx.shader_* API: {e}")))?;
+
         if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
             record_err(&mut last_error, "_init", init.call::<()>(()));
         }
@@ -484,6 +493,7 @@ impl Session {
             game_id,
             should_quit: false,
             dev,
+            shader,
             vfs,
             reload,
             thread,
@@ -552,8 +562,10 @@ impl Session {
             self.run_draw(dt, fps);
         }
 
-        // Capture the clean game RT for the GIF before `blit_and_overlay`
-        // adds any error-overlay or REC indicator pixels onto the screen
+        self.shader
+            .borrow_mut()
+            .apply_pending(&mut self.rl, &self.thread, self.vfs.as_ref());
+
         #[cfg(not(target_os = "emscripten"))]
         if self.recorder.is_recording() {
             self.recorder.capture(&self.rt);
@@ -633,6 +645,14 @@ impl Session {
                 "[usagi] reloaded music ({} track(s))",
                 self.music.borrow().len()
             );
+        }
+
+        if self
+            .shader
+            .borrow_mut()
+            .reload_if_changed(&mut self.rl, &self.thread, self.vfs.as_ref())
+        {
+            println!("[usagi] reloaded shader");
         }
     }
 
@@ -1045,13 +1065,32 @@ impl Session {
         let recording = self.recorder.is_recording();
         let mut d = self.rl.begin_drawing(&self.thread);
         d.clear_background(Color::BLACK);
-        draw_render_target(
-            &mut d,
-            &mut self.rt,
-            screen_w,
-            screen_h,
-            self.config.pixel_perfect,
-        );
+        // Wrap the RT-to-window blit in `begin_shader_mode` when a
+        // shader is active so the post-process runs at window
+        // resolution (smoother than game-res). The error overlay and
+        // REC indicator draw outside this scope so they're not warped
+        // by the effect.
+        {
+            let mut sm = self.shader.borrow_mut();
+            if let Some(shader) = sm.active_shader_mut() {
+                let mut s = d.begin_shader_mode(shader);
+                draw_render_target(
+                    &mut s,
+                    &mut self.rt,
+                    screen_w,
+                    screen_h,
+                    self.config.pixel_perfect,
+                );
+            } else {
+                draw_render_target(
+                    &mut d,
+                    &mut self.rt,
+                    screen_w,
+                    screen_h,
+                    self.config.pixel_perfect,
+                );
+            }
+        }
         if let Some(ref err) = self.last_error {
             draw_error_overlay(&mut d, self.font, err, screen_w, screen_h);
         }

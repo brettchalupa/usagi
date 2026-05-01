@@ -46,6 +46,17 @@ pub trait VirtualFs {
         None
     }
 
+    /// Reads an arbitrary file from the project root by relative path
+    /// (`/`-separated). Used by the shader loader, which wants generic
+    /// access to `shaders/<name>.fs` etc. without growing a dedicated
+    /// per-asset method. Path traversal segments are rejected.
+    fn read_file(&self, rel: &str) -> Option<Vec<u8>>;
+    /// Mtime for the same path. None when the backend has no mtimes
+    /// (bundle) or the file is missing.
+    fn file_mtime(&self, _rel: &str) -> Option<SystemTime> {
+        None
+    }
+
     /// Whether filesystem reload checks are meaningful on this vfs.
     /// `FsBacked` returns true; `BundleBacked` always returns false.
     fn supports_reload(&self) -> bool;
@@ -99,6 +110,22 @@ pub(crate) fn is_meta_chunk(bytes: &[u8]) -> bool {
 /// parsers (dr_wav, dr_mp3, dr_flac) which do work on web but get less
 /// testing in the emscripten path.
 pub(crate) const MUSIC_EXTS: &[&str] = &["ogg", "mp3", "wav", "flac"];
+
+/// True for paths that are safe to read off the project root: no
+/// absolute prefix, no `.`/`..` segments, no backslashes, no empty
+/// segments. Shared between `FsBacked::read_file` and
+/// `BundleBacked::read_file` so the two backends accept the same
+/// vocabulary.
+fn safe_rel_path(rel: &str) -> bool {
+    if rel.is_empty() || rel.contains('\\') {
+        return false;
+    }
+    if rel.starts_with('/') {
+        return false;
+    }
+    rel.split('/')
+        .all(|seg| !seg.is_empty() && seg != "." && seg != "..")
+}
 
 /// Translates a dotted Lua module name into the relative paths that should
 /// be checked, in order. Returns None for names that contain path
@@ -320,6 +347,22 @@ impl VirtualFs for FsBacked {
         None
     }
 
+    fn read_file(&self, rel: &str) -> Option<Vec<u8>> {
+        if !safe_rel_path(rel) {
+            return None;
+        }
+        std::fs::read(self.root.join(rel)).ok()
+    }
+
+    fn file_mtime(&self, rel: &str) -> Option<SystemTime> {
+        if !safe_rel_path(rel) {
+            return None;
+        }
+        std::fs::metadata(self.root.join(rel))
+            .and_then(|m| m.modified())
+            .ok()
+    }
+
     fn supports_reload(&self) -> bool {
         true
     }
@@ -439,6 +482,13 @@ impl VirtualFs for BundleBacked {
             }
         }
         None
+    }
+
+    fn read_file(&self, rel: &str) -> Option<Vec<u8>> {
+        if !safe_rel_path(rel) {
+            return None;
+        }
+        self.bundle.get(rel).map(<[u8]>::to_vec)
     }
 
     fn supports_reload(&self) -> bool {
