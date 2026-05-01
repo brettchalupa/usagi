@@ -35,7 +35,7 @@ function renderPage(title: string, body: string): string {
         }
         ${CSS}
         </style>
-      <head>
+      </head>
       <body
         data-color-mode="auto"
         data-light-theme="light"
