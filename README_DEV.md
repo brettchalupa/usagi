@@ -8,8 +8,8 @@ clear, consistent, and familiar.
 
 [Watch the intro video!](https://www.youtube.com/watch?v=byp3rKd626M)
 
-**WARNING:** Usagi is very early in development and not stable. APIs and
-commands will change.
+**WARNING:** Usagi is early in development and not stable. APIs and commands are
+likely to change until v1.0.0 releases.
 
 Usagi is made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to
 the public domain.

@@ -3,7 +3,7 @@
 Simple website that serves ../README.md as HTML with dark and light styles, as
 well as syntax highlighting. Powered by Deno and hosted on Deno Deploy.
 
-Development require [Deno](https://deno.com) to be installed.
+Development requires [Deno](https://deno.com) to be installed.
 
 ## Developing
 
