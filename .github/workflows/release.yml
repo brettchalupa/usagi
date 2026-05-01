@@ -96,7 +96,11 @@ jobs:
 
       - uses: mymindstorm/setup-emsdk@v14
         with:
-          version: latest
+          # Pinned: `latest` started shipping a wasm-opt whose --asyncify pass
+          # fails ("__asyncify_get_call_index does not exist") on wasm built
+          # with -fwasm-exceptions. We need both. 5.0.6 is the version
+          # documented as verified in DEVELOPING.md.
+          version: 5.0.6
           actions-cache-folder: emsdk-cache
 
       - name: Build
