@@ -27,7 +27,9 @@ system.](https://github.com/brettchalupa/usagi/releases/latest)
 You can keep the `usagi` executable in your project folder or install it
 globally on your computer.
 
-_More ways of installing Usagi may be added in the future._
+Other places to download Usagi:
+
+- [itch.io](https://brettchalupa.itch.io/usagi)
 
 ## Hello, Usagi
 
