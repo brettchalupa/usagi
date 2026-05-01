@@ -6,8 +6,11 @@ use crate::input::{
     ACTION_BTN1, ACTION_BTN2, ACTION_BTN3, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
     MOUSE_LEFT, MOUSE_RIGHT,
 };
+use crate::shader::{ShaderManager, ShaderValue};
 use crate::{GAME_HEIGHT, GAME_WIDTH};
 use mlua::prelude::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Installs the Lua-facing globals: `gfx`, `input`, `sfx`, `usagi`. Each is a
 /// table with any constants it owns. Per-frame function members (e.g.
@@ -77,6 +80,66 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     lua.globals().set("usagi", usagi)?;
 
     Ok(())
+}
+
+/// Installs the `gfx.shader_set` / `gfx.shader_uniform` Lua bindings
+/// against a shared `ShaderManager`. Calls only enqueue requests; the
+/// session drains them once per frame where `&mut RaylibHandle` is in
+/// scope. Registered once at session startup so the bindings work
+/// from `_init`, `_update`, and `_draw`.
+pub fn register_shader_api(lua: &Lua, mgr: &Rc<RefCell<ShaderManager>>) -> LuaResult<()> {
+    let gfx: LuaTable = lua.globals().get("gfx")?;
+
+    let m = Rc::clone(mgr);
+    let shader_set = lua.create_function(move |_, name: Option<String>| {
+        m.borrow_mut().request_set(name);
+        Ok(())
+    })?;
+    gfx.set("shader_set", shader_set)?;
+
+    let m = Rc::clone(mgr);
+    let shader_uniform = lua.create_function(move |_, (name, value): (String, LuaValue)| {
+        let v = parse_uniform(&value).map_err(mlua::Error::external)?;
+        m.borrow_mut().queue_uniform(name, v);
+        Ok(())
+    })?;
+    gfx.set("shader_uniform", shader_uniform)?;
+
+    Ok(())
+}
+
+fn parse_uniform(value: &LuaValue) -> Result<ShaderValue, String> {
+    if let Some(n) = value.as_f64() {
+        return Ok(ShaderValue::Float(n as f32));
+    }
+    if let LuaValue::Table(t) = value {
+        let len = t.raw_len();
+        return match len {
+            2 => Ok(ShaderValue::Vec2([read_idx(t, 1)?, read_idx(t, 2)?])),
+            3 => Ok(ShaderValue::Vec3([
+                read_idx(t, 1)?,
+                read_idx(t, 2)?,
+                read_idx(t, 3)?,
+            ])),
+            4 => Ok(ShaderValue::Vec4([
+                read_idx(t, 1)?,
+                read_idx(t, 2)?,
+                read_idx(t, 3)?,
+                read_idx(t, 4)?,
+            ])),
+            n => Err(format!(
+                "shader_uniform: table must have 2, 3, or 4 numbers, got {n}"
+            )),
+        };
+    }
+    Err("shader_uniform: value must be a number or 2/3/4-length table".to_string())
+}
+
+fn read_idx(t: &LuaTable, idx: usize) -> Result<f32, String> {
+    let v: f64 = t
+        .raw_get(idx)
+        .map_err(|e| format!("shader_uniform: reading index {idx}: {e}"))?;
+    Ok(v as f32)
 }
 
 /// Records a Lua error: prints to stderr and stores the message so it can be

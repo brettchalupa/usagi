@@ -123,6 +123,23 @@ function gfx.sspr(sx, sy, sw, sh, dx, dy) end
 ---@param flip_y boolean  flip vertically (mirror top/bottom) when true
 function gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y) end
 
+---Activates a post-process fragment shader. Loads `shaders/<name>.fs`
+---(and optional `<name>.vs`) and runs it as the final pass when the
+---game render target is blitted to the window. Pass nil to clear.
+---On web the loader prefers `<name>_es.fs` (GLSL ES 100); on desktop
+---it prefers `<name>.fs` (GLSL 330). Shader source live-reloads on
+---save in `usagi dev`.
+---@param name string|nil  shader name (file stem under `shaders/`), or nil to clear
+function gfx.shader_set(name) end
+
+---Sets a uniform on the active shader. The value type drives the
+---uniform type: a number maps to float, a 2/3/4-length numeric table
+---maps to vec2 / vec3 / vec4. Queues the write; the engine flushes
+---queued uniforms once per frame before the post-process pass.
+---@param name  string                                    uniform name as declared in the shader source
+---@param value number|number[]                           float, or {x, y} / {x, y, z} / {x, y, z, w}
+function gfx.shader_uniform(name, value) end
+
 ---@class Usagi.Sfx
 sfx = {}
 

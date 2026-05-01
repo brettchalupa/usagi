@@ -122,6 +122,9 @@ my_game/
   music/         -- optional: .ogg/.mp3/.wav/.flac, file stems become track names
     overworld.ogg
     boss.ogg
+  shaders/       -- optional: post-process GLSL shaders (advanced; see Shaders)
+    crt.fs       -- desktop GLSL 330
+    crt_es.fs    -- web GLSL ES 100
 ```
 
 `require "name"` resolves to `name.lua` in the project root, falling back to
@@ -426,6 +429,70 @@ Engine-level info.
   leaves the previous save intact. JSON values must be representable: tables,
   strings, numbers, booleans, nil. Functions, userdata, NaN, and circular tables
   raise an error.
+
+### Shaders (advanced, experimental)
+
+Post-process GLSL fragment shaders run as the final pass when the game's render
+target is blitted to the window. Use them for CRT effects, palette swaps,
+vignettes, color grading, and so on.
+
+**Status:** experimental. The API surface and dual-file convention may change.
+Captures have a known limitation (see below).
+
+API:
+
+- `gfx.shader_set("name")`: activate `shaders/<name>.fs` (and an optional
+  `shaders/<name>.vs`).
+- `gfx.shader_set(nil)`: clear the active shader.
+- `gfx.shader_uniform("u_name", v)`: queue a uniform write. `v` may be a number
+  (float) or a 2/3/4-length numeric table (vec2/vec3/vec4). Call this every
+  frame inside `_update` or `_draw` for animated values.
+
+```lua
+function _init() gfx.shader_set("crt") end
+
+function _draw(_dt)
+  gfx.shader_uniform("u_time", usagi.elapsed)
+  gfx.shader_uniform("u_resolution", { usagi.GAME_W, usagi.GAME_H })
+  -- ... your normal gfx.* calls ...
+end
+```
+
+**Cross-platform shader files.** Desktop targets compile GLSL `#version 330`;
+the web target uses GLSL ES `#version 100` (WebGL 1 / GLES 2). Ship two files
+alongside each other to support both:
+
+- `shaders/<name>.fs`: desktop, `#version 330`, `in`/`out`, `texture(...)`,
+  custom `out vec4 finalColor`.
+- `shaders/<name>_es.fs`: web, `#version 100`, `precision mediump float;`,
+  `varying`, `texture2D(...)`, `gl_FragColor` output.
+
+Web prefers `_es.fs` and falls back to `.fs`; desktop is the reverse. If only
+one is shipped, every platform that loads it runs that one. The `fragTexCoord`,
+`fragColor`, and `texture0` inputs are provided by raylib on both targets. See
+`examples/shader/` for a runnable CRT effect plus a Game Boy palette swap with
+both variants of each.
+
+**Live reload.** Saving the active shader's `.fs` or `.vs` file rebuilds it
+in-place. Cached uniforms are replayed onto the new shader. Compile errors print
+to the terminal and keep the previous shader live.
+
+**Bundling.** `usagi export` walks `shaders/` and ships every `.fs` / `.vs` in
+the bundle, so shaders work the same in `usagi dev`, `usagi run`, `.usagi`
+files, and fused exes on every platform.
+
+**Captures don't include the shader.** F8 / Cmd+F screenshots and F9 / Cmd+G GIF
+recording read the unshaded game render target, so post-process effects show up
+on screen but not in the saved file. Tradeoff: the shader runs at window
+resolution (CRT scanlines look smooth, not blocky) and captures stay at the
+game's 320x180 grid for clean shareable artifacts. If you need the shader baked
+into a capture, use your OS's screen recorder or screenshot tool against the
+game window.
+
+Shaders resources:
+
+- [Raylib shaders demo](https://www.raylib.com/examples/shaders/loader.html?name=shaders_postprocessing)
+- [Raylib shaders source](https://github.com/raysan5/raylib/blob/master/examples/shaders/shaders_postprocessing.c)
 
 ### Indexing
 

@@ -158,6 +158,23 @@ impl Bundle {
             }
         }
 
+        let shaders_dir = root.join("shaders");
+        if shaders_dir.is_dir() {
+            for entry in std::fs::read_dir(&shaders_dir)?.flatten() {
+                let p = entry.path();
+                if !matches!(
+                    p.extension().and_then(|e| e.to_str()),
+                    Some("fs") | Some("vs")
+                ) {
+                    continue;
+                }
+                let Some(name) = p.file_name().and_then(|n| n.to_str()) else {
+                    continue;
+                };
+                bundle.insert(format!("shaders/{name}"), std::fs::read(&p)?);
+            }
+        }
+
         let music_dir = root.join("music");
         if music_dir.is_dir() {
             for entry in std::fs::read_dir(&music_dir)?.flatten() {
@@ -419,6 +436,27 @@ mod tests {
             "entry script should not be double-inserted under its source name"
         );
         assert_eq!(bundle.get("util.lua"), Some(b"-- util".as_slice()));
+    }
+
+    #[test]
+    fn from_project_picks_up_shader_sources() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("main.lua"), b"-- main").unwrap();
+        fs::create_dir(root.join("shaders")).unwrap();
+        fs::write(root.join("shaders/crt.fs"), b"// frag").unwrap();
+        fs::write(root.join("shaders/crt_es.fs"), b"// frag es").unwrap();
+        fs::write(root.join("shaders/wave.vs"), b"// vert").unwrap();
+        fs::write(root.join("shaders/notes.txt"), b"ignored").unwrap();
+
+        let bundle = Bundle::from_project(&root.join("main.lua")).unwrap();
+        assert_eq!(bundle.get("shaders/crt.fs"), Some(b"// frag".as_slice()));
+        assert_eq!(
+            bundle.get("shaders/crt_es.fs"),
+            Some(b"// frag es".as_slice())
+        );
+        assert_eq!(bundle.get("shaders/wave.vs"), Some(b"// vert".as_slice()));
+        assert!(bundle.get("shaders/notes.txt").is_none());
     }
 
     #[test]

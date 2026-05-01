@@ -30,6 +30,7 @@ mod preprocess;
 mod render;
 mod save;
 mod session;
+mod shader;
 mod vfs;
 
 // `tools` don't run on web
