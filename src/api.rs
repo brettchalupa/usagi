@@ -112,6 +112,9 @@ fn parse_uniform(value: &LuaValue) -> Result<ShaderValue, String> {
     if let Some(n) = value.as_f64() {
         return Ok(ShaderValue::Float(n as f32));
     }
+    if let Some(n) = value.as_integer() {
+        return Ok(ShaderValue::Float(n as f32));
+    }
     if let LuaValue::Table(t) = value {
         let len = t.raw_len();
         return match len {
@@ -416,5 +419,58 @@ mod tests {
             Ok(())
         })
         .expect("api smoke script failed");
+    }
+
+    /// Lua 5.4 keeps integers and floats as distinct number subtypes.
+    /// `gfx.shader_uniform("u_pulse", 0)` must not be rejected just
+    /// because `0` is an integer literal — both subtypes need to land
+    /// as a float uniform.
+    #[test]
+    fn parse_uniform_accepts_integer_and_float() {
+        let lua = Lua::new();
+        let int_val: LuaValue = lua.load("return 0").eval().unwrap();
+        match parse_uniform(&int_val).unwrap() {
+            ShaderValue::Float(n) => assert_eq!(n, 0.0),
+            other => panic!("expected Float, got {other:?}"),
+        }
+
+        let float_val: LuaValue = lua.load("return 0.5").eval().unwrap();
+        match parse_uniform(&float_val).unwrap() {
+            ShaderValue::Float(n) => assert!((n - 0.5).abs() < 1e-6),
+            other => panic!("expected Float, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_uniform_accepts_2_3_4_length_tables() {
+        let lua = Lua::new();
+        let v2: LuaValue = lua.load("return {1, 2}").eval().unwrap();
+        assert!(matches!(parse_uniform(&v2).unwrap(), ShaderValue::Vec2(_)));
+
+        let v3: LuaValue = lua.load("return {1, 2, 3}").eval().unwrap();
+        assert!(matches!(parse_uniform(&v3).unwrap(), ShaderValue::Vec3(_)));
+
+        let v4: LuaValue = lua.load("return {1.5, 2, 3, 4.25}").eval().unwrap();
+        match parse_uniform(&v4).unwrap() {
+            ShaderValue::Vec4(v) => assert_eq!(v, [1.5, 2.0, 3.0, 4.25]),
+            other => panic!("expected Vec4, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_uniform_rejects_unsupported_types() {
+        let lua = Lua::new();
+
+        let nil_val: LuaValue = LuaValue::Nil;
+        let err = parse_uniform(&nil_val).unwrap_err();
+        assert!(err.contains("number"), "got: {err}");
+
+        let str_val: LuaValue = lua.load("return 'hi'").eval().unwrap();
+        let err = parse_uniform(&str_val).unwrap_err();
+        assert!(err.contains("number"), "got: {err}");
+
+        let bad_table: LuaValue = lua.load("return {1, 2, 3, 4, 5}").eval().unwrap();
+        let err = parse_uniform(&bad_table).unwrap_err();
+        assert!(err.contains("got 5"), "got: {err}");
     }
 }

@@ -19,7 +19,7 @@ local draw = require("draw")
 local POPUP_LABELS = { "single", "double", "triple", "tetris" }
 
 function _config()
-  return { title = "notetris", game_id = "com.brettmakesgames.notetris" }
+  return { title = "notetris", game_id = "com.brettmakesgames.notetris", icon = 1 }
 end
 
 local function spawn(key)
@@ -30,6 +30,7 @@ local function spawn(key)
     state.alive = false
     sfx.play("gameover")
     effects.trigger_shake(state.fx, 1, 0.25)
+    usagi.save({ high_score = state.high_score })
   end
 end
 
@@ -65,6 +66,11 @@ local function commit_piece()
     sfx.play(n == 4 and "tetris" or "clear")
     if n == 4 then
       effects.trigger_shake(state.fx, 1, 0.1)
+      local sum_y = 0
+      for _, r in ipairs(rows) do
+        sum_y = sum_y + (cfg.BOARD_Y + (r - 1) * cfg.CELL + cfg.CELL / 2)
+      end
+      effects.trigger_pulse(state.fx, (sum_y / n) / usagi.GAME_H, 0.5, 1.0)
     end
   else
     sfx.play("lock")
@@ -74,7 +80,10 @@ end
 
 function _init()
   music.loop("korobeiniki")
+  gfx.shader_set("notetris")
 
+  local saved = usagi.load()
+  local prev_high = (saved and saved.high_score) or 0
   state = {
     board = board.new(),
     bag = pieces.new_bag(),
@@ -86,6 +95,9 @@ function _init()
     move_timer = 0,
     move_dir = 0,
     score = 0,
+    high_score = prev_high,
+    prev_high = prev_high,
+    t = 0,
     lines = 0,
     level = 1,
     alive = true,
@@ -154,6 +166,10 @@ end
 
 function _update(dt)
   effects.update(state.fx, dt)
+  state.t = state.t + dt
+  if state.score > state.high_score then
+    state.high_score = state.score
+  end
 
   if state.clearing_rows then
     state.clear_timer = state.clear_timer - dt
@@ -224,6 +240,10 @@ function _update(dt)
     return
   end
 
+  if input.pressed(input.DOWN) then
+    state.fall_timer = 0
+  end
+
   local interval = scoring.gravity_interval(state.level)
   if input.down(input.DOWN) then
     interval = math.min(interval, cfg.SOFT_DROP_INTERVAL)
@@ -236,7 +256,7 @@ function _update(dt)
       state.score = state.score + 1
     end
     step_gravity()
-    if not state.alive then
+    if not state.alive or state.clearing_rows then
       break
     end
   end
@@ -255,6 +275,10 @@ local function row_is_clearing(r)
 end
 
 function _draw(_dt)
+  gfx.shader_uniform("u_time", state.t)
+  gfx.shader_uniform("u_pulse", effects.pulse_value(state.fx))
+  gfx.shader_uniform("u_pulse_y", state.fx.pulse_y)
+
   gfx.clear(gfx.COLOR_DARK_BLUE)
 
   -- Playfield-only shake offset: HUD stays anchored, board rattles.
@@ -310,17 +334,20 @@ function _draw(_dt)
   end
 
   -- Right-side stats.
+  local new_high = state.score > state.prev_high and state.score > 0
   gfx.text("score", cfg.UI_X, 10, gfx.COLOR_LIGHT_GRAY)
-  gfx.text(tostring(state.score), cfg.UI_X, 22, gfx.COLOR_WHITE)
-  gfx.text("level", cfg.UI_X, 38, gfx.COLOR_LIGHT_GRAY)
-  gfx.text(tostring(state.level), cfg.UI_X, 50, gfx.COLOR_WHITE)
-  gfx.text("lines", cfg.UI_X, 66, gfx.COLOR_LIGHT_GRAY)
-  gfx.text(tostring(state.lines), cfg.UI_X, 78, gfx.COLOR_WHITE)
+  gfx.text(tostring(state.score), cfg.UI_X, 22, new_high and gfx.COLOR_GREEN or gfx.COLOR_WHITE)
+  gfx.text("high", cfg.UI_X, 38, gfx.COLOR_LIGHT_GRAY)
+  gfx.text(tostring(state.high_score), cfg.UI_X, 50, gfx.COLOR_PEACH)
+  gfx.text("level", cfg.UI_X, 66, gfx.COLOR_LIGHT_GRAY)
+  gfx.text(tostring(state.level), cfg.UI_X, 78, gfx.COLOR_WHITE)
+  gfx.text("lines", cfg.UI_X, 94, gfx.COLOR_LIGHT_GRAY)
+  gfx.text(tostring(state.lines), cfg.UI_X, 106, gfx.COLOR_WHITE)
 
-  gfx.text("next", cfg.UI_X, 100, gfx.COLOR_LIGHT_GRAY)
+  gfx.text("next", cfg.UI_X, 128, gfx.COLOR_LIGHT_GRAY)
   if state.next then
     local p = pieces.DEFS[state.next]
-    draw.piece(p.grid, p.color, cfg.UI_X, 114)
+    draw.piece(p.grid, p.color, cfg.UI_X, 142)
   end
 
   if not state.alive then
