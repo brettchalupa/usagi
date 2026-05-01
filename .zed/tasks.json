@@ -2,11 +2,11 @@
   {
     "label": "just run",
     "command": "just",
-    "args": ["run"],
+    "args": ["run"]
   },
   {
     "label": "just ok",
     "command": "just",
-    "args": ["ok"],
-  },
+    "args": ["ok"]
+  }
 ]

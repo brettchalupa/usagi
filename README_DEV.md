@@ -1,3 +1,5 @@
+<img alt="Usagi Logo: pixel art bunny, Usagi Engine - Rapid 2D Prototyping" src="/website/card-logo.png" />
+
 # Usagi - Simple 2D Game Engine for Rapid Prototyping
 
 Usagi is a simple 2D game engine for quickly making games with **Lua** 5.4. It

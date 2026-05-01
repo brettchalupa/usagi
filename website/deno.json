@@ -1,0 +1,11 @@
+{
+  "tasks": {
+    "dev": "deno run --watch --allow-net --allow-env --allow-read main.ts",
+    "run": "deno run --allow-net --allow-env --allow-read main.ts"
+  },
+  "imports": {
+    "@deno/gfm": "jsr:@deno/gfm@^0.12.0",
+    "@std/http": "jsr:@std/http@^1.1.0",
+    "prism-lua": "npm:prismjs@1.29.0/components/prism-lua.js"
+  }
+}
