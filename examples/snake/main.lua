@@ -8,15 +8,20 @@ local ROWS = 18 -- usagi.GAME_H / CELL
 local TICK = 0.12
 
 function _config()
-  return { title = "Snake" }
+  return { title = "Snake", game_id = "com.brettmakesgames.usagisnake" }
 end
 
 local function die()
   sfx.play("explosion")
   state.alive = false
+  if state.score > state.high_score then
+    state.high_score = state.score
+    usagi.save({ high_score = state.high_score })
+  end
 end
 
 function _init()
+  save = usagi.load()
   state = {
     snake = { { x = 16, y = 9 }, { x = 15, y = 9 }, { x = 14, y = 9 } },
     dir = { x = 1, y = 0 },
@@ -25,6 +30,7 @@ function _init()
     timer = 0,
     alive = true,
     score = 0,
+    high_score = save and (save.high_score or 0) or 0,
   }
 end
 
@@ -119,7 +125,13 @@ function _draw(dt)
     gfx.rect_fill(seg.x * CELL, seg.y * CELL, CELL, CELL, color)
   end
 
-  gfx.text("score " .. state.score, 4, 4, gfx.COLOR_WHITE)
+  local score_color = gfx.COLOR_WHITE
+  local score_text = "score: " .. state.score
+  if state.score > state.high_score then
+    score_color = gfx.COLOR_DARK_BLUE
+    score_text = score_text .. "!"
+  end
+  gfx.text(score_text, 4, 4, score_color)
 
   if not state.alive then
     local game_over_txt = "game over"
