@@ -8,6 +8,10 @@ function M.new()
     shake = 0,
     shake_timer = 0,
     popups = {},
+    pulse = 0,
+    pulse_timer = 0,
+    pulse_dur = 0,
+    pulse_y = 0.5,
   }
 end
 
@@ -18,6 +22,20 @@ function M.trigger_shake(fx, mag, dur)
   if dur > fx.shake_timer then
     fx.shake_timer = dur
   end
+end
+
+function M.trigger_pulse(fx, y_norm, dur, strength)
+  fx.pulse = strength or 1
+  fx.pulse_timer = dur
+  fx.pulse_dur = dur
+  fx.pulse_y = y_norm
+end
+
+function M.pulse_value(fx)
+  if fx.pulse_dur <= 0 then
+    return 0
+  end
+  return fx.pulse * (fx.pulse_timer / fx.pulse_dur)
 end
 
 function M.add_popup(fx, text, cx, cy, color)
@@ -38,6 +56,14 @@ function M.update(fx, dt)
     if fx.shake_timer <= 0 then
       fx.shake = 0
       fx.shake_timer = 0
+    end
+  end
+  if fx.pulse_timer > 0 then
+    fx.pulse_timer = fx.pulse_timer - dt
+    if fx.pulse_timer <= 0 then
+      fx.pulse = 0
+      fx.pulse_timer = 0
+      fx.pulse_dur = 0
     end
   end
   for i = #fx.popups, 1, -1 do
