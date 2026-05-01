@@ -8,8 +8,8 @@ clear, consistent, and familiar.
 
 [Watch the intro video!](https://www.youtube.com/watch?v=byp3rKd626M)
 
-**WARNING:** Usagi is very early in development and not stable. APIs and
-commands will change.
+**WARNING:** Usagi is early in development and not stable. APIs and commands are
+likely to change until v1.0.0 releases.
 
 Usagi is made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to
 the public domain.
@@ -22,7 +22,7 @@ make, and get help.](https://usagiengine.com/discord)
 [Download the latest Usagi build for your operating
 system.](https://github.com/brettchalupa/usagi/releases/latest)
 
-**Latest Usagi release:** v0.2.0
+**Latest Usagi release:** v0.3.0
 
 You can keep the `usagi` executable in your project folder or install it
 globally on your computer.
@@ -122,6 +122,9 @@ my_game/
   music/         -- optional: .ogg/.mp3/.wav/.flac, file stems become track names
     overworld.ogg
     boss.ogg
+  shaders/       -- optional: post-process GLSL shaders (advanced; see Shaders)
+    crt.fs       -- desktop GLSL 330
+    crt_es.fs    -- web GLSL ES 100
 ```
 
 `require "name"` resolves to `name.lua` in the project root, falling back to
@@ -165,10 +168,13 @@ editor could be nice in the future as part of the `usagi tools`.
 
 ## Roadmap
 
-Here's what Usagi will support as it heads towards 1.0 release:
+Not sure yet what's next! Some ideas:
 
-- Mouse functions and ability to hide cursor
-- macOS `.app` bundles in export
+- Pause menu w/ settings and input mapping for players
+- A single shader
+- Code signing for macOS apps
+- Pixel art editor in `usagi tools`
+- Simple editor in `usagi tools` with a simple API to use
 
 ## Lua API
 
@@ -226,9 +232,22 @@ multiple anyway, and in windowed mode it looks good still.
 
 ```lua
 function _config()
-  return { title = "Snake", pixel_perfect = true, game_id = "com.example.snake" }
+  return {
+    title = "Snake",
+    pixel_perfect = true,
+    game_id = "com.example.snake",
+    icon = 1,
+  }
 end
 ```
+
+`icon` (optional) is a 1-based tile index into your `sprites.png`, same indexing
+as `gfx.spr`. Omitted, the embedded Usagi bunny is used. The chosen tile is
+applied to the game window on Linux/Windows (Cocoa ignores per-window icons on
+macOS, so the title bar there always shows the system default). At
+`usagi export --target macos` time the same tile is scaled up and packed into
+`Resources/AppIcon.icns` inside the `.app`, which is what the macOS Dock/Finder
+pick up.
 
 `_config()` runs before the runtime is fully alive (the window doesn't exist
 yet), so its return value is **read once at startup and cached**. Editing
@@ -299,6 +318,25 @@ from BTN1's south position.
 `input.pressed` is edge-detected on keyboard and gamepad buttons but not on
 analog sticks; track stick state in Lua if you need that.
 
+#### Mouse
+
+- `input.mouse()` — returns `x, y` for the cursor in game-space pixels (so the
+  values line up with `gfx.*` coords regardless of window size or pixel-perfect
+  scaling). When the cursor sits over the letterbox bars the values fall outside
+  `0..usagi.GAME_W` / `0..usagi.GAME_H`, so a bounds check is the idiomatic way
+  to detect "cursor is off the play area." See
+  [`examples/mouse`](https://github.com/brettchalupa/usagi/blob/main/examples/mouse/main.lua).
+- `input.mouse_down(button)` — true while `button` is held.
+- `input.mouse_pressed(button)` — true the frame `button` first went down.
+- `input.MOUSE_LEFT`, `input.MOUSE_RIGHT` — the supported buttons. Wheel
+  scrolling and middle-click aren't exposed yet.
+- `input.set_mouse_visible(visible)` — show or hide the OS cursor over the game
+  window. Callable from `_init` to hide the cursor before the first frame draws
+  (handy for games that render their own cursor sprite).
+- `input.mouse_visible()` — true when the OS cursor is currently shown. Reflects
+  the latest `set_mouse_visible` call synchronously, so toggling reads
+  consistently: `input.set_mouse_visible(not input.mouse_visible())`.
+
 ### `sfx`
 
 - `sfx.play(name)` — play `sfx/<name>.wav`. Unknown names silently no-op.
@@ -313,6 +351,9 @@ first.
 - `music.play(name)` — play `music/<name>.<ext>` once and stop at the end.
 - `music.loop(name)` — play and loop forever.
 - `music.stop()` — stop whatever's playing. No-op if nothing is.
+
+All three are callable from `_init`, so a title track can start the moment the
+window opens (no one-frame gap waiting for `_update`).
 
 Recognized extensions: `.ogg`, `.mp3`, `.wav`, `.flac`. **OGG is recommended for
 music as they're small and cross-platform.**
@@ -389,6 +430,70 @@ Engine-level info.
   strings, numbers, booleans, nil. Functions, userdata, NaN, and circular tables
   raise an error.
 
+### Shaders (advanced, experimental)
+
+Post-process GLSL fragment shaders run as the final pass when the game's render
+target is blitted to the window. Use them for CRT effects, palette swaps,
+vignettes, color grading, and so on.
+
+**Status:** experimental. The API surface and dual-file convention may change.
+Captures have a known limitation (see below).
+
+API:
+
+- `gfx.shader_set("name")`: activate `shaders/<name>.fs` (and an optional
+  `shaders/<name>.vs`).
+- `gfx.shader_set(nil)`: clear the active shader.
+- `gfx.shader_uniform("u_name", v)`: queue a uniform write. `v` may be a number
+  (float) or a 2/3/4-length numeric table (vec2/vec3/vec4). Call this every
+  frame inside `_update` or `_draw` for animated values.
+
+```lua
+function _init() gfx.shader_set("crt") end
+
+function _draw(_dt)
+  gfx.shader_uniform("u_time", usagi.elapsed)
+  gfx.shader_uniform("u_resolution", { usagi.GAME_W, usagi.GAME_H })
+  -- ... your normal gfx.* calls ...
+end
+```
+
+**Cross-platform shader files.** Desktop targets compile GLSL `#version 330`;
+the web target uses GLSL ES `#version 100` (WebGL 1 / GLES 2). Ship two files
+alongside each other to support both:
+
+- `shaders/<name>.fs`: desktop, `#version 330`, `in`/`out`, `texture(...)`,
+  custom `out vec4 finalColor`.
+- `shaders/<name>_es.fs`: web, `#version 100`, `precision mediump float;`,
+  `varying`, `texture2D(...)`, `gl_FragColor` output.
+
+Web prefers `_es.fs` and falls back to `.fs`; desktop is the reverse. If only
+one is shipped, every platform that loads it runs that one. The `fragTexCoord`,
+`fragColor`, and `texture0` inputs are provided by raylib on both targets. See
+`examples/shader/` for a runnable CRT effect plus a Game Boy palette swap with
+both variants of each.
+
+**Live reload.** Saving the active shader's `.fs` or `.vs` file rebuilds it
+in-place. Cached uniforms are replayed onto the new shader. Compile errors print
+to the terminal and keep the previous shader live.
+
+**Bundling.** `usagi export` walks `shaders/` and ships every `.fs` / `.vs` in
+the bundle, so shaders work the same in `usagi dev`, `usagi run`, `.usagi`
+files, and fused exes on every platform.
+
+**Captures don't include the shader.** F8 / Cmd+F screenshots and F9 / Cmd+G GIF
+recording read the unshaded game render target, so post-process effects show up
+on screen but not in the saved file. Tradeoff: the shader runs at window
+resolution (CRT scanlines look smooth, not blocky) and captures stay at the
+game's 320x180 grid for clean shareable artifacts. If you need the shader baked
+into a capture, use your OS's screen recorder or screenshot tool against the
+game window.
+
+Shaders resources:
+
+- [Raylib shaders demo](https://www.raylib.com/examples/shaders/loader.html?name=shaders_postprocessing)
+- [Raylib shaders source](https://github.com/raysan5/raylib/blob/master/examples/shaders/shaders_postprocessing.c)
+
 ### Indexing
 
 Sequence-style APIs (`gfx.spr`, and any future sound/tile indexing) are
@@ -447,11 +552,26 @@ progress.
   `_init()` to reinitialize state.
 - Press **~** (grave/tilde) to toggle the FPS overlay. Hidden by default in
   `dev`.
-- Press **Alt+Enter** to toggle borderless fullscreen.
+- Press **Alt+Enter** to toggle borderless fullscreen. Persists in
+  `settings.json` and applies before the first frame on the next launch. No Lua
+  or `_config` surface by design; the player owns this setting.
 - Press **Esc**, **P**, or gamepad **Start** to pause. The same keys (plus
   **BTN2**) close the menu. While paused, `_update` and `_draw` are skipped and
   the screen shows a black "PAUSED" overlay; music keeps streaming.
 - Press **Shift+Esc** in dev mode to quit the game
+- Press **F9** or **Cmd/Ctrl + G** to start recording a GIF. Press the same key
+  again to stop and save. Files land in `<cwd>/captures/` named
+  `<game>-YYYYMMDD-HHMMSS.gif`, where `<game>` is the short form of your
+  `_config().game_id` (e.g. `snake-20260101-120000.gif`). Upscaled 2x (640×360)
+  so they read well when embedded online. A small pulsing red "● REC" indicator
+  shows in the top-right while recording.
+- Press **F8** or **Cmd/Ctrl + F** to save a PNG screenshot to the same
+  `<cwd>/captures/` bucket. Same 2x upscale as the gif recorder, lossless,
+  palette-exact.
+- Press **Shift+M** to toggle audio mute. Master volume flips between `0.0` and
+  the value in `settings.json` (defaults to `0.5`). Settings live in the same
+  per-game OS data dir as `save.json`; on web they're routed through
+  `localStorage` under `usagi.settings.<game_id>`.
 
 ### Writing Reload-Friendly Scripts
 

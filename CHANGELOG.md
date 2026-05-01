@@ -5,14 +5,30 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+## v0.3.0 - May 1, 2026
+
 Features:
 
+- Mouse input. `input.mouse()` returns the cursor position as `x, y` in
+  game-space pixels (so it lines up with `gfx.*` coords regardless of window
+  size or pixel-perfect scaling). When the cursor sits over the letterbox bars
+  the values fall outside `0..GAME_W` / `0..GAME_H`, so games can detect
+  off-viewport cursors with a simple bounds check rather than getting clamped
+  values. New `input.MOUSE_LEFT` / `input.MOUSE_RIGHT` constants pair with
+  `input.mouse_down(button)` / `input.mouse_pressed(button)` (mirroring
+  `input.down` / `input.pressed`). `input.set_mouse_visible(visible)` toggles
+  the OS cursor (callable from `_init` to hide it before the first frame),
+  paired with `input.mouse_visible()`. New examples: `examples/mouse` (custom
+  cursor with a particle trail), `examples/mouse_ui` (a click-to-toggle button
+  and a draggable box), `examples/mouse_physics` (drag a box to push others
+  around with cascading AABB collision), and `examples/waypoint` (click to drop
+  waypoints; a unit walks the path).
 - Window icon. The Usagi bunny ships embedded as the default; games can override
   via `_config().icon = N` (1-based index into the project's `sprites.png`, same
   indexing as `gfx.spr`). Applied to the game window on Linux/Windows (Cocoa
   doesn't support per-window icons on macOS, so the title bar there always shows
   the system default). The `usagi tools` window also picks up the bunny default.
-- macOS `.app` exports now include an `AppIcon.icns` in `Resources/`
+- macOS `.app` exports which include an `AppIcon.icns` in `Resources/`
   (multi-resolution: 256/512/1024 nearest-neighbor scales of the 16×16 source)
   and reference it via `CFBundleIconFile` in `Info.plist`. Source is the same
   `_config().icon` tile or the embedded default. macOS Dock and Finder show the
@@ -21,14 +37,14 @@ Features:
   (`~/Library/Application Support/<game_id>/settings.json` on macOS, matching
   paths via `directories::ProjectDirs` on Linux/Windows; on web, routed through
   `localStorage` under `usagi.settings.<game_id>` like saves). First field is
-  `volume` (master output, `0.0..=1.0`, defaults to `0.5`). Loaded once at
-  session boot and applied to the audio device before the first frame; missing
-  or malformed files fall back to defaults so a fresh install Just Works.
-- **Shift+M** toggles audio mute, flipping master volume between `0.0` and `0.5`
-  (the default). The new value is written back to `settings.json` on every
-  toggle, so a muted game stays muted across quit/relaunch. Available in both
-  dev and shipped builds. Shift required so a stray `M` keypress can't clobber a
-  game that binds `M` to gameplay.
+  `volume` (output, `0.0..=1.0`, defaults to `0.5`). Loaded once at session boot
+  and applied to the audio device before the first frame; missing or malformed
+  files fall back to defaults so a fresh install Just Works.
+- **Shift+M** toggles audio mute, flipping volume between `0.0` and `0.5` (the
+  default). The new value is written back to `settings.json` on every toggle, so
+  a muted game stays muted across quit/relaunch. Available in both dev and
+  shipped builds. Shift required so a stray `M` keypress can't clobber a game
+  that binds `M` to gameplay.
 - Fullscreen state now persists. **Alt+Enter** still toggles borderless
   fullscreen, and the new value is written to `settings.json` so a player who
   fullscreens stays in fullscreen across relaunches. Applied before the first
@@ -70,26 +86,15 @@ Features:
   your OS's screen recorder or screenshot tool against the game window if you
   need the shader baked into a capture. See the Shaders section in
   `README_DEV.md` for the full writeup.
-- Mouse input. `input.mouse()` returns the cursor position as `x, y` in
-  game-space pixels (so it lines up with `gfx.*` coords regardless of window
-  size or pixel-perfect scaling). When the cursor sits over the letterbox bars
-  the values fall outside `0..GAME_W` / `0..GAME_H`, so games can detect
-  off-viewport cursors with a simple bounds check rather than getting clamped
-  values. New `input.MOUSE_LEFT` / `input.MOUSE_RIGHT` constants pair with
-  `input.mouse_down(button)` / `input.mouse_pressed(button)` (mirroring
-  `input.down` / `input.pressed`). `input.set_mouse_visible(visible)` toggles
-  the OS cursor (callable from `_init` to hide it before the first frame),
-  paired with `input.mouse_visible()`. New examples: `examples/mouse` (custom
-  cursor with a particle trail), `examples/mouse_ui` (a click-to-toggle button
-  and a draggable box), `examples/mouse_physics` (drag a box to push others
-  around with cascading AABB collision), and `examples/waypoint` (click to drop
-  waypoints; a unit walks the path).
+- More examples! notetris, shaders, mouse, etc. for all new features
+- Pause menu pauses the playing music.
 
 Fixes:
 
 - `music.play(name)` / `music.loop(name)` / `music.stop()` are now callable from
   `_init`, not only `_update` / `_draw`. Lets games start a title track the
   moment the window opens without a one-frame gap.
+- Log window is hidden on Windows exports when they're launched.
 
 ## v0.2.0 - Apr 29, 2026
 
