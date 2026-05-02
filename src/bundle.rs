@@ -124,7 +124,7 @@ impl Bundle {
         // already inserted as `main.lua` above, regardless of its on-disk
         // filename.
         let script_canon = std::fs::canonicalize(script_path).ok();
-        for (rel, path) in walk_lua_files(root)? {
+        for (rel, path) in walk_lua_files(root) {
             if script_canon.as_deref() == std::fs::canonicalize(&path).ok().as_deref() {
                 continue;
             }
@@ -262,49 +262,27 @@ impl Bundle {
     }
 }
 
-/// Recursively collects `(relative_path, full_path)` pairs for every
-/// `.lua` file under `root`. Relative paths use `/` separators on every
-/// platform so bundle keys round-trip across Windows and Unix. Hidden
-/// directories (those starting with `.`) are skipped — they're typically
-/// editor metadata (`.zed`, `.vscode`) or version control (`.git`) and
-/// shouldn't end up in a shipped game.
-fn walk_lua_files(root: &Path) -> io::Result<Vec<(String, std::path::PathBuf)>> {
+/// Collects `(relative_path, full_path)` pairs for every `.lua` file
+/// under `root`. Relative paths use `/` separators on every platform so
+/// bundle keys round-trip across Windows and Unix.
+fn walk_lua_files(root: &Path) -> Vec<(String, std::path::PathBuf)> {
     let mut out = Vec::new();
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        for entry in std::fs::read_dir(&dir)?.flatten() {
-            let p = entry.path();
-            let name = match p.file_name().and_then(|n| n.to_str()) {
-                Some(n) => n,
-                None => continue,
-            };
-            if name.starts_with('.') {
-                continue;
-            }
-            if p.is_dir() {
-                stack.push(p);
-                continue;
-            }
-            if p.extension().and_then(|e| e.to_str()) != Some("lua") {
-                continue;
-            }
-            let rel = match p.strip_prefix(root) {
-                Ok(r) => r,
-                Err(_) => continue,
-            };
-            // Force `/` even on Windows so bundle keys are stable.
-            let rel_str: String = rel
-                .components()
-                .filter_map(|c| match c {
-                    std::path::Component::Normal(s) => s.to_str().map(String::from),
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-                .join("/");
-            out.push((rel_str, p));
-        }
-    }
-    Ok(out)
+    crate::vfs::for_each_lua_file(root, |entry| {
+        let p = entry.path();
+        let Ok(rel) = p.strip_prefix(root) else {
+            return;
+        };
+        let rel_str: String = rel
+            .components()
+            .filter_map(|c| match c {
+                std::path::Component::Normal(s) => s.to_str().map(String::from),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("/");
+        out.push((rel_str, p));
+    });
+    out
 }
 
 fn read_u32(r: &mut impl Read) -> io::Result<u32> {

@@ -5,6 +5,12 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Fixes:
+
+- Dev mode's file walker now checks all Lua files instead of trying to be smart
+  about it. Fixes a bug where if there was a syntax error in a required Lua
+  file, it'd freeze the chunks and not reliably reload all files.
+
 ## v0.3.0 - May 1, 2026
 
 Features:

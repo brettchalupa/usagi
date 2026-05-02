@@ -9,8 +9,7 @@
 
 use crate::api::{record_err, register_shader_api, setup_api};
 use crate::assets::{
-    MusicLibrary, SfxLibrary, SpriteSheet, clear_user_modules, freshest_lua_mtime, install_require,
-    load_script,
+    MusicLibrary, SfxLibrary, SpriteSheet, clear_user_modules, install_require, load_script,
 };
 #[cfg(not(target_os = "emscripten"))]
 use crate::capture::{Recorder, save_screenshot};
@@ -455,10 +454,10 @@ impl Session {
         }
         let update: Option<LuaFunction> = lua.globals().get("_update").ok();
         let draw: Option<LuaFunction> = lua.globals().get("_draw").ok();
-        // Baseline includes every module main.lua already required, so
-        // the first frame doesn't spuriously reload just because a sibling
-        // module's mtime is newer than main.lua's.
-        let last_modified = freshest_lua_mtime(&lua, vfs.as_ref());
+        // Baseline against every project .lua file so the first frame
+        // doesn't spuriously reload just because a sibling module's mtime
+        // is newer than main.lua's.
+        let last_modified = vfs.freshest_lua_mtime();
 
         Ok(Self {
             rt,
@@ -596,7 +595,7 @@ impl Session {
         // _init); F5 is the explicit reset. Errors are logged and the
         // previous callbacks keep running so a half-saved file can't kill
         // the session.
-        let new_mtime = freshest_lua_mtime(&self.lua, self.vfs.as_ref());
+        let new_mtime = self.vfs.freshest_lua_mtime();
         if new_mtime.is_some() && new_mtime != self.last_modified {
             // Drop cached require results so dependencies re-execute when
             // main.lua re-runs. Built-in libs are untouched.
@@ -616,10 +615,12 @@ impl Session {
                     self.last_error = Some(msg);
                 }
             }
-            // Recompute after reload: the just-required modules are now
-            // in package.loaded with their fresh mtimes, and we want to
-            // baseline against THOSE rather than the pre-reload value.
-            self.last_modified = freshest_lua_mtime(&self.lua, self.vfs.as_ref());
+            // Cache the pre-reload value rather than re-stat'ing after
+            // the reload: any save that landed during load_script will
+            // bump the next freshest_lua_mtime past this captured value
+            // and re-trigger reload. The old re-stat approach silently
+            // swallowed mid-reload saves.
+            self.last_modified = new_mtime;
         }
 
         if self

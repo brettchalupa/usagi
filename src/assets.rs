@@ -74,35 +74,6 @@ pub fn install_require(lua: &Lua, vfs: Rc<dyn VirtualFs>) -> LuaResult<()> {
     Ok(())
 }
 
-/// Returns the newest mtime across `main.lua` and every currently-loaded
-/// require'd module that resolves through the VFS. Used as the reload
-/// trigger so saving any `.lua` file in the project (not just main.lua)
-/// causes a reload — that's the engine's whole iteration story.
-///
-/// Modules that aren't yet `require`d don't appear in `package.loaded` and
-/// so won't be tracked until main.lua first pulls them in. That's fine in
-/// practice: a brand-new module nobody imports yet has no observable
-/// effect on the running game.
-pub fn freshest_lua_mtime(lua: &Lua, vfs: &dyn VirtualFs) -> Option<SystemTime> {
-    let mut newest = vfs.script_mtime();
-    let Ok(package) = lua.globals().get::<LuaTable>("package") else {
-        return newest;
-    };
-    let Ok(loaded) = package.get::<LuaTable>("loaded") else {
-        return newest;
-    };
-    for pair in loaded.pairs::<String, LuaValue>() {
-        let Ok((key, _)) = pair else { continue };
-        if let Some(t) = vfs.module_mtime(&key) {
-            newest = match newest {
-                Some(n) => Some(n.max(t)),
-                None => Some(t),
-            };
-        }
-    }
-    newest
-}
-
 /// Drops every `package.loaded` entry that resolves through the VFS. Built-
 /// in libraries (`string`, `math`, `table`, etc.) are left alone because
 /// the VFS doesn't claim them. Called on script reload so a saved edit to
@@ -583,38 +554,6 @@ mod tests {
             .unwrap();
         assert!(loaded.get::<LuaValue>("data").unwrap().is_nil());
         assert!(!loaded.get::<LuaValue>("string").unwrap().is_nil());
-    }
-
-    #[test]
-    fn freshest_mtime_tracks_required_modules_not_just_main() {
-        let lua = Lua::new();
-        let dir = TempDir::new().unwrap();
-        let root = dir.path();
-        fs::write(root.join("main.lua"), "require 'helper'").unwrap();
-        fs::write(root.join("helper.lua"), "return {}").unwrap();
-        let vfs: Rc<dyn VirtualFs> = Rc::new(FsBacked::from_script_path(&root.join("main.lua")));
-        install_require(&lua, vfs.clone()).unwrap();
-        load_script(&lua, vfs.as_ref()).unwrap();
-        let baseline = freshest_lua_mtime(&lua, vfs.as_ref()).expect("have an mtime baseline");
-
-        // Bump helper.lua's mtime to a known-later instant. `set_modified`
-        // requires a write-capable handle on Windows (FILE_WRITE_ATTRIBUTES
-        // permission); a plain `File::open` is read-only and fails with
-        // "Access is denied." Use OpenOptions with write to portably
-        // get the right access bits.
-        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
-        std::fs::OpenOptions::new()
-            .write(true)
-            .open(root.join("helper.lua"))
-            .unwrap()
-            .set_modified(later)
-            .unwrap();
-
-        let after = freshest_lua_mtime(&lua, vfs.as_ref()).expect("still have an mtime");
-        assert!(
-            after > baseline,
-            "editing helper.lua must move the freshest mtime forward (baseline={baseline:?}, after={after:?})"
-        );
     }
 
     #[test]

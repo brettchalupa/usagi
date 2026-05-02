@@ -12,7 +12,6 @@ pub trait VirtualFs {
     /// A name for the script used in Lua stack traces and error messages.
     fn script_name(&self) -> String;
     fn read_script(&self) -> Option<Vec<u8>>;
-    fn script_mtime(&self) -> Option<SystemTime>;
 
     fn read_sprites(&self) -> Option<Vec<u8>>;
     fn sprites_mtime(&self) -> Option<SystemTime>;
@@ -54,6 +53,17 @@ pub trait VirtualFs {
     /// Mtime for the same path. None when the backend has no mtimes
     /// (bundle) or the file is missing.
     fn file_mtime(&self, _rel: &str) -> Option<SystemTime> {
+        None
+    }
+
+    /// Newest mtime across every `.lua` file under the project root.
+    /// Used by the live-reload watcher as the change-detection signal.
+    /// Walking the project tree (rather than only `package.loaded`) means
+    /// a module that fell out of `package.loaded` because a previous
+    /// reload errored mid-`require` is still tracked, so saving the fix
+    /// re-triggers reload. `BundleBacked` returns None (bundles don't
+    /// reload).
+    fn freshest_lua_mtime(&self) -> Option<SystemTime> {
         None
     }
 
@@ -149,6 +159,69 @@ fn module_candidates(name: &str) -> Option<Vec<String>> {
     Some(vec![format!("{rel}.lua"), format!("{rel}/init.lua")])
 }
 
+/// Recursively visits every `*.lua` file under `root`, invoking `visit`
+/// with the directory entry for each one. Skips dotfiles / dot-directories
+/// (`.git`, `node_modules`-style hidden state). Read errors on any single
+/// directory are swallowed and the walk continues, since both call sites
+/// (the live-reload watcher and the bundle exporter) prefer "best effort"
+/// to aborting on a transient permission blip.
+pub(crate) fn for_each_lua_file<F: FnMut(&std::fs::DirEntry)>(root: &Path, mut visit: F) {
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let p = entry.path();
+            let Some(name) = p.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            if name.starts_with('.') {
+                continue;
+            }
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if file_type.is_dir() {
+                stack.push(p);
+                continue;
+            }
+            if p.extension().and_then(|e| e.to_str()) != Some("lua") {
+                continue;
+            }
+            visit(&entry);
+        }
+    }
+}
+
+/// Returns the newest mtime across every reload-relevant `.lua` file
+/// under `root`. The `meta/usagi.lua` LSP stub that `usagi init` ships is
+/// excluded: editing it has no runtime effect (`is_meta_chunk` keeps it
+/// out of `require`), so a reload triggered by saving it would be wasted
+/// work. Other `---@meta` files (including ones the user adds in `meta/`)
+/// still drive reload; the skip is name-specific, not directory-wide.
+fn freshest_lua_mtime_under(root: &Path) -> Option<SystemTime> {
+    let usagi_meta_stub = Path::new("meta").join("usagi.lua");
+    let mut newest: Option<SystemTime> = None;
+    for_each_lua_file(root, |entry| {
+        let p = entry.path();
+        if p.strip_prefix(root)
+            .map(|rel| rel == usagi_meta_stub)
+            .unwrap_or(false)
+        {
+            return;
+        }
+        let Ok(t) = entry.metadata().and_then(|m| m.modified()) else {
+            return;
+        };
+        newest = Some(match newest {
+            Some(prev) => prev.max(t),
+            None => t,
+        });
+    });
+    newest
+}
+
 /// Disk-backed vfs. `root` is the directory that holds `sprites.png` and
 /// `sfx/`. `script_filename` is the main Lua file inside `root` (None when
 /// the vfs is used purely for asset browsing, e.g. the tools window).
@@ -207,12 +280,6 @@ impl VirtualFs for FsBacked {
 
     fn read_script(&self) -> Option<Vec<u8>> {
         std::fs::read(self.script_path()?).ok()
-    }
-
-    fn script_mtime(&self) -> Option<SystemTime> {
-        std::fs::metadata(self.script_path()?)
-            .and_then(|m| m.modified())
-            .ok()
     }
 
     fn read_sprites(&self) -> Option<Vec<u8>> {
@@ -367,6 +434,10 @@ impl VirtualFs for FsBacked {
         true
     }
 
+    fn freshest_lua_mtime(&self) -> Option<SystemTime> {
+        freshest_lua_mtime_under(&self.root)
+    }
+
     fn project_name_hint(&self) -> Option<String> {
         // Mirror `export::project_name`: when the script is `main.lua` the
         // parent directory's name is the project; otherwise the file stem.
@@ -413,10 +484,6 @@ impl VirtualFs for BundleBacked {
 
     fn read_script(&self) -> Option<Vec<u8>> {
         self.bundle.get("main.lua").map(<[u8]>::to_vec)
-    }
-
-    fn script_mtime(&self) -> Option<SystemTime> {
-        None
     }
 
     fn read_sprites(&self) -> Option<Vec<u8>> {
@@ -507,13 +574,12 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn fs_backed_reads_script_and_mtime() {
+    fn fs_backed_reads_script_and_supports_reload() {
         let dir = TempDir::new().unwrap();
         let script = dir.path().join("game.lua");
         fs::write(&script, b"-- hello").unwrap();
         let vfs = FsBacked::from_script_path(&script);
         assert_eq!(vfs.read_script().as_deref(), Some(b"-- hello".as_slice()));
-        assert!(vfs.script_mtime().is_some());
         assert!(vfs.supports_reload());
     }
 
@@ -659,7 +725,92 @@ mod tests {
         assert_eq!(vfs.read_sfx("jump").as_deref(), Some([4, 5, 6].as_slice()));
         assert_eq!(vfs.sfx_stems(), vec!["jump".to_string()]);
         assert!(!vfs.supports_reload());
-        assert!(vfs.script_mtime().is_none());
+    }
+
+    #[test]
+    fn freshest_lua_mtime_tracks_files_outside_package_loaded() {
+        // Regression for the live-reload "stuck after a partial-reload
+        // failure" bug: the watcher must see a save to any .lua file in
+        // the project, even one that's not currently in `package.loaded`.
+        // Walking `package.loaded` alone (the old approach) hid orphans
+        // and made saves silently no-op until restart.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("main.lua"), b"").unwrap();
+        fs::create_dir_all(root.join("nested")).unwrap();
+        fs::write(root.join("nested/orphan.lua"), b"return {}").unwrap();
+        let vfs = FsBacked::from_script_path(&root.join("main.lua"));
+
+        let baseline = vfs
+            .freshest_lua_mtime()
+            .expect("baseline mtime present with files on disk");
+
+        // Bump the orphan's mtime. `set_modified` needs a write-capable
+        // handle on Windows; OpenOptions::write gets the right access bits
+        // portably.
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(root.join("nested/orphan.lua"))
+            .unwrap()
+            .set_modified(later)
+            .unwrap();
+
+        let after = vfs
+            .freshest_lua_mtime()
+            .expect("still have an mtime after bump");
+        assert!(
+            after > baseline,
+            "saving any project .lua file must move freshest forward (baseline={baseline:?}, after={after:?})"
+        );
+    }
+
+    #[test]
+    fn freshest_lua_mtime_is_none_when_no_lua_files() {
+        let dir = TempDir::new().unwrap();
+        let vfs = FsBacked::from_project_dir(dir.path().to_path_buf());
+        assert!(vfs.freshest_lua_mtime().is_none());
+    }
+
+    #[test]
+    fn freshest_lua_mtime_ignores_meta_usagi_stub() {
+        // `usagi init` ships `meta/usagi.lua` as an LSP type stub. It's
+        // never executed at runtime, so saving it shouldn't trigger a
+        // (wasted) live reload. Other files in `meta/` still drive
+        // reload — the skip is name-specific, not directory-wide.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("meta")).unwrap();
+        fs::write(root.join("meta/usagi.lua"), b"---@meta\n").unwrap();
+        let vfs = FsBacked::from_project_dir(root.to_path_buf());
+        assert!(
+            vfs.freshest_lua_mtime().is_none(),
+            "meta/usagi.lua alone must not register on the watcher"
+        );
+
+        fs::write(root.join("meta/custom.lua"), b"---@meta\n").unwrap();
+        assert!(
+            vfs.freshest_lua_mtime().is_some(),
+            "user-authored files in meta/ are still tracked"
+        );
+    }
+
+    #[test]
+    fn freshest_lua_mtime_skips_dot_directories() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join(".git")).unwrap();
+        fs::write(root.join(".git/hook.lua"), b"-- ignored").unwrap();
+        let vfs = FsBacked::from_project_dir(root.to_path_buf());
+        assert!(vfs.freshest_lua_mtime().is_none());
+    }
+
+    #[test]
+    fn bundle_backed_freshest_lua_mtime_is_none() {
+        let mut b = Bundle::new();
+        b.insert("main.lua", b"-- bundled".to_vec());
+        let vfs = BundleBacked::new(b);
+        assert!(vfs.freshest_lua_mtime().is_none());
     }
 
     #[test]
