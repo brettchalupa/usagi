@@ -133,7 +133,7 @@ pub fn draw_error_overlay(
     let wrapped = wrap_to_width(|s| font.measure_text(s, MSG_SIZE, 0.0).x, err, max_w);
     let shown = wrapped.len().min(MAX_LINES) as f32;
     let truncated = wrapped.len() > MAX_LINES;
-    let footer = "fix & save to reload   \u{00b7}   F5 to reset";
+    let footer = "fix & save to reload   \u{00b7}   Ctrl+R or F5 to reset";
 
     let content_h = TITLE_SIZE
         + 8.0
