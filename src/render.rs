@@ -63,6 +63,56 @@ pub fn draw_render_target<D: RaylibDraw>(
     );
 }
 
+/// Greedy word-wrap of `text` into lines that fit in `max_w` pixels.
+/// Width is determined per candidate substring by `measure`, so this
+/// works against any font (variable-width monogram in production, a
+/// fixed-width fake in tests). Tokens that on their own exceed `max_w`
+/// (typically the long path in a Lua error chunk name) are hard-broken
+/// character by character so nothing renders past the box edge. Empty
+/// input lines are preserved as empty output lines so blank-line
+/// spacing in the source survives the wrap.
+fn wrap_to_width<M: Fn(&str) -> f32>(measure: M, text: &str, max_w: f32) -> Vec<String> {
+    let mut out = Vec::new();
+    for line in text.lines() {
+        if line.is_empty() {
+            out.push(String::new());
+            continue;
+        }
+        let mut current = String::new();
+        // `split_inclusive` keeps trailing whitespace attached to each
+        // token so inter-word spacing survives across the wrap boundary
+        // (where it would otherwise get trimmed away).
+        for token in line.split_inclusive(char::is_whitespace) {
+            let candidate = format!("{current}{token}");
+            if measure(&candidate) <= max_w {
+                current = candidate;
+                continue;
+            }
+            if !current.is_empty() {
+                out.push(current.trim().to_string());
+                current.clear();
+            }
+            if measure(token) <= max_w {
+                current.push_str(token);
+                continue;
+            }
+            for ch in token.chars() {
+                let mut trial = current.clone();
+                trial.push(ch);
+                if measure(&trial) > max_w && !current.is_empty() {
+                    out.push(current.trim().to_string());
+                    current.clear();
+                }
+                current.push(ch);
+            }
+        }
+        if !current.is_empty() {
+            out.push(current.trim().to_string());
+        }
+    }
+    out
+}
+
 /// Draws a full-width error banner at the bottom of the window. Shown only
 /// when user Lua has errored; cleared on successful reload or F5 reset.
 pub fn draw_error_overlay(
@@ -73,18 +123,16 @@ pub fn draw_error_overlay(
     screen_h: i32,
 ) {
     const PADDING: i32 = 12;
-    // Everything renders at monogram's 16px design size: it's the only
-    // size we can draw at without scaling the atlas. The previous
-    // bigger-title look fought monogram's pixel-font aesthetic anyway.
-    const TITLE_SIZE: f32 = 16.0;
-    const MSG_SIZE: f32 = 16.0;
+    const TITLE_SIZE: f32 = 18.0;
+    const MSG_SIZE: f32 = TITLE_SIZE;
+    const FOOTER_SIZE: f32 = TITLE_SIZE;
     const LINE_H: f32 = MSG_SIZE + 4.0;
-    const FOOTER_SIZE: f32 = 16.0;
     const MAX_LINES: usize = 8;
 
-    let lines: Vec<&str> = err.lines().collect();
-    let shown = lines.len().min(MAX_LINES) as f32;
-    let truncated = lines.len() > MAX_LINES;
+    let max_w = ((screen_w - PADDING * 2).max(0)) as f32;
+    let wrapped = wrap_to_width(|s| font.measure_text(s, MSG_SIZE, 0.0).x, err, max_w);
+    let shown = wrapped.len().min(MAX_LINES) as f32;
+    let truncated = wrapped.len() > MAX_LINES;
     let footer = "fix & save to reload   \u{00b7}   F5 to reset";
 
     let content_h = TITLE_SIZE
@@ -110,7 +158,7 @@ pub fn draw_error_overlay(
     );
     y += TITLE_SIZE + 8.0;
 
-    for line in lines.iter().take(MAX_LINES) {
+    for line in wrapped.iter().take(MAX_LINES) {
         d.draw_text_ex(
             font,
             line,
@@ -142,4 +190,79 @@ pub fn draw_error_overlay(
         0.0,
         Color::new(180, 180, 180, 255),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Fixed-width measurer: every char counts as 1 unit. Lets tests
+    /// use small integer widths and read the wrap behavior off the line
+    /// lengths directly.
+    fn ones(s: &str) -> f32 {
+        s.chars().count() as f32
+    }
+
+    #[test]
+    fn wraps_at_word_boundary_when_line_fits() {
+        let out = wrap_to_width(ones, "the quick brown fox", 10.0);
+        assert_eq!(out, vec!["the quick", "brown fox"]);
+    }
+
+    #[test]
+    fn preserves_short_input_unchanged() {
+        let out = wrap_to_width(ones, "hi there", 80.0);
+        assert_eq!(out, vec!["hi there"]);
+    }
+
+    #[test]
+    fn hard_breaks_token_longer_than_max_width() {
+        // The chunk-name shape that motivates this: a single path-like
+        // token wider than the box. Has to break mid-token or the box
+        // can't contain it.
+        let out = wrap_to_width(ones, "/very/long/path/main.lua:42", 10.0);
+        assert_eq!(out, vec!["/very/long", "/path/main", ".lua:42"]);
+    }
+
+    #[test]
+    fn long_token_after_short_word_starts_a_new_line_first() {
+        // "ok " fits; the long token doesn't fit appended, so the short
+        // word flushes first, then the long token hard-breaks on its own.
+        let out = wrap_to_width(ones, "ok /very/long/path", 10.0);
+        assert_eq!(out, vec!["ok", "/very/long", "/path"]);
+    }
+
+    #[test]
+    fn preserves_empty_input_lines_as_blank_output_lines() {
+        let out = wrap_to_width(ones, "first\n\nsecond", 80.0);
+        assert_eq!(out, vec!["first", "", "second"]);
+    }
+
+    #[test]
+    fn empty_input_produces_no_lines() {
+        let out = wrap_to_width(ones, "", 80.0);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn honors_each_input_line_independently() {
+        // Wrap is per-input-line: a newline in the source is a hard
+        // break regardless of how much room is left on the current line.
+        let out = wrap_to_width(ones, "ab\ncd", 80.0);
+        assert_eq!(out, vec!["ab", "cd"]);
+    }
+
+    #[test]
+    fn variable_width_measurer_drives_break_position() {
+        // Mimic real fonts: 'm' is wider than 'i'. With max_w=4 and
+        // i=1, m=3: "iiii" fits (4) but "iiiim" (4+3=7) doesn't, so
+        // the wrap lands before the 'm'.
+        let measure = |s: &str| {
+            s.chars()
+                .map(|c| if c == 'm' { 3.0 } else { 1.0 })
+                .sum::<f32>()
+        };
+        let out = wrap_to_width(measure, "iiii m", 4.0);
+        assert_eq!(out, vec!["iiii", "m"]);
+    }
 }
