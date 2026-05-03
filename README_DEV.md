@@ -620,7 +620,7 @@ can just arrow through the list to hear each one.
 - Click a name to select + play.
 - Click the **Play** button in the right pane to replay.
 
-### Tile Picker
+### TilePicker
 
 Shows `<project>/sprites.png` with a 1-based grid overlay matching `gfx.spr`.
 Click any tile to copy its index to the clipboard (paste it straight into your
@@ -633,7 +633,7 @@ Lua code).
   stay visible regardless of palette.
 - Left click a tile to copy its 1-based index; a toast confirms the value.
 
-### Save Inspector
+### SaveInspector
 
 Reads the project's `_config().game_id` and shows the current `save.json`
 contents alongside the resolved file path. Useful for debugging save formats and
@@ -646,6 +646,11 @@ inspecting state between runs without leaving the editor.
 - **Clear** deletes the save file. The next `usagi.load()` returns `nil`.
 - **Open in File Manager** reveals the containing directory in the OS default
   file manager (`xdg-open` on Linux, `open` on macOS, `explorer` on Windows).
+
+### ColorPalette
+
+Shows swatches for each of the 16 colors with the ability to click to copy the
+Lua value to your clipboard.
 
 ## Export
 
