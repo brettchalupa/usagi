@@ -3,6 +3,7 @@
 //! sibling modules and expose a small `State` + `handle_input` + `draw`
 //! API.
 
+mod color_palette;
 mod jukebox;
 mod save_inspector;
 mod tilepicker;
@@ -32,6 +33,7 @@ enum Tool {
     Jukebox,
     TilePicker,
     SaveInspector,
+    ColorPalette,
 }
 
 pub(super) struct Toast {
@@ -53,6 +55,7 @@ struct State {
     jukebox: jukebox::State,
     tilepicker: tilepicker::State,
     save_inspector: save_inspector::State,
+    color_palette: color_palette::State,
     toast: Option<Toast>,
 }
 
@@ -107,6 +110,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         jukebox: jukebox::State::new(&sfx.sounds, music_lib.track_names()),
         tilepicker: tilepicker::State::new(),
         save_inspector: save_inspector::State::new(project_path),
+        color_palette: color_palette::State::new(),
         toast: None,
     };
 
@@ -157,6 +161,9 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         if rl.is_key_pressed(KeyboardKey::KEY_THREE) {
             state.active = Tool::SaveInspector;
         }
+        if rl.is_key_pressed(KeyboardKey::KEY_FOUR) {
+            state.active = Tool::ColorPalette;
+        }
 
         let tex = sprites.as_ref().and_then(|s| s.texture());
         match state.active {
@@ -171,6 +178,11 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
             }
             Tool::SaveInspector => {
                 if let Some(msg) = save_inspector::handle_input(&rl, &mut state.save_inspector) {
+                    state.toast = Some(Toast::new(msg));
+                }
+            }
+            Tool::ColorPalette => {
+                if let Some(msg) = color_palette::handle_input(&mut rl, &mut state.color_palette) {
                     state.toast = Some(Toast::new(msg));
                 }
             }
@@ -204,6 +216,14 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
             ) {
                 state.active = Tool::SaveInspector;
             }
+            if tab_button(
+                &mut d,
+                Rectangle::new(680., 20., 230., 36.),
+                "ColorPalette [4]",
+                state.active == Tool::ColorPalette,
+            ) {
+                state.active = Tool::ColorPalette;
+            }
 
             match state.active {
                 Tool::Jukebox => jukebox::draw(
@@ -229,6 +249,9 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
                     {
                         state.toast = Some(Toast::new(msg));
                     }
+                }
+                Tool::ColorPalette => {
+                    color_palette::draw(&mut d, &font, &state.color_palette);
                 }
             }
 

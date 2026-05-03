@@ -8,6 +8,8 @@ Doesn't contain updates relating to developing the engine itself.
 Features:
 
 - <kbd>Enter</kbd> opens Pause Menu, like Pico-8.
+- New tool: ColorPalette to quickly reference and copy a given color to
+  clipboard.
 
 Fixes:
 
