@@ -146,7 +146,8 @@ them for spot-checking a PR. For distribution, cut a release.
 Push a tag matching `v*` to trigger a release build:
 
 ```sh
-git tag v0.1.0
+git tag -a v0.1.0
+# paste in the changelog into the tag
 git push origin v0.1.0
 ```
 
@@ -176,6 +177,14 @@ extraction; mismatches fail loudly.
 Filenames carry the architecture so future arm/x86 splits drop in without
 renaming. `usagi export` resolves `--target linux` to the matching artifact via
 the URL convention `${USAGI_TEMPLATE_BASE}/v<ver>/<file>`.
+
+### Update itch.io
+
+1. Download the artifacts from the GitHub Release
+2. Upload the Linux, macOS, and Windows archives to
+   https://itch.io/game/edit/4525259
+3. Publish the itch.io page
+4. Publish a devlog with the changelog
 
 ### Post Release
 
