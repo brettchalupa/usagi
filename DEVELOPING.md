@@ -131,10 +131,15 @@ them for spot-checking a PR. For distribution, cut a release.
 
 1. Run `just ok` to ensure all checks pass
 2. Run `just examples` to verify everything is working as expected
-3. Bump `version` in `Cargo.toml` and run `cargo update -p usagi` to refresh
-   `Cargo.lock` before tagging. The tag should match the manifest version.
-4. Update CHANGELOG.md
-5. `cp README_DEV.md README.md`
+3. Test syntax error recovery in a `require` to ensure it works
+4. Test `usagi tools`
+5. Verify web builds work
+6. Verify gamepads work
+7. Bump `version` in `Cargo.toml` and run `cargo update -p usagi` to refresh
+   `Cargo.lock` before tagging. The tag should match the manifest version
+8. Update the current version in README_DEV.md
+9. Update CHANGELOG.md
+10. `cp README_DEV.md README.md`
 
 ### Tagging
 
