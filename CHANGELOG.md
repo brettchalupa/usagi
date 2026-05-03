@@ -23,6 +23,7 @@ Fixes:
 
 Tweaks:
 
+- The web shell's colors are slightly revised to use the engine's color palette.
 - The `.luarc.json` from `usagi init` no longer disables the `lowercase-global`
   rule to help prevent the accidental creation of globals. In the examples and
   my own games, this has happened multiple times and is a serious footgun. So
@@ -33,6 +34,7 @@ Tweaks:
   → `sprite-example-linux.zip`), and the macOS bundle directory
   (`Sprite Example.app`). Falls back to the project directory name when `name`
   isn't set.
+- Docs improvements to suggest external tools to use.
 
 Breaking:
 
