@@ -26,7 +26,7 @@ pub fn apply(rl: &mut RaylibHandle) {
     let _ = rl;
     #[cfg(not(target_os = "emscripten"))]
     match Image::load_image_from_mem(".png", ICON_PNG) {
-        Ok(image) => rl.set_window_icon(&image),
+        Ok(image) => apply_multires(rl, &image),
         Err(e) => eprintln!("[usagi] failed to decode icon.png: {e}"),
     }
 }
@@ -48,8 +48,45 @@ pub fn apply_from_sprites(rl: &mut RaylibHandle, sprites_bytes: &[u8], index: u3
             apply(rl);
             return;
         };
-        rl.set_window_icon(&tile);
+        apply_multires(rl, &tile);
     }
+}
+
+/// Sizes (px) shipped to the window manager as the icon set. The
+/// source is 16x16; everything larger is a clean integer-multiple
+/// nearest-neighbor upscale so the pixel art stays crisp. Linux WMs
+/// (KDE Plasma ≈32, GNOME ≈48) and Windows taskbars pick the closest
+/// match out of the set instead of bilinearly stretching the bare 16.
+#[cfg(not(target_os = "emscripten"))]
+const ICON_RES_PX: &[u32] = &[16, 32, 48, 64, 128, 256];
+
+/// Builds a multi-resolution icon set from `src` and hands it to
+/// `glfwSetWindowIcon` via raylib. GLFW copies the pixel data before
+/// returning, so the scaled buffers can drop on this function's exit.
+#[cfg(not(target_os = "emscripten"))]
+fn apply_multires(rl: &mut RaylibHandle, src: &Image) {
+    let src_w = src.width() as u32;
+    let src_h = src.height() as u32;
+    if src_w == 0 || src_h == 0 {
+        return;
+    }
+    let src_rgba = image_to_rgba(src);
+    let mut buffers: Vec<Vec<u8>> = ICON_RES_PX
+        .iter()
+        .map(|&size| scale_nearest(&src_rgba, src_w, src_h, size, size))
+        .collect();
+    let mut images: Vec<sola_raylib::ffi::Image> = buffers
+        .iter_mut()
+        .zip(ICON_RES_PX.iter())
+        .map(|(buf, &size)| sola_raylib::ffi::Image {
+            data: buf.as_mut_ptr().cast(),
+            width: size as i32,
+            height: size as i32,
+            mipmaps: 1,
+            format: sola_raylib::ffi::PixelFormat::PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 as i32,
+        })
+        .collect();
+    rl.set_window_icons(&mut images);
 }
 
 /// Loads `sprites_bytes` and extracts the 16x16 region at the
