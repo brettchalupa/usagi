@@ -5,6 +5,10 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Features:
+
+- <kbd>Enter</kbd> opens Pause Menu, like Pico-8.
+
 Fixes:
 
 - Dev mode's file walker now checks all Lua files instead of trying to be smart

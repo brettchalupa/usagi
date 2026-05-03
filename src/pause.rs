@@ -27,6 +27,7 @@ impl PauseMenu {
         self.last_open = self.open;
         let toggle = rl.is_key_pressed(KeyboardKey::KEY_ESCAPE)
             || rl.is_key_pressed(KeyboardKey::KEY_P)
+            || rl.is_key_pressed(KeyboardKey::KEY_ENTER)
             || gamepad_start_pressed(rl);
 
         if self.open {
