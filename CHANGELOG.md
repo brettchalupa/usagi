@@ -5,6 +5,11 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Fixes:
+
+- <kbd>Alt</kbd>+<kbd>Enter</kbd> no longer opens the Pause Menu while toggling
+  fullscreen. Pause Menu only opens on <kbd>Enter</kbd> when Alt isn't held.
+
 ## v0.4.0 - May 3, 2026
 
 Features:
