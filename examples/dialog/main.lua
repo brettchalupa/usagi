@@ -36,7 +36,7 @@ function _config()
 end
 
 function _init()
-  state = {
+  State = {
     idx = 1,        -- current entry in SCRIPT
     revealed = 0,   -- how many chars of the current line are visible
     elapsed = 0,    -- seconds spent typing the current line
@@ -46,7 +46,7 @@ function _init()
 end
 
 local function current()
-  return SCRIPT[state.idx]
+  return SCRIPT[State.idx]
 end
 
 local function full_text()
@@ -55,21 +55,21 @@ local function full_text()
 end
 
 local function is_complete()
-  return state.revealed >= #full_text()
+  return State.revealed >= #full_text()
 end
 
 local function complete_line()
-  state.revealed = #full_text()
+  State.revealed = #full_text()
 end
 
 local function advance()
-  state.idx = state.idx + 1
-  state.revealed = 0
-  state.elapsed = 0
-  state.last_click = 0
+  State.idx = State.idx + 1
+  State.revealed = 0
+  State.elapsed = 0
+  State.last_click = 0
   -- Loop the script for an endless demo.
-  if state.idx > #SCRIPT then
-    state.idx = 1
+  if State.idx > #SCRIPT then
+    State.idx = 1
   end
 end
 
@@ -77,7 +77,7 @@ function _update(dt)
   local entry = current()
   if entry == nil then return end
 
-  state.blink_t = state.blink_t + dt
+  State.blink_t = State.blink_t + dt
 
   if input.pressed(input.BTN1) then
     if is_complete() then
@@ -89,18 +89,18 @@ function _update(dt)
   end
 
   if not is_complete() then
-    state.elapsed = state.elapsed + dt
-    local target = math.min(math.floor(state.elapsed * CPS), #full_text())
-    if target > state.revealed then
-      state.revealed = target
+    State.elapsed = State.elapsed + dt
+    local target = math.min(math.floor(State.elapsed * CPS), #full_text())
+    if target > State.revealed then
+      State.revealed = target
       -- Subtle typewriter audio: rate-limited by CLICK_EVERY chars,
       -- and skipped on whitespace so spaces don't tick.
-      if state.revealed - state.last_click >= CLICK_EVERY then
-        local last_char = full_text():sub(state.revealed, state.revealed)
+      if State.revealed - State.last_click >= CLICK_EVERY then
+        local last_char = full_text():sub(State.revealed, State.revealed)
         if last_char:match("%S") then
           sfx.play("click")
         end
-        state.last_click = state.revealed
+        State.last_click = State.revealed
       end
     end
   end
@@ -114,7 +114,7 @@ local function draw_frame(x, y, w, h)
 end
 
 local function visible_text()
-  return full_text():sub(1, state.revealed)
+  return full_text():sub(1, State.revealed)
 end
 
 -- Wrap-aware draw: text holds explicit \n line breaks, so split and
@@ -140,7 +140,7 @@ local function draw_message_frame()
   )
 
   -- Active indicator
-  if is_complete() and (state.blink_t * 2) % 2 < 1 then
+  if is_complete() and (State.blink_t * 2) % 2 < 1 then
     gfx.circ_fill(
       box_x + box_w - PAD - 6,
       box_y + MSG_H - PAD - LINE_H / 2,

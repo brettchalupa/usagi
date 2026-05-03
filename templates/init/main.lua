@@ -3,6 +3,10 @@ function _config()
 end
 
 function _init()
+  -- Live reload preserves globals across saved edits but resets locals.
+  -- Stash mutable game state in a capitalized global like `State` so it
+  -- survives reloads; F5 calls _init again to reset.
+  State = {}
 end
 
 function _update(dt)

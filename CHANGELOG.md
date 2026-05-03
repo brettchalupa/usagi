@@ -21,6 +21,14 @@ Fixes:
 - Wrap Lua error message in dev overlay to increase legibility.
 - Export icon at various sizes for higher res and crisp icons.
 
+Tweaks:
+
+- The `.luarc.json` from `usagi init` no longer disables the `lowercase-global`
+  rule to help prevent the accidental creation of globals. In the examples and
+  my own games, this has happened multiple times and is a serious footgun. So
+  the default is revised. Example styles updated accordingly. Feel free to
+  change your `.luarc.json`, it's your project!
+
 ## v0.3.0 - May 1, 2026
 
 Features:

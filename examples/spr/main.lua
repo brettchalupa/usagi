@@ -28,7 +28,7 @@ local function clamp(value, min, max)
 end
 
 function _init()
-  state = {
+  State = {
     p = {
       x = 50,
       y = 20,
@@ -42,9 +42,9 @@ end
 local function emit_spark()
   -- Ship is 16×16 and points up (top-down view), so the exhaust
   -- spawns at the bottom edge and trails downward.
-  local tail_x = state.p.x + 6 + math.floor(math.random() * 4)
-  local tail_y = state.p.y + 16
-  state.sparks[#state.sparks + 1] = {
+  local tail_x = State.p.x + 6 + math.floor(math.random() * 4)
+  local tail_y = State.p.y + 16
+  State.sparks[#State.sparks + 1] = {
     x = tail_x,
     y = tail_y,
     vx = math.random() * 20 - 10,
@@ -56,36 +56,36 @@ end
 
 function _update(dt)
   if input.down(input.LEFT) then
-    state.p.x = state.p.x - state.p.spd * dt
-    state.p.face_left = true
+    State.p.x = State.p.x - State.p.spd * dt
+    State.p.face_left = true
   end
   if input.down(input.RIGHT) then
-    state.p.x = state.p.x + state.p.spd * dt
-    state.p.face_left = false
+    State.p.x = State.p.x + State.p.spd * dt
+    State.p.face_left = false
   end
   if input.down(input.DOWN) then
-    state.p.y = state.p.y + state.p.spd * dt
+    State.p.y = State.p.y + State.p.spd * dt
   end
   if input.down(input.UP) then
-    state.p.y = state.p.y - state.p.spd * dt
+    State.p.y = State.p.y - State.p.spd * dt
   end
   if input.pressed(input.BTN1) then
     print("fire!")
   end
 
-  state.p.x = clamp(state.p.x, 0, usagi.GAME_W)
-  state.p.y = clamp(state.p.y, 0, usagi.GAME_H)
+  State.p.x = clamp(State.p.x, 0, usagi.GAME_W)
+  State.p.y = clamp(State.p.y, 0, usagi.GAME_H)
 
   -- Two sparks per frame, then update positions and drop dead ones.
   emit_spark()
   emit_spark()
-  for i = #state.sparks, 1, -1 do
-    local s = state.sparks[i]
+  for i = #State.sparks, 1, -1 do
+    local s = State.sparks[i]
     s.x = s.x + s.vx * dt
     s.y = s.y + s.vy * dt
     s.life = s.life - dt
     if s.life <= 0 then
-      table.remove(state.sparks, i)
+      table.remove(State.sparks, i)
     end
   end
 end
@@ -96,7 +96,7 @@ function _draw(_dt)
   -- gfx.spr / gfx.spr_ex: basic vs extended sprite draw. `spr_ex` takes
   -- both flip booleans (required) so one art asset covers both facings.
   gfx.spr(SPR.BUNNY, 20, 20)
-  gfx.spr_ex(SPR.SHIP, state.p.x, state.p.y, state.p.face_left, false)
+  gfx.spr_ex(SPR.SHIP, State.p.x, State.p.y, State.p.face_left, false)
   gfx.spr(SPR.BULLET_SM, 20, 40)
   gfx.spr(SPR.BULLET_LG, 50, 40)
 
@@ -111,7 +111,7 @@ function _draw(_dt)
 
   -- Ship exhaust particle emitter: each spark is one pixel via
   -- gfx.pixel, the engine's single-pixel draw.
-  for _, s in ipairs(state.sparks) do
+  for _, s in ipairs(State.sparks) do
     gfx.pixel(s.x, s.y, s.color)
   end
 

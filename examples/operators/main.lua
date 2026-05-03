@@ -8,7 +8,7 @@ function _config()
 end
 
 function _init()
-  state = {
+  State = {
     score = 0,
     timer = 0,
     pulse = 1,
@@ -17,25 +17,25 @@ function _init()
 end
 
 function _update(dt)
-  state.timer += dt
-  state.score += 1
-  state.pulse *= 0.99
-  if state.pulse < 0.2 then
-    state.pulse = 1
+  State.timer += dt
+  State.score += 1
+  State.pulse *= 0.99
+  if State.pulse < 0.2 then
+    State.pulse = 1
   end
   if input.pressed(input.BTN1) then
-    state.bumps += 1
+    State.bumps += 1
   end
   if input.pressed(input.BTN2) then
-    state.bumps = 0
+    State.bumps = 0
   end
 end
 
 function _draw(dt)
   gfx.clear(gfx.COLOR_DARK_BLUE)
-  gfx.text("score   " .. state.score, 8, 8, gfx.COLOR_WHITE)
-  gfx.text("timer   " .. string.format("%.1f", state.timer), 8, 20, gfx.COLOR_WHITE)
-  gfx.text("pulse   " .. string.format("%.2f", state.pulse), 8, 32, gfx.COLOR_WHITE)
-  gfx.text("BTN1 bumps   " .. state.bumps, 8, 52, gfx.COLOR_YELLOW)
+  gfx.text("score   " .. State.score, 8, 8, gfx.COLOR_WHITE)
+  gfx.text("timer   " .. string.format("%.1f", State.timer), 8, 20, gfx.COLOR_WHITE)
+  gfx.text("pulse   " .. string.format("%.2f", State.pulse), 8, 32, gfx.COLOR_WHITE)
+  gfx.text("BTN1 bumps   " .. State.bumps, 8, 52, gfx.COLOR_YELLOW)
   gfx.text("BTN2 resets bumps", 8, 64, gfx.COLOR_YELLOW)
 end

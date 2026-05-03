@@ -25,7 +25,7 @@ function _config()
 end
 
 function _init()
-  state = {
+  State = {
     p = { x = 50, y = 80, spd = 200, face_left = false },
     count = 0,
     spin = 0,
@@ -36,9 +36,9 @@ end
 local function emit_spark()
   -- Ship is 16×16 and points up (top-down view), so the exhaust
   -- spawns at the bottom edge and trails downward.
-  local tail_x = state.p.x + 6 + flr(rnd(4))
-  local tail_y = state.p.y + 16
-  state.sparks[#state.sparks + 1] = {
+  local tail_x = State.p.x + 6 + flr(rnd(4))
+  local tail_y = State.p.y + 16
+  State.sparks[#State.sparks + 1] = {
     x = tail_x,
     y = tail_y,
     vx = rnd(20) - 10,
@@ -50,37 +50,37 @@ end
 
 function _update(dt)
   if btn(0) then
-    state.p.x = state.p.x - state.p.spd * dt
-    state.p.face_left = true
+    State.p.x = State.p.x - State.p.spd * dt
+    State.p.face_left = true
   end
   if btn(1) then
-    state.p.x = state.p.x + state.p.spd * dt
-    state.p.face_left = false
+    State.p.x = State.p.x + State.p.spd * dt
+    State.p.face_left = false
   end
   if btn(2) then
-    state.p.y = state.p.y - state.p.spd * dt
+    State.p.y = State.p.y - State.p.spd * dt
   end
   if btn(3) then
-    state.p.y = state.p.y + state.p.spd * dt
+    State.p.y = State.p.y + State.p.spd * dt
   end
   if btnp(4) then
-    state.count += 1
+    State.count += 1
   end
 
-  state.p.x = mid(0, state.p.x, usagi.GAME_W - 16)
-  state.p.y = mid(0, state.p.y, usagi.GAME_H - 16)
-  state.spin = state.spin + dt * 0.25
+  State.p.x = mid(0, State.p.x, usagi.GAME_W - 16)
+  State.p.y = mid(0, State.p.y, usagi.GAME_H - 16)
+  State.spin = State.spin + dt * 0.25
 
   -- Two sparks per frame, then update positions and drop dead ones.
   emit_spark()
   emit_spark()
-  for i = #state.sparks, 1, -1 do
-    local s = state.sparks[i]
+  for i = #State.sparks, 1, -1 do
+    local s = State.sparks[i]
     s.x = s.x + s.vx * dt
     s.y = s.y + s.vy * dt
     s.life = s.life - dt
     if s.life <= 0 then
-      table.remove(state.sparks, i)
+      table.remove(State.sparks, i)
     end
   end
 end
@@ -93,18 +93,18 @@ function _draw(_dt)
   rectfill(0, 0, usagi.GAME_W - 1, 13, gfx.COLOR_BLACK)
   line(0, 14, usagi.GAME_W - 1, 14, gfx.COLOR_DARK_GRAY)
   print("pico-8 flavor", 2, 1, gfx.COLOR_PEACH)
-  print("count: " .. state.count, 200, 1, gfx.COLOR_YELLOW)
+  print("count: " .. State.count, 200, 1, gfx.COLOR_YELLOW)
 
   -- Sprite from the spr example. Pico-8 is 0-based; pico8.lua adds 1.
   -- The flip args route through gfx.spr_ex when face_left is true.
   spr(SPR.BUNNY, 20, 30)
-  spr(SPR.SHIP, state.p.x, state.p.y, nil, nil, state.p.face_left, false)
+  spr(SPR.SHIP, State.p.x, State.p.y, nil, nil, State.p.face_left, false)
   spr(SPR.BULLET_SM, 20, 50)
   spr(SPR.BULLET_LG, 50, 50)
 
   -- Ship exhaust particle emitter. Each spark is one pixel via `pset`,
   -- Pico-8's single-pixel draw. The shim forwards pset to gfx.pixel.
-  for _, s in ipairs(state.sparks) do
+  for _, s in ipairs(State.sparks) do
     pset(s.x, s.y, s.color)
   end
 
@@ -114,8 +114,8 @@ function _draw(_dt)
   line(cx - 22, cy, cx + 22, cy, gfx.COLOR_DARK_GRAY)
   line(cx, cy - 22, cx, cy + 22, gfx.COLOR_DARK_GRAY)
   circ(cx, cy, 18, gfx.COLOR_DARK_GRAY)
-  local px = cx + cos(state.spin) * 18
-  local py = cy + sin(state.spin) * 18
+  local px = cx + cos(State.spin) * 18
+  local py = cy + sin(State.spin) * 18
   circfill(px, py, 3, gfx.COLOR_PINK)
 
   print("arrows move, btn1 fires", 2, usagi.GAME_H - 10, gfx.COLOR_LIGHT_GRAY)
