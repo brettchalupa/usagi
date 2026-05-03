@@ -16,7 +16,7 @@
 --   web    : window.localStorage, key "usagi.save.com.usagi.savedemo"
 
 function _config()
-  return { title = "Save Demo", game_id = "com.usagi.savedemo" }
+  return { name = "Save Demo", game_id = "com.usagi.savedemo" }
 end
 
 local function fresh_state()

@@ -6,7 +6,7 @@ local ball = require("ball")
 local colors = require("colors")
 
 function _config()
-  return { title = "Multifile" }
+  return { name = "Multifile" }
 end
 
 function _init()

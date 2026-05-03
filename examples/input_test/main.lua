@@ -1,5 +1,5 @@
 function _config()
-  return { title = "Input Test" }
+  return { name = "Input Test" }
 end
 
 function _init()

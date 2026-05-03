@@ -13,7 +13,7 @@ local TRACK = "invincible"
 local mode = "stopped"
 
 function _config()
-  return { title = "Music Demo" }
+  return { name = "Music Demo" }
 end
 
 function _update(_dt)

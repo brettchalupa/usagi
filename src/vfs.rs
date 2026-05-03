@@ -159,12 +159,10 @@ fn module_candidates(name: &str) -> Option<Vec<String>> {
     Some(vec![format!("{rel}.lua"), format!("{rel}/init.lua")])
 }
 
-/// Recursively visits every `*.lua` file under `root`, invoking `visit`
-/// with the directory entry for each one. Skips dotfiles / dot-directories
-/// (`.git`, `node_modules`-style hidden state). Read errors on any single
-/// directory are swallowed and the walk continues, since both call sites
-/// (the live-reload watcher and the bundle exporter) prefer "best effort"
-/// to aborting on a transient permission blip.
+/// Recursively visits every `*.lua` file under `root`. Skips
+/// dotfiles / dot-directories. Read errors are swallowed (best-effort
+/// walk) since the call sites (live-reload watcher, bundle exporter)
+/// don't want to abort on a transient permission blip.
 pub(crate) fn for_each_lua_file<F: FnMut(&std::fs::DirEntry)>(root: &Path, mut visit: F) {
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
@@ -194,12 +192,10 @@ pub(crate) fn for_each_lua_file<F: FnMut(&std::fs::DirEntry)>(root: &Path, mut v
     }
 }
 
-/// Returns the newest mtime across every reload-relevant `.lua` file
-/// under `root`. The `meta/usagi.lua` LSP stub that `usagi init` ships is
-/// excluded: editing it has no runtime effect (`is_meta_chunk` keeps it
-/// out of `require`), so a reload triggered by saving it would be wasted
-/// work. Other `---@meta` files (including ones the user adds in `meta/`)
-/// still drive reload; the skip is name-specific, not directory-wide.
+/// Newest mtime across reload-relevant `.lua` files under `root`. The
+/// `meta/usagi.lua` LSP stub `usagi init` ships is excluded so editing
+/// it doesn't trigger a no-op reload (it's never executable per
+/// `is_meta_chunk`). Skip is name-specific, not directory-wide.
 fn freshest_lua_mtime_under(root: &Path) -> Option<SystemTime> {
     let usagi_meta_stub = Path::new("meta").join("usagi.lua");
     let mut newest: Option<SystemTime> = None;

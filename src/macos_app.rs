@@ -24,19 +24,23 @@ use std::path::{Path, PathBuf};
 
 const APP_ICON_FILE: &str = "AppIcon";
 
-/// Creates `<stage>/<name>.app/Contents/{Info.plist,PkgInfo,MacOS/}` and
-/// returns the path the caller should fuse the binary onto
-/// (`Contents/MacOS/<name>`). bundle::fuse handles the `+x` chmod.
+/// Creates `<stage>/<display>.app/Contents/{Info.plist,PkgInfo,MacOS/}`
+/// and returns the path the caller should fuse the binary onto
+/// (`Contents/MacOS/<slug>`). bundle::fuse handles the `+x` chmod.
 /// When `icns_bytes` is `Some`, also writes `Resources/AppIcon.icns`
 /// and adds `CFBundleIconFile = AppIcon` to `Info.plist` so the
-/// Finder / Dock pick up the game's icon.
+/// Finder / Dock pick up the game's icon. `display` ("Sprite Example")
+/// names the `.app` and the Info.plist *Name keys; `slug`
+/// ("sprite-example") names the binary and CFBundleExecutable so
+/// `argv[0]` stays shell-friendly.
 pub fn stage_app_layout(
     stage: &Path,
-    name: &str,
+    display: &str,
+    slug: &str,
     bundle_id: &str,
     icns_bytes: Option<&[u8]>,
 ) -> Result<PathBuf> {
-    let app = stage.join(format!("{name}.app"));
+    let app = stage.join(format!("{display}.app"));
     let contents = app.join("Contents");
     let macos_dir = contents.join("MacOS");
     std::fs::create_dir_all(&macos_dir)
@@ -53,7 +57,7 @@ pub fn stage_app_layout(
 
     std::fs::write(
         contents.join("Info.plist"),
-        info_plist_xml(name, bundle_id, icns_bytes.is_some()),
+        info_plist_xml(display, slug, bundle_id, icns_bytes.is_some()),
     )
     .map_err(|e| Error::Cli(format!("writing Info.plist: {e}")))?;
 
@@ -64,12 +68,16 @@ pub fn stage_app_layout(
     std::fs::write(contents.join("PkgInfo"), b"APPL????")
         .map_err(|e| Error::Cli(format!("writing PkgInfo: {e}")))?;
 
-    Ok(macos_dir.join(name))
+    Ok(macos_dir.join(slug))
 }
 
 /// Hand-rolled Info.plist XML. Keys here are the minimum set Finder /
 /// Launch Services / Gatekeeper consult:
-/// - CFBundle{Name,DisplayName,Executable,Identifier} for identity.
+/// - CFBundleName / CFBundleDisplayName carry the pretty name shown in
+///   Finder, the Dock, the menu bar, and About this App.
+/// - CFBundleExecutable carries the slug; it must match the actual
+///   filename inside `Contents/MacOS/`.
+/// - CFBundle{PackageType,Identifier} for identity.
 /// - CFBundlePackageType=APPL + Signature=???? to be recognized as an app.
 /// - CFBundleShortVersionString + CFBundleVersion are required by macOS.
 /// - LSMinimumSystemVersion=11.0 matches the macos-aarch64 release target.
@@ -77,7 +85,7 @@ pub fn stage_app_layout(
 ///   raylib's framebuffer is upscaled by the OS and looks blurry).
 /// - CFBundleIconFile=AppIcon when `with_icon` is true, pointing at
 ///   `Resources/AppIcon.icns` written by the staging step.
-fn info_plist_xml(name: &str, bundle_id: &str, with_icon: bool) -> String {
+fn info_plist_xml(display: &str, slug: &str, bundle_id: &str, with_icon: bool) -> String {
     let icon_block = if with_icon {
         format!("    <key>CFBundleIconFile</key>\n    <string>{APP_ICON_FILE}</string>\n")
     } else {
@@ -91,15 +99,15 @@ fn info_plist_xml(name: &str, bundle_id: &str, with_icon: bool) -> String {
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>{name_escaped}</string>
+    <string>{display_escaped}</string>
     <key>CFBundleExecutable</key>
-    <string>{name_escaped}</string>
+    <string>{slug_escaped}</string>
 {icon_block}    <key>CFBundleIdentifier</key>
     <string>{bundle_id_escaped}</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>{name_escaped}</string>
+    <string>{display_escaped}</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -117,7 +125,8 @@ fn info_plist_xml(name: &str, bundle_id: &str, with_icon: bool) -> String {
 </dict>
 </plist>
 "#,
-        name_escaped = xml_escape(name),
+        display_escaped = xml_escape(display),
+        slug_escaped = xml_escape(slug),
         bundle_id_escaped = xml_escape(bundle_id),
     )
 }
@@ -142,7 +151,7 @@ mod tests {
     fn stage_app_layout_creates_expected_tree_and_returns_binary_path() {
         let dir = tempdir().unwrap();
         let exe_path =
-            stage_app_layout(dir.path(), "snake", "com.usagiengine.snake", None).unwrap();
+            stage_app_layout(dir.path(), "snake", "snake", "com.usagiengine.snake", None).unwrap();
         let app = dir.path().join("snake.app");
         assert!(app.is_dir(), "snake.app/ should exist");
         assert!(app.join("Contents").is_dir());
@@ -157,9 +166,41 @@ mod tests {
     }
 
     #[test]
+    fn stage_app_layout_uses_display_for_app_dir_and_slug_for_binary() {
+        let dir = tempdir().unwrap();
+        let exe_path = stage_app_layout(
+            dir.path(),
+            "Sprite Example",
+            "sprite-example",
+            "com.usagiengine.sprite-example",
+            None,
+        )
+        .unwrap();
+        let app = dir.path().join("Sprite Example.app");
+        assert!(
+            app.is_dir(),
+            "bundle dir should use the display name with spaces"
+        );
+        assert_eq!(
+            exe_path,
+            app.join("Contents/MacOS/sprite-example"),
+            "binary inside the bundle should use the slug"
+        );
+        let plist = std::fs::read_to_string(app.join("Contents/Info.plist")).unwrap();
+        assert!(
+            plist.contains("<key>CFBundleExecutable</key>\n    <string>sprite-example</string>"),
+            "CFBundleExecutable must match the on-disk binary filename"
+        );
+        assert!(
+            plist.contains("<key>CFBundleName</key>\n    <string>Sprite Example</string>"),
+            "CFBundleName carries the display name"
+        );
+    }
+
+    #[test]
     fn stage_app_layout_writes_caller_supplied_bundle_id_into_plist() {
         let dir = tempdir().unwrap();
-        stage_app_layout(dir.path(), "snake", "com.test.snake", None).unwrap();
+        stage_app_layout(dir.path(), "snake", "snake", "com.test.snake", None).unwrap();
         let plist =
             std::fs::read_to_string(dir.path().join("snake.app/Contents/Info.plist")).unwrap();
         assert!(
@@ -171,7 +212,7 @@ mod tests {
     #[test]
     fn pkginfo_has_appl_type_and_no_creator_code() {
         let dir = tempdir().unwrap();
-        stage_app_layout(dir.path(), "x", "com.usagiengine.x", None).unwrap();
+        stage_app_layout(dir.path(), "x", "x", "com.usagiengine.x", None).unwrap();
         let pkg = std::fs::read(dir.path().join("x.app/Contents/PkgInfo")).unwrap();
         assert_eq!(pkg, b"APPL????");
     }
@@ -180,7 +221,14 @@ mod tests {
     fn stage_app_layout_writes_icns_and_references_it_when_supplied() {
         let dir = tempdir().unwrap();
         let fake_icns = b"icns\x00\x00\x00\x08";
-        stage_app_layout(dir.path(), "snake", "com.test.snake", Some(fake_icns)).unwrap();
+        stage_app_layout(
+            dir.path(),
+            "snake",
+            "snake",
+            "com.test.snake",
+            Some(fake_icns),
+        )
+        .unwrap();
         let icns_path = dir.path().join("snake.app/Contents/Resources/AppIcon.icns");
         assert!(icns_path.is_file(), "AppIcon.icns should be written");
         assert_eq!(std::fs::read(&icns_path).unwrap(), fake_icns);
@@ -195,13 +243,13 @@ mod tests {
 
     #[test]
     fn info_plist_omits_icon_key_when_no_icns_supplied() {
-        let xml = info_plist_xml("snake", "com.usagiengine.snake", false);
+        let xml = info_plist_xml("snake", "snake", "com.usagiengine.snake", false);
         assert!(!xml.contains("CFBundleIconFile"), "got: {xml}");
     }
 
     #[test]
     fn info_plist_includes_required_keys_and_substituted_values() {
-        let xml = info_plist_xml("snake", "com.usagiengine.snake", false);
+        let xml = info_plist_xml("snake", "snake", "com.usagiengine.snake", false);
         for key in [
             "CFBundleExecutable",
             "CFBundleIdentifier",
@@ -220,7 +268,7 @@ mod tests {
 
     #[test]
     fn info_plist_escapes_xml_special_chars_in_name() {
-        let xml = info_plist_xml("R&D <demo>", "com.usagiengine.rd-demo", false);
+        let xml = info_plist_xml("R&D <demo>", "rd-demo", "com.usagiengine.rd-demo", false);
         assert!(xml.contains("R&amp;D &lt;demo&gt;"), "got: {xml}");
         assert!(!xml.contains("R&D"), "raw ampersand should be escaped");
     }

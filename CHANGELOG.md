@@ -28,6 +28,19 @@ Tweaks:
   my own games, this has happened multiple times and is a serious footgun. So
   the default is revised. Example styles updated accordingly. Feel free to
   change your `.luarc.json`, it's your project!
+- `usagi export` now uses `_config().name` to drive archive filenames, the
+  Linux/Windows binary names (slugged to ASCII kebab-case, e.g. `Sprite Example`
+  → `sprite-example-linux.zip`), and the macOS bundle directory
+  (`Sprite Example.app`). Falls back to the project directory name when `name`
+  isn't set.
+
+Breaking:
+
+- `_config().title` is renamed to `_config().name`. `name` is the canonical
+  display name across the engine (window title, macOS `.app` directory,
+  Info.plist, slugged for archive/binary filenames on `usagi export`). The old
+  `title` key is no longer read; rename to `name` in your `_config()` table. All
+  shipped examples and the `usagi init` template were updated.
 
 ## v0.3.0 - May 1, 2026
 

@@ -49,7 +49,7 @@ pub fn run(
             script_path.display()
         ))
     })?;
-    let name = project_name(&script_path).to_owned();
+    let path_hint = path_name_hint(&script_path).to_owned();
 
     let template_target = template_target_for(target);
     if template_target.is_none() && (template_path.is_some() || template_url.is_some()) {
@@ -66,12 +66,16 @@ pub fn run(
     }
 
     let web_shell_override = resolve_web_shell_override(&script_path, web_shell)?;
-    // Read `_config()` once for the whole export (game_id, icon,
+    // Read `_config()` once for the whole export (game_id, icon, name,
     // and any future bundle metadata all consume this struct).
     // Failures fall back to defaults so a broken project file
     // doesn't fail the export.
     let project_config = crate::config::Config::read_for_export(&script_path);
-    let bundle_id = game_id::resolve_for_export(&project_config, &name, &bundle);
+    let project_name =
+        crate::project_name::ProjectName::resolve(project_config.name.as_deref(), Some(&path_hint));
+    // GameId keys off the path hint (or `_config().game_id`), not the
+    // display name, so renaming the game doesn't migrate save data.
+    let bundle_id = game_id::resolve_for_export(&project_config, &path_hint, &bundle);
     // Slice the configured sprite tile (or use the embedded
     // default) and pack it as a multi-resolution ICNS for the
     // macOS bundle. Errors are logged and the export continues
@@ -97,14 +101,14 @@ pub fn run(
     };
     let out_path = output
         .map(PathBuf::from)
-        .unwrap_or_else(|| default_output_path(&name, target));
+        .unwrap_or_else(|| default_output_path(&project_name, target));
 
     match target {
-        ExportTarget::All => export_all(&bundle, &name, &out_path, &opts),
+        ExportTarget::All => export_all(&bundle, &project_name, &out_path, &opts),
         ExportTarget::Bundle => write_bundle(&bundle, &out_path),
         ExportTarget::Linux | ExportTarget::Macos | ExportTarget::Windows | ExportTarget::Web => {
             let target_kind = template_target.expect("validated above");
-            export_one_target(&bundle, &name, target_kind, &opts, &out_path)
+            export_one_target(&bundle, &project_name, target_kind, &opts, &out_path)
         }
     }
 }
@@ -134,7 +138,12 @@ struct Opts<'a> {
 /// been published yet (`0.x-dev`): the network template fetch 404s,
 /// but the host-fuse zip plus the portable `.usagi` bundle should
 /// still land. The whole call only fails if every target failed.
-fn export_all(bundle: &Bundle, name: &str, out_dir: &Path, opts: &Opts) -> Result<()> {
+fn export_all(
+    bundle: &Bundle,
+    project_name: &crate::project_name::ProjectName,
+    out_dir: &Path,
+    opts: &Opts,
+) -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::Cli(format!("creating export dir {}: {e}", out_dir.display())))?;
     // --target all walks every platform via the cache; per-target archive
@@ -147,11 +156,12 @@ fn export_all(bundle: &Bundle, name: &str, out_dir: &Path, opts: &Opts) -> Resul
         bundle_id: opts.bundle_id,
         icns_bytes: opts.icns_bytes,
     };
+    let slug = project_name.slug();
     let mut succeeded = 0;
     let mut last_err: Option<Error> = None;
     for target in templates::Target::ALL {
-        let zip = out_dir.join(format!("{name}-{}.zip", target.as_str()));
-        match export_one_target(bundle, name, target, &inner, &zip) {
+        let zip = out_dir.join(format!("{slug}-{}.zip", target.as_str()));
+        match export_one_target(bundle, project_name, target, &inner, &zip) {
             Ok(()) => succeeded += 1,
             Err(e) => {
                 eprintln!("[usagi] skipping {target:?}: {e}");
@@ -161,7 +171,7 @@ fn export_all(bundle: &Bundle, name: &str, out_dir: &Path, opts: &Opts) -> Resul
     }
     // The portable bundle never depends on a runtime template, so it stands
     // on its own as a successful artifact.
-    write_bundle(bundle, &out_dir.join(format!("{name}.usagi")))?;
+    write_bundle(bundle, &out_dir.join(format!("{slug}.usagi")))?;
     if succeeded == 0
         && let Some(e) = last_err
     {
@@ -177,7 +187,7 @@ fn export_all(bundle: &Bundle, name: &str, out_dir: &Path, opts: &Opts) -> Resul
 /// (auto-fetched by version).
 fn export_one_target(
     bundle: &Bundle,
-    name: &str,
+    project_name: &crate::project_name::ProjectName,
     target: templates::Target,
     opts: &Opts,
     out_path: &Path,
@@ -188,9 +198,9 @@ fn export_one_target(
         // through extract first. This is what makes local web iteration
         // ergonomic (`--template-path target/wasm32-.../release`).
         if path.is_dir() {
-            return export_from_runtime_dir(bundle, name, path, target, opts, out_path);
+            return export_from_runtime_dir(bundle, project_name, path, target, opts, out_path);
         }
-        return export_from_archive(bundle, name, path, target, opts, out_path);
+        return export_from_archive(bundle, project_name, path, target, opts, out_path);
     }
     if let Some(url) = opts.template_url {
         let dl = tempfile::tempdir()
@@ -198,10 +208,10 @@ fn export_one_target(
         let archive = dl.path().join(archive_name_from_url(url));
         println!("[usagi] downloading {url}");
         templates::download_with_verify(url, &archive)?;
-        return export_from_archive(bundle, name, &archive, target, opts, out_path);
+        return export_from_archive(bundle, project_name, &archive, target, opts, out_path);
     }
     if templates::Target::host() == Some(target) {
-        return export_from_host_exe(bundle, name, target, opts, out_path);
+        return export_from_host_exe(bundle, project_name, target, opts, out_path);
     }
     let cache_root = templates::cache_dir()?;
     let base = templates::template_base();
@@ -212,14 +222,14 @@ fn export_one_target(
         target,
         opts.no_cache,
     )?;
-    export_from_runtime_dir(bundle, name, &runtime_dir, target, opts, out_path)
+    export_from_runtime_dir(bundle, project_name, &runtime_dir, target, opts, out_path)
 }
 
 /// Fuses against the currently-running binary. Used when the requested
 /// target matches the host: no network, no cache lookup.
 fn export_from_host_exe(
     bundle: &Bundle,
-    name: &str,
+    project_name: &crate::project_name::ProjectName,
     target: templates::Target,
     opts: &Opts,
     out_path: &Path,
@@ -228,8 +238,13 @@ fn export_from_host_exe(
         std::env::current_exe().map_err(|e| Error::Cli(format!("locating current exe: {e}")))?;
     let stage =
         tempfile::tempdir().map_err(|e| Error::Cli(format!("creating zip stage dir: {e}")))?;
-    let staged_exe =
-        staged_binary_path(stage.path(), name, target, opts.bundle_id, opts.icns_bytes)?;
+    let staged_exe = staged_binary_path(
+        stage.path(),
+        project_name,
+        target,
+        opts.bundle_id,
+        opts.icns_bytes,
+    )?;
     fuse_exe(bundle, &current_exe, &staged_exe)?;
     ensure_parent(out_path)?;
     zip_dir(stage.path(), out_path)?;
@@ -245,7 +260,7 @@ fn export_from_host_exe(
 /// Extracts `archive` to a tempdir, then delegates to `export_from_runtime_dir`.
 fn export_from_archive(
     bundle: &Bundle,
-    name: &str,
+    project_name: &crate::project_name::ProjectName,
     archive: &Path,
     target: templates::Target,
     opts: &Opts,
@@ -261,7 +276,7 @@ fn export_from_archive(
         .map_err(|e| Error::Cli(format!("creating template scratch dir: {e}")))?;
     let extract_dir = scratch.path().join("extracted");
     templates::extract(archive, &extract_dir)?;
-    export_from_runtime_dir(bundle, name, &extract_dir, target, opts, out_path)
+    export_from_runtime_dir(bundle, project_name, &extract_dir, target, opts, out_path)
 }
 
 /// Fuses a bundle onto the runtime in `runtime_dir` and zips the result.
@@ -270,7 +285,7 @@ fn export_from_archive(
 /// applies to the web target.
 fn export_from_runtime_dir(
     bundle: &Bundle,
-    name: &str,
+    project_name: &crate::project_name::ProjectName,
     runtime_dir: &Path,
     target: templates::Target,
     opts: &Opts,
@@ -281,8 +296,13 @@ fn export_from_runtime_dir(
         tempfile::tempdir().map_err(|e| Error::Cli(format!("creating zip stage dir: {e}")))?;
     match runtime {
         templates::Runtime::Native { exe } => {
-            let staged_exe =
-                staged_binary_path(stage.path(), name, target, opts.bundle_id, opts.icns_bytes)?;
+            let staged_exe = staged_binary_path(
+                stage.path(),
+                project_name,
+                target,
+                opts.bundle_id,
+                opts.icns_bytes,
+            )?;
             fuse_exe(bundle, &exe, &staged_exe)?;
         }
         templates::Runtime::Web { js, wasm, html } => {
@@ -391,10 +411,11 @@ fn resolve_web_shell_override(script_path: &Path, flag: Option<&str>) -> Result<
     Ok(auto.is_file().then_some(auto))
 }
 
-/// Project base name from a script path. Uses the parent directory's
-/// name when the script is `main.lua` (so `examples/spr/main.lua` -> `spr`)
-/// and the file stem otherwise (`examples/snake.lua` -> `snake`).
-fn project_name(script_path: &Path) -> &str {
+/// Path-derived name hint: parent directory when the script is
+/// `main.lua` (so `examples/spr/main.lua` -> `spr`), file stem
+/// otherwise (`examples/snake.lua` -> `snake`). Used as fallback
+/// for `ProjectName` and as input to `GameId` resolution.
+fn path_name_hint(script_path: &Path) -> &str {
     let stem = script_path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -410,40 +431,49 @@ fn project_name(script_path: &Path) -> &str {
     }
 }
 
-fn default_output_path(name: &str, target: ExportTarget) -> PathBuf {
+fn default_output_path(
+    project_name: &crate::project_name::ProjectName,
+    target: ExportTarget,
+) -> PathBuf {
+    let slug = project_name.slug();
     match target {
         // Project-agnostic so one gitignore entry covers any game.
         ExportTarget::All => PathBuf::from("export"),
-        ExportTarget::Bundle => PathBuf::from(format!("{name}.usagi")),
-        ExportTarget::Linux => PathBuf::from(format!("{name}-linux.zip")),
-        ExportTarget::Macos => PathBuf::from(format!("{name}-macos.zip")),
-        ExportTarget::Windows => PathBuf::from(format!("{name}-windows.zip")),
-        ExportTarget::Web => PathBuf::from(format!("{name}-web.zip")),
+        ExportTarget::Bundle => PathBuf::from(format!("{slug}.usagi")),
+        ExportTarget::Linux => PathBuf::from(format!("{slug}-linux.zip")),
+        ExportTarget::Macos => PathBuf::from(format!("{slug}-macos.zip")),
+        ExportTarget::Windows => PathBuf::from(format!("{slug}-windows.zip")),
+        ExportTarget::Web => PathBuf::from(format!("{slug}-web.zip")),
     }
 }
 
-fn staged_exe_name(name: &str, target: templates::Target) -> String {
+fn staged_exe_name(slug: &str, target: templates::Target) -> String {
     match target {
-        templates::Target::Windows => format!("{name}.exe"),
-        _ => name.to_owned(),
+        templates::Target::Windows => format!("{slug}.exe"),
+        _ => slug.to_owned(),
     }
 }
 
-/// Where in `stage` the fused binary should land. macOS gets the full
-/// `<name>.app/Contents/MacOS/<name>` layout (Info.plist + PkgInfo are
-/// written as a side-effect, with `bundle_id` going into CFBundleIdentifier);
-/// other native targets stay flat at the stage root so the zip contains a
-/// bare exe like before.
+/// Where in `stage` the fused binary should land. macOS gets the
+/// `<display>.app/Contents/MacOS/<slug>` layout (with Info.plist +
+/// PkgInfo + optional `Resources/AppIcon.icns` written as side
+/// effects); other native targets stay flat at the stage root.
 fn staged_binary_path(
     stage: &Path,
-    name: &str,
+    project_name: &crate::project_name::ProjectName,
     target: templates::Target,
     bundle_id: &str,
     icns_bytes: Option<&[u8]>,
 ) -> Result<PathBuf> {
     match target {
-        templates::Target::Macos => macos_app::stage_app_layout(stage, name, bundle_id, icns_bytes),
-        _ => Ok(stage.join(staged_exe_name(name, target))),
+        templates::Target::Macos => macos_app::stage_app_layout(
+            stage,
+            project_name.display(),
+            project_name.slug(),
+            bundle_id,
+            icns_bytes,
+        ),
+        _ => Ok(stage.join(staged_exe_name(project_name.slug(), target))),
     }
 }
 
@@ -585,15 +615,15 @@ mod tests {
     }
 
     #[test]
-    fn project_name_uses_parent_for_main_lua() {
+    fn path_name_hint_uses_parent_for_main_lua() {
         let p = Path::new("examples/snake/main.lua");
-        assert_eq!(project_name(p), "snake");
+        assert_eq!(path_name_hint(p), "snake");
     }
 
     #[test]
-    fn project_name_uses_stem_for_flat_script() {
+    fn path_name_hint_uses_stem_for_flat_script() {
         let p = Path::new("examples/hello.lua");
-        assert_eq!(project_name(p), "hello");
+        assert_eq!(path_name_hint(p), "hello");
     }
 
     #[test]

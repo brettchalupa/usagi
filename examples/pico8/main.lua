@@ -21,7 +21,7 @@ local EXHAUST_COLORS = {
 }
 
 function _config()
-  return { title = "Pico-8 flavor" }
+  return { name = "Pico-8 flavor" }
 end
 
 function _init()

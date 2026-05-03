@@ -50,7 +50,7 @@ local CHAR_W = 4
 local NUM_STARS = 90
 
 function _config()
-  return { title = "Usagi Demo" }
+  return { name = "Usagi Demo" }
 end
 
 local function spawn_star(z)

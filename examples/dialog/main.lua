@@ -32,7 +32,7 @@ local SCRIPT = {
 }
 
 function _config()
-  return { title = "Typewriter Dialog" }
+  return { name = "Typewriter Dialog" }
 end
 
 function _init()

@@ -8,7 +8,7 @@ local DOTS = 180
 local SAMPLES = 6
 
 function _config()
-  return { title = "RNG" }
+  return { name = "RNG" }
 end
 
 local function reroll()

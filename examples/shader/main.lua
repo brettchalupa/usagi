@@ -9,7 +9,7 @@ local LABELS = { "off", "crt", "gameboy" }
 local SCANLINE_LEVELS = { 0.0, 0.25, 0.5, 0.75 }
 
 function _config()
-  return { title = "Shader demo", pixel_perfect = false }
+  return { name = "Shader demo", pixel_perfect = false }
 end
 
 function _init()

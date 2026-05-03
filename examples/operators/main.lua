@@ -4,7 +4,7 @@
 -- compound ops inside `if cond then x += 1 end` are NOT rewritten.
 
 function _config()
-  return { title = "Operators" }
+  return { name = "Operators" }
 end
 
 function _init()

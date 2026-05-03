@@ -325,10 +325,15 @@ impl Session {
         // `builder.build()`. Doing the toggle later (after audio /
         // font / Lua setup) leaves a visible windowed frame on
         // macOS while raylib animates the transition.
+        let project_name_hint = vfs.project_name_hint();
         let resolved_game_id = crate::game_id::GameId::resolve(
             config.game_id.as_deref(),
-            vfs.project_name_hint().as_deref(),
+            project_name_hint.as_deref(),
             vfs.as_bundle(),
+        );
+        let project_name = crate::project_name::ProjectName::resolve(
+            config.name.as_deref(),
+            project_name_hint.as_deref(),
         );
         let settings = crate::settings::load(&resolved_game_id);
         #[cfg(not(target_os = "emscripten"))]
@@ -346,7 +351,7 @@ impl Session {
         let mut builder = sola_raylib::init();
         builder
             .size((GAME_WIDTH * 2.) as i32, (GAME_HEIGHT * 2.) as i32)
-            .title(&config.title);
+            .title(project_name.display());
         #[cfg(not(target_os = "emscripten"))]
         {
             builder.highdpi().resizable();
@@ -1189,7 +1194,7 @@ mod tests {
         lua.load(
             r#"
             function _config()
-              return { title = "Hello, Usagi!" }
+              return { name = "Hello, Usagi!" }
             end
             "#,
         )
@@ -1197,7 +1202,7 @@ mod tests {
         .unwrap();
         let mut err = None;
         let config = read_config(&lua, &mut err);
-        assert_eq!(config.title, "Hello, Usagi!");
+        assert_eq!(config.name.as_deref(), Some("Hello, Usagi!"));
         assert!(err.is_none());
     }
 
@@ -1234,7 +1239,7 @@ mod tests {
     fn config_without_pixel_perfect_field_keeps_default() {
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
-        lua.load(r#"function _config() return { title = "Game" } end"#)
+        lua.load(r#"function _config() return { name = "Game" } end"#)
             .exec()
             .unwrap();
         let mut err = None;
@@ -1244,7 +1249,7 @@ mod tests {
             Config::default().pixel_perfect,
             "missing pixel_perfect field must not override the default"
         );
-        assert_eq!(config.title, "Game");
+        assert_eq!(config.name.as_deref(), Some("Game"));
         assert!(err.is_none());
     }
 
@@ -1254,18 +1259,18 @@ mod tests {
         setup_api(&lua, false).unwrap();
         let mut err = None;
         let config = read_config(&lua, &mut err);
-        assert_eq!(config.title, "Usagi");
+        assert!(config.name.is_none());
         assert!(err.is_none());
     }
 
     #[test]
-    fn config_with_no_title_field_returns_default_title() {
+    fn config_with_no_name_field_leaves_name_unset() {
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
         lua.load("function _config() return {} end").exec().unwrap();
         let mut err = None;
         let config = read_config(&lua, &mut err);
-        assert_eq!(config.title, "Usagi");
+        assert!(config.name.is_none());
         assert!(err.is_none());
     }
 

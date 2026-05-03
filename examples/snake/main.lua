@@ -8,7 +8,7 @@ local ROWS = 18 -- usagi.GAME_H / CELL
 local TICK = 0.12
 
 function _config()
-  return { title = "Snake", game_id = "com.brettmakesgames.usagisnake" }
+  return { name = "Snake", game_id = "com.brettmakesgames.usagisnake" }
 end
 
 local function die()

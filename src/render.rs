@@ -63,14 +63,11 @@ pub fn draw_render_target<D: RaylibDraw>(
     );
 }
 
-/// Greedy word-wrap of `text` into lines that fit in `max_w` pixels.
-/// Width is determined per candidate substring by `measure`, so this
-/// works against any font (variable-width monogram in production, a
-/// fixed-width fake in tests). Tokens that on their own exceed `max_w`
-/// (typically the long path in a Lua error chunk name) are hard-broken
-/// character by character so nothing renders past the box edge. Empty
-/// input lines are preserved as empty output lines so blank-line
-/// spacing in the source survives the wrap.
+/// Greedy word-wrap to `max_w` pixels using `measure`. Tokens longer
+/// than `max_w` (Lua error chunk paths) are hard-broken per char so
+/// nothing renders past the edge. Empty input lines pass through as
+/// empty output lines. `measure` is a closure so tests can swap in a
+/// fixed-width fake without a Font.
 fn wrap_to_width<M: Fn(&str) -> f32>(measure: M, text: &str, max_w: f32) -> Vec<String> {
     let mut out = Vec::new();
     for line in text.lines() {

@@ -14,7 +14,7 @@ local EXHAUST_COLORS = {
 }
 
 function _config()
-  return { title = "Sprites", icon = 1 }
+  return { name = "Sprites", icon = 1 }
 end
 
 local function clamp(value, min, max)

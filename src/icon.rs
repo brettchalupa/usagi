@@ -52,17 +52,14 @@ pub fn apply_from_sprites(rl: &mut RaylibHandle, sprites_bytes: &[u8], index: u3
     }
 }
 
-/// Sizes (px) shipped to the window manager as the icon set. The
-/// source is 16x16; everything larger is a clean integer-multiple
-/// nearest-neighbor upscale so the pixel art stays crisp. Linux WMs
-/// (KDE Plasma ≈32, GNOME ≈48) and Windows taskbars pick the closest
-/// match out of the set instead of bilinearly stretching the bare 16.
+/// Sizes shipped to the WM. Linux WMs (KDE ≈32, GNOME ≈48) and Windows
+/// taskbars pick the closest match; nearest-neighbor upscales of the
+/// 16x16 source keep pixel art crisp at every size.
 #[cfg(not(target_os = "emscripten"))]
 const ICON_RES_PX: &[u32] = &[16, 32, 48, 64, 128, 256];
 
-/// Builds a multi-resolution icon set from `src` and hands it to
-/// `glfwSetWindowIcon` via raylib. GLFW copies the pixel data before
-/// returning, so the scaled buffers can drop on this function's exit.
+/// GLFW copies the pixel data during `SetWindowIcons`, so the scaled
+/// buffers can drop on return.
 #[cfg(not(target_os = "emscripten"))]
 fn apply_multires(rl: &mut RaylibHandle, src: &Image) {
     let src_w = src.width() as u32;

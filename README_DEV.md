@@ -229,19 +229,32 @@ Define any of these as globals for Usagi to call them:
 
 #### `_config`
 
-Currently supports `title` (defaults to "Usagi") and `pixel_perfect` (defaults
-to `false`). When `true`, the game renders at integer scale multiples only (1×,
-2×, 3×, ...) with black letterbox bars filling any leftover window space. When
-`false`, the game scales at any factor that fits the window while preserving the
-game's aspect ratio, so bars only appear on the axis with extra room, never
-distorting the image. The default is `false` because at common fullscreen
-resolutions (720p, 1080p, 4K) the game's 320×180 native size lands on an integer
-multiple anyway, and in windowed mode it looks good still.
+Supported fields:
+
+- `name`: display name. Drives the window title bar, the macOS `.app` bundle
+  directory (`Sprite Example.app`), the Info.plist `CFBundleName` /
+  `CFBundleDisplayName`, and (after slugging to ASCII kebab-case) the archive
+  filenames + Linux/Windows binary names produced by `usagi
+  export`. Defaults
+  to the project directory name (`examples/spr/main.lua` → "spr"); falls back to
+  "Usagi" if no path is available.
+- `pixel_perfect` (default `false`): when `true`, the game renders at integer
+  scale multiples only (1×, 2×, 3×, ...) with black letterbox bars filling any
+  leftover window space. When `false`, the game scales at any factor that fits
+  the window while preserving the game's aspect ratio, so bars only appear on
+  the axis with extra room, never distorting the image. The default is `false`
+  because at common fullscreen resolutions (720p, 1080p, 4K) the game's 320×180
+  native size lands on an integer multiple anyway, and in windowed mode it looks
+  good still.
+- `game_id`: reverse-DNS string like `com.brettmakesgames.snake`, namespaces
+  save data and the macOS bundle identifier. Optional.
+- `icon`: 1-based tile index into `sprites.png`, used as the window icon and (on
+  `usagi export --target macos`) the `.app` icon.
 
 ```lua
 function _config()
   return {
-    title = "Snake",
+    name = "Snake",
     pixel_perfect = true,
     game_id = "com.example.snake",
     icon = 1,

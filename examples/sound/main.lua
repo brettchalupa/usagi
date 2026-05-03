@@ -1,5 +1,5 @@
 function _config()
-  return { title = "Sound" }
+  return { name = "Sound" }
 end
 
 function _update(dt)

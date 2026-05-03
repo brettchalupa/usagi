@@ -27,6 +27,7 @@ mod input;
 mod palette;
 mod pause;
 mod preprocess;
+mod project_name;
 mod render;
 mod save;
 mod session;
