@@ -11,7 +11,7 @@ function _config()
 end
 
 function _init()
-  state = {
+  State = {
     boxes = {
       { x = 50, y = 50, w = 28, h = 28, color = gfx.COLOR_PEACH },
       { x = 110, y = 70, w = 32, h = 22, color = gfx.COLOR_GREEN },
@@ -125,27 +125,27 @@ function _update(_dt)
 
   -- Pick a box to drag on the press edge. Iterate in reverse so the
   -- visually-on-top box (drawn last) gets the click when boxes stack.
-  if in_bounds and input.mouse_pressed(input.MOUSE_LEFT) and not state.dragged then
-    for i = #state.boxes, 1, -1 do
-      if point_in_rect(mx, my, state.boxes[i]) then
-        state.dragged = i
-        state.drag_offset = {
-          x = state.boxes[i].x - mx,
-          y = state.boxes[i].y - my,
+  if in_bounds and input.mouse_pressed(input.MOUSE_LEFT) and not State.dragged then
+    for i = #State.boxes, 1, -1 do
+      if point_in_rect(mx, my, State.boxes[i]) then
+        State.dragged = i
+        State.drag_offset = {
+          x = State.boxes[i].x - mx,
+          y = State.boxes[i].y - my,
         }
         break
       end
     end
   end
 
-  if state.dragged and input.mouse_down(input.MOUSE_LEFT) then
-    local b = state.boxes[state.dragged]
-    b.x = mx + state.drag_offset.x
-    b.y = my + state.drag_offset.y
+  if State.dragged and input.mouse_down(input.MOUSE_LEFT) then
+    local b = State.boxes[State.dragged]
+    b.x = mx + State.drag_offset.x
+    b.y = my + State.drag_offset.y
     clamp_to_play_area(b)
   else
-    state.dragged = nil
-    state.drag_offset = nil
+    State.dragged = nil
+    State.drag_offset = nil
   end
 
   -- Resolve overlaps in passes so cascades settle: dragged pushes A,
@@ -153,15 +153,15 @@ function _update(_dt)
   -- a pathological wedge can't lock the frame.
   for _ = 1, MAX_PASSES do
     local any_moved = false
-    for i = 1, #state.boxes - 1 do
-      for j = i + 1, #state.boxes do
-        local a = state.boxes[i]
-        local b = state.boxes[j]
-        if i == state.dragged then
+    for i = 1, #State.boxes - 1 do
+      for j = i + 1, #State.boxes do
+        local a = State.boxes[i]
+        local b = State.boxes[j]
+        if i == State.dragged then
           if push_out(b, a) then
             any_moved = true
           end
-        elseif j == state.dragged then
+        elseif j == State.dragged then
           if push_out(a, b) then
             any_moved = true
           end
@@ -180,8 +180,8 @@ function _update(_dt)
   -- Final wall clamp on non-dragged boxes. Pushed-into-wall boxes may
   -- visibly overlap the dragged one for a frame; that's the wedge
   -- case and the cursor is the explicit input source so we accept it.
-  for i, b in ipairs(state.boxes) do
-    if i ~= state.dragged then
+  for i, b in ipairs(State.boxes) do
+    if i ~= State.dragged then
       clamp_to_play_area(b)
     end
   end
@@ -190,12 +190,12 @@ end
 function _draw(_dt)
   gfx.clear(gfx.COLOR_DARK_BLUE)
 
-  for i, b in ipairs(state.boxes) do
+  for i, b in ipairs(State.boxes) do
     gfx.rect_fill(b.x, b.y, b.w, b.h, b.color)
     -- Brighter outline on the box you're holding so the interaction
-    -- state is readable while the cursor moves around.
+    -- State is readable while the cursor moves around.
     local outline
-    if i == state.dragged then
+    if i == State.dragged then
       outline = gfx.COLOR_WHITE
     else
       outline = gfx.COLOR_DARK_GRAY

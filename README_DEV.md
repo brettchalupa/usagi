@@ -181,7 +181,15 @@ Not sure yet what's next! Some ideas:
 **Philosophy:** keep it simple, name things clearly, and prefer fixed function
 signatures.
 
-**Style**: for Lua, 2 spaces indent with snake_case is used throughout.
+**Style**: for Lua, 2 spaces indent with `snake_case` for locals, function
+names, and table fields. `SCREAMING_SNAKE_CASE` for file-scope constants
+(`local TICK = 0.12`, `gfx.COLOR_*`). Cross-frame globals are **`Capitalized`**
+— the canonical game-state container is `State`, set inside `_init`; module
+imports kept as globals are `Player = require("player")`. The shipped
+`.luarc.json` enables `lowercase-global`, so any unguarded lowercase assignment
+at file scope is flagged as an accidental missing `local`. Engine API (`gfx`,
+`input`, `sfx`, `music`, `usagi`) stays lowercase and is exempt from the lint
+via `meta/usagi.lua`.
 
 ### Compound assignment operators
 
@@ -197,8 +205,8 @@ the Lua VM, adding compound assignment sugar:
 | `%=`     | `x = x % y` |
 
 ```lua
-state.score += 1
-state.timer += dt
+State.score += 1
+State.timer += dt
 ```
 
 Limitations: the rewrite is line-anchored, so `if cond then x += 1 end` is left
@@ -212,8 +220,8 @@ lua-language-server stops underlining them as syntax errors.
 
 Define any of these as globals for Usagi to call them:
 
-- `_init()` — once at start, and when the user presses **F5**. Put state setup
-  here.
+- `_init()` — once at start, and when the user presses **F5**. Initialize
+  `State` (and any other cross-frame globals) here.
 - `_update(dt)` — each frame, before draw. `dt` is seconds since last frame.
 - `_draw(dt)` — each frame, after update. `dt` same as above.
 - `_config()` — optional. Called **once at startup, before the window opens**;
@@ -404,12 +412,12 @@ Engine-level info.
   end
 
   function _init()
-    state = usagi.load() or { score = 0, best = 0 }
+    State = usagi.load() or { score = 0, best = 0 }
   end
 
   function _update(dt)
-    -- ... gameplay updates state.score, state.best ...
-    usagi.save(state)  -- call whenever you want to persist
+    -- ... gameplay updates State.score, State.best ...
+    usagi.save(State)  -- call whenever you want to persist
   end
   ```
 
@@ -533,7 +541,7 @@ The Pico-8 shim allows you to write code like in Pico-8:
 ```lua
 -- check for input
 if btn(0) then
-  state.p.x = state.p.x - state.p.spd * dt
+  State.p.x = State.p.x - State.p.spd * dt
 end
 
 -- draw a sprite from sprites.png
@@ -575,12 +583,24 @@ progress.
 
 ### Writing Reload-Friendly Scripts
 
-The chunk re-executes on save, so any top-level `local` bindings get fresh `nil`
-values each time — callbacks that captured them as upvalues will see `nil` and
-crash. The pattern:
+The chunk re-executes on save, so any top-level `local` bindings get re-bound
+each time. A `local State` at module scope would get reset to a fresh table on
+every save and obliterate the running game; it has to be a global. The pattern:
 
-- **Mutable state** → globals, assigned only in `_init`.
-- **Constants and module aliases** → file-scope `local`.
+- **Mutable game state** → a single capitalized global, conventionally `State`,
+  assigned only inside `_init`. `_init` runs once at startup and on F5, so the
+  table outlives reloads. Saved edits keep your in-progress game intact.
+- **Constants** → file-scope `local`. Re-binding to the same value each reload
+  is harmless.
+- **Required modules** → either file-scope `local Foo = require("foo")`, or a
+  capitalized global `Foo = require("foo")` if you want `Foo` reachable from
+  every file without re-requiring. Both work; the global form is convenient for
+  engine-wide tables like `Player`, `Enemy`.
+
+The shipped `.luarc.json` enables the `lowercase-global` diagnostic to catch the
+most common footgun: forgetting `local` and accidentally creating a global named
+`score`, `timer`, etc. Capitalize anything you actually mean to make global;
+lowercase top-level assignments will warn.
 
 See
 [`examples/hello_usagi.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/hello_usagi.lua)

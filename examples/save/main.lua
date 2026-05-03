@@ -24,26 +24,26 @@ local function fresh_state()
 end
 
 function _init()
-  state = usagi.load() or fresh_state()
+  State = usagi.load() or fresh_state()
 end
 
 function _update(dt)
-  state.playtime += dt
+  State.playtime += dt
 
   if input.pressed(input.BTN1) then
-    state.last_saved_at = tonumber(os.time())
-    usagi.save(state)
+    State.last_saved_at = tonumber(os.time())
+    usagi.save(State)
     print("Saved!")
   end
 
   if input.pressed(input.BTN2) then
-    state = fresh_state()
-    usagi.save(state)
+    State = fresh_state()
+    usagi.save(State)
     print("Reset save!")
   end
 
   if input.pressed(input.BTN3) then
-    state = usagi.load() or fresh_state()
+    State = usagi.load() or fresh_state()
     print("Loaded!")
   end
 end
@@ -53,8 +53,8 @@ function _draw(_dt)
   gfx.text("SAVE DEMO", 10, 10, gfx.COLOR_WHITE)
   local now = os.date("%Y-%m-%d %H:%M:%S", os.time())
   gfx.text("current time: " .. now, 10, 30, gfx.COLOR_PEACH)
-  local saved = state.last_saved_at and os.date("%Y-%m-%d %H:%M:%S", state.last_saved_at) or "never"
+  local saved = State.last_saved_at and os.date("%Y-%m-%d %H:%M:%S", State.last_saved_at) or "never"
   gfx.text("last saved at: " .. saved, 10, 46, gfx.COLOR_PINK)
-  gfx.text(string.format("playtime: %.1fs", state.playtime), 10, 62, gfx.COLOR_YELLOW)
+  gfx.text(string.format("playtime: %.1fs", State.playtime), 10, 62, gfx.COLOR_YELLOW)
   gfx.text("BTN1 to save; BTN2 to reset; BTN3 to load", 10, usagi.GAME_H - 18, gfx.COLOR_LIGHT_GRAY)
 end

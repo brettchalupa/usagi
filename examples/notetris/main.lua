@@ -23,54 +23,54 @@ function _config()
 end
 
 local function spawn(key)
-  state.piece = pieces.new(key)
-  state.fall_timer = 0
-  state.hold_used = false
-  if board.collides(state.board, state.piece, 0, 0) then
-    state.alive = false
+  State.piece = pieces.new(key)
+  State.fall_timer = 0
+  State.hold_used = false
+  if board.collides(State.board, State.piece, 0, 0) then
+    State.alive = false
     sfx.play("gameover")
-    effects.trigger_shake(state.fx, 1, 0.25)
-    usagi.save({ high_score = state.high_score })
+    effects.trigger_shake(State.fx, 1, 0.25)
+    usagi.save({ high_score = State.high_score })
   end
 end
 
 local function spawn_next()
-  local key = state.next or pieces.pull(state.bag)
-  state.next = pieces.pull(state.bag)
+  local key = State.next or pieces.pull(State.bag)
+  State.next = pieces.pull(State.bag)
   spawn(key)
 end
 
 local function commit_piece()
-  board.lock(state.board, state.piece)
-  local rows = board.detect_full_rows(state.board)
+  board.lock(State.board, State.piece)
+  local rows = board.detect_full_rows(State.board)
   local n = #rows
   if n > 0 then
-    state.clearing_rows = rows
-    state.clear_timer = cfg.CLEAR_FLASH_DURATION
-    state.piece = nil
+    State.clearing_rows = rows
+    State.clear_timer = cfg.CLEAR_FLASH_DURATION
+    State.piece = nil
 
-    local gain = scoring.score_for_lines(n, state.level)
-    state.score = state.score + gain
-    state.lines = state.lines + n
-    local prev_level = state.level
-    state.level = scoring.level_for_lines(state.lines)
-    if state.level > prev_level then
+    local gain = scoring.score_for_lines(n, State.level)
+    State.score = State.score + gain
+    State.lines = State.lines + n
+    local prev_level = State.level
+    State.level = scoring.level_for_lines(State.lines)
+    if State.level > prev_level then
       sfx.play("levelup")
     end
 
     local cy = cfg.BOARD_Y + (rows[1] - 1) * cfg.CELL
     local cx = cfg.BOARD_X + cfg.BOARD_W / 2
-    effects.add_popup(state.fx, "+" .. gain, cx, cy - 4, gfx.COLOR_YELLOW)
-    effects.add_popup(state.fx, POPUP_LABELS[n], cx, cy + 6, gfx.COLOR_WHITE)
+    effects.add_popup(State.fx, "+" .. gain, cx, cy - 4, gfx.COLOR_YELLOW)
+    effects.add_popup(State.fx, POPUP_LABELS[n], cx, cy + 6, gfx.COLOR_WHITE)
 
     sfx.play(n == 4 and "tetris" or "clear")
     if n == 4 then
-      effects.trigger_shake(state.fx, 1, 0.1)
+      effects.trigger_shake(State.fx, 1, 0.1)
       local sum_y = 0
       for _, r in ipairs(rows) do
         sum_y = sum_y + (cfg.BOARD_Y + (r - 1) * cfg.CELL + cfg.CELL / 2)
       end
-      effects.trigger_pulse(state.fx, (sum_y / n) / usagi.GAME_H, 0.5, 1.0)
+      effects.trigger_pulse(State.fx, (sum_y / n) / usagi.GAME_H, 0.5, 1.0)
     end
   else
     sfx.play("lock")
@@ -84,7 +84,7 @@ function _init()
 
   local saved = usagi.load()
   local prev_high = (saved and saved.high_score) or 0
-  state = {
+  State = {
     board = board.new(),
     bag = pieces.new_bag(),
     next = nil,
@@ -105,44 +105,44 @@ function _init()
     clear_timer = 0,
     fx = effects.new(),
   }
-  state.next = pieces.pull(state.bag)
+  State.next = pieces.pull(State.bag)
   spawn_next()
 end
 
 local function do_hold()
-  if state.hold_used then
+  if State.hold_used then
     return
   end
-  local current = state.piece.key
-  if state.hold then
-    local swap = state.hold
-    state.hold = current
+  local current = State.piece.key
+  if State.hold then
+    local swap = State.hold
+    State.hold = current
     spawn(swap)
   else
-    state.hold = current
+    State.hold = current
     spawn_next()
   end
-  state.hold_used = true
+  State.hold_used = true
   sfx.play("hold")
 end
 
 local function try_move(dx, dy)
-  if not board.collides(state.board, state.piece, dx, dy) then
-    state.piece.x = state.piece.x + dx
-    state.piece.y = state.piece.y + dy
+  if not board.collides(State.board, State.piece, dx, dy) then
+    State.piece.x = State.piece.x + dx
+    State.piece.y = State.piece.y + dy
     return true
   end
   return false
 end
 
 local function try_rotate(dir)
-  local rot = (dir > 0) and pieces.rotate_cw(state.piece.grid) or pieces.rotate_ccw(state.piece.grid)
+  local rot = (dir > 0) and pieces.rotate_cw(State.piece.grid) or pieces.rotate_ccw(State.piece.grid)
   -- Wall kicks: try the rotated shape at center, then nudged ±1, ±2 cols.
   local kicks = { 0, 1, -1, 2, -2 }
   for _, kx in ipairs(kicks) do
-    if not board.collides(state.board, state.piece, kx, 0, rot) then
-      state.piece.grid = rot
-      state.piece.x = state.piece.x + kx
+    if not board.collides(State.board, State.piece, kx, 0, rot) then
+      State.piece.grid = rot
+      State.piece.x = State.piece.x + kx
       sfx.play("rotate")
       return true
     end
@@ -151,9 +151,9 @@ local function try_rotate(dir)
 end
 
 local function hard_drop()
-  local d = board.ghost_drop_distance(state.board, state.piece)
-  state.piece.y = state.piece.y + d
-  state.score = state.score + d * 2
+  local d = board.ghost_drop_distance(State.board, State.piece)
+  State.piece.y = State.piece.y + d
+  State.score = State.score + d * 2
   commit_piece()
   sfx.play("drop")
 end
@@ -165,24 +165,24 @@ local function step_gravity()
 end
 
 function _update(dt)
-  effects.update(state.fx, dt)
-  state.t = state.t + dt
-  if state.score > state.high_score then
-    state.high_score = state.score
+  effects.update(State.fx, dt)
+  State.t = State.t + dt
+  if State.score > State.high_score then
+    State.high_score = State.score
   end
 
-  if state.clearing_rows then
-    state.clear_timer = state.clear_timer - dt
-    if state.clear_timer <= 0 then
-      board.remove_rows(state.board, state.clearing_rows)
-      state.clearing_rows = nil
-      state.clear_timer = 0
+  if State.clearing_rows then
+    State.clear_timer = State.clear_timer - dt
+    if State.clear_timer <= 0 then
+      board.remove_rows(State.board, State.clearing_rows)
+      State.clearing_rows = nil
+      State.clear_timer = 0
       spawn_next()
     end
     return
   end
 
-  if not state.alive then
+  if not State.alive then
     if input.pressed(input.BTN1) then
       _init()
     end
@@ -192,13 +192,13 @@ function _update(dt)
   -- Horizontal: pressed = immediate move, then DAS delay before ARR autorepeat.
   if input.pressed(input.LEFT) then
     try_move(-1, 0)
-    state.move_dir = -1
-    state.move_timer = -cfg.DAS
+    State.move_dir = -1
+    State.move_timer = -cfg.DAS
   end
   if input.pressed(input.RIGHT) then
     try_move(1, 0)
-    state.move_dir = 1
-    state.move_timer = -cfg.DAS
+    State.move_dir = 1
+    State.move_timer = -cfg.DAS
   end
 
   local dir = 0
@@ -208,17 +208,17 @@ function _update(dt)
   if input.down(input.RIGHT) then
     dir = dir + 1
   end
-  if dir ~= 0 and dir == state.move_dir then
-    state.move_timer = state.move_timer + dt
-    while state.move_timer >= cfg.ARR do
-      state.move_timer = state.move_timer - cfg.ARR
+  if dir ~= 0 and dir == State.move_dir then
+    State.move_timer = State.move_timer + dt
+    while State.move_timer >= cfg.ARR do
+      State.move_timer = State.move_timer - cfg.ARR
       if not try_move(dir, 0) then
         break
       end
     end
   else
-    state.move_timer = 0
-    state.move_dir = 0
+    State.move_timer = 0
+    State.move_dir = 0
   end
 
   if input.pressed(input.BTN1) then
@@ -230,7 +230,7 @@ function _update(dt)
 
   if input.pressed(input.BTN3) then
     do_hold()
-    if not state.alive then
+    if not State.alive then
       return
     end
   end
@@ -241,32 +241,32 @@ function _update(dt)
   end
 
   if input.pressed(input.DOWN) then
-    state.fall_timer = 0
+    State.fall_timer = 0
   end
 
-  local interval = scoring.gravity_interval(state.level)
+  local interval = scoring.gravity_interval(State.level)
   if input.down(input.DOWN) then
     interval = math.min(interval, cfg.SOFT_DROP_INTERVAL)
   end
 
-  state.fall_timer = state.fall_timer + dt
-  while state.fall_timer >= interval do
-    state.fall_timer = state.fall_timer - interval
+  State.fall_timer = State.fall_timer + dt
+  while State.fall_timer >= interval do
+    State.fall_timer = State.fall_timer - interval
     if input.down(input.DOWN) then
-      state.score = state.score + 1
+      State.score = State.score + 1
     end
     step_gravity()
-    if not state.alive or state.clearing_rows then
+    if not State.alive or State.clearing_rows then
       break
     end
   end
 end
 
 local function row_is_clearing(r)
-  if not state.clearing_rows then
+  if not State.clearing_rows then
     return false
   end
-  for _, fr in ipairs(state.clearing_rows) do
+  for _, fr in ipairs(State.clearing_rows) do
     if fr == r then
       return true
     end
@@ -275,14 +275,14 @@ local function row_is_clearing(r)
 end
 
 function _draw(_dt)
-  gfx.shader_uniform("u_time", state.t)
-  gfx.shader_uniform("u_pulse", effects.pulse_value(state.fx))
-  gfx.shader_uniform("u_pulse_y", state.fx.pulse_y)
+  gfx.shader_uniform("u_time", State.t)
+  gfx.shader_uniform("u_pulse", effects.pulse_value(State.fx))
+  gfx.shader_uniform("u_pulse_y", State.fx.pulse_y)
 
   gfx.clear(gfx.COLOR_DARK_BLUE)
 
   -- Playfield-only shake offset: HUD stays anchored, board rattles.
-  local sx, sy = effects.shake_offset(state.fx)
+  local sx, sy = effects.shake_offset(State.fx)
   local bx = cfg.BOARD_X + sx
   local by = cfg.BOARD_Y + sy
 
@@ -291,12 +291,12 @@ function _draw(_dt)
   gfx.rect_fill(bx, by, cfg.BOARD_W, cfg.BOARD_H, gfx.COLOR_BLACK)
 
   -- Flash cleared rows on/off across the brief pre-removal window.
-  local flash_on = state.clearing_rows and (math.floor(state.clear_timer * 30) % 2 == 0) or false
+  local flash_on = State.clearing_rows and (math.floor(State.clear_timer * 30) % 2 == 0) or false
 
   for r = 1, cfg.ROWS do
     for c = 1, cfg.COLS do
-      if state.board[r][c] ~= 0 then
-        local color = state.board[r][c]
+      if State.board[r][c] ~= 0 then
+        local color = State.board[r][c]
         if flash_on and row_is_clearing(r) then
           color = gfx.COLOR_WHITE
         end
@@ -305,52 +305,52 @@ function _draw(_dt)
     end
   end
 
-  if state.alive and state.piece then
-    local gd = board.ghost_drop_distance(state.board, state.piece)
+  if State.alive and State.piece then
+    local gd = board.ghost_drop_distance(State.board, State.piece)
     draw.ghost(
-      state.piece.grid,
-      state.piece.color,
-      bx + (state.piece.x - 1) * cfg.CELL,
-      by + (state.piece.y - 1 + gd) * cfg.CELL
+      State.piece.grid,
+      State.piece.color,
+      bx + (State.piece.x - 1) * cfg.CELL,
+      by + (State.piece.y - 1 + gd) * cfg.CELL
     )
     draw.piece(
-      state.piece.grid,
-      state.piece.color,
-      bx + (state.piece.x - 1) * cfg.CELL,
-      by + (state.piece.y - 1) * cfg.CELL
+      State.piece.grid,
+      State.piece.color,
+      bx + (State.piece.x - 1) * cfg.CELL,
+      by + (State.piece.y - 1) * cfg.CELL
     )
   end
 
-  effects.draw_popups(state.fx, sx, sy)
+  effects.draw_popups(State.fx, sx, sy)
 
   gfx.text("notetris", usagi.GAME_W - usagi.measure_text("notetris") - 10, 10, gfx.COLOR_WHITE)
 
   local hold_x = 56
   gfx.text("hold", hold_x, 10, gfx.COLOR_LIGHT_GRAY)
-  if state.hold then
-    local p = pieces.DEFS[state.hold]
-    local color = state.hold_used and gfx.COLOR_DARK_GRAY or p.color
+  if State.hold then
+    local p = pieces.DEFS[State.hold]
+    local color = State.hold_used and gfx.COLOR_DARK_GRAY or p.color
     draw.piece(p.grid, color, hold_x, 24)
   end
 
   -- Right-side stats.
-  local new_high = state.score > state.prev_high and state.score > 0
+  local new_high = State.score > State.prev_high and State.score > 0
   gfx.text("score", cfg.UI_X, 10, gfx.COLOR_LIGHT_GRAY)
-  gfx.text(tostring(state.score), cfg.UI_X, 22, new_high and gfx.COLOR_GREEN or gfx.COLOR_WHITE)
+  gfx.text(tostring(State.score), cfg.UI_X, 22, new_high and gfx.COLOR_GREEN or gfx.COLOR_WHITE)
   gfx.text("high", cfg.UI_X, 38, gfx.COLOR_LIGHT_GRAY)
-  gfx.text(tostring(state.high_score), cfg.UI_X, 50, gfx.COLOR_PEACH)
+  gfx.text(tostring(State.high_score), cfg.UI_X, 50, gfx.COLOR_PEACH)
   gfx.text("level", cfg.UI_X, 66, gfx.COLOR_LIGHT_GRAY)
-  gfx.text(tostring(state.level), cfg.UI_X, 78, gfx.COLOR_WHITE)
+  gfx.text(tostring(State.level), cfg.UI_X, 78, gfx.COLOR_WHITE)
   gfx.text("lines", cfg.UI_X, 94, gfx.COLOR_LIGHT_GRAY)
-  gfx.text(tostring(state.lines), cfg.UI_X, 106, gfx.COLOR_WHITE)
+  gfx.text(tostring(State.lines), cfg.UI_X, 106, gfx.COLOR_WHITE)
 
   gfx.text("next", cfg.UI_X, 128, gfx.COLOR_LIGHT_GRAY)
-  if state.next then
-    local p = pieces.DEFS[state.next]
+  if State.next then
+    local p = pieces.DEFS[State.next]
     draw.piece(p.grid, p.color, cfg.UI_X, 142)
   end
 
-  if not state.alive then
+  if not State.alive then
     local msg = "game over"
     local w = usagi.measure_text(msg)
     local box_y = by + cfg.BOARD_H / 2 - 22

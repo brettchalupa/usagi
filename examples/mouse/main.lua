@@ -7,7 +7,7 @@ function _init()
   -- BTN3 (C / L) to compare.
   input.set_mouse_visible(false)
 
-  state = {
+  State = {
     sparks = {},
   }
 end
@@ -21,7 +21,7 @@ local SPARK_COLORS = {
 
 local function emit_spark(x, y, speed, life)
   local angle = math.random() * math.pi * 2
-  state.sparks[#state.sparks + 1] = {
+  State.sparks[#State.sparks + 1] = {
     x = x,
     y = y,
     vx = math.cos(angle) * speed,
@@ -52,22 +52,22 @@ function _update(dt)
 
   if input.mouse_pressed(input.MOUSE_RIGHT) then
     -- Right click: wipe.
-    state.sparks = {}
+    State.sparks = {}
   end
 
   if input.pressed(input.BTN3) then
     input.set_mouse_visible(not input.mouse_visible())
   end
 
-  for i = #state.sparks, 1, -1 do
-    local s = state.sparks[i]
+  for i = #State.sparks, 1, -1 do
+    local s = State.sparks[i]
     s.x = s.x + s.vx * dt
     s.y = s.y + s.vy * dt
     -- Light gravity for a fountain-y feel.
     s.vy = s.vy + 60 * dt
     s.life = s.life - dt
     if s.life <= 0 then
-      table.remove(state.sparks, i)
+      table.remove(State.sparks, i)
     end
   end
 end
@@ -85,7 +85,7 @@ end
 function _draw(_dt)
   gfx.clear(gfx.COLOR_DARK_BLUE)
 
-  for _, s in ipairs(state.sparks) do
+  for _, s in ipairs(State.sparks) do
     gfx.pixel(s.x, s.y, s.color)
   end
 

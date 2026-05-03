@@ -7,7 +7,7 @@ function _config()
 end
 
 function _init()
-  state = {
+  State = {
     waypoints = {},
     unit = {
       x = usagi.GAME_W / 2,
@@ -26,27 +26,27 @@ function _update(dt)
   local in_bounds = mx >= 0 and mx < usagi.GAME_W and my >= 0 and my < usagi.GAME_H
 
   if in_bounds and input.mouse_pressed(input.MOUSE_LEFT) then
-    state.waypoints[#state.waypoints + 1] = { x = mx, y = my }
+    State.waypoints[#State.waypoints + 1] = { x = mx, y = my }
   end
 
   if input.mouse_pressed(input.MOUSE_RIGHT) then
-    state.waypoints = {}
+    State.waypoints = {}
   end
 
   -- Walk toward the next waypoint at a constant speed. When close
   -- enough, pop it and the next one becomes the target. dt-based step
   -- so movement stays consistent across frame rates.
-  local next_wp = state.waypoints[1]
+  local next_wp = State.waypoints[1]
   if next_wp then
-    local dx = next_wp.x - state.unit.x
-    local dy = next_wp.y - state.unit.y
+    local dx = next_wp.x - State.unit.x
+    local dy = next_wp.y - State.unit.y
     local dist = math.sqrt(dx * dx + dy * dy)
     if dist <= ARRIVE_DISTANCE then
-      table.remove(state.waypoints, 1)
+      table.remove(State.waypoints, 1)
     else
-      local step = state.unit.spd * dt
-      state.unit.x = state.unit.x + (dx / dist) * step
-      state.unit.y = state.unit.y + (dy / dist) * step
+      local step = State.unit.spd * dt
+      State.unit.x = State.unit.x + (dx / dist) * step
+      State.unit.y = State.unit.y + (dy / dist) * step
     end
   end
 end
@@ -56,20 +56,20 @@ function _draw(_dt)
 
   -- Path between queued waypoints, so the player can read the route
   -- the unit will take.
-  for i = 1, #state.waypoints - 1 do
-    local a = state.waypoints[i]
-    local b = state.waypoints[i + 1]
+  for i = 1, #State.waypoints - 1 do
+    local a = State.waypoints[i]
+    local b = State.waypoints[i + 1]
     gfx.line(a.x, a.y, b.x, b.y, gfx.COLOR_DARK_GRAY)
   end
 
   -- Live tether from the unit to its current target, in a brighter
   -- color so the immediate goal stands out from the rest of the path.
-  local target = state.waypoints[1]
+  local target = State.waypoints[1]
   if target then
-    gfx.line(state.unit.x, state.unit.y, target.x, target.y, gfx.COLOR_YELLOW)
+    gfx.line(State.unit.x, State.unit.y, target.x, target.y, gfx.COLOR_YELLOW)
   end
 
-  for i, w in ipairs(state.waypoints) do
+  for i, w in ipairs(State.waypoints) do
     -- Highlight the active waypoint in pink; the rest are indigo. A
     -- gentle pulse on the active one, for vibes.
     local color
@@ -85,8 +85,8 @@ function _draw(_dt)
     gfx.circ_fill(w.x, w.y, r, color)
   end
 
-  gfx.circ_fill(state.unit.x, state.unit.y, UNIT_RADIUS, gfx.COLOR_WHITE)
+  gfx.circ_fill(State.unit.x, State.unit.y, UNIT_RADIUS, gfx.COLOR_WHITE)
 
   gfx.text("Left click: drop waypoint   Right click: clear", 4, 4, gfx.COLOR_WHITE)
-  gfx.text("Queued: " .. #state.waypoints, 4, 14, gfx.COLOR_LIGHT_GRAY)
+  gfx.text("Queued: " .. #State.waypoints, 4, 14, gfx.COLOR_LIGHT_GRAY)
 end
