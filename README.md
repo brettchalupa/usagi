@@ -22,7 +22,7 @@ make, and get help.](https://usagiengine.com/discord)
 [Download the latest Usagi build for your operating
 system.](https://github.com/brettchalupa/usagi/releases/latest)
 
-**Latest Usagi release:** v0.3.0
+**Latest Usagi release:** v0.4.0
 
 You can keep the `usagi` executable in your project folder or install it
 globally on your computer.
@@ -30,6 +30,30 @@ globally on your computer.
 Other places to download Usagi:
 
 - [itch.io](https://brettchalupa.itch.io/usagi)
+
+## Features / Bugs
+
+Usagi embraces a few constraints inspired by Pico-8 and Pyxel to help focus on
+prototyping rather than making polished high-resolution graphics. These may
+change in the future or be configurable.
+
+- **Live Reload**: when you run `usagi dev`, your game automatically updates
+  with your newest code and assets, enabling rapid development
+- **Cross Platform Export**: run `usagi export` and your game is exported for
+  Linux, macOS, Windows, and web
+- **Limited Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely
+  to common monitor sizes
+- **One Spritesheet**: `sprites.png` is the only image file for textures that
+  can be loaded
+- **Small API**: you can't do everything with Usagi, but there's enough to make
+  simple 2D games
+- **Sprite Size**: 16px by 16px - using `gfx.spr` uses the index based on this
+  sized sprite; you can draw larger sprites with `gfx.sspr`
+- **Pico-8 Colors**: the color palette for drawing are the same as Pico-8 (but
+  with constants for easy reference)
+
+You currently must bring your own sound effects and sprite editor. A sprite
+editor could be nice in the future as part of the `usagi tools`.
 
 ## Hello, Usagi
 
@@ -103,6 +127,13 @@ simple yet surprisingly powerful, making it a good fit for Usagi.
 If you want to build a medium-to-large polished game, Usagi would not be a good
 fit.
 
+## Roadmap
+
+Not sure yet what's next! Some ideas:
+
+- Pause menu w/ settings and input mapping for players
+- Code signing for macOS app exports
+
 ## Project Layout
 
 An Usagi game is either a single `.lua` file or a directory with a `main.lua` in
@@ -148,40 +179,20 @@ Run with:
 Can you also run Usagi commands without the path to have it run in the current
 directory, like `usagi dev` or `usagi export`.
 
-## Constraints
-
-Usagi embraces a few constraints inspired by Pico-8 and Pyxel to help focus on
-prototyping rather than making polished high-resolution graphics. These may
-change in the future or be configurable.
-
-- **Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely to
-  common monitor sizes
-- **One Spritesheet**: `sprites.png` is the only image file for textures that
-  can be loaded
-- **Sprite Size**: 16px by 16px - using `gfx.spr` uses the index based on this
-  sized sprite; you can draw larger sprites with `gfx.sspr`
-- **Limited Colors**: the color palette for drawing are the same as Pico-8 (but
-  with constants for easy reference)
-
-You currently must bring your own sound effects and sprite editor. A sprite
-editor could be nice in the future as part of the `usagi tools`.
-
-## Roadmap
-
-Not sure yet what's next! Some ideas:
-
-- Pause menu w/ settings and input mapping for players
-- A single shader
-- Code signing for macOS apps
-- Pixel art editor in `usagi tools`
-- Simple editor in `usagi tools` with a simple API to use
-
 ## Lua API
 
 **Philosophy:** keep it simple, name things clearly, and prefer fixed function
 signatures.
 
-**Style**: for Lua, 2 spaces indent with snake_case is used throughout.
+**Style**: for Lua, 2 spaces indent with `snake_case` for locals, function
+names, and table fields. `SCREAMING_SNAKE_CASE` for file-scope constants
+(`local TICK = 0.12`, `gfx.COLOR_*`). Cross-frame globals are **`Capitalized`**
+— the canonical game-state container is `State`, set inside `_init`; module
+imports kept as globals are `Player = require("player")`. The shipped
+`.luarc.json` enables `lowercase-global`, so any unguarded lowercase assignment
+at file scope is flagged as an accidental missing `local`. Engine API (`gfx`,
+`input`, `sfx`, `music`, `usagi`) stays lowercase and is exempt from the lint
+via `meta/usagi.lua`.
 
 ### Compound assignment operators
 
@@ -197,8 +208,8 @@ the Lua VM, adding compound assignment sugar:
 | `%=`     | `x = x % y` |
 
 ```lua
-state.score += 1
-state.timer += dt
+State.score += 1
+State.timer += dt
 ```
 
 Limitations: the rewrite is line-anchored, so `if cond then x += 1 end` is left
@@ -212,8 +223,8 @@ lua-language-server stops underlining them as syntax errors.
 
 Define any of these as globals for Usagi to call them:
 
-- `_init()` — once at start, and when the user presses **F5**. Put state setup
-  here.
+- `_init()` — once at start, and when the user presses **F5**. Initialize
+  `State` (and any other cross-frame globals) here.
 - `_update(dt)` — each frame, before draw. `dt` is seconds since last frame.
 - `_draw(dt)` — each frame, after update. `dt` same as above.
 - `_config()` — optional. Called **once at startup, before the window opens**;
@@ -221,19 +232,32 @@ Define any of these as globals for Usagi to call them:
 
 #### `_config`
 
-Currently supports `title` (defaults to "Usagi") and `pixel_perfect` (defaults
-to `false`). When `true`, the game renders at integer scale multiples only (1×,
-2×, 3×, ...) with black letterbox bars filling any leftover window space. When
-`false`, the game scales at any factor that fits the window while preserving the
-game's aspect ratio, so bars only appear on the axis with extra room, never
-distorting the image. The default is `false` because at common fullscreen
-resolutions (720p, 1080p, 4K) the game's 320×180 native size lands on an integer
-multiple anyway, and in windowed mode it looks good still.
+Supported fields:
+
+- `name`: display name. Drives the window title bar, the macOS `.app` bundle
+  directory (`Sprite Example.app`), the Info.plist `CFBundleName` /
+  `CFBundleDisplayName`, and (after slugging to ASCII kebab-case) the archive
+  filenames + Linux/Windows binary names produced by `usagi
+  export`. Defaults
+  to the project directory name (`examples/spr/main.lua` → "spr"); falls back to
+  "Usagi" if no path is available.
+- `pixel_perfect` (default `false`): when `true`, the game renders at integer
+  scale multiples only (1×, 2×, 3×, ...) with black letterbox bars filling any
+  leftover window space. When `false`, the game scales at any factor that fits
+  the window while preserving the game's aspect ratio, so bars only appear on
+  the axis with extra room, never distorting the image. The default is `false`
+  because at common fullscreen resolutions (720p, 1080p, 4K) the game's 320×180
+  native size lands on an integer multiple anyway, and in windowed mode it looks
+  good still.
+- `game_id`: reverse-DNS string like `com.brettmakesgames.snake`, namespaces
+  save data and the macOS bundle identifier. Optional.
+- `icon`: 1-based tile index into `sprites.png`, used as the window icon and (on
+  `usagi export --target macos`) the `.app` icon.
 
 ```lua
 function _config()
   return {
-    title = "Snake",
+    name = "Snake",
     pixel_perfect = true,
     game_id = "com.example.snake",
     icon = 1,
@@ -307,8 +331,8 @@ transparent.
 | `RIGHT` | arrow right / D | dpad right / left stick right                    |
 | `UP`    | arrow up / W    | dpad up / left stick up                          |
 | `DOWN`  | arrow down / S  | dpad down / left stick down                      |
-| `BTN1`  | Z / J           | south face (Xbox A, PS Cross)                    |
-| `BTN2`  | X / K           | east face (Xbox B, PS Circle)                    |
+| `BTN1`  | Z / J           | south face (Xbox A, PS Cross), LB                |
+| `BTN2`  | X / K           | east face (Xbox B, PS Circle), RB                |
 | `BTN3`  | C / L           | north + west face (Xbox Y/X, PS Triangle/Square) |
 
 `BTN1`/`BTN2`/`BTN3` are abstract action buttons. BTN3 binds both the north and
@@ -404,12 +428,12 @@ Engine-level info.
   end
 
   function _init()
-    state = usagi.load() or { score = 0, best = 0 }
+    State = usagi.load() or { score = 0, best = 0 }
   end
 
   function _update(dt)
-    -- ... gameplay updates state.score, state.best ...
-    usagi.save(state)  -- call whenever you want to persist
+    -- ... gameplay updates State.score, State.best ...
+    usagi.save(State)  -- call whenever you want to persist
   end
   ```
 
@@ -533,7 +557,7 @@ The Pico-8 shim allows you to write code like in Pico-8:
 ```lua
 -- check for input
 if btn(0) then
-  state.p.x = state.p.x - state.p.spd * dt
+  State.p.x = State.p.x - State.p.spd * dt
 end
 
 -- draw a sprite from sprites.png
@@ -575,12 +599,24 @@ progress.
 
 ### Writing Reload-Friendly Scripts
 
-The chunk re-executes on save, so any top-level `local` bindings get fresh `nil`
-values each time — callbacks that captured them as upvalues will see `nil` and
-crash. The pattern:
+The chunk re-executes on save, so any top-level `local` bindings get re-bound
+each time. A `local State` at module scope would get reset to a fresh table on
+every save and obliterate the running game; it has to be a global. The pattern:
 
-- **Mutable state** → globals, assigned only in `_init`.
-- **Constants and module aliases** → file-scope `local`.
+- **Mutable game state** → a single capitalized global, conventionally `State`,
+  assigned only inside `_init`. `_init` runs once at startup and on F5, so the
+  table outlives reloads. Saved edits keep your in-progress game intact.
+- **Constants** → file-scope `local`. Re-binding to the same value each reload
+  is harmless.
+- **Required modules** → either file-scope `local Foo = require("foo")`, or a
+  capitalized global `Foo = require("foo")` if you want `Foo` reachable from
+  every file without re-requiring. Both work; the global form is convenient for
+  engine-wide tables like `Player`, `Enemy`.
+
+The shipped `.luarc.json` enables the `lowercase-global` diagnostic to catch the
+most common footgun: forgetting `local` and accidentally creating a global named
+`score`, `timer`, etc. Capitalize anything you actually mean to make global;
+lowercase top-level assignments will warn.
 
 See
 [`examples/hello_usagi.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/hello_usagi.lua)
@@ -620,7 +656,7 @@ can just arrow through the list to hear each one.
 - Click a name to select + play.
 - Click the **Play** button in the right pane to replay.
 
-### Tile Picker
+### TilePicker
 
 Shows `<project>/sprites.png` with a 1-based grid overlay matching `gfx.spr`.
 Click any tile to copy its index to the clipboard (paste it straight into your
@@ -633,7 +669,7 @@ Lua code).
   stay visible regardless of palette.
 - Left click a tile to copy its 1-based index; a toast confirms the value.
 
-### Save Inspector
+### SaveInspector
 
 Reads the project's `_config().game_id` and shows the current `save.json`
 contents alongside the resolved file path. Useful for debugging save formats and
@@ -646,6 +682,28 @@ inspecting state between runs without leaving the editor.
 - **Clear** deletes the save file. The next `usagi.load()` returns `nil`.
 - **Open in File Manager** reveals the containing directory in the OS default
   file manager (`xdg-open` on Linux, `open` on macOS, `explorer` on Windows).
+
+### ColorPalette
+
+Shows swatches for each of the 16 colors with the ability to click to copy the
+Lua value to your clipboard.
+
+### Bring Your Own Tools
+
+Usagi does not (at least yet) include a sprite editor, sound effect generator,
+or music tracker. You can find assets to use on
+[opengameart.org](https://opengameart.org/) and [itch.io](https://itch.io) or
+make your own. Here are some tools worth checking out that work well with Usagi:
+
+- **Sprite Editors**:
+  - [Aseprite](https://www.aseprite.org/): an excellent pixel art editor
+  - [Piskel](https://www.piskelapp.com/): free, online sprite editor
+- **Sound**:
+  - [jsfxr](https://sfxr.me/): 8-bit sound effect generator; download WAVs
+  - [1BITDRAGON](https://1bitdragon.com/): an easy-to-use music creation tool
+- **Map Editors**:
+  - [Tiled](https://www.mapeditor.org/): free and open source map editor with
+    Lua export
 
 ## Export
 

@@ -5,6 +5,8 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+## v0.4.0 - May 3, 2026
+
 Features:
 
 - <kbd>Enter</kbd> opens Pause Menu, like Pico-8.
@@ -12,6 +14,14 @@ Features:
   clipboard.
 - Left bumper maps to BTN1, right bumper maps to BTN2 to utilize those buttons
   and give input options.
+
+Breaking:
+
+- `_config().title` is renamed to `_config().name`. `name` is the canonical
+  display name across the engine (window title, macOS `.app` directory,
+  Info.plist, slugged for archive/binary filenames on `usagi export`). The old
+  `title` key is no longer read; rename to `name` in your `_config()` table. All
+  shipped examples and the `usagi init` template were updated.
 
 Fixes:
 
@@ -35,14 +45,6 @@ Tweaks:
   (`Sprite Example.app`). Falls back to the project directory name when `name`
   isn't set.
 - Docs improvements to suggest external tools to use.
-
-Breaking:
-
-- `_config().title` is renamed to `_config().name`. `name` is the canonical
-  display name across the engine (window title, macOS `.app` directory,
-  Info.plist, slugged for archive/binary filenames on `usagi export`). The old
-  `title` key is no longer read; rename to `name` in your `_config()` table. All
-  shipped examples and the `usagi init` template were updated.
 
 ## v0.3.0 - May 1, 2026
 
