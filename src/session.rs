@@ -604,7 +604,7 @@ impl Session {
             }
             match load_script(&self.lua, self.vfs.as_ref()) {
                 Ok(()) => {
-                    println!("[usagi] reloaded {}", self.vfs.script_name());
+                    println!("[usagi] reloaded {} & requires", self.vfs.script_name());
                     self.update = self.lua.globals().get("_update").ok();
                     self.draw = self.lua.globals().get("_draw").ok();
                     self.last_error = None;
