@@ -80,13 +80,19 @@ const BINDINGS: [Binding; 7] = [
     // BTN1: Z or J on keyboard; south face button (Xbox A, PS Cross).
     Binding {
         keys: &[KeyboardKey::KEY_Z, KeyboardKey::KEY_J],
-        buttons: &[GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN],
+        buttons: &[
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
+            GamepadButton::GAMEPAD_BUTTON_LEFT_TRIGGER_1,
+        ],
         axes: &[],
     },
     // BTN2: X or K on keyboard; east face button (Xbox B, PS Circle).
     Binding {
         keys: &[KeyboardKey::KEY_X, KeyboardKey::KEY_K],
-        buttons: &[GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT],
+        buttons: &[
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_TRIGGER_1,
+        ],
         axes: &[],
     },
     // BTN3: C or L on keyboard; north + west face buttons on gamepad
