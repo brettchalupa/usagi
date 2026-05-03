@@ -31,6 +31,30 @@ Other places to download Usagi:
 
 - [itch.io](https://brettchalupa.itch.io/usagi)
 
+## Features / Bugs
+
+Usagi embraces a few constraints inspired by Pico-8 and Pyxel to help focus on
+prototyping rather than making polished high-resolution graphics. These may
+change in the future or be configurable.
+
+- **Live Reload**: when you run `usagi dev`, your game automatically updates
+  with your newest code and assets, enabling rapid development
+- **Cross Platform Export**: run `usagi export` and your game is exported for
+  Linux, macOS, Windows, and web
+- **Limited Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely
+  to common monitor sizes
+- **One Spritesheet**: `sprites.png` is the only image file for textures that
+  can be loaded
+- **Small API**: you can't do everything with Usagi, but there's enough to make
+  simple 2D games
+- **Sprite Size**: 16px by 16px - using `gfx.spr` uses the index based on this
+  sized sprite; you can draw larger sprites with `gfx.sspr`
+- **Pico-8 Colors**: the color palette for drawing are the same as Pico-8 (but
+  with constants for easy reference)
+
+You currently must bring your own sound effects and sprite editor. A sprite
+editor could be nice in the future as part of the `usagi tools`.
+
 ## Hello, Usagi
 
 You now have the `usagi` CLI that you can run from your shell (`usagi.exe` on
@@ -103,6 +127,13 @@ simple yet surprisingly powerful, making it a good fit for Usagi.
 If you want to build a medium-to-large polished game, Usagi would not be a good
 fit.
 
+## Roadmap
+
+Not sure yet what's next! Some ideas:
+
+- Pause menu w/ settings and input mapping for players
+- Code signing for macOS app exports
+
 ## Project Layout
 
 An Usagi game is either a single `.lua` file or a directory with a `main.lua` in
@@ -147,34 +178,6 @@ Run with:
 
 Can you also run Usagi commands without the path to have it run in the current
 directory, like `usagi dev` or `usagi export`.
-
-## Constraints
-
-Usagi embraces a few constraints inspired by Pico-8 and Pyxel to help focus on
-prototyping rather than making polished high-resolution graphics. These may
-change in the future or be configurable.
-
-- **Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely to
-  common monitor sizes
-- **One Spritesheet**: `sprites.png` is the only image file for textures that
-  can be loaded
-- **Sprite Size**: 16px by 16px - using `gfx.spr` uses the index based on this
-  sized sprite; you can draw larger sprites with `gfx.sspr`
-- **Limited Colors**: the color palette for drawing are the same as Pico-8 (but
-  with constants for easy reference)
-
-You currently must bring your own sound effects and sprite editor. A sprite
-editor could be nice in the future as part of the `usagi tools`.
-
-## Roadmap
-
-Not sure yet what's next! Some ideas:
-
-- Pause menu w/ settings and input mapping for players
-- A single shader
-- Code signing for macOS apps
-- Pixel art editor in `usagi tools`
-- Simple editor in `usagi tools` with a simple API to use
 
 ## Lua API
 
@@ -328,8 +331,8 @@ transparent.
 | `RIGHT` | arrow right / D | dpad right / left stick right                    |
 | `UP`    | arrow up / W    | dpad up / left stick up                          |
 | `DOWN`  | arrow down / S  | dpad down / left stick down                      |
-| `BTN1`  | Z / J           | south face (Xbox A, PS Cross)                    |
-| `BTN2`  | X / K           | east face (Xbox B, PS Circle)                    |
+| `BTN1`  | Z / J           | south face (Xbox A, PS Cross), LB                |
+| `BTN2`  | X / K           | east face (Xbox B, PS Circle), RB                |
 | `BTN3`  | C / L           | north + west face (Xbox Y/X, PS Triangle/Square) |
 
 `BTN1`/`BTN2`/`BTN3` are abstract action buttons. BTN3 binds both the north and
@@ -684,6 +687,23 @@ inspecting state between runs without leaving the editor.
 
 Shows swatches for each of the 16 colors with the ability to click to copy the
 Lua value to your clipboard.
+
+### Bring Your Own Tools
+
+Usagi does not (at least yet) include a sprite editor, sound effect generator,
+or music tracker. You can find assets to use on
+[opengameart.org](https://opengameart.org/) and [itch.io](https://itch.io) or
+make your own. Here are some tools worth checking out that work well with Usagi:
+
+- **Sprite Editors**:
+  - [Aseprite](https://www.aseprite.org/): an excellent pixel art editor
+  - [Piskel](https://www.piskelapp.com/): free, online sprite editor
+- **Sound**:
+  - [jsfxr](https://sfxr.me/): 8-bit sound effect generator; download WAVs
+  - [1BITDRAGON](https://1bitdragon.com/): an easy-to-use music creation tool
+- **Map Editors**:
+  - [Tiled](https://www.mapeditor.org/): free and open source map editor with
+    Lua export
 
 ## Export
 
