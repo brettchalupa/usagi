@@ -3,7 +3,7 @@
 -- one-shot button clicks, mouse_down + offset tracking for dragging).
 
 function _config()
-  return { title = "Mouse UI" }
+  return { name = "Mouse UI" }
 end
 
 local BUTTON = { x = 12, y = 24, w = 72, h = 18 }

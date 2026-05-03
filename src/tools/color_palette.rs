@@ -1,15 +1,13 @@
-//! ColorPalette tool: lays out the engine's 16-color palette as
-//! clickable swatches paired with their `gfx.COLOR_*` constant names.
-//! Clicking a swatch copies the prefixed constant (e.g. `gfx.COLOR_RED`)
-//! to the clipboard so it can be pasted directly into game code.
+//! ColorPalette tool: 16 swatches paired with their `gfx.COLOR_*`
+//! names. Click a swatch to copy the prefixed constant to the
+//! clipboard.
 
 use super::{HINT_Y, PANEL_H, PANEL_W, PANEL_X, PANEL_Y};
 use crate::palette::{Pal, color};
 use sola_raylib::prelude::*;
 
-/// (palette entry, Lua constant name without the `gfx.` prefix) in
-/// palette-index order. Names are kept in sync with `api.rs` where
-/// `gfx.COLOR_*` is registered for Lua.
+/// `(Pal, "COLOR_NAME")` in palette-index order. Mirrors the Lua
+/// constants registered by `api::setup_api`.
 const ENTRIES: [(Pal, &str); 16] = [
     (Pal::Black, "COLOR_BLACK"),
     (Pal::DarkBlue, "COLOR_DARK_BLUE"),

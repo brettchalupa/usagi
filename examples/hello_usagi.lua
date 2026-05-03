@@ -6,7 +6,7 @@
 local MSG = "Hello, Usagi!"
 
 function _config()
-  return { title = "Hello, Usagi!" }
+  return { name = "Hello, Usagi!" }
 end
 
 function _init()

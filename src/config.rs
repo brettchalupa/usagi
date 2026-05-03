@@ -22,10 +22,11 @@ use mlua::prelude::*;
 
 /// Fully-resolved project config, with defaults filled in for any
 /// fields `_config()` didn't set.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Config {
-    /// Window title shown in the OS chrome and app switcher.
-    pub title: String,
+    /// Display name from `_config().name`. Resolved (with the project
+    /// directory as fallback) by `crate::project_name::ProjectName`.
+    pub name: Option<String>,
     /// When `true`, the render target upscales at integer multiples
     /// only with letterbox bars filling any leftover window space.
     /// When `false` (default) the game fills the window while
@@ -40,17 +41,6 @@ pub struct Config {
     /// `gfx.spr`). `None` means "use the embedded usagi default
     /// icon".
     pub icon: Option<u32>,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            title: "Usagi".to_string(),
-            pixel_perfect: false,
-            game_id: None,
-            icon: None,
-        }
-    }
 }
 
 impl Config {
@@ -71,8 +61,8 @@ impl Config {
                 // Default value sticks). Reading a bool field directly
                 // would coerce a missing/nil value to `false`, silently
                 // overriding the default.
-                if let Ok(Some(t)) = tbl.get::<Option<String>>("title") {
-                    config.title = t;
+                if let Ok(Some(t)) = tbl.get::<Option<String>>("name") {
+                    config.name = Some(t);
                 }
                 if let Ok(Some(t)) = tbl.get::<Option<bool>>("pixel_perfect") {
                     config.pixel_perfect = t;

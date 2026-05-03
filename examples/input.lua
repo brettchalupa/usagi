@@ -4,7 +4,7 @@
 -- F5 calls _init to reset.
 
 function _config()
-  return { title = "Input" }
+  return { name = "Input" }
 end
 
 function _init()

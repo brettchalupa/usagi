@@ -1,5 +1,5 @@
 function _config()
-  return { title = "Mouse" }
+  return { name = "Mouse" }
 end
 
 function _init()

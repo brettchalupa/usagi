@@ -7,7 +7,7 @@
 -- of pairwise overlap fixes settle the rest.
 
 function _config()
-  return { title = "Mouse Physics" }
+  return { name = "Mouse Physics" }
 end
 
 function _init()

@@ -271,7 +271,7 @@ function usagi.load() end
 ---`game_id`, which is only required if you call `usagi.save` /
 ---`usagi.load`. Missing fields fall back to engine defaults.
 ---@class Usagi.Config
----@field title? string  window title (default: "Usagi")
+---@field name? string  display name. Window title, macOS .app bundle directory, and (slugged) archive/binary names on `usagi export` (default: project directory name)
 ---@field pixel_perfect? boolean false (default) = any scale that fits the window while preserving aspect ratio; true = integer scale only with letterbox bars
 ---@field game_id? string  reverse-DNS identifier (e.g. "com.you.mygame"), required for save/load
 ---@field icon? integer  1-based tile index into sprites.png to use as the window icon (same indexing as gfx.spr); omit for the default Usagi bunny

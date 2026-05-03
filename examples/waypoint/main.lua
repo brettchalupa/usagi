@@ -3,7 +3,7 @@
 -- queue.
 
 function _config()
-  return { title = "Waypoint" }
+  return { name = "Waypoint" }
 end
 
 function _init()
