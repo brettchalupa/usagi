@@ -10,6 +10,7 @@
 //! lets the closures sit alongside `gfx.*` in `_draw` without fighting
 //! the `&mut RaylibHandle` borrow that `begin_texture_mode` holds.
 
+use crate::keymap::Keymap;
 use sola_raylib::prelude::*;
 
 // Action IDs. Stable integers; `setup_api` exposes these as `input.LEFT`
@@ -112,8 +113,8 @@ fn binding(action: u32) -> Option<&'static Binding> {
     BINDINGS.get(action.checked_sub(1)? as usize)
 }
 
-/// Display names for `ACTION_*`, indexed by `action - 1`. Shown by the
-/// pause menu's read-only Configure Input view.
+/// Display names for `ACTION_*`, indexed by `action - 1`. Used by the
+/// pause menu's Input views.
 pub const ACTION_NAMES: [&str; 7] = ["LEFT", "RIGHT", "UP", "DOWN", "BTN1", "BTN2", "BTN3"];
 
 fn key_label(k: KeyboardKey) -> &'static str {
@@ -162,25 +163,44 @@ fn axis_label(axis: GamepadAxis, sign: i8) -> &'static str {
     }
 }
 
-/// Human-readable list of bindings per action. Used by the pause menu's
-/// Configure Input view; ordered to match `ACTION_NAMES`.
-pub fn binding_descriptions() -> [(&'static str, String); 7] {
-    let mut out: [(&'static str, String); 7] =
-        std::array::from_fn(|i| (ACTION_NAMES[i], String::new()));
+/// Per-action binding split into keyboard and gamepad strings for the
+/// pause menu's Input Test table. Override-replaces-keyboard mirrors
+/// `action_pressed`.
+pub fn binding_columns(keymap: &Keymap) -> [(&'static str, String, String); 7] {
+    let mut out: [(&'static str, String, String); 7] =
+        std::array::from_fn(|i| (ACTION_NAMES[i], String::new(), String::new()));
     for (i, b) in BINDINGS.iter().enumerate() {
-        let mut parts: Vec<&'static str> = Vec::new();
-        for k in b.keys {
-            parts.push(key_label(*k));
-        }
+        let action = (i + 1) as u32;
+        let kb = match keymap.override_for(action) {
+            Some(k) => key_label(k).to_string(),
+            None => b
+                .keys
+                .iter()
+                .map(|k| key_label(*k).to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+        };
+        let mut gp = Vec::new();
         for btn in b.buttons {
-            parts.push(button_label(*btn));
+            gp.push(button_label(*btn).to_string());
         }
         for (axis, sign) in b.axes {
-            parts.push(axis_label(*axis, *sign));
+            gp.push(axis_label(*axis, *sign).to_string());
         }
-        out[i].1 = parts.join(", ");
+        out[i].1 = kb;
+        out[i].2 = gp.join(", ");
     }
     out
+}
+
+/// Single canonical key for `action`: override if set, else the first
+/// default from `BINDINGS`. Wraps a future `input.mapped_key` Lua API.
+#[allow(dead_code)]
+pub fn mapped_key(action: u32, keymap: &Keymap) -> Option<KeyboardKey> {
+    if let Some(k) = keymap.override_for(action) {
+        return Some(k);
+    }
+    binding(action)?.keys.first().copied()
 }
 
 /// True if `action` is one of the exposed `ACTION_*` constants. Currently
@@ -190,14 +210,27 @@ pub fn is_valid_action(action: u32) -> bool {
     binding(action).is_some()
 }
 
-/// True while any source bound to `action` is held.
-pub fn action_down(rl: &RaylibHandle, action: u32) -> bool {
+/// True while any source bound to `action` is held. An override
+/// replaces this action's keyboard defaults (Pico-8 "replace"
+/// semantics); a default key claimed as another action's override is
+/// suppressed so a key only fires its current owner. Gamepad and
+/// axes always use the static defaults.
+pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
     let Some(b) = binding(action) else {
         return false;
     };
-    for k in b.keys {
-        if rl.is_key_down(*k) {
+    if let Some(k) = keymap.override_for(action) {
+        if rl.is_key_down(k) {
             return true;
+        }
+    } else {
+        for k in b.keys {
+            if keymap.is_used_as_override(*k) {
+                continue;
+            }
+            if rl.is_key_down(*k) {
+                return true;
+            }
         }
     }
     for pad in 0..MAX_GAMEPADS {
@@ -222,14 +255,23 @@ pub fn action_down(rl: &RaylibHandle, action: u32) -> bool {
 /// True the frame any key or button bound to `action` transitions to
 /// pressed. Analog sticks aren't edge-detected; if you want "just pushed
 /// the stick past the deadzone" semantics, track the last frame yourself
-/// using `action_down`.
-pub fn action_pressed(rl: &RaylibHandle, action: u32) -> bool {
+/// using `action_down`. Override semantics match `action_down`.
+pub fn action_pressed(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
     let Some(b) = binding(action) else {
         return false;
     };
-    for k in b.keys {
-        if rl.is_key_pressed(*k) {
+    if let Some(k) = keymap.override_for(action) {
+        if rl.is_key_pressed(k) {
             return true;
+        }
+    } else {
+        for k in b.keys {
+            if keymap.is_used_as_override(*k) {
+                continue;
+            }
+            if rl.is_key_pressed(*k) {
+                return true;
+            }
         }
     }
     for pad in 0..MAX_GAMEPADS {
@@ -303,15 +345,15 @@ pub struct InputState {
 impl InputState {
     /// Polls raylib once and rolls the result into a snapshot. Called
     /// at the top of each frame, before user Lua runs.
-    pub fn sample(rl: &RaylibHandle, pixel_perfect: bool) -> Self {
+    pub fn sample(rl: &RaylibHandle, pixel_perfect: bool, keymap: &Keymap) -> Self {
         let mut down = 0u32;
         let mut pressed = 0u32;
         for (i, _) in BINDINGS.iter().enumerate() {
             let action = (i + 1) as u32;
-            if action_down(rl, action) {
+            if action_down(rl, keymap, action) {
                 down |= 1 << i;
             }
-            if action_pressed(rl, action) {
+            if action_pressed(rl, keymap, action) {
                 pressed |= 1 << i;
             }
         }
@@ -396,24 +438,58 @@ mod tests {
     }
 
     #[test]
-    fn binding_descriptions_cover_every_action() {
-        let descs = binding_descriptions();
-        assert_eq!(descs.len(), BINDINGS.len());
-        for (i, (name, body)) in descs.iter().enumerate() {
+    fn binding_columns_cover_every_action_with_filled_keyboard_and_gamepad() {
+        let keymap = Keymap::default();
+        let cols = binding_columns(&keymap);
+        assert_eq!(cols.len(), BINDINGS.len());
+        for (i, (name, kb, gp)) in cols.iter().enumerate() {
             assert_eq!(*name, ACTION_NAMES[i]);
             assert!(
-                !body.is_empty(),
-                "action {name} (#{n}) had empty binding description",
+                !kb.is_empty(),
+                "action {name} (#{n}) keyboard column was empty",
                 name = name,
                 n = i + 1
             );
             assert!(
-                !body.contains("?"),
-                "action {name} description has unknown source: {body:?}",
+                !kb.contains("?"),
+                "action {name} keyboard column has unknown source: {kb:?}",
                 name = name,
-                body = body
+                kb = kb
+            );
+            assert!(
+                !gp.is_empty(),
+                "action {name} (#{n}) gamepad column was empty",
+                name = name,
+                n = i + 1
             );
         }
+    }
+
+    #[test]
+    fn binding_columns_swaps_keyboard_portion_for_override() {
+        let mut keymap = Keymap::default();
+        keymap.overrides[ACTION_LEFT as usize - 1] = Some(KeyboardKey::KEY_W);
+        let cols = binding_columns(&keymap);
+        let (_, kb, gp) = &cols[ACTION_LEFT as usize - 1];
+        assert_eq!(kb, "W");
+        assert!(!gp.contains('W'));
+        assert!(
+            gp.contains("DPad-L"),
+            "gamepad column must survive keyboard override: {gp}"
+        );
+    }
+
+    #[test]
+    fn mapped_key_returns_override_when_set_else_first_default() {
+        let mut keymap = Keymap::default();
+        assert_eq!(
+            mapped_key(ACTION_LEFT, &keymap),
+            Some(KeyboardKey::KEY_LEFT)
+        );
+        keymap.overrides[ACTION_LEFT as usize - 1] = Some(KeyboardKey::KEY_W);
+        assert_eq!(mapped_key(ACTION_LEFT, &keymap), Some(KeyboardKey::KEY_W));
+        // Unknown action.
+        assert_eq!(mapped_key(99, &keymap), None);
     }
 
     /// Each action should have at least one source bound, otherwise

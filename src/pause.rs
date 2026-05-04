@@ -1,28 +1,26 @@
-//! Pause menu. Pico-8-style overlay with a navigable item list,
-//! per-channel volume bars, fullscreen toggle, a read-only Configure
-//! Input view, a Clear Save Data confirm dialog, Reset Game, and Quit.
+//! Pause menu. Pico-8-style overlay: top-level item list (volumes,
+//! fullscreen, Input sub-menu, Clear Save, Reset Game, Quit) plus the
+//! Input Test + Key Config flows.
 //!
-//! UI lives here; side effects (writing settings, toggling fullscreen,
-//! calling `_init`, clearing save, quitting) are dispatched by the
-//! session via the returned `PauseAction`. That keeps this module from
-//! needing a god-handle to the rest of the engine and makes the
-//! navigation logic testable as a pure transition.
+//! UI lives here; side effects (settings write, fullscreen toggle,
+//! `_init`, save clear, quit, keymap write) are dispatched via the
+//! returned `PauseAction`. Keeps this module from holding a session
+//! god-handle and makes navigation testable as a pure transition.
 
 use crate::input::{
-    self, ACTION_BTN1, ACTION_BTN2, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
-    MAX_GAMEPADS, binding_descriptions,
+    self, ACTION_BTN1, ACTION_BTN2, ACTION_BTN3, ACTION_DOWN, ACTION_LEFT, ACTION_NAMES,
+    ACTION_RIGHT, ACTION_UP, MAX_GAMEPADS, binding_columns,
 };
+use crate::keymap::{self, Keymap};
 use crate::palette;
 use crate::palette::Pal;
 use crate::settings::Settings;
 use crate::{GAME_HEIGHT, GAME_WIDTH};
 use sola_raylib::prelude::*;
 
-/// Side-effecting transitions emitted by the menu and applied by the
-/// session. The menu itself only mutates its own state (selection,
-/// view); everything that touches the session, audio, or disk goes
-/// through one of these.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Transitions emitted by the menu and applied by the session.
+/// Anything touching the session, audio, or disk goes through here.
+#[derive(Debug, Clone, PartialEq)]
 pub enum PauseAction {
     Resume,
     SetMusicVolume(f32),
@@ -30,14 +28,32 @@ pub enum PauseAction {
     ToggleFullscreen,
     ResetGame,
     ClearSave,
+    SetKeymap(Keymap),
     Quit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum View {
     Top,
-    InputBindings,
+    /// Sub-menu under Input: Test and Configure Keys. Splitting these
+    /// out keeps the Tester from intercepting BTN1/BTN2.
+    InputMenu,
+    InputTester,
+    KeyConfig,
     ConfirmClearSave,
+}
+
+const INPUT_MENU_COUNT: usize = 2;
+const INPUT_ITEM_TEST: usize = 0;
+const INPUT_ITEM_CONFIGURE: usize = 1;
+
+/// In-flight Key Config capture. Mutated as the player presses keys;
+/// emitted via `PauseAction::SetKeymap` on completion.
+#[derive(Debug, Clone)]
+struct KeyConfigState {
+    staging: Keymap,
+    /// Index (0..ACTION_COUNT) of the action currently awaiting a key.
+    action_index: usize,
 }
 
 const TOP_COUNT: usize = 8;
@@ -58,10 +74,18 @@ pub struct PauseMenu {
     last_open: bool,
     view: View,
     top_selected: usize,
+    input_menu_selected: usize,
     confirm_selected: usize,
     /// Drives the active-item indicator's sin oscillation.
     time: f32,
+    /// `action_down` snapshot for `draw` to light the Tester rects
+    /// without holding a raylib handle.
+    tester_input: [bool; ACTION_COUNT],
+    /// Capture state while in `View::KeyConfig`; `None` otherwise.
+    key_config: Option<KeyConfigState>,
 }
+
+const ACTION_COUNT: usize = 7;
 
 impl PauseMenu {
     pub fn new() -> Self {
@@ -70,27 +94,59 @@ impl PauseMenu {
             last_open: false,
             view: View::Top,
             top_selected: 0,
+            input_menu_selected: 0,
             confirm_selected: 0,
             time: 0.0,
+            tester_input: [false; ACTION_COUNT],
+            key_config: None,
         }
     }
 
     pub fn update(
         &mut self,
-        rl: &RaylibHandle,
+        rl: &mut RaylibHandle,
         settings: &Settings,
+        keymap: &Keymap,
         dt: f32,
     ) -> Option<PauseAction> {
-        let inputs = read_inputs(rl);
-        self.update_with(inputs, settings, dt)
+        let inputs = read_inputs(rl, keymap);
+
+        // Snapshot for the Tester rects so `draw` doesn't need `rl`.
+        for i in 0..ACTION_COUNT {
+            self.tester_input[i] = input::action_down(rl, keymap, (i + 1) as u32);
+        }
+
+        // Only drain raylib's key queue while capturing, so presses on
+        // other views aren't silently consumed.
+        let mut captured_key: Option<KeyboardKey> = None;
+        if self.view == View::KeyConfig {
+            // Take the first supported, non-reserved key; drop the rest.
+            while let Some(k) = rl.get_key_pressed() {
+                if is_reserved_key(k) {
+                    continue;
+                }
+                if keymap::key_label(k).is_some() {
+                    captured_key = Some(k);
+                    break;
+                }
+            }
+        }
+        let kc_inputs = KeyConfigInputs {
+            captured_key,
+            delete: rl.is_key_pressed(KeyboardKey::KEY_DELETE),
+            backspace: rl.is_key_pressed(KeyboardKey::KEY_BACKSPACE),
+        };
+
+        self.update_with(inputs, settings, keymap, kc_inputs, dt)
     }
 
-    /// Pure transition: computes `(state', action)` from `(state, inputs)`.
-    /// Tests drive this directly without needing a raylib handle.
+    /// Pure transition; tests drive this without a raylib handle.
     fn update_with(
         &mut self,
         inputs: MenuInputs,
         settings: &Settings,
+        keymap: &Keymap,
+        kc: KeyConfigInputs,
         dt: f32,
     ) -> Option<PauseAction> {
         self.last_open = self.open;
@@ -101,22 +157,46 @@ impl PauseMenu {
                 self.open = true;
                 self.view = View::Top;
                 self.top_selected = 0;
+                self.key_config = None;
             }
             return None;
         }
 
-        // Toggle keys close the menu from any view, mirroring today's
-        // "press Esc/Enter/P/Start to dismiss" behavior. Submenus get a
-        // dedicated BTN2 to step back without leaving the menu.
+        // Toggle (Esc/Enter/P/Start) climbs one level: Top closes the
+        // menu, sub-views return to parent. Consistent so the player
+        // never has to learn a per-view rule.
         if inputs.toggle {
-            self.open = false;
-            self.view = View::Top;
-            return Some(PauseAction::Resume);
+            return match self.view {
+                View::Top => {
+                    self.open = false;
+                    self.key_config = None;
+                    Some(PauseAction::Resume)
+                }
+                View::InputMenu => {
+                    self.view = View::Top;
+                    None
+                }
+                View::InputTester => {
+                    self.view = View::InputMenu;
+                    None
+                }
+                View::KeyConfig => {
+                    self.view = View::InputMenu;
+                    self.key_config = None;
+                    None
+                }
+                View::ConfirmClearSave => {
+                    self.view = View::Top;
+                    None
+                }
+            };
         }
 
         match self.view {
             View::Top => self.handle_top(inputs, settings),
-            View::InputBindings => self.handle_input_view(inputs),
+            View::InputMenu => self.handle_input_menu(inputs, keymap),
+            View::InputTester => self.handle_input_tester(inputs),
+            View::KeyConfig => self.handle_key_config(inputs, kc),
             View::ConfirmClearSave => self.handle_confirm_clear(inputs),
         }
     }
@@ -162,7 +242,10 @@ impl PauseMenu {
                     return Some(PauseAction::Resume);
                 }
                 ITEM_FULLSCREEN => return Some(PauseAction::ToggleFullscreen),
-                ITEM_INPUT => self.view = View::InputBindings,
+                ITEM_INPUT => {
+                    self.view = View::InputMenu;
+                    self.input_menu_selected = 0;
+                }
                 ITEM_CLEAR => {
                     self.view = View::ConfirmClearSave;
                     self.confirm_selected = 0;
@@ -178,11 +261,85 @@ impl PauseMenu {
         None
     }
 
-    fn handle_input_view(&mut self, inputs: MenuInputs) -> Option<PauseAction> {
-        // Any confirm/back returns to Top. Up/Down are no-ops here:
-        // the only "live" item is Back.
-        if inputs.btn1 || inputs.btn2 {
+    fn handle_input_menu(&mut self, inputs: MenuInputs, keymap: &Keymap) -> Option<PauseAction> {
+        if inputs.btn2 {
             self.view = View::Top;
+            return None;
+        }
+        if inputs.up || inputs.down {
+            self.input_menu_selected = (self.input_menu_selected + 1) % INPUT_MENU_COUNT;
+        }
+        if inputs.btn1 {
+            match self.input_menu_selected {
+                INPUT_ITEM_TEST => self.view = View::InputTester,
+                INPUT_ITEM_CONFIGURE => {
+                    self.view = View::KeyConfig;
+                    self.key_config = Some(KeyConfigState {
+                        staging: keymap.clone(),
+                        action_index: 0,
+                    });
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn handle_input_tester(&mut self, _inputs: MenuInputs) -> Option<PauseAction> {
+        // Action buttons aren't consumed here: they're being tested.
+        // Only the toggle key (handled centrally) returns to InputMenu.
+        None
+    }
+
+    fn handle_key_config(
+        &mut self,
+        _inputs: MenuInputs,
+        kc: KeyConfigInputs,
+    ) -> Option<PauseAction> {
+        // DEL: Pico-8-style "reset to defaults" + exit. Single emit so
+        // the session writes once.
+        if kc.delete {
+            self.view = View::InputTester;
+            self.key_config = None;
+            return Some(PauseAction::SetKeymap(Keymap::default()));
+        }
+        // BKSP undoes the last capture: step back, clear that slot.
+        // No-op at action 0.
+        if kc.backspace {
+            if let Some(state) = self.key_config.as_mut()
+                && state.action_index > 0
+            {
+                state.action_index -= 1;
+                state.staging.overrides[state.action_index] = None;
+            }
+            return None;
+        }
+        let key = kc.captured_key?;
+        let state = self.key_config.as_mut()?;
+        if state.action_index >= ACTION_COUNT {
+            return None;
+        }
+        // Exclusive mappings: reject if this key is already in another
+        // slot. Player stays on the current action until they pick a
+        // free key (or Backspace to revisit the conflicting slot).
+        let already_used = state
+            .staging
+            .overrides
+            .iter()
+            .enumerate()
+            .any(|(i, slot)| i != state.action_index && *slot == Some(key));
+        if already_used {
+            return None;
+        }
+        state.staging.overrides[state.action_index] = Some(key);
+        state.action_index += 1;
+        if state.action_index >= ACTION_COUNT {
+            // Done. Drop the player on the Tester so they can verify
+            // their new bindings live.
+            let staged = state.staging.clone();
+            self.view = View::InputTester;
+            self.key_config = None;
+            return Some(PauseAction::SetKeymap(staged));
         }
         None
     }
@@ -213,7 +370,13 @@ impl PauseMenu {
         !self.open && self.last_open
     }
 
-    pub fn draw<D: RaylibDraw>(&self, d: &mut D, font: &Font, settings: &Settings) {
+    pub fn draw<D: RaylibDraw>(
+        &self,
+        d: &mut D,
+        font: &Font,
+        settings: &Settings,
+        keymap: &Keymap,
+    ) {
         d.draw_rectangle(
             0,
             0,
@@ -233,7 +396,9 @@ impl PauseMenu {
         let size = crate::font::MONOGRAM_SIZE as f32;
         let title = match self.view {
             View::Top => "PAUSED",
-            View::InputBindings => "INPUT",
+            View::InputMenu => "INPUT",
+            View::InputTester => "INPUT TEST",
+            View::KeyConfig => "KEY CONFIG (KEYBOARD)",
             View::ConfirmClearSave => "CLEAR SAVE?",
         };
         let title_m = font.measure_text(title, size, 0.0);
@@ -248,10 +413,34 @@ impl PauseMenu {
             palette::color(Pal::White),
         );
 
+        let body_y = title_y + size + 8.0;
         match self.view {
-            View::Top => self.draw_top(d, font, settings, title_y + size + 8.0),
-            View::InputBindings => self.draw_input_view(d, font, title_y + size + 8.0),
-            View::ConfirmClearSave => self.draw_confirm_clear(d, font, title_y + size + 8.0),
+            View::Top => self.draw_top(d, font, settings, body_y),
+            View::InputMenu => self.draw_input_menu(d, font, body_y),
+            View::InputTester => self.draw_input_tester(d, font, keymap, body_y),
+            View::KeyConfig => self.draw_key_config(d, font, body_y),
+            View::ConfirmClearSave => self.draw_confirm_clear(d, font, body_y),
+        }
+    }
+
+    fn draw_input_menu<D: RaylibDraw>(&self, d: &mut D, font: &Font, mut y: f32) {
+        let size = crate::font::MONOGRAM_SIZE as f32;
+        let line_h = size + 6.0;
+        let item_x = 32.0_f32;
+        let labels = ["Test", "Configure Keys"];
+        for (i, text) in labels.iter().enumerate() {
+            d.draw_text_ex(
+                font,
+                text,
+                Vector2::new(item_x, y),
+                size,
+                0.0,
+                palette::color(Pal::White),
+            );
+            if i == self.input_menu_selected {
+                self.draw_indicator(d, item_x, y + size * 0.5);
+            }
+            y += line_h;
         }
     }
 
@@ -305,36 +494,214 @@ impl PauseMenu {
         }
     }
 
-    fn draw_input_view<D: RaylibDraw>(&self, d: &mut D, font: &Font, mut y: f32) {
+    fn draw_input_tester<D: RaylibDraw>(
+        &self,
+        d: &mut D,
+        font: &Font,
+        keymap: &Keymap,
+        body_y: f32,
+    ) {
         let size = crate::font::MONOGRAM_SIZE as f32;
-        let line_h = size + 2.0;
-        // Match the top view's item_x so the Back item's indicator
-        // circle has clearance from the white frame border on the left.
-        let item_x = 32.0_f32;
+        let white = palette::color(Pal::White);
+        let black = palette::color(Pal::Black);
 
-        for (name, body) in binding_descriptions().iter() {
-            let line = format!("{name}: {body}");
+        // BTN cells are larger than D-pad cells so a centered "1"/"2"/
+        // "3" digit fits without clipping. Cluster centers above the
+        // mapping list.
+        let dpad_cell = 10.0_f32;
+        let btn_cell = 12.0_f32;
+        let gap = 2.0_f32;
+        let dpad_w = dpad_cell * 3.0 + gap * 2.0;
+        let btn_w = btn_cell * 3.0 + gap * 2.0;
+        let cluster_gap = 16.0_f32;
+        let cluster_total = dpad_w + cluster_gap + btn_w;
+        let dpad_x = ((GAME_WIDTH - cluster_total) * 0.5).round();
+        let dpad_y = body_y;
+
+        let draw_box = |d: &mut D, x: f32, y: f32, w: f32, on: bool| {
+            if on {
+                d.draw_rectangle(x as i32, y as i32, w as i32, w as i32, white);
+            } else {
+                d.draw_rectangle_lines(x as i32, y as i32, w as i32, w as i32, white);
+            }
+        };
+
+        // D-pad layout:
+        //   . U .
+        //   L . R
+        //   . D .
+        let dpad_mid_x = dpad_x + dpad_cell + gap;
+        let dpad_mid_y = dpad_y + dpad_cell + gap;
+        draw_box(
+            d,
+            dpad_mid_x,
+            dpad_y,
+            dpad_cell,
+            self.tester_input[ACTION_UP as usize - 1],
+        );
+        draw_box(
+            d,
+            dpad_x,
+            dpad_mid_y,
+            dpad_cell,
+            self.tester_input[ACTION_LEFT as usize - 1],
+        );
+        draw_box(
+            d,
+            dpad_x + (dpad_cell + gap) * 2.0,
+            dpad_mid_y,
+            dpad_cell,
+            self.tester_input[ACTION_RIGHT as usize - 1],
+        );
+        draw_box(
+            d,
+            dpad_mid_x,
+            dpad_y + (dpad_cell + gap) * 2.0,
+            dpad_cell,
+            self.tester_input[ACTION_DOWN as usize - 1],
+        );
+
+        // Buttons: row vertically centered against the D-pad so the
+        // cluster reads like a gamepad face. Numbered for clarity.
+        let btn_x = dpad_x + dpad_w + cluster_gap;
+        let dpad_h = dpad_cell * 3.0 + gap * 2.0;
+        let btn_y = dpad_y + (dpad_h - btn_cell) * 0.5;
+        let btn_cells = [
+            (btn_x, ACTION_BTN1, "1"),
+            (btn_x + btn_cell + gap, ACTION_BTN2, "2"),
+            (btn_x + (btn_cell + gap) * 2.0, ACTION_BTN3, "3"),
+        ];
+        for (cx, action, label) in btn_cells {
+            let on = self.tester_input[action as usize - 1];
+            draw_box(d, cx, btn_y, btn_cell, on);
+            // Centered digit; black on filled, white on outlined so
+            // it always contrasts.
+            let label_m = font.measure_text(label, size, 0.0);
+            let tx = cx + (btn_cell - label_m.x) * 0.5;
+            let ty = btn_y + (btn_cell - size) * 0.5;
             d.draw_text_ex(
                 font,
-                &line,
-                Vector2::new(item_x, y),
+                label,
+                Vector2::new(tx.round(), ty.round()),
                 size,
                 0.0,
-                palette::color(Pal::White),
+                if on { black } else { white },
             );
-            y += line_h;
         }
-        y += 4.0;
-        let back = "< Back";
+
+        // 3-column mapping table (action / keyboard / gamepad) so
+        // "where's BTN1 on my keyboard?" reads at a glance.
+        let cluster_bottom = dpad_y + dpad_h;
+        let list_line_h = size;
+        let mut list_y = cluster_bottom + 6.0;
+        let name_x = 48.0_f32;
+        let kb_x = 92.0_f32;
+        let gp_x = 144.0_f32;
+        for (name, kb, gp) in binding_columns(keymap).iter() {
+            d.draw_text_ex(font, name, Vector2::new(name_x, list_y), size, 0.0, white);
+            d.draw_text_ex(font, kb, Vector2::new(kb_x, list_y), size, 0.0, white);
+            d.draw_text_ex(font, gp, Vector2::new(gp_x, list_y), size, 0.0, white);
+            list_y += list_line_h;
+        }
+
+        // Action buttons aren't consumed by the Tester, so the only
+        // way back is toggle. Mention both Esc and Start so gamepad-
+        // only players see a path out.
+        let footer = "ESC OR START TO BACK";
+        let footer_m = font.measure_text(footer, size, 0.0);
+        let footer_x = ((GAME_WIDTH - footer_m.x) * 0.5).round();
+        let footer_y = GAME_HEIGHT - size - 4.0;
         d.draw_text_ex(
             font,
-            back,
-            Vector2::new(item_x, y),
+            footer,
+            Vector2::new(footer_x, footer_y),
             size,
             0.0,
-            palette::color(Pal::White),
+            white,
         );
-        self.draw_indicator(d, item_x, y + size * 0.5);
+    }
+
+    fn draw_key_config<D: RaylibDraw>(&self, d: &mut D, font: &Font, mut y: f32) {
+        let size = crate::font::MONOGRAM_SIZE as f32;
+        let line_h = size + 2.0;
+        let color = palette::color(Pal::White);
+
+        let Some(state) = self.key_config.as_ref() else {
+            // Defensive: if state ever desyncs, show a clear message
+            // instead of a blank pane.
+            d.draw_text_ex(
+                font,
+                "(no capture in progress)",
+                Vector2::new(32.0, y),
+                size,
+                0.0,
+                color,
+            );
+            return;
+        };
+
+        let prompt = if state.action_index < ACTION_COUNT {
+            format!("Press key for: {}", ACTION_NAMES[state.action_index])
+        } else {
+            "Capture complete".to_string()
+        };
+        let prompt_m = font.measure_text(&prompt, size, 0.0);
+        let prompt_x = ((GAME_WIDTH - prompt_m.x) * 0.5).round();
+        d.draw_text_ex(font, &prompt, Vector2::new(prompt_x, y), size, 0.0, color);
+        y += line_h * 1.5;
+
+        // Center the staged list by measuring the widest row and
+        // parking the column there.
+        let entries: Vec<(usize, &'static str, &'static str)> = ACTION_NAMES
+            .iter()
+            .enumerate()
+            .map(|(i, name)| {
+                let label = state
+                    .staging
+                    .overrides
+                    .get(i)
+                    .copied()
+                    .flatten()
+                    .and_then(keymap::key_label)
+                    .unwrap_or("--");
+                (i, *name, label)
+            })
+            .collect();
+        let widest = entries
+            .iter()
+            .map(|(_, name, label)| font.measure_text(&format!("{name}: {label}"), size, 0.0).x)
+            .fold(0.0_f32, f32::max);
+        let item_x = ((GAME_WIDTH - widest) * 0.5).round();
+
+        for (i, name, label) in entries {
+            let line = format!("{name}: {label}");
+            // Highlight the current row so the eye snaps to it
+            // without parsing the header.
+            if i == state.action_index {
+                d.draw_rectangle(
+                    item_x as i32 - 4,
+                    y as i32 - 1,
+                    widest as i32 + 8,
+                    line_h as i32,
+                    palette::color(Pal::White).alpha(0.25),
+                );
+            }
+            d.draw_text_ex(font, &line, Vector2::new(item_x, y), size, 0.0, color);
+            y += line_h;
+        }
+
+        let footer = "ESC CANCEL  -  BKSP UNDO  -  DEL RESET";
+        let footer_m = font.measure_text(footer, size, 0.0);
+        let footer_x = ((GAME_WIDTH - footer_m.x) * 0.5).round();
+        let footer_y = GAME_HEIGHT - size - 8.0;
+        d.draw_text_ex(
+            font,
+            footer,
+            Vector2::new(footer_x, footer_y),
+            size,
+            0.0,
+            color,
+        );
     }
 
     fn draw_confirm_clear<D: RaylibDraw>(&self, d: &mut D, font: &Font, mut y: f32) {
@@ -450,7 +817,16 @@ struct MenuInputs {
     toggle: bool,
 }
 
-fn read_inputs(rl: &RaylibHandle) -> MenuInputs {
+/// Raw key state for Key Config capture/undo. Bundled to keep
+/// `update_with`'s arity reasonable.
+#[derive(Default, Clone, Copy)]
+struct KeyConfigInputs {
+    captured_key: Option<KeyboardKey>,
+    delete: bool,
+    backspace: bool,
+}
+
+fn read_inputs(rl: &RaylibHandle, keymap: &Keymap) -> MenuInputs {
     // Enter alone toggles, but Alt+Enter is reserved for fullscreen.
     let alt_held =
         rl.is_key_down(KeyboardKey::KEY_LEFT_ALT) || rl.is_key_down(KeyboardKey::KEY_RIGHT_ALT);
@@ -459,14 +835,47 @@ fn read_inputs(rl: &RaylibHandle) -> MenuInputs {
         || (rl.is_key_pressed(KeyboardKey::KEY_ENTER) && !alt_held)
         || gamepad_start_pressed(rl);
     MenuInputs {
-        up: input::action_pressed(rl, ACTION_UP),
-        down: input::action_pressed(rl, ACTION_DOWN),
-        left: input::action_pressed(rl, ACTION_LEFT),
-        right: input::action_pressed(rl, ACTION_RIGHT),
-        btn1: input::action_pressed(rl, ACTION_BTN1),
-        btn2: input::action_pressed(rl, ACTION_BTN2),
+        up: input::action_pressed(rl, keymap, ACTION_UP),
+        down: input::action_pressed(rl, keymap, ACTION_DOWN),
+        left: input::action_pressed(rl, keymap, ACTION_LEFT),
+        right: input::action_pressed(rl, keymap, ACTION_RIGHT),
+        btn1: input::action_pressed(rl, keymap, ACTION_BTN1),
+        btn2: input::action_pressed(rl, keymap, ACTION_BTN2),
         toggle,
     }
+}
+
+/// Keys that capture refuses to bind: menu controls (Esc/Enter), the
+/// reset gesture (Delete), the undo gesture (Backspace), and keys with
+/// system meaning (F-keys, modifiers).
+fn is_reserved_key(k: KeyboardKey) -> bool {
+    matches!(
+        k,
+        KeyboardKey::KEY_ESCAPE
+            | KeyboardKey::KEY_ENTER
+            | KeyboardKey::KEY_DELETE
+            | KeyboardKey::KEY_BACKSPACE
+            | KeyboardKey::KEY_LEFT_SHIFT
+            | KeyboardKey::KEY_RIGHT_SHIFT
+            | KeyboardKey::KEY_LEFT_CONTROL
+            | KeyboardKey::KEY_RIGHT_CONTROL
+            | KeyboardKey::KEY_LEFT_ALT
+            | KeyboardKey::KEY_RIGHT_ALT
+            | KeyboardKey::KEY_LEFT_SUPER
+            | KeyboardKey::KEY_RIGHT_SUPER
+            | KeyboardKey::KEY_F1
+            | KeyboardKey::KEY_F2
+            | KeyboardKey::KEY_F3
+            | KeyboardKey::KEY_F4
+            | KeyboardKey::KEY_F5
+            | KeyboardKey::KEY_F6
+            | KeyboardKey::KEY_F7
+            | KeyboardKey::KEY_F8
+            | KeyboardKey::KEY_F9
+            | KeyboardKey::KEY_F10
+            | KeyboardKey::KEY_F11
+            | KeyboardKey::KEY_F12
+    )
 }
 
 fn gamepad_start_pressed(rl: &RaylibHandle) -> bool {
@@ -533,6 +942,44 @@ mod tests {
         }
     }
 
+    fn step(
+        m: &mut PauseMenu,
+        s: &Settings,
+        k: &Keymap,
+        inputs: MenuInputs,
+    ) -> Option<PauseAction> {
+        m.update_with(inputs, s, k, KeyConfigInputs::default(), 0.016)
+    }
+
+    fn capture(
+        m: &mut PauseMenu,
+        s: &Settings,
+        k: &Keymap,
+        key: KeyboardKey,
+    ) -> Option<PauseAction> {
+        let kc = KeyConfigInputs {
+            captured_key: Some(key),
+            ..Default::default()
+        };
+        m.update_with(MenuInputs::default(), s, k, kc, 0.016)
+    }
+
+    fn delete(m: &mut PauseMenu, s: &Settings, k: &Keymap) -> Option<PauseAction> {
+        let kc = KeyConfigInputs {
+            delete: true,
+            ..Default::default()
+        };
+        m.update_with(MenuInputs::default(), s, k, kc, 0.016)
+    }
+
+    fn backspace(m: &mut PauseMenu, s: &Settings, k: &Keymap) -> Option<PauseAction> {
+        let kc = KeyConfigInputs {
+            backspace: true,
+            ..Default::default()
+        };
+        m.update_with(MenuInputs::default(), s, k, kc, 0.016)
+    }
+
     #[test]
     fn step_volume_walks_six_levels() {
         let mut v = 0.0;
@@ -567,11 +1014,12 @@ mod tests {
     fn toggle_opens_and_closes_menu() {
         let mut m = PauseMenu::new();
         let s = Settings::default();
-        let action = m.update_with(toggle(), &s, 0.016);
+        let k = Keymap::default();
+        let action = step(&mut m, &s, &k, toggle());
         assert!(m.open);
         assert_eq!(m.view, View::Top);
         assert_eq!(action, None);
-        let action = m.update_with(toggle(), &s, 0.016);
+        let action = step(&mut m, &s, &k, toggle());
         assert!(!m.open);
         assert_eq!(action, Some(PauseAction::Resume));
     }
@@ -580,12 +1028,11 @@ mod tests {
     fn down_then_up_wraps_through_top_items() {
         let mut m = PauseMenu::new();
         let s = Settings::default();
-        m.update_with(toggle(), &s, 0.016);
-        // Up from the first item should wrap to the last.
-        m.update_with(up(), &s, 0.016);
+        let k = Keymap::default();
+        step(&mut m, &s, &k, toggle());
+        step(&mut m, &s, &k, up());
         assert_eq!(m.top_selected, TOP_COUNT - 1);
-        // Down from the last wraps back to 0.
-        m.update_with(down(), &s, 0.016);
+        step(&mut m, &s, &k, down());
         assert_eq!(m.top_selected, 0);
     }
 
@@ -593,21 +1040,16 @@ mod tests {
     fn left_right_on_music_emits_set_music_volume() {
         let mut m = PauseMenu::new();
         let s = Settings::default();
-        m.update_with(toggle(), &s, 0.016);
-        m.update_with(down(), &s, 0.016);
+        let k = Keymap::default();
+        step(&mut m, &s, &k, toggle());
+        step(&mut m, &s, &k, down());
         assert_eq!(m.top_selected, ITEM_MUSIC);
-        let action = m.update_with(right(), &s, 0.016);
-        match action {
-            Some(PauseAction::SetMusicVolume(v)) => {
-                assert!((v - 1.0).abs() < 1e-5);
-            }
+        match step(&mut m, &s, &k, right()) {
+            Some(PauseAction::SetMusicVolume(v)) => assert!((v - 1.0).abs() < 1e-5),
             other => panic!("expected SetMusicVolume, got {other:?}"),
         }
-        let action = m.update_with(left(), &s, 0.016);
-        match action {
-            Some(PauseAction::SetMusicVolume(v)) => {
-                assert!((v - 0.6).abs() < 1e-5);
-            }
+        match step(&mut m, &s, &k, left()) {
+            Some(PauseAction::SetMusicVolume(v)) => assert!((v - 0.6).abs() < 1e-5),
             other => panic!("expected SetMusicVolume, got {other:?}"),
         }
     }
@@ -616,21 +1058,22 @@ mod tests {
     fn left_right_on_fullscreen_emits_toggle() {
         let mut m = PauseMenu::new();
         let s = Settings::default();
-        m.update_with(toggle(), &s, 0.016);
+        let k = Keymap::default();
+        step(&mut m, &s, &k, toggle());
         for _ in 0..3 {
-            m.update_with(down(), &s, 0.016);
+            step(&mut m, &s, &k, down());
         }
         assert_eq!(m.top_selected, ITEM_FULLSCREEN);
         assert_eq!(
-            m.update_with(right(), &s, 0.016),
+            step(&mut m, &s, &k, right()),
             Some(PauseAction::ToggleFullscreen)
         );
         assert_eq!(
-            m.update_with(left(), &s, 0.016),
+            step(&mut m, &s, &k, left()),
             Some(PauseAction::ToggleFullscreen)
         );
         assert_eq!(
-            m.update_with(btn1(), &s, 0.016),
+            step(&mut m, &s, &k, btn1()),
             Some(PauseAction::ToggleFullscreen)
         );
     }
@@ -639,16 +1082,16 @@ mod tests {
     fn confirm_clear_defaults_to_no_and_cancels_on_btn1() {
         let mut m = PauseMenu::new();
         let s = Settings::default();
-        m.update_with(toggle(), &s, 0.016);
+        let k = Keymap::default();
+        step(&mut m, &s, &k, toggle());
         for _ in 0..ITEM_CLEAR {
-            m.update_with(down(), &s, 0.016);
+            step(&mut m, &s, &k, down());
         }
         assert_eq!(m.top_selected, ITEM_CLEAR);
-        assert_eq!(m.update_with(btn1(), &s, 0.016), None);
+        assert_eq!(step(&mut m, &s, &k, btn1()), None);
         assert_eq!(m.view, View::ConfirmClearSave);
-        assert_eq!(m.confirm_selected, 0); // No is default
-        // BTN1 on No returns to top with no action.
-        assert_eq!(m.update_with(btn1(), &s, 0.016), None);
+        assert_eq!(m.confirm_selected, 0);
+        assert_eq!(step(&mut m, &s, &k, btn1()), None);
         assert_eq!(m.view, View::Top);
     }
 
@@ -656,18 +1099,15 @@ mod tests {
     fn confirm_clear_yes_emits_clear_save() {
         let mut m = PauseMenu::new();
         let s = Settings::default();
-        m.update_with(toggle(), &s, 0.016);
+        let k = Keymap::default();
+        step(&mut m, &s, &k, toggle());
         for _ in 0..ITEM_CLEAR {
-            m.update_with(down(), &s, 0.016);
+            step(&mut m, &s, &k, down());
         }
-        m.update_with(btn1(), &s, 0.016);
-        // Move to "Yes, clear save data" and confirm.
-        m.update_with(down(), &s, 0.016);
+        step(&mut m, &s, &k, btn1());
+        step(&mut m, &s, &k, down());
         assert_eq!(m.confirm_selected, 1);
-        assert_eq!(
-            m.update_with(btn1(), &s, 0.016),
-            Some(PauseAction::ClearSave)
-        );
+        assert_eq!(step(&mut m, &s, &k, btn1()), Some(PauseAction::ClearSave));
         assert_eq!(m.view, View::Top);
     }
 
@@ -675,72 +1115,261 @@ mod tests {
     fn btn2_in_confirm_returns_to_top() {
         let mut m = PauseMenu::new();
         let s = Settings::default();
-        m.update_with(toggle(), &s, 0.016);
+        let k = Keymap::default();
+        step(&mut m, &s, &k, toggle());
         for _ in 0..ITEM_CLEAR {
-            m.update_with(down(), &s, 0.016);
+            step(&mut m, &s, &k, down());
         }
-        m.update_with(btn1(), &s, 0.016);
+        step(&mut m, &s, &k, btn1());
         assert_eq!(m.view, View::ConfirmClearSave);
-        assert_eq!(m.update_with(btn2(), &s, 0.016), None);
+        assert_eq!(step(&mut m, &s, &k, btn2()), None);
         assert_eq!(m.view, View::Top);
     }
 
     #[test]
-    fn input_view_back_via_btn1_or_btn2() {
+    fn input_lands_on_input_menu_and_btn2_returns_to_top() {
         let mut m = PauseMenu::new();
         let s = Settings::default();
-        m.update_with(toggle(), &s, 0.016);
+        let k = Keymap::default();
+        step(&mut m, &s, &k, toggle());
         for _ in 0..ITEM_INPUT {
-            m.update_with(down(), &s, 0.016);
+            step(&mut m, &s, &k, down());
         }
-        m.update_with(btn1(), &s, 0.016);
-        assert_eq!(m.view, View::InputBindings);
-        m.update_with(btn1(), &s, 0.016);
+        step(&mut m, &s, &k, btn1());
+        assert_eq!(m.view, View::InputMenu);
+        // Default selection is Test.
+        assert_eq!(m.input_menu_selected, INPUT_ITEM_TEST);
+        step(&mut m, &s, &k, btn2());
         assert_eq!(m.view, View::Top);
-        // And BTN2 also exits.
-        m.update_with(btn1(), &s, 0.016);
-        assert_eq!(m.view, View::InputBindings);
-        m.update_with(btn2(), &s, 0.016);
-        assert_eq!(m.view, View::Top);
+    }
+
+    #[test]
+    fn input_menu_test_enters_tester_and_buttons_are_not_consumed() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        step(&mut m, &s, &k, toggle());
+        for _ in 0..ITEM_INPUT {
+            step(&mut m, &s, &k, down());
+        }
+        step(&mut m, &s, &k, btn1()); // Top -> InputMenu
+        step(&mut m, &s, &k, btn1()); // InputMenu -> InputTester (Test selected)
+        assert_eq!(m.view, View::InputTester);
+        // Inside the tester, BTN1/BTN2 should NOT change view: they
+        // are testable inputs. Only toggle (Esc/Enter/P/Start) exits.
+        step(&mut m, &s, &k, btn1());
+        assert_eq!(m.view, View::InputTester);
+        step(&mut m, &s, &k, btn2());
+        assert_eq!(m.view, View::InputTester);
+        // Toggle returns to InputMenu (one level up), not all the way
+        // out of the menu.
+        let action = step(&mut m, &s, &k, toggle());
+        assert_eq!(action, None);
+        assert_eq!(m.view, View::InputMenu);
+        assert!(m.open);
     }
 
     #[test]
     fn reset_and_quit_emit_their_actions() {
         let mut m = PauseMenu::new();
         let s = Settings::default();
-        m.update_with(toggle(), &s, 0.016);
+        let k = Keymap::default();
+        step(&mut m, &s, &k, toggle());
         for _ in 0..ITEM_RESET {
-            m.update_with(down(), &s, 0.016);
+            step(&mut m, &s, &k, down());
         }
-        assert_eq!(
-            m.update_with(btn1(), &s, 0.016),
-            Some(PauseAction::ResetGame)
-        );
-        // Reset also resumes the game so the player isn't stuck in
-        // the menu staring at the freshly-init'd state.
+        assert_eq!(step(&mut m, &s, &k, btn1()), Some(PauseAction::ResetGame));
         assert!(!m.open, "Reset Game should close the menu");
 
-        // Re-open and walk to Quit to confirm it still emits.
-        m.update_with(toggle(), &s, 0.016);
+        step(&mut m, &s, &k, toggle());
         for _ in 0..ITEM_QUIT {
-            m.update_with(down(), &s, 0.016);
+            step(&mut m, &s, &k, down());
         }
         assert_eq!(m.top_selected, ITEM_QUIT);
-        assert_eq!(m.update_with(btn1(), &s, 0.016), Some(PauseAction::Quit));
+        assert_eq!(step(&mut m, &s, &k, btn1()), Some(PauseAction::Quit));
     }
 
     #[test]
-    fn toggle_from_submenu_closes_whole_menu() {
+    fn toggle_climbs_one_level() {
         let mut m = PauseMenu::new();
         let s = Settings::default();
-        m.update_with(toggle(), &s, 0.016);
+        let k = Keymap::default();
+        step(&mut m, &s, &k, toggle()); // open: Top
         for _ in 0..ITEM_INPUT {
-            m.update_with(down(), &s, 0.016);
+            step(&mut m, &s, &k, down());
         }
-        m.update_with(btn1(), &s, 0.016);
-        assert_eq!(m.view, View::InputBindings);
-        let action = m.update_with(toggle(), &s, 0.016);
+        step(&mut m, &s, &k, btn1()); // Top -> InputMenu
+        assert_eq!(m.view, View::InputMenu);
+        // Toggle from InputMenu returns to Top (no Resume).
+        let action = step(&mut m, &s, &k, toggle());
+        assert_eq!(action, None);
+        assert_eq!(m.view, View::Top);
+        // Toggle from Top closes the whole menu.
+        let action = step(&mut m, &s, &k, toggle());
         assert!(!m.open);
         assert_eq!(action, Some(PauseAction::Resume));
+    }
+
+    fn open_to_key_config(m: &mut PauseMenu, s: &Settings, k: &Keymap) {
+        step(m, s, k, toggle());
+        for _ in 0..ITEM_INPUT {
+            step(m, s, k, down());
+        }
+        // Top -> InputMenu
+        step(m, s, k, btn1());
+        // InputMenu: select "Configure Keys" (item 1) and confirm.
+        step(m, s, k, down());
+        step(m, s, k, btn1());
+    }
+
+    #[test]
+    fn entering_key_config_seeds_staging_from_current_keymap() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let mut k = Keymap::default();
+        k.overrides[ACTION_LEFT as usize - 1] = Some(KeyboardKey::KEY_W);
+        open_to_key_config(&mut m, &s, &k);
+        assert_eq!(m.view, View::KeyConfig);
+        let state = m.key_config.as_ref().expect("key_config initialized");
+        assert_eq!(state.action_index, 0);
+        assert_eq!(
+            state.staging.overrides[ACTION_LEFT as usize - 1],
+            Some(KeyboardKey::KEY_W)
+        );
+    }
+
+    #[test]
+    fn capturing_seven_keys_emits_set_keymap_and_returns_to_tester() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        open_to_key_config(&mut m, &s, &k);
+
+        let captures = [
+            KeyboardKey::KEY_A,
+            KeyboardKey::KEY_D,
+            KeyboardKey::KEY_W,
+            KeyboardKey::KEY_S,
+            KeyboardKey::KEY_J,
+            KeyboardKey::KEY_K,
+            KeyboardKey::KEY_L,
+        ];
+
+        for key in &captures[..6] {
+            assert_eq!(capture(&mut m, &s, &k, *key), None);
+        }
+        let final_action = capture(&mut m, &s, &k, captures[6]);
+        match final_action {
+            Some(PauseAction::SetKeymap(km)) => {
+                for (i, key) in captures.iter().enumerate() {
+                    assert_eq!(km.overrides[i], Some(*key));
+                }
+            }
+            other => panic!("expected SetKeymap, got {other:?}"),
+        }
+        assert_eq!(m.view, View::InputTester);
+        assert!(m.key_config.is_none());
+    }
+
+    #[test]
+    fn toggle_during_key_config_cancels_capture_only() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        open_to_key_config(&mut m, &s, &k);
+        capture(&mut m, &s, &k, KeyboardKey::KEY_W);
+        let action = step(&mut m, &s, &k, toggle());
+        assert_eq!(action, None, "toggle in KeyConfig should not emit anything");
+        // Cancel returns to the parent InputMenu, not the Tester:
+        // toggle is "go up one level" everywhere.
+        assert_eq!(m.view, View::InputMenu);
+        assert!(m.key_config.is_none());
+        assert!(m.open, "menu stays open; only the capture was abandoned");
+    }
+
+    #[test]
+    fn duplicate_key_press_is_rejected_and_keeps_player_on_current_action() {
+        // Mashing the same key shouldn't silently advance: previous
+        // capture wins, the duplicate press is a no-op, and the
+        // active action stays put until the player picks another key.
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        open_to_key_config(&mut m, &s, &k);
+        // First W: assigned to LEFT, advance to RIGHT.
+        capture(&mut m, &s, &k, KeyboardKey::KEY_W);
+        let state = m.key_config.as_ref().unwrap();
+        assert_eq!(state.action_index, 1);
+        assert_eq!(state.staging.overrides[0], Some(KeyboardKey::KEY_W));
+        // Second W on RIGHT: rejected. Stay on RIGHT, slot 1 untouched.
+        let action = capture(&mut m, &s, &k, KeyboardKey::KEY_W);
+        assert_eq!(action, None);
+        let state = m.key_config.as_ref().unwrap();
+        assert_eq!(state.action_index, 1);
+        assert_eq!(state.staging.overrides[1], None);
+    }
+
+    #[test]
+    fn backspace_undoes_last_capture_and_steps_back_one_action() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        open_to_key_config(&mut m, &s, &k);
+        capture(&mut m, &s, &k, KeyboardKey::KEY_A);
+        capture(&mut m, &s, &k, KeyboardKey::KEY_D);
+        // Backspace from RIGHT->UP transition: undo D, return to RIGHT.
+        let action = backspace(&mut m, &s, &k);
+        assert_eq!(action, None);
+        let state = m.key_config.as_ref().unwrap();
+        assert_eq!(state.action_index, 1);
+        assert_eq!(state.staging.overrides[0], Some(KeyboardKey::KEY_A));
+        assert_eq!(state.staging.overrides[1], None);
+    }
+
+    #[test]
+    fn backspace_at_first_action_is_a_noop() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        open_to_key_config(&mut m, &s, &k);
+        let action = backspace(&mut m, &s, &k);
+        assert_eq!(action, None);
+        let state = m.key_config.as_ref().unwrap();
+        assert_eq!(state.action_index, 0);
+        assert!(state.staging.overrides.iter().all(|s| s.is_none()));
+    }
+
+    #[test]
+    fn delete_during_key_config_emits_default_keymap() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let mut k = Keymap::default();
+        k.overrides[0] = Some(KeyboardKey::KEY_W);
+        open_to_key_config(&mut m, &s, &k);
+        // Stage a partial capture, then DEL: result is full reset, not
+        // the partial staging.
+        capture(&mut m, &s, &k, KeyboardKey::KEY_A);
+        match delete(&mut m, &s, &k) {
+            Some(PauseAction::SetKeymap(km)) => {
+                assert_eq!(km, Keymap::default());
+            }
+            other => panic!("expected SetKeymap(default), got {other:?}"),
+        }
+        assert_eq!(m.view, View::InputTester);
+        assert!(m.key_config.is_none());
+    }
+
+    #[test]
+    fn reserved_keys_are_skipped_in_capture_filter() {
+        // The raw read in `update` filters reserved keys out, but the
+        // `is_reserved_key` predicate is the contract. Sanity-check it
+        // covers the menu's must-not-bind keys.
+        assert!(is_reserved_key(KeyboardKey::KEY_ESCAPE));
+        assert!(is_reserved_key(KeyboardKey::KEY_ENTER));
+        assert!(is_reserved_key(KeyboardKey::KEY_DELETE));
+        assert!(is_reserved_key(KeyboardKey::KEY_F5));
+        assert!(is_reserved_key(KeyboardKey::KEY_LEFT_SHIFT));
+        assert!(!is_reserved_key(KeyboardKey::KEY_W));
+        assert!(!is_reserved_key(KeyboardKey::KEY_SPACE));
     }
 }

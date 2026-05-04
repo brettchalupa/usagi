@@ -50,6 +50,11 @@ mod capture;
 // same JS storage shim that powers `usagi.save` / `usagi.load`.
 mod settings;
 
+// Per-game keyboard remapping. Sits next to settings.json in the same
+// per-game data dir; the pause menu's Configure Keys flow writes into
+// it and `input::action_*` reads through it to override defaults.
+mod keymap;
+
 // game_id is universal: same id namespaces save data on every target,
 // including web localStorage, the macOS CFBundleIdentifier, and any future
 // per-game preference. Runtime save/load resolves through this module too,

@@ -9,20 +9,27 @@ Features:
 
 - Pause Menu is now navigable. Up/Down moves between items, Left/Right adjusts
   values, BTN1 (<kbd>Z</kbd>/gamepad-A) confirms, BTN2 (<kbd>X</kbd>/gamepad-B)
-  goes back. Items: Continue, Music volume, SFX volume, Fullscreen, Configure
-  Input (read-only binding list), Clear Save Data (with a confirm dialog),
-  Reset Game, Quit.
+  goes back. Items: Continue, Music volume, SFX volume, Fullscreen, Input, Clear
+  Save Data (with a confirm dialog), Reset Game, Quit.
 - Music and SFX have separate persisted volume levels, each rendered as a 5-bar
   meter (steps of 20%). Default is 80% for both.
 - <kbd>Shift</kbd>+<kbd>M</kbd> now mutes both channels at once and a second
   press restores both to their defaults.
+- Pause Menu's Input view shows a live tester (D-pad + button rects light up
+  while pressed) and a "Configure Keys >" entry that opens a Pico-8-style
+  keyconfig flow: highlights one action at a time, captures one key, advances.
+  <kbd>Esc</kbd> cancels, <kbd>Delete</kbd> resets all overrides. Keyboard-only
+  for now; gamepad bindings stay fixed. The new mappings persist per-game in
+  `keymap.json` next to `settings.json` (web: localStorage
+  `usagi.keymap.<game_id>`). Override semantics are "replace": once you map LEFT
+  to W, the default arrow Left no longer fires LEFT.
 
 Breaking:
 
 - `settings.json` replaces the single `volume` key with `music_volume` and
   `sfx_volume`. Existing settings are auto-migrated on load: the old `volume`
-  value is copied into both new fields the first time the engine reads them.
-  No action required.
+  value is copied into both new fields the first time the engine reads them. No
+  action required.
 
 Fixes:
 
