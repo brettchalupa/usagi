@@ -109,11 +109,12 @@ impl PauseMenu {
         keymap: &Keymap,
         dt: f32,
     ) -> Option<PauseAction> {
-        let inputs = read_inputs(rl, keymap);
+        let family = input::current_gamepad_family(rl);
+        let inputs = read_inputs(rl, keymap, family);
 
         // Snapshot for the Tester rects so `draw` doesn't need `rl`.
         for i in 0..ACTION_COUNT {
-            self.tester_input[i] = input::action_down(rl, keymap, (i + 1) as u32);
+            self.tester_input[i] = input::action_down(rl, keymap, family, (i + 1) as u32);
         }
 
         // Only drain raylib's key queue while capturing, so presses on
@@ -828,7 +829,7 @@ struct KeyConfigInputs {
     backspace: bool,
 }
 
-fn read_inputs(rl: &RaylibHandle, keymap: &Keymap) -> MenuInputs {
+fn read_inputs(rl: &RaylibHandle, keymap: &Keymap, family: GamepadFamily) -> MenuInputs {
     // Enter alone toggles, but Alt+Enter is reserved for fullscreen.
     let alt_held =
         rl.is_key_down(KeyboardKey::KEY_LEFT_ALT) || rl.is_key_down(KeyboardKey::KEY_RIGHT_ALT);
@@ -837,12 +838,12 @@ fn read_inputs(rl: &RaylibHandle, keymap: &Keymap) -> MenuInputs {
         || (rl.is_key_pressed(KeyboardKey::KEY_ENTER) && !alt_held)
         || gamepad_start_pressed(rl);
     MenuInputs {
-        up: input::action_pressed(rl, keymap, ACTION_UP),
-        down: input::action_pressed(rl, keymap, ACTION_DOWN),
-        left: input::action_pressed(rl, keymap, ACTION_LEFT),
-        right: input::action_pressed(rl, keymap, ACTION_RIGHT),
-        btn1: input::action_pressed(rl, keymap, ACTION_BTN1),
-        btn2: input::action_pressed(rl, keymap, ACTION_BTN2),
+        up: input::action_pressed(rl, keymap, family, ACTION_UP),
+        down: input::action_pressed(rl, keymap, family, ACTION_DOWN),
+        left: input::action_pressed(rl, keymap, family, ACTION_LEFT),
+        right: input::action_pressed(rl, keymap, family, ACTION_RIGHT),
+        btn1: input::action_pressed(rl, keymap, family, ACTION_BTN1),
+        btn2: input::action_pressed(rl, keymap, family, ACTION_BTN2),
         toggle,
     }
 }

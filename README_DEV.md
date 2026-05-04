@@ -332,6 +332,12 @@ transparent.
 west face buttons because either is easier to reach than crossing the diamond
 from BTN1's south position.
 
+**Nintendo Switch face-button swap.** When a Switch pad is connected, BTN1 fires
+from the A button (east face) and BTN2 from the B button (south face), matching
+Nintendo's "A confirms, B cancels" convention. Triggers (L/R) and BTN3 are
+unchanged. The swap is automatic via `GetGamepadName`; from your game's
+perspective `input.pressed(input.BTN1)` still means "primary action."
+
 `input.pressed` is edge-detected on keyboard and gamepad buttons but not on
 analog sticks; track stick state in Lua if you need that.
 
@@ -341,10 +347,11 @@ For UI prompts that adapt to the device the player is using:
 
 - `input.mapping_for(action)`: string label of the active source's primary
   binding for `action` (e.g. `"Z"` on keyboard, `"A"` on Xbox, `"Cross"` on
-  PlayStation, `"B"` on Switch). Gamepad family is auto-detected via
-  `GetGamepadName`. Honors any keymap remap the player has set via the pause
-  menu's Configure Keys flow. Returns `nil` if `action` is unknown or the active
-  source has no binding for it (rare; only after exotic remaps).
+  PlayStation, `"A"` on Switch since Nintendo swaps BTN1 to its A button).
+  Gamepad family is auto-detected via `GetGamepadName`. Honors any keymap remap
+  the player has set via the pause menu's Configure Keys flow. Returns `nil` if
+  `action` is unknown or the active source has no binding for it (rare; only
+  after exotic remaps).
 - `input.last_source()`: string `"keyboard"` or `"gamepad"`, the source that
   most recently fired any bound action. Switches only when a _bound_ input
   fires, so menu keys (Esc/Enter) and idle activity don't flip it.
