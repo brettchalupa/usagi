@@ -166,6 +166,10 @@ fn load_sound<'a>(audio: &'a RaylibAudio, stem: &str, bytes: &[u8]) -> Option<So
 pub struct SfxLibrary<'a> {
     pub sounds: HashMap<String, Sound<'a>>,
     manifest: HashMap<String, SystemTime>,
+    /// Per-library output volume in `0.0..=1.0`. Applied to every loaded
+    /// sound and re-applied across hot reloads so user-selected levels
+    /// survive sfx file edits.
+    volume: f32,
 }
 
 impl<'a> SfxLibrary<'a> {
@@ -173,6 +177,7 @@ impl<'a> SfxLibrary<'a> {
         Self {
             sounds: HashMap::new(),
             manifest: HashMap::new(),
+            volume: 1.0,
         }
     }
 
@@ -188,16 +193,21 @@ impl<'a> SfxLibrary<'a> {
         Self {
             sounds,
             manifest: vfs.sfx_manifest(),
+            volume: 1.0,
         }
     }
 
-    /// Returns true if the library was reloaded this call.
+    /// Returns true if the library was reloaded this call. Preserves the
+    /// caller-set volume so the user's pause-menu choice survives a
+    /// hot reload of a changed sfx file.
     pub fn reload_if_changed(&mut self, audio: &'a RaylibAudio, vfs: &dyn VirtualFs) -> bool {
         let new_manifest = vfs.sfx_manifest();
         if new_manifest == self.manifest {
             return false;
         }
+        let prior = self.volume;
         *self = Self::load(audio, vfs);
+        self.set_volume(prior);
         true
     }
 
@@ -209,6 +219,16 @@ impl<'a> SfxLibrary<'a> {
 
     pub fn len(&self) -> usize {
         self.sounds.len()
+    }
+
+    /// Sets the output volume for every loaded sfx. Stored on the
+    /// library so a fresh `reload_if_changed` can re-apply it.
+    pub fn set_volume(&mut self, v: f32) {
+        let v = v.clamp(0.0, 1.0);
+        self.volume = v;
+        for sound in self.sounds.values() {
+            sound.set_volume(v);
+        }
     }
 }
 
@@ -224,6 +244,10 @@ pub struct MusicLibrary<'a> {
     /// `update` to know which stream to refill, and by `play` / `loop_`
     /// to know what to stop before starting a new one.
     current: Option<String>,
+    /// Per-library output volume in `0.0..=1.0`. Applied to every loaded
+    /// track and re-applied across hot reloads so user-selected levels
+    /// survive music file edits.
+    volume: f32,
 }
 
 impl<'a> MusicLibrary<'a> {
@@ -232,6 +256,7 @@ impl<'a> MusicLibrary<'a> {
             tracks: HashMap::new(),
             manifest: HashMap::new(),
             current: None,
+            volume: 1.0,
         }
     }
 
@@ -264,12 +289,14 @@ impl<'a> MusicLibrary<'a> {
             tracks,
             manifest: vfs.music_manifest(),
             current: None,
+            volume: 1.0,
         }
     }
 
     /// Returns true if the library was rebuilt this call. Stops any
     /// currently-playing track on rebuild — its `Music` handle is
-    /// about to be dropped.
+    /// about to be dropped. Preserves the caller-set volume so the
+    /// user's pause-menu choice survives a hot reload.
     pub fn reload_if_changed(&mut self, audio: &'a RaylibAudio, vfs: &dyn VirtualFs) -> bool {
         let new_manifest = vfs.music_manifest();
         if new_manifest == self.manifest {
@@ -278,7 +305,9 @@ impl<'a> MusicLibrary<'a> {
         // Drop current first so the underlying Music value unloads
         // cleanly before we replace the library.
         self.current = None;
+        let prior = self.volume;
         *self = Self::load(audio, vfs);
+        self.set_volume(prior);
         true
     }
 
@@ -374,6 +403,16 @@ impl<'a> MusicLibrary<'a> {
     /// Stem of the track currently playing, if any.
     pub fn current(&self) -> Option<&str> {
         self.current.as_deref()
+    }
+
+    /// Sets the output volume for every loaded music track. Stored on
+    /// the library so a fresh `reload_if_changed` can re-apply it.
+    pub fn set_volume(&mut self, v: f32) {
+        let v = v.clamp(0.0, 1.0);
+        self.volume = v;
+        for track in self.tracks.values() {
+            track.set_volume(v);
+        }
     }
 }
 
@@ -595,5 +634,39 @@ mod tests {
             err.to_string().contains("nope"),
             "expected module name in error, got: {err}"
         );
+    }
+
+    #[test]
+    fn sfx_library_default_volume_is_unity() {
+        let lib = SfxLibrary::empty();
+        assert_eq!(lib.volume, 1.0);
+    }
+
+    #[test]
+    fn sfx_library_set_volume_clamps_and_stores() {
+        let mut lib = SfxLibrary::empty();
+        lib.set_volume(0.4);
+        assert!((lib.volume - 0.4).abs() < 1e-6);
+        lib.set_volume(2.0);
+        assert_eq!(lib.volume, 1.0);
+        lib.set_volume(-0.5);
+        assert_eq!(lib.volume, 0.0);
+    }
+
+    #[test]
+    fn music_library_default_volume_is_unity() {
+        let lib = MusicLibrary::empty();
+        assert_eq!(lib.volume, 1.0);
+    }
+
+    #[test]
+    fn music_library_set_volume_clamps_and_stores() {
+        let mut lib = MusicLibrary::empty();
+        lib.set_volume(0.6);
+        assert!((lib.volume - 0.6).abs() < 1e-6);
+        lib.set_volume(2.0);
+        assert_eq!(lib.volume, 1.0);
+        lib.set_volume(-1.0);
+        assert_eq!(lib.volume, 0.0);
     }
 }

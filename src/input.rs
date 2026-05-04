@@ -112,6 +112,77 @@ fn binding(action: u32) -> Option<&'static Binding> {
     BINDINGS.get(action.checked_sub(1)? as usize)
 }
 
+/// Display names for `ACTION_*`, indexed by `action - 1`. Shown by the
+/// pause menu's read-only Configure Input view.
+pub const ACTION_NAMES: [&str; 7] = ["LEFT", "RIGHT", "UP", "DOWN", "BTN1", "BTN2", "BTN3"];
+
+fn key_label(k: KeyboardKey) -> &'static str {
+    match k {
+        KeyboardKey::KEY_LEFT => "Left",
+        KeyboardKey::KEY_RIGHT => "Right",
+        KeyboardKey::KEY_UP => "Up",
+        KeyboardKey::KEY_DOWN => "Down",
+        KeyboardKey::KEY_A => "A",
+        KeyboardKey::KEY_D => "D",
+        KeyboardKey::KEY_W => "W",
+        KeyboardKey::KEY_S => "S",
+        KeyboardKey::KEY_Z => "Z",
+        KeyboardKey::KEY_X => "X",
+        KeyboardKey::KEY_C => "C",
+        KeyboardKey::KEY_J => "J",
+        KeyboardKey::KEY_K => "K",
+        KeyboardKey::KEY_L => "L",
+        _ => "?",
+    }
+}
+
+fn button_label(b: GamepadButton) -> &'static str {
+    match b {
+        GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_LEFT => "DPad-L",
+        GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_RIGHT => "DPad-R",
+        GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_UP => "DPad-U",
+        GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_DOWN => "DPad-D",
+        GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN => "Pad-A",
+        GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT => "Pad-B",
+        GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_UP => "Pad-Y",
+        GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_LEFT => "Pad-X",
+        GamepadButton::GAMEPAD_BUTTON_LEFT_TRIGGER_1 => "L-Bumper",
+        GamepadButton::GAMEPAD_BUTTON_RIGHT_TRIGGER_1 => "R-Bumper",
+        _ => "?",
+    }
+}
+
+fn axis_label(axis: GamepadAxis, sign: i8) -> &'static str {
+    match (axis, sign.signum()) {
+        (GamepadAxis::GAMEPAD_AXIS_LEFT_X, -1) => "Stick-L",
+        (GamepadAxis::GAMEPAD_AXIS_LEFT_X, 1) => "Stick-R",
+        (GamepadAxis::GAMEPAD_AXIS_LEFT_Y, -1) => "Stick-U",
+        (GamepadAxis::GAMEPAD_AXIS_LEFT_Y, 1) => "Stick-D",
+        _ => "?",
+    }
+}
+
+/// Human-readable list of bindings per action. Used by the pause menu's
+/// Configure Input view; ordered to match `ACTION_NAMES`.
+pub fn binding_descriptions() -> [(&'static str, String); 7] {
+    let mut out: [(&'static str, String); 7] =
+        std::array::from_fn(|i| (ACTION_NAMES[i], String::new()));
+    for (i, b) in BINDINGS.iter().enumerate() {
+        let mut parts: Vec<&'static str> = Vec::new();
+        for k in b.keys {
+            parts.push(key_label(*k));
+        }
+        for btn in b.buttons {
+            parts.push(button_label(*btn));
+        }
+        for (axis, sign) in b.axes {
+            parts.push(axis_label(*axis, *sign));
+        }
+        out[i].1 = parts.join(", ");
+    }
+    out
+}
+
 /// True if `action` is one of the exposed `ACTION_*` constants. Currently
 /// only consumed by tests, but kept public for future runtime validation.
 #[allow(dead_code)]
@@ -322,6 +393,27 @@ mod tests {
         assert!(!is_valid_action(8));
         assert!(!is_valid_action(99));
         assert!(!is_valid_action(u32::MAX));
+    }
+
+    #[test]
+    fn binding_descriptions_cover_every_action() {
+        let descs = binding_descriptions();
+        assert_eq!(descs.len(), BINDINGS.len());
+        for (i, (name, body)) in descs.iter().enumerate() {
+            assert_eq!(*name, ACTION_NAMES[i]);
+            assert!(
+                !body.is_empty(),
+                "action {name} (#{n}) had empty binding description",
+                name = name,
+                n = i + 1
+            );
+            assert!(
+                !body.contains("?"),
+                "action {name} description has unknown source: {body:?}",
+                name = name,
+                body = body
+            );
+        }
     }
 
     /// Each action should have at least one source bound, otherwise

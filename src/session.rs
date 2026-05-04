@@ -15,7 +15,7 @@ use crate::assets::{
 use crate::capture::{Recorder, save_screenshot};
 use crate::input;
 use crate::palette::color;
-use crate::pause::PauseMenu;
+use crate::pause::{PauseAction, PauseMenu};
 use crate::render::{draw_error_overlay, draw_render_target};
 use crate::shader::ShaderManager;
 use crate::vfs::VirtualFs;
@@ -432,20 +432,18 @@ impl Session {
             .ok()
             .map(|a| &*Box::leak(Box::new(a)));
 
-        // Apply the user-configured master volume. Clamped to
-        // `0.0..=1.0` so a hand-edited settings.json can't blow
-        // speakers or silently disable audio.
-        if let Some(a) = audio {
-            a.set_master_volume(settings.volume.clamp(0.0, 1.0));
-        }
-
-        let (sfx, music) = match audio {
+        // Per-channel volumes are applied to the libraries below.
+        // Master volume stays at raylib's default (1.0) so the channel
+        // settings are the source of truth.
+        let (mut sfx, mut music) = match audio {
             Some(a) => (
                 SfxLibrary::load(a, vfs.as_ref()),
                 MusicLibrary::load(a, vfs.as_ref()),
             ),
             None => (SfxLibrary::empty(), MusicLibrary::empty()),
         };
+        sfx.set_volume(settings.sfx_volume);
+        music.set_volume(settings.music_volume);
         let music = Rc::new(std::cell::RefCell::new(music));
         register_music_api(&lua, &music)
             .map_err(|e| crate::Error::Cli(format!("registering music.* API: {e}")))?;
@@ -516,12 +514,16 @@ impl Session {
             self.maybe_reload_assets();
         }
         self.handle_global_shortcuts();
-        self.pause.update(&self.rl);
+
+        let dt = self.rl.get_frame_time();
+        let pause_action = self.pause.update(&self.rl, &self.settings, dt);
+        if let Some(action) = pause_action {
+            self.apply_pause_action(action);
+        }
         if self.should_quit {
             return false;
         }
 
-        let dt = self.rl.get_frame_time();
         let screen_w = self.rl.get_screen_width();
         let screen_h = self.rl.get_screen_height();
         let fps = self.rl.get_fps();
@@ -713,24 +715,27 @@ impl Session {
             self.should_quit = true;
         }
 
-        // Shift+M toggles audio mute and persists. Volume == 0.0 is
-        // muted; toggle restores to DEFAULT_VOLUME. Shift gates the
+        // Shift+M mutes both channels (music + sfx); a second press
+        // restores both to their respective defaults. Shift gates the
         // hotkey so games can bind plain `M` to gameplay.
-        if self.rl.is_key_pressed(KeyboardKey::KEY_M)
-            && shift
-            && let Some(audio) = self.audio
-        {
-            let next = if self.settings.volume > 0.0 {
-                0.0
+        if self.rl.is_key_pressed(KeyboardKey::KEY_M) && shift && self.audio.is_some() {
+            let any_audible = self.settings.music_volume > 0.0 || self.settings.sfx_volume > 0.0;
+            let (m, s) = if any_audible {
+                (0.0, 0.0)
             } else {
-                crate::settings::DEFAULT_VOLUME
+                (
+                    crate::settings::DEFAULT_MUSIC_VOLUME,
+                    crate::settings::DEFAULT_SFX_VOLUME,
+                )
             };
-            self.settings.volume = next;
-            audio.set_master_volume(next.clamp(0.0, 1.0));
+            self.settings.music_volume = m;
+            self.settings.sfx_volume = s;
+            self.music.borrow_mut().set_volume(m);
+            self.sfx.set_volume(s);
             if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
                 eprintln!("[usagi] settings write failed: {e}");
             }
-            eprintln!("[usagi] master volume: {next:.2}");
+            eprintln!("[usagi] music: {m:.2}, sfx: {s:.2}");
         }
 
         // F9 / Cmd+G / Ctrl+G toggles GIF recording.
@@ -764,6 +769,66 @@ impl Session {
                 && let Err(e) = save_screenshot(&self.rt, &self.captures_dir, &self.capture_prefix)
             {
                 eprintln!("[usagi] screenshot failed: {e}");
+            }
+        }
+    }
+
+    /// Applies a pause-menu transition. The menu only mutates its own
+    /// state; everything that touches settings, audio, the window, or
+    /// disk lands here so the side effects sit alongside the matching
+    /// hotkey handlers.
+    fn apply_pause_action(&mut self, action: PauseAction) {
+        match action {
+            PauseAction::Resume => {}
+            PauseAction::SetMusicVolume(v) => {
+                let v = v.clamp(0.0, 1.0);
+                self.settings.music_volume = v;
+                self.music.borrow_mut().set_volume(v);
+                if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
+                    eprintln!("[usagi] settings write failed: {e}");
+                }
+            }
+            PauseAction::SetSfxVolume(v) => {
+                let v = v.clamp(0.0, 1.0);
+                self.settings.sfx_volume = v;
+                self.sfx.set_volume(v);
+                if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
+                    eprintln!("[usagi] settings write failed: {e}");
+                }
+            }
+            PauseAction::ToggleFullscreen => {
+                self.rl.toggle_borderless_windowed();
+                self.settings.fullscreen = !self.settings.fullscreen;
+                if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
+                    eprintln!("[usagi] settings write failed: {e}");
+                }
+            }
+            PauseAction::ResetGame => {
+                if let Ok(init) = self.lua.globals().get::<LuaFunction>("_init") {
+                    match init.call::<()>(()) {
+                        Ok(()) => {
+                            println!("[usagi] reset");
+                            self.last_error = None;
+                        }
+                        Err(e) => {
+                            let msg = format!("_init: {}", e);
+                            eprintln!("[usagi] {}", msg);
+                            self.last_error = Some(msg);
+                        }
+                    }
+                }
+            }
+            PauseAction::ClearSave => {
+                #[cfg(not(target_os = "emscripten"))]
+                match crate::save::clear_save(&self.game_id) {
+                    Ok(()) => println!("[usagi] save data cleared"),
+                    Err(e) => eprintln!("[usagi] save clear failed: {e}"),
+                }
+                #[cfg(target_os = "emscripten")]
+                eprintln!("[usagi] clear save data is not supported on web yet");
+            }
+            PauseAction::Quit => {
+                self.should_quit = true;
             }
         }
     }
