@@ -22,7 +22,7 @@ make, and get help.](https://usagiengine.com/discord)
 [Download the latest Usagi build for your operating
 system.](https://github.com/brettchalupa/usagi/releases/latest)
 
-**Latest Usagi release:** v0.4.0
+**Latest Usagi release:** v0.5.0
 
 You can keep the `usagi` executable in your project folder or install it
 globally on your computer.

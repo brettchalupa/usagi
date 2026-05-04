@@ -22,7 +22,7 @@ make, and get help.](https://usagiengine.com/discord)
 [Download the latest Usagi build for your operating
 system.](https://github.com/brettchalupa/usagi/releases/latest)
 
-**Latest Usagi release:** v0.4.0
+**Latest Usagi release:** v0.5.0
 
 You can keep the `usagi` executable in your project folder or install it
 globally on your computer.
@@ -126,13 +126,6 @@ simple yet surprisingly powerful, making it a good fit for Usagi.
 
 If you want to build a medium-to-large polished game, Usagi would not be a good
 fit.
-
-## Roadmap
-
-Not sure yet what's next! Some ideas:
-
-- Pause menu w/ settings and input mapping for players
-- Code signing for macOS app exports
 
 ## Project Layout
 
@@ -323,7 +316,10 @@ transparent.
 
 - `input.pressed(action)` — true only the frame the action first went down. Use
   for one-shot actions (fire, jump, menu select).
-- `input.down(action)` — true while the action is held. Use for movement.
+- `input.held(action)` — true while the action is held. Use for movement,
+  charging meters, "hold to skip" prompts.
+- `input.released(action)` — true only the frame the action first went up. Use
+  for charge-and-release mechanics (jump-on-release, slingshot pull-back).
 
 | Action  | Keyboard        | Gamepad                                          |
 | ------- | --------------- | ------------------------------------------------ |
@@ -339,8 +335,36 @@ transparent.
 west face buttons because either is easier to reach than crossing the diamond
 from BTN1's south position.
 
+**Nintendo Switch face-button swap.** When a Switch pad is connected, BTN1 fires
+from the A button (east face) and BTN2 from the B button (south face), matching
+Nintendo's "A confirms, B cancels" convention. Triggers (L/R) and BTN3 are
+unchanged. The swap is automatic via `GetGamepadName`; from your game's
+perspective `input.pressed(input.BTN1)` still means "primary action."
+
 `input.pressed` is edge-detected on keyboard and gamepad buttons but not on
 analog sticks; track stick state in Lua if you need that.
+
+#### Control glyphs (source-aware)
+
+For UI prompts that adapt to the device the player is using:
+
+- `input.mapping_for(action)`: string label of the active source's primary
+  binding for `action` (e.g. `"Z"` on keyboard, `"A"` on Xbox, `"Cross"` on
+  PlayStation, `"A"` on Switch since Nintendo swaps BTN1 to its A button).
+  Gamepad family is auto-detected via `GetGamepadName`. Honors any keymap remap
+  the player has set via the pause menu's Configure Keys flow. Returns `nil` if
+  `action` is unknown or the active source has no binding for it (rare; only
+  after exotic remaps).
+- `input.last_source()`: string `"keyboard"` or `"gamepad"`, the source that
+  most recently fired any bound action. Switches only when a _bound_ input
+  fires, so menu keys (Esc/Enter) and idle activity don't flip it.
+- `input.SOURCE_KEYBOARD`, `input.SOURCE_GAMEPAD`: the corresponding string
+  constants for comparing against `last_source()`.
+
+```lua
+local btn = input.mapping_for(input.BTN1) or "?"
+gfx.text("Press " .. btn .. " to jump", 10, 10, gfx.COLOR_WHITE)
+```
 
 #### Mouse
 
@@ -350,8 +374,9 @@ analog sticks; track stick state in Lua if you need that.
   `0..usagi.GAME_W` / `0..usagi.GAME_H`, so a bounds check is the idiomatic way
   to detect "cursor is off the play area." See
   [`examples/mouse`](https://github.com/brettchalupa/usagi/blob/main/examples/mouse/main.lua).
-- `input.mouse_down(button)` — true while `button` is held.
+- `input.mouse_held(button)` — true while `button` is held.
 - `input.mouse_pressed(button)` — true the frame `button` first went down.
+- `input.mouse_released(button)` — true the frame `button` first went up.
 - `input.MOUSE_LEFT`, `input.MOUSE_RIGHT` — the supported buttons. Wheel
   scrolling and middle-click aren't exposed yet.
 - `input.set_mouse_visible(visible)` — show or hide the OS cursor over the game
@@ -360,6 +385,42 @@ analog sticks; track stick state in Lua if you need that.
 - `input.mouse_visible()` — true when the OS cursor is currently shown. Reflects
   the latest `set_mouse_visible` call synchronously, so toggling reads
   consistently: `input.set_mouse_visible(not input.mouse_visible())`.
+
+#### Direct keyboard (escape hatch)
+
+For dev hotkeys (toggling debug overlays, screenshotting, F-key shortcuts) and
+for keyboard-and-mouse-only games, you can read raw keyboard state by key:
+
+- `input.key_pressed(key)` — true the frame `key` first went down.
+- `input.key_held(key)` — true while `key` is held.
+- `input.key_released(key)` — true the frame `key` first went up.
+
+```lua
+if usagi.IS_DEV and input.key_pressed(input.KEY_F1) then
+  State.show_debug = not State.show_debug
+end
+```
+
+**Use sparingly for gameplay.** These bypass the action/keymap system on
+purpose, meaning they don't honor the player's pause-menu key remaps and they
+don't fire from a gamepad. Anything a player should be able to remap, or that a
+controller player needs to reach, belongs on `input.held` / `input.pressed` /
+`input.released` with an abstract action.
+
+Available constants (all `input.KEY_*`): letters `A`–`Z`, digits `0`–`9`,
+function keys `F1`–`F12`, `SPACE`, `ENTER`, `ESCAPE`, `TAB`, `BACKSPACE`,
+`DELETE`, arrows (`LEFT`, `RIGHT`, `UP`, `DOWN`), modifiers (`LSHIFT`, `RSHIFT`,
+`LCTRL`, `RCTRL`, `LALT`, `RALT`), and punctuation (`BACKTICK`, `MINUS`,
+`EQUAL`, `LBRACKET`, `RBRACKET`, `BACKSLASH`, `SEMICOLON`, `APOSTROPHE`,
+`COMMA`, `PERIOD`, `SLASH`). Numpad and the navigation cluster
+(Insert/Home/End/PgUp/PgDn) aren't exposed yet.
+[Open an issue](https://github.com/brettchalupa/usagi/issues/new) or submit a PR
+if you need them.
+
+Raw gamepad reads (analog sticks, triggers, individual face buttons by index)
+are intentionally not exposed. The abstract `input.held(input.BTN1)` family
+covers gamepad input; if you need finer-grained control than that, you've likely
+outgrown Usagi.
 
 ### `sfx`
 
@@ -386,6 +447,52 @@ The file stem is the name; `music/intro.ogg` is `music.play("intro")`. Music
 lives in a separate directory from sfx because the formats and lifetimes differ
 — sfx is loaded fully into memory and one-shotted, music is decoded
 incrementally on the audio thread.
+
+### `util`
+
+Drop-in math and geometry helpers. Pure Lua, no engine state, available as a
+global `util` table.
+
+Functions taking shaped tables (vectors `{x, y}`, rects `{x, y, w, h}`, circles
+`{x, y, r}`) check their args and raise an error pointing at _your_ call site
+when a field is missing, so a typo like `util.rect_overlap({x=0, y=0, w=10})`
+fails with `util.rect_overlap: arg 1 table missing or non-numeric field 'h'`
+instead of a confusing nil-arithmetic explosion deep inside the helper.
+
+**Scalar math:**
+
+- `util.clamp(v, lo, hi)` — clamps `v` into `[lo, hi]`.
+- `util.sign(v)` — returns `-1`, `0`, or `1`. Lua doesn't have this built-in.
+- `util.round(v)` — half-up rounding to nearest integer. Pixel-snap world
+  positions on draw to keep sprites crisp.
+- `util.approach(current, target, max_delta)` — moves `current` toward `target`
+  by at most `max_delta`. Pass a delta scaled by `dt` for frame-rate
+  independence (`util.approach(p.vx, target, accel * dt)`).
+- `util.lerp(a, b, t)` — linear interpolation; `t = 0` → `a`, `t = 1` → `b`,
+  values outside `[0, 1]` extrapolate.
+- `util.wrap(v, lo, hi)` — wraps `v` into `[lo, hi)`. Cycle-safe for negatives.
+- `util.flash(t, hz)` — boolean from time, toggles `hz` times per second.
+
+**Vectors:**
+
+- `util.vec_normalize({x, y})` — returns a new unit-length vector. Zero in →
+  zero out (no divide-by-zero).
+- `util.vec_dist(a, b)` — distance between two `{x, y}` points.
+- `util.vec_dist_sq(a, b)` — squared distance, for "is X closer than Y?" hot
+  loops where you don't want the sqrt. Compare against `r * r`.
+- `util.vec_from_angle(angle, len?)` — vector at `angle` (radians) with
+  magnitude `len` (default 1). Pair with `math.atan(dy, dx)` to convert any
+  direction into a velocity.
+
+**Geometry overlap:**
+
+- `util.point_in_rect(p, r)` — point-in-rect hit test. Half-open `[x, x+w)` on
+  each axis: top/left edges are inside, bottom/right edges are outside.
+- `util.point_in_circ(p, c)` — point-in-circle hit test. Boundary is outside
+  (matches `circ_overlap` convention).
+- `util.rect_overlap(a, b)` — AABB overlap. Edge-adjacent rects don't overlap.
+- `util.circ_overlap(a, b)` — circle-vs-circle. Tangent circles don't overlap.
+- `util.circ_rect_overlap(c, r)` — circle-vs-rect via closest-point method.
 
 ### `usagi`
 
