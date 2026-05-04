@@ -65,6 +65,14 @@ async function handler(req: Request): Promise<Response> {
     if (url.pathname.toLowerCase().replace(/\/$/, "") === "/discord") {
       return Response.redirect("https://discord.gg/a92ZjE4NUx", 302);
     }
+    if (url.pathname === "/UNLICENSE") {
+      const license = await Deno.readTextFile("../UNLICENSE");
+      return new Response(license, {
+        headers: {
+          "content-type": "text/plain;charset=utf-8",
+        },
+      });
+    }
     if (url.pathname === "/favicon.png") {
       return serveFile(req, "./favicon.png");
     }
