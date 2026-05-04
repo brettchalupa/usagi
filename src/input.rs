@@ -480,6 +480,46 @@ pub fn action_pressed(
     false
 }
 
+/// True the frame any key or button bound to `action` transitions from
+/// down to up. Analog sticks aren't edge-detected. Override semantics
+/// match `action_down`.
+pub fn action_released(
+    rl: &RaylibHandle,
+    keymap: &Keymap,
+    family: GamepadFamily,
+    action: u32,
+) -> bool {
+    let Some(b) = binding(action) else {
+        return false;
+    };
+    if let Some(k) = keymap.override_for(action) {
+        if rl.is_key_released(k) {
+            return true;
+        }
+    } else {
+        for k in b.keys {
+            if keymap.is_used_as_override(*k) {
+                continue;
+            }
+            if rl.is_key_released(*k) {
+                return true;
+            }
+        }
+    }
+    let buttons = effective_face_buttons(action, family);
+    for pad in 0..MAX_GAMEPADS {
+        if !rl.is_gamepad_available(pad) {
+            continue;
+        }
+        for btn in buttons {
+            if rl.is_gamepad_button_released(pad, *btn) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Inverts the screen-to-game render transform so a window-pixel mouse
 /// position becomes game-pixel coords. Pure (no raylib handle), so tests
 /// can exercise the math directly. May return values outside
@@ -527,10 +567,13 @@ pub fn set_mouse_visible(rl: &mut RaylibHandle, visible: bool) {
 pub struct InputState {
     actions_down: u32,
     actions_pressed: u32,
+    actions_released: u32,
     mouse_left_down: bool,
     mouse_right_down: bool,
     mouse_left_pressed: bool,
     mouse_right_pressed: bool,
+    mouse_left_released: bool,
+    mouse_right_released: bool,
     mouse_x: i32,
     mouse_y: i32,
     /// Per-action label for the currently-active source's primary
@@ -554,6 +597,7 @@ impl InputState {
         let gamepad_family = current_gamepad_family(rl);
         let mut down = 0u32;
         let mut pressed = 0u32;
+        let mut released = 0u32;
         for (i, _) in BINDINGS.iter().enumerate() {
             let action = (i + 1) as u32;
             if action_down(rl, keymap, gamepad_family, action) {
@@ -561,6 +605,9 @@ impl InputState {
             }
             if action_pressed(rl, keymap, gamepad_family, action) {
                 pressed |= 1 << i;
+            }
+            if action_released(rl, keymap, gamepad_family, action) {
+                released |= 1 << i;
             }
         }
         let m = rl.get_mouse_position();
@@ -574,10 +621,13 @@ impl InputState {
         Self {
             actions_down: down,
             actions_pressed: pressed,
+            actions_released: released,
             mouse_left_down: rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT),
             mouse_right_down: rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_RIGHT),
             mouse_left_pressed: rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT),
             mouse_right_pressed: rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_RIGHT),
+            mouse_left_released: rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT),
+            mouse_right_released: rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_RIGHT),
             mouse_x: mx,
             mouse_y: my,
             mapping,
@@ -615,6 +665,14 @@ impl InputState {
             .unwrap_or(false)
     }
 
+    pub fn action_released(&self, action: u32) -> bool {
+        action
+            .checked_sub(1)
+            .filter(|i| (*i as usize) < BINDINGS.len())
+            .map(|i| self.actions_released & (1 << i) != 0)
+            .unwrap_or(false)
+    }
+
     pub fn mouse_button_down(&self, button: u32) -> bool {
         match mouse_button_from_u32(button) {
             Some(MouseButton::MOUSE_BUTTON_LEFT) => self.mouse_left_down,
@@ -627,6 +685,14 @@ impl InputState {
         match mouse_button_from_u32(button) {
             Some(MouseButton::MOUSE_BUTTON_LEFT) => self.mouse_left_pressed,
             Some(MouseButton::MOUSE_BUTTON_RIGHT) => self.mouse_right_pressed,
+            _ => false,
+        }
+    }
+
+    pub fn mouse_button_released(&self, button: u32) -> bool {
+        match mouse_button_from_u32(button) {
+            Some(MouseButton::MOUSE_BUTTON_LEFT) => self.mouse_left_released,
+            Some(MouseButton::MOUSE_BUTTON_RIGHT) => self.mouse_right_released,
             _ => false,
         }
     }

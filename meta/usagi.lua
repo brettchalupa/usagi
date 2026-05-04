@@ -212,7 +212,14 @@ function input.pressed(action) end
 ---Returns true while any source bound to `action` is held.
 ---@param action integer  one of input.LEFT / RIGHT / UP / DOWN / BTN1 / BTN2 / BTN3
 ---@return boolean
-function input.down(action) end
+function input.held(action) end
+
+---Returns true the frame any source bound to `action` first went up
+---(transitioned from held to released). Mirrors `input.pressed` for the
+---release edge.
+---@param action integer  one of input.LEFT / RIGHT / UP / DOWN / BTN1 / BTN2 / BTN3
+---@return boolean
+function input.released(action) end
 
 ---Label of the active input source's primary binding for `action` (e.g.
 ---"Z" on keyboard, "Pad-A" on gamepad). Honors any keymap remap the
@@ -242,12 +249,18 @@ function input.mouse() end
 ---Returns true while the given mouse button is held.
 ---@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT
 ---@return boolean
-function input.mouse_down(button) end
+function input.mouse_held(button) end
 
 ---Returns true the frame the given mouse button first went down.
 ---@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT
 ---@return boolean
 function input.mouse_pressed(button) end
+
+---Returns true the frame the given mouse button first went up
+---(transitioned from held to released).
+---@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT
+---@return boolean
+function input.mouse_released(button) end
 
 ---Show or hide the OS cursor over the game window. Persists until
 ---changed. Callable from `_init` so games can hide the cursor before

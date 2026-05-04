@@ -202,10 +202,10 @@ function _update(dt)
   end
 
   local dir = 0
-  if input.down(input.LEFT) then
+  if input.held(input.LEFT) then
     dir = dir - 1
   end
-  if input.down(input.RIGHT) then
+  if input.held(input.RIGHT) then
     dir = dir + 1
   end
   if dir ~= 0 and dir == State.move_dir then
@@ -245,14 +245,14 @@ function _update(dt)
   end
 
   local interval = scoring.gravity_interval(State.level)
-  if input.down(input.DOWN) then
+  if input.held(input.DOWN) then
     interval = math.min(interval, cfg.SOFT_DROP_INTERVAL)
   end
 
   State.fall_timer = State.fall_timer + dt
   while State.fall_timer >= interval do
     State.fall_timer = State.fall_timer - interval
-    if input.down(input.DOWN) then
+    if input.held(input.DOWN) then
       State.score = State.score + 1
     end
     step_gravity()

@@ -138,7 +138,7 @@ function _update(_dt)
     end
   end
 
-  if State.dragged and input.mouse_down(input.MOUSE_LEFT) then
+  if State.dragged and input.mouse_held(input.MOUSE_LEFT) then
     local b = State.boxes[State.dragged]
     b.x = mx + State.drag_offset.x
     b.y = my + State.drag_offset.y

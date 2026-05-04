@@ -55,18 +55,18 @@ local function emit_spark()
 end
 
 function _update(dt)
-  if input.down(input.LEFT) then
+  if input.held(input.LEFT) then
     State.p.x = State.p.x - State.p.spd * dt
     State.p.face_left = true
   end
-  if input.down(input.RIGHT) then
+  if input.held(input.RIGHT) then
     State.p.x = State.p.x + State.p.spd * dt
     State.p.face_left = false
   end
-  if input.down(input.DOWN) then
+  if input.held(input.DOWN) then
     State.p.y = State.p.y + State.p.spd * dt
   end
-  if input.down(input.UP) then
+  if input.held(input.UP) then
     State.p.y = State.p.y - State.p.spd * dt
   end
   if input.pressed(input.BTN1) then

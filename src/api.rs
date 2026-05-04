@@ -283,7 +283,7 @@ mod tests {
     /// Every `input.*` constant must map to a valid action in
     /// `crate::input`. Guards against adding a new input action to
     /// `setup_api` without extending `BINDINGS`, which would make
-    /// `input.down(input.X)` always return false. `MOUSE_*` and
+    /// `input.held(input.X)` always return false. `MOUSE_*` and
     /// `SOURCE_*` constants are skipped here because they're not
     /// action IDs.
     #[test]
@@ -371,11 +371,16 @@ mod tests {
 
             let input: LuaTable = lua.globals().get("input")?;
             input.set("pressed", scope.create_function(|_, _k: u32| Ok(false))?)?;
-            input.set("down", scope.create_function(|_, _k: u32| Ok(false))?)?;
+            input.set("held", scope.create_function(|_, _k: u32| Ok(false))?)?;
+            input.set("released", scope.create_function(|_, _k: u32| Ok(false))?)?;
             input.set("mouse", scope.create_function(|_, ()| Ok((0i32, 0i32)))?)?;
-            input.set("mouse_down", scope.create_function(|_, _b: u32| Ok(false))?)?;
+            input.set("mouse_held", scope.create_function(|_, _b: u32| Ok(false))?)?;
             input.set(
                 "mouse_pressed",
+                scope.create_function(|_, _b: u32| Ok(false))?,
+            )?;
+            input.set(
+                "mouse_released",
                 scope.create_function(|_, _b: u32| Ok(false))?,
             )?;
             input.set(
@@ -418,13 +423,15 @@ mod tests {
                 assert(type(mw) == "number" and type(mh) == "number")
                 assert(type(usagi.elapsed) == "number")
                 assert(type(input.pressed(input.LEFT)) == "boolean")
-                assert(type(input.down(input.BTN1)) == "boolean")
+                assert(type(input.held(input.BTN1)) == "boolean")
+                assert(type(input.released(input.BTN1)) == "boolean")
                 assert(type(input.pressed(input.BTN2)) == "boolean")
                 assert(type(input.pressed(input.BTN3)) == "boolean")
                 local mx, my = input.mouse()
                 assert(type(mx) == "number" and type(my) == "number")
-                assert(type(input.mouse_down(input.MOUSE_LEFT)) == "boolean")
+                assert(type(input.mouse_held(input.MOUSE_LEFT)) == "boolean")
                 assert(type(input.mouse_pressed(input.MOUSE_RIGHT)) == "boolean")
+                assert(type(input.mouse_released(input.MOUSE_LEFT)) == "boolean")
                 input.set_mouse_visible(false)
                 input.set_mouse_visible(true)
                 assert(type(input.mouse_visible()) == "boolean")
