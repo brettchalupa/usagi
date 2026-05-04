@@ -37,7 +37,10 @@ function _draw(_dt)
   gfx.text("track: " .. TRACK, 10, 30, gfx.COLOR_LIGHT_GRAY)
   gfx.text("mode:  " .. mode, 10, 46, gfx.COLOR_YELLOW)
 
-  gfx.text("BTN1: loop", 10, usagi.GAME_H - 50, gfx.COLOR_LIGHT_GRAY)
-  gfx.text("BTN2: play once", 10, usagi.GAME_H - 34, gfx.COLOR_LIGHT_GRAY)
-  gfx.text("BTN3: stop", 10, usagi.GAME_H - 18, gfx.COLOR_LIGHT_GRAY)
+  local b1 = input.mapping_for(input.BTN1) or "BTN1"
+  local b2 = input.mapping_for(input.BTN2) or "BTN2"
+  local b3 = input.mapping_for(input.BTN3) or "BTN3"
+  gfx.text(b1 .. ": loop", 10, usagi.GAME_H - 50, gfx.COLOR_LIGHT_GRAY)
+  gfx.text(b2 .. ": play once", 10, usagi.GAME_H - 34, gfx.COLOR_LIGHT_GRAY)
+  gfx.text(b3 .. ": stop", 10, usagi.GAME_H - 18, gfx.COLOR_LIGHT_GRAY)
 end

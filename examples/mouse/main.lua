@@ -98,5 +98,6 @@ function _draw(_dt)
 
   gfx.text("Mouse: " .. mx .. ", " .. my, 4, 4, gfx.COLOR_WHITE)
   gfx.text("Left click: burst   Right click: clear", 4, 14, gfx.COLOR_LIGHT_GRAY)
-  gfx.text("BTN3 (C/L) toggles OS cursor", 4, 24, gfx.COLOR_LIGHT_GRAY)
+  local b3 = input.mapping_for(input.BTN3) or "BTN3"
+  gfx.text(b3 .. " toggles OS cursor", 4, 24, gfx.COLOR_LIGHT_GRAY)
 end

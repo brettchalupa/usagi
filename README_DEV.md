@@ -335,6 +335,27 @@ from BTN1's south position.
 `input.pressed` is edge-detected on keyboard and gamepad buttons but not on
 analog sticks; track stick state in Lua if you need that.
 
+#### Control glyphs (source-aware)
+
+For UI prompts that adapt to the device the player is using:
+
+- `input.mapping_for(action)`: string label of the active source's primary
+  binding for `action` (e.g. `"Z"` on keyboard, `"A"` on Xbox, `"Cross"` on
+  PlayStation, `"B"` on Switch). Gamepad family is auto-detected via
+  `GetGamepadName`. Honors any keymap remap the player has set via the pause
+  menu's Configure Keys flow. Returns `nil` if `action` is unknown or the active
+  source has no binding for it (rare; only after exotic remaps).
+- `input.last_source()`: string `"keyboard"` or `"gamepad"`, the source that
+  most recently fired any bound action. Switches only when a _bound_ input
+  fires, so menu keys (Esc/Enter) and idle activity don't flip it.
+- `input.SOURCE_KEYBOARD`, `input.SOURCE_GAMEPAD`: the corresponding string
+  constants for comparing against `last_source()`.
+
+```lua
+local btn = input.mapping_for(input.BTN1) or "?"
+gfx.text("Press " .. btn .. " to jump", 10, 10, gfx.COLOR_WHITE)
+```
+
 #### Mouse
 
 - `input.mouse()` — returns `x, y` for the cursor in game-space pixels (so the

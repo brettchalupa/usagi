@@ -92,6 +92,16 @@ fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
     input.set("down", down)?;
 
     let s = Rc::clone(&bridge.state);
+    let mapping_for = lua.create_function(move |_, action: u32| {
+        Ok(s.get().mapping_for(action).map(str::to_string))
+    })?;
+    input.set("mapping_for", mapping_for)?;
+
+    let s = Rc::clone(&bridge.state);
+    let last_source = lua.create_function(move |_, ()| Ok(s.get().last_source().as_str()))?;
+    input.set("last_source", last_source)?;
+
+    let s = Rc::clone(&bridge.state);
     let mouse = lua.create_function(move |_, ()| Ok(s.get().mouse_position()))?;
     input.set("mouse", mouse)?;
 
@@ -414,6 +424,7 @@ impl Session {
             &rl,
             config.pixel_perfect,
             &keymap,
+            input::InputSource::default(),
         ));
         register_input_api(&lua, &input_bridge)
             .map_err(|e| crate::Error::Cli(format!("registering input.* API: {e}")))?;
@@ -541,10 +552,12 @@ impl Session {
         // `input.*` closures see consistent values throughout `_update`
         // and `_draw`. raylib polls input once per frame anyway, so
         // sampling here matches what live calls would return.
+        let prior_source = self.input_bridge.state.get().last_source();
         self.input_bridge.state.set(input::InputState::sample(
             &self.rl,
             self.config.pixel_perfect,
             &self.keymap,
+            prior_source,
         ));
 
         // Apply any cursor-visibility toggle that user Lua requested
@@ -594,6 +607,7 @@ impl Session {
     /// Renders the pause overlay onto the RT in place of `_draw`. Split
     /// out so the borrow-splitting destructure stays local.
     fn draw_paused(&mut self) {
+        let family = self.input_bridge.state.get().gamepad_family();
         let Self {
             rl,
             thread,
@@ -605,7 +619,7 @@ impl Session {
             ..
         } = self;
         let mut d_rt = rl.begin_texture_mode(thread, rt);
-        pause.draw(&mut d_rt, font, settings, keymap);
+        pause.draw(&mut d_rt, font, settings, keymap, family);
     }
 
     fn maybe_reload_assets(&mut self) {

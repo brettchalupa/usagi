@@ -13,6 +13,8 @@ end
 
 function _draw(dt)
   gfx.clear(gfx.COLOR_BLACK)
-  gfx.text("Press BTN1 for jump.wav", 20, 20, gfx.COLOR_WHITE)
-  gfx.text("Press BTN2 for explosion.wav", 20, 40, gfx.COLOR_WHITE)
+  local btn1 = input.mapping_for(input.BTN1) or "BTN1"
+  local btn2 = input.mapping_for(input.BTN2) or "BTN2"
+  gfx.text("Press " .. btn1 .. " for jump.wav", 20, 20, gfx.COLOR_WHITE)
+  gfx.text("Press " .. btn2 .. " for explosion.wav", 20, 40, gfx.COLOR_WHITE)
 end

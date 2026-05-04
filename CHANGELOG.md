@@ -23,6 +23,18 @@ Features:
   `keymap.json` next to `settings.json` (web: localStorage
   `usagi.keymap.<game_id>`). Override semantics are "replace": once you map LEFT
   to W, the default arrow Left no longer fires LEFT.
+- New Lua API for source-aware control glyphs: `input.mapping_for(action)`
+  returns the label of the active source's primary binding (e.g. `"Z"` while the
+  player is on keyboard; `"A"` on Xbox, `"Cross"` on PlayStation, `"B"` on
+  Switch when the active source is gamepad). Gamepad family is auto-detected via
+  `GetGamepadName` and falls back to Xbox for unknown / generic / Steam Deck
+  pads. The engine tracks the most recent source automatically, switching only
+  when a _bound_ input fires so stray keys don't flip it. `input.last_source()`
+  returns `"keyboard"` or `"gamepad"`; matching constants are
+  `input.SOURCE_KEYBOARD` and `input.SOURCE_GAMEPAD`. Examples that previously
+  hardcoded `BTN1`/`BTN2`/`BTN3` in their on-screen prompts (sound, music, save,
+  shader, rng, snake, dialog, operators, mouse) now use `input.mapping_for` so
+  the prompts adapt to the active device.
 
 Breaking:
 

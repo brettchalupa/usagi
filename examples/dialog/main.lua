@@ -175,8 +175,9 @@ function _draw(_dt)
   end
 
   -- Hint
+  local b1 = input.mapping_for(input.BTN1) or "BTN1"
   gfx.text(
-    "BTN1: skip / advance",
+    b1 .. ": skip / advance",
     200,
     usagi.GAME_H - MSG_H - SPEAKER_H,
     gfx.COLOR_LIGHT_GRAY

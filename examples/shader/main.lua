@@ -76,7 +76,9 @@ function _draw(_dt)
   gfx.circ_fill(State.bunny_x + 13, 106, 1, gfx.COLOR_BLACK)
 
   gfx.text("SHADER DEMO", 4, 4, gfx.COLOR_YELLOW)
-  gfx.text("BTN1: cycle  BTN2: scanline", 4, 14, gfx.COLOR_LIGHT_GRAY)
+  local b1 = input.mapping_for(input.BTN1) or "BTN1"
+  local b2 = input.mapping_for(input.BTN2) or "BTN2"
+  gfx.text(b1 .. ": cycle  " .. b2 .. ": scanline", 4, 14, gfx.COLOR_LIGHT_GRAY)
   gfx.text("shader: " .. LABELS[State.shader_idx], 4, usagi.GAME_H - 20, gfx.COLOR_GREEN)
   gfx.text("scanline: " .. SCANLINE_LEVELS[State.scan_idx], 4, usagi.GAME_H - 10, gfx.COLOR_GREEN)
 end

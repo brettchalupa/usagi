@@ -136,7 +136,7 @@ function _draw(dt)
   if not State.alive then
     local game_over_txt = "game over"
     gfx.text(game_over_txt, usagi.GAME_W / 2 - usagi.measure_text(game_over_txt) / 2, 80, gfx.COLOR_RED)
-    local restart_txt = "press BTN1"
+    local restart_txt = "press " .. (input.mapping_for(input.BTN1) or "BTN1")
     gfx.text(restart_txt, usagi.GAME_W / 2 - usagi.measure_text(restart_txt) / 2, 96, gfx.COLOR_WHITE)
   end
 end

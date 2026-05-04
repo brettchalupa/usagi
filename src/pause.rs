@@ -9,7 +9,7 @@
 
 use crate::input::{
     self, ACTION_BTN1, ACTION_BTN2, ACTION_BTN3, ACTION_DOWN, ACTION_LEFT, ACTION_NAMES,
-    ACTION_RIGHT, ACTION_UP, MAX_GAMEPADS, binding_columns,
+    ACTION_RIGHT, ACTION_UP, GamepadFamily, MAX_GAMEPADS, binding_columns,
 };
 use crate::keymap::{self, Keymap};
 use crate::palette;
@@ -376,6 +376,7 @@ impl PauseMenu {
         font: &Font,
         settings: &Settings,
         keymap: &Keymap,
+        gamepad_family: GamepadFamily,
     ) {
         d.draw_rectangle(
             0,
@@ -417,7 +418,7 @@ impl PauseMenu {
         match self.view {
             View::Top => self.draw_top(d, font, settings, body_y),
             View::InputMenu => self.draw_input_menu(d, font, body_y),
-            View::InputTester => self.draw_input_tester(d, font, keymap, body_y),
+            View::InputTester => self.draw_input_tester(d, font, keymap, gamepad_family, body_y),
             View::KeyConfig => self.draw_key_config(d, font, body_y),
             View::ConfirmClearSave => self.draw_confirm_clear(d, font, body_y),
         }
@@ -499,6 +500,7 @@ impl PauseMenu {
         d: &mut D,
         font: &Font,
         keymap: &Keymap,
+        gamepad_family: GamepadFamily,
         body_y: f32,
     ) {
         let size = crate::font::MONOGRAM_SIZE as f32;
@@ -597,7 +599,7 @@ impl PauseMenu {
         let name_x = 48.0_f32;
         let kb_x = 92.0_f32;
         let gp_x = 144.0_f32;
-        for (name, kb, gp) in binding_columns(keymap).iter() {
+        for (name, kb, gp) in binding_columns(keymap, gamepad_family).iter() {
             d.draw_text_ex(font, name, Vector2::new(name_x, list_y), size, 0.0, white);
             d.draw_text_ex(font, kb, Vector2::new(kb_x, list_y), size, 0.0, white);
             d.draw_text_ex(font, gp, Vector2::new(gp_x, list_y), size, 0.0, white);
