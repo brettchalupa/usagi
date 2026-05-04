@@ -5,6 +5,25 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Features:
+
+- Pause Menu is now navigable. Up/Down moves between items, Left/Right adjusts
+  values, BTN1 (<kbd>Z</kbd>/gamepad-A) confirms, BTN2 (<kbd>X</kbd>/gamepad-B)
+  goes back. Items: Continue, Music volume, SFX volume, Fullscreen, Configure
+  Input (read-only binding list), Clear Save Data (with a confirm dialog),
+  Reset Game, Quit.
+- Music and SFX have separate persisted volume levels, each rendered as a 5-bar
+  meter (steps of 20%). Default is 80% for both.
+- <kbd>Shift</kbd>+<kbd>M</kbd> now mutes both channels at once and a second
+  press restores both to their defaults.
+
+Breaking:
+
+- `settings.json` replaces the single `volume` key with `music_volume` and
+  `sfx_volume`. Existing settings are auto-migrated on load: the old `volume`
+  value is copied into both new fields the first time the engine reads them.
+  No action required.
+
 Fixes:
 
 - <kbd>Alt</kbd>+<kbd>Enter</kbd> no longer opens the Pause Menu while toggling

@@ -6,8 +6,11 @@
 
 use crate::game_id::GameId;
 
-/// First-boot master volume. Also the Shift+M unmute target.
-pub const DEFAULT_VOLUME: f32 = 0.5;
+/// First-boot music volume. Also the Shift+M unmute target for music.
+pub const DEFAULT_MUSIC_VOLUME: f32 = 0.8;
+
+/// First-boot sfx volume. Also the Shift+M unmute target for sfx.
+pub const DEFAULT_SFX_VOLUME: f32 = 0.8;
 
 /// First-boot fullscreen state. False so the player picks via Alt+Enter.
 const DEFAULT_FULLSCREEN: bool = false;
@@ -20,9 +23,11 @@ const SETTINGS_FILE: &str = "settings.json";
 /// hand-rolled to avoid pulling `serde` as a direct dep.
 #[derive(Debug, Clone)]
 pub struct Settings {
-    /// Master output volume, clamped to `0.0..=1.0` on apply.
-    /// `0.0` is muted; Shift+M flips between `0.0` and `DEFAULT_VOLUME`.
-    pub volume: f32,
+    /// Music output volume, clamped to `0.0..=1.0` on apply.
+    /// `0.0` is muted; Shift+M flips between `0.0` and the defaults.
+    pub music_volume: f32,
+    /// SFX output volume, clamped to `0.0..=1.0` on apply.
+    pub sfx_volume: f32,
     /// Borderless fullscreen state. Alt+Enter toggles and persists.
     pub fullscreen: bool,
 }
@@ -30,7 +35,8 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            volume: DEFAULT_VOLUME,
+            music_volume: DEFAULT_MUSIC_VOLUME,
+            sfx_volume: DEFAULT_SFX_VOLUME,
             fullscreen: DEFAULT_FULLSCREEN,
         }
     }
@@ -62,13 +68,26 @@ pub fn load(game_id: &GameId) -> Settings {
             return Settings::default();
         }
     };
+    parse(&value)
+}
+
+// `volume` is the legacy single-channel key written by Usagi <= v0.4.0.
+// On load, missing `music_volume` / `sfx_volume` fields fall back to
+// this so users don't lose their preferences when they update.
+fn parse(value: &serde_json::Value) -> Settings {
     let defaults = Settings::default();
+    let legacy = value
+        .get("volume")
+        .and_then(|v| v.as_f64())
+        .map(|v| v as f32);
+    let read_f32 = |key: &str| value.get(key).and_then(|v| v.as_f64()).map(|v| v as f32);
     Settings {
-        volume: value
-            .get("volume")
-            .and_then(|v| v.as_f64())
-            .map(|v| v as f32)
-            .unwrap_or(defaults.volume),
+        music_volume: read_f32("music_volume")
+            .or(legacy)
+            .unwrap_or(defaults.music_volume),
+        sfx_volume: read_f32("sfx_volume")
+            .or(legacy)
+            .unwrap_or(defaults.sfx_volume),
         fullscreen: value
             .get("fullscreen")
             .and_then(|v| v.as_bool())
@@ -81,7 +100,8 @@ pub fn load(game_id: &GameId) -> Settings {
 /// `usagi.settings.<game_id>`.
 pub fn write(game_id: &GameId, settings: &Settings) -> std::io::Result<()> {
     let json = serde_json::json!({
-        "volume": settings.volume,
+        "music_volume": settings.music_volume,
+        "sfx_volume": settings.sfx_volume,
         "fullscreen": settings.fullscreen,
     });
     let body = serde_json::to_string_pretty(&json)
@@ -126,59 +146,66 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_volume_is_half() {
-        assert_eq!(Settings::default().volume, 0.5);
+    fn default_volumes_are_eighty_percent() {
+        let s = Settings::default();
+        assert_eq!(s.music_volume, 0.8);
+        assert_eq!(s.sfx_volume, 0.8);
     }
 
     #[test]
     fn load_returns_default_for_missing_game_id() {
-        // Use a game_id that's extremely unlikely to have a real
-        // settings.json (or localStorage entry on web) on the test
-        // runner.
         let gid = GameId::resolve(Some("com.usagiengine.test-missing-settings"), None, None);
         let s = load(&gid);
-        assert_eq!(s.volume, 0.5);
+        assert_eq!(s.music_volume, DEFAULT_MUSIC_VOLUME);
+        assert_eq!(s.sfx_volume, DEFAULT_SFX_VOLUME);
     }
 
     #[test]
     fn unknown_keys_are_ignored() {
-        // Forward-compat: a settings.json written by a newer build
-        // that adds fields shouldn't break this build's load path,
-        // just fall back to defaults for the missing fields.
-        let body = r#"{ "volume": 0.25, "future_field": "hello" }"#;
+        let body = r#"{ "music_volume": 0.25, "sfx_volume": 0.5, "future_field": "hello" }"#;
         let value: serde_json::Value = serde_json::from_str(body).unwrap();
-        let defaults = Settings::default();
-        let parsed = Settings {
-            volume: value
-                .get("volume")
-                .and_then(|v| v.as_f64())
-                .map(|v| v as f32)
-                .unwrap_or(defaults.volume),
-            fullscreen: value
-                .get("fullscreen")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(defaults.fullscreen),
-        };
-        assert_eq!(parsed.volume, 0.25);
-        assert_eq!(parsed.fullscreen, defaults.fullscreen);
+        let parsed = parse(&value);
+        assert_eq!(parsed.music_volume, 0.25);
+        assert_eq!(parsed.sfx_volume, 0.5);
+        assert!(!parsed.fullscreen);
     }
 
     #[test]
     fn fullscreen_round_trips_through_json_shape() {
-        let body = r#"{ "volume": 0.5, "fullscreen": true }"#;
+        let body = r#"{ "music_volume": 0.5, "sfx_volume": 0.5, "fullscreen": true }"#;
         let value: serde_json::Value = serde_json::from_str(body).unwrap();
-        let defaults = Settings::default();
-        let parsed = Settings {
-            volume: value
-                .get("volume")
-                .and_then(|v| v.as_f64())
-                .map(|v| v as f32)
-                .unwrap_or(defaults.volume),
-            fullscreen: value
-                .get("fullscreen")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(defaults.fullscreen),
-        };
+        let parsed = parse(&value);
         assert!(parsed.fullscreen);
+    }
+
+    #[test]
+    fn legacy_volume_key_populates_both_channels() {
+        // Settings written by Usagi <= v0.4.0 only had a single `volume`
+        // key. On load, both channels should pick that up so users
+        // don't get reset to defaults on upgrade.
+        let body = r#"{ "volume": 0.3, "fullscreen": true }"#;
+        let value: serde_json::Value = serde_json::from_str(body).unwrap();
+        let parsed = parse(&value);
+        assert!((parsed.music_volume - 0.3).abs() < 1e-6);
+        assert!((parsed.sfx_volume - 0.3).abs() < 1e-6);
+        assert!(parsed.fullscreen);
+    }
+
+    #[test]
+    fn legacy_volume_overridden_by_new_keys_when_present() {
+        let body = r#"{ "volume": 0.3, "music_volume": 0.6, "sfx_volume": 1.0 }"#;
+        let value: serde_json::Value = serde_json::from_str(body).unwrap();
+        let parsed = parse(&value);
+        assert!((parsed.music_volume - 0.6).abs() < 1e-6);
+        assert!((parsed.sfx_volume - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn missing_volume_keys_fall_back_to_defaults() {
+        let body = r#"{ "fullscreen": false }"#;
+        let value: serde_json::Value = serde_json::from_str(body).unwrap();
+        let parsed = parse(&value);
+        assert_eq!(parsed.music_volume, DEFAULT_MUSIC_VOLUME);
+        assert_eq!(parsed.sfx_volume, DEFAULT_SFX_VOLUME);
     }
 }
