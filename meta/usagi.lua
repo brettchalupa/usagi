@@ -427,3 +427,124 @@ function _update(dt) end
 ---Called every frame to render. Runs after _update.
 ---@param dt number  delta-time: seconds since last frame
 function _draw(dt) end
+
+---@class Usagi.Vec2
+---@field x number
+---@field y number
+
+---@class Usagi.Rect
+---@field x number
+---@field y number
+---@field w number
+---@field h number
+
+---@class Usagi.Circ
+---@field x number
+---@field y number
+---@field r number
+
+---Drop-in math/geometry helpers. Pure Lua, no engine state. Source
+---lives in `runtime/util.lua` — read it for full implementations or
+---fork it if you want different semantics.
+---@class Usagi.Util
+util = {}
+
+---Clamps `v` into `[lo, hi]`.
+---@param v number
+---@param lo number
+---@param hi number
+---@return number
+function util.clamp(v, lo, hi) end
+
+---Returns -1, 0, or 1 according to the sign of `v`.
+---@param v number
+---@return integer
+function util.sign(v) end
+
+---Half-up rounding to the nearest integer. Pixel snapping is the
+---driving use case in 2D pixel-art games.
+---@param v number
+---@return integer
+function util.round(v) end
+
+---Moves `current` toward `target` by at most `max_delta`, never
+---overshooting. Per-frame smoothing primitive — pass a delta
+---scaled by `dt` for frame-rate independence.
+---@param current number
+---@param target number
+---@param max_delta number
+---@return number
+function util.approach(current, target, max_delta) end
+
+---Linear interpolation. `t = 0` returns `a`, `t = 1` returns `b`.
+---Values of `t` outside `[0, 1]` extrapolate (no clamping).
+---@param a number
+---@param b number
+---@param t number
+---@return number
+function util.lerp(a, b, t) end
+
+---Wraps `v` into `[lo, hi)`. Useful for cyclic values like angles or
+---looped indexing. Works for negative `v`: `util.wrap(-1, 0, 4) == 3`.
+---@param v number
+---@param lo number
+---@param hi number
+---@return number
+function util.wrap(v, lo, hi) end
+
+---Boolean from time. Toggles `hz` times per second — the on/off
+---interval is `1/hz` seconds. For invincibility flicker, UI blinks,
+---low-health warnings.
+---@param t number  seconds
+---@param hz number  toggles per second
+---@return boolean
+function util.flash(t, hz) end
+
+---Normalizes a `{x, y}` vector to unit length. Returns a new table;
+---the input is unchanged. A zero vector returns `{x = 0, y = 0}`.
+---@param v Usagi.Vec2
+---@return Usagi.Vec2
+function util.vec_normalize(v) end
+
+---Distance between two `{x, y}` points.
+---@param a Usagi.Vec2
+---@param b Usagi.Vec2
+---@return number
+function util.vec_dist(a, b) end
+
+---Squared distance between two `{x, y}` points. Cheaper than
+---`vec_dist` (skips the sqrt); use for "is X closer than Y?" by
+---comparing against `r * r`.
+---@param a Usagi.Vec2
+---@param b Usagi.Vec2
+---@return number
+function util.vec_dist_sq(a, b) end
+
+---Builds a vector at `angle` (radians) with magnitude `len`. `len`
+---defaults to 1 for a unit vector. Pair with `math.atan(dy, dx)` to
+---convert any direction into a velocity.
+---@param angle number  radians
+---@param len? number   magnitude (default 1)
+---@return Usagi.Vec2
+function util.vec_from_angle(angle, len) end
+
+---True when the two AABBs share interior area. Edge-adjacent rects
+---are considered non-overlapping.
+---@param a Usagi.Rect
+---@param b Usagi.Rect
+---@return boolean
+function util.rect_overlap(a, b) end
+
+---True when the two circles overlap. Tangent circles are
+---considered non-overlapping.
+---@param a Usagi.Circ
+---@param b Usagi.Circ
+---@return boolean
+function util.circ_overlap(a, b) end
+
+---True when a circle and a rect overlap. Uses the closest-point
+---method: clamp the circle center to the rect, test distance.
+---@param c Usagi.Circ
+---@param r Usagi.Rect
+---@return boolean
+function util.circ_rect_overlap(c, r) end

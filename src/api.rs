@@ -93,6 +93,15 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     )?;
     lua.globals().set("usagi", usagi)?;
 
+    // Pure-Lua stdlib (`util.clamp`, `util.rect_overlap`, etc.). Loaded
+    // here so it's available to user `_init` / `_update` / `_draw` and
+    // also to tests and tools that only call `setup_api`. Source lives
+    // in `runtime/util.lua` for forkability — anyone modifying Usagi
+    // can edit it without touching Rust.
+    let util_src = include_str!("../runtime/util.lua");
+    let util_table: LuaTable = lua.load(util_src).set_name("usagi/util.lua").eval()?;
+    lua.globals().set("util", util_table)?;
+
     Ok(())
 }
 
@@ -518,5 +527,148 @@ mod tests {
         let bad_table: LuaValue = lua.load("return {1, 2, 3, 4, 5}").eval().unwrap();
         let err = parse_uniform(&bad_table).unwrap_err();
         assert!(err.contains("got 5"), "got: {err}");
+    }
+
+    /// Exercises every `util.*` function with valid inputs and expected
+    /// outputs. Pure-Lua, so we run a single chunk that returns true on
+    /// success or raises an assertion failure with a message.
+    #[test]
+    fn util_functions_compute_expected_values() {
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+        lua.load(
+            r#"
+            local eq = function(a, b, label)
+              assert(a == b, label .. ": expected " .. tostring(b) .. ", got " .. tostring(a))
+            end
+            local feq = function(a, b, label)
+              assert(math.abs(a - b) < 1e-9, label .. ": expected ~" .. b .. ", got " .. a)
+            end
+
+            eq(util.clamp(5, 0, 10), 5, "clamp mid")
+            eq(util.clamp(-1, 0, 10), 0, "clamp low")
+            eq(util.clamp(11, 0, 10), 10, "clamp high")
+
+            feq(util.lerp(0, 10, 0), 0, "lerp 0")
+            feq(util.lerp(0, 10, 1), 10, "lerp 1")
+            feq(util.lerp(0, 10, 0.5), 5, "lerp half")
+            feq(util.lerp(0, 10, 2), 20, "lerp extrapolate")
+
+            feq(util.wrap(0, 0, 4), 0, "wrap zero")
+            feq(util.wrap(4, 0, 4), 0, "wrap upper")
+            feq(util.wrap(-1, 0, 4), 3, "wrap negative")
+            feq(util.wrap(5, 0, 4), 1, "wrap above")
+            feq(util.wrap(0, 1, 5), 4, "wrap into shifted span")
+
+            local n = util.vec_normalize({ x = 10, y = 0 })
+            feq(n.x, 1, "normalize x"); feq(n.y, 0, "normalize y")
+            local z = util.vec_normalize({ x = 0, y = 0 })
+            feq(z.x, 0, "zero vec x"); feq(z.y, 0, "zero vec y")
+            local d = util.vec_normalize({ x = 3, y = 4 })
+            feq(d.x, 0.6, "diag x"); feq(d.y, 0.8, "diag y")
+
+            assert(util.rect_overlap({x=0,y=0,w=10,h=10}, {x=5,y=5,w=10,h=10}), "rect overlap")
+            assert(not util.rect_overlap({x=0,y=0,w=10,h=10}, {x=10,y=0,w=10,h=10}), "edge-adjacent rects do not overlap")
+            assert(not util.rect_overlap({x=0,y=0,w=10,h=10}, {x=20,y=20,w=10,h=10}), "far rects")
+
+            assert(util.circ_overlap({x=0,y=0,r=5}, {x=3,y=0,r=5}), "circ overlap")
+            assert(not util.circ_overlap({x=0,y=0,r=5}, {x=10,y=0,r=5}), "tangent circs do not overlap")
+            assert(not util.circ_overlap({x=0,y=0,r=5}, {x=20,y=0,r=5}), "far circs")
+
+            assert(util.circ_rect_overlap({x=5,y=5,r=3}, {x=0,y=0,w=10,h=10}), "circ inside rect")
+            assert(util.circ_rect_overlap({x=12,y=5,r=3}, {x=0,y=0,w=10,h=10}), "circ overlapping rect edge")
+            assert(not util.circ_rect_overlap({x=20,y=20,r=3}, {x=0,y=0,w=10,h=10}), "circ far from rect")
+
+            eq(util.sign(5), 1, "sign positive")
+            eq(util.sign(-3), -1, "sign negative")
+            eq(util.sign(0), 0, "sign zero")
+
+            feq(util.round(0.4), 0, "round down")
+            feq(util.round(0.5), 1, "round half up")
+            feq(util.round(0.51), 1, "round up")
+            feq(util.round(-0.6), -1, "round neg down")
+
+            -- approach caps so it never overshoots its target
+            feq(util.approach(0, 10, 5), 5, "approach mid")
+            feq(util.approach(8, 10, 5), 10, "approach caps at target")
+            feq(util.approach(10, 0, 3), 7, "approach down")
+            feq(util.approach(5, 5, 100), 5, "approach already there")
+
+            feq(util.vec_dist({x=0,y=0}, {x=3,y=4}), 5, "vec_dist 3-4-5")
+            feq(util.vec_dist({x=10,y=10}, {x=10,y=10}), 0, "vec_dist same point")
+            feq(util.vec_dist_sq({x=0,y=0}, {x=3,y=4}), 25, "vec_dist_sq 3-4-25")
+
+            local v = util.vec_from_angle(0, 10)
+            feq(v.x, 10, "vec_from_angle 0 x"); feq(v.y, 0, "vec_from_angle 0 y")
+            local u = util.vec_from_angle(math.pi / 2, 4)
+            feq(u.y, 4, "vec_from_angle pi/2 y")
+            assert(math.abs(u.x) < 1e-9, "vec_from_angle pi/2 x near zero")
+            local unit = util.vec_from_angle(0)
+            feq(unit.x, 1, "vec_from_angle default len = 1")
+
+            -- flash: at 4 hz the on/off interval is 0.25s
+            assert(util.flash(0, 4) == true, "flash true at t=0")
+            assert(util.flash(0.125, 4) == true, "flash still on within first interval")
+            assert(util.flash(0.25, 4) == false, "flash off after first interval")
+            assert(util.flash(0.5, 4) == true, "flash on again")
+            "#,
+        )
+        .exec()
+        .expect("util correctness");
+    }
+
+    /// Each shape-checked util raises a helpful error when given a
+    /// table missing a required field, so users see "missing field 'h'"
+    /// instead of "attempt to perform arithmetic on a nil value."
+    #[test]
+    fn util_shape_assertions_fire_with_helpful_messages() {
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+
+        let cases: &[(&str, &str, &str)] = &[
+            (
+                "util.rect_overlap({x=0,y=0,w=10,h=10}, {x=0,y=0,w=10})",
+                "rect_overlap",
+                "'h'",
+            ),
+            (
+                "util.rect_overlap({x=0,y=0,w=10,h=10}, 'nope')",
+                "rect_overlap",
+                "must be a table",
+            ),
+            (
+                "util.circ_overlap({x=0,y=0}, {x=0,y=0,r=5})",
+                "circ_overlap",
+                "'r'",
+            ),
+            (
+                "util.circ_rect_overlap({x=0,y=0,r=5}, {x=0,y=0,w=10})",
+                "circ_rect_overlap",
+                "'h'",
+            ),
+            ("util.vec_normalize({x=0})", "vec_normalize", "'y'"),
+            ("util.vec_dist({x=0,y=0}, {x=0})", "vec_dist", "'y'"),
+            (
+                "util.vec_dist_sq({x=0,y=0}, 'oops')",
+                "vec_dist_sq",
+                "must be a table",
+            ),
+        ];
+
+        for (snippet, fn_name, expected) in cases {
+            let err = lua
+                .load(*snippet)
+                .exec()
+                .expect_err(&format!("expected {snippet} to error"));
+            let msg = err.to_string();
+            assert!(
+                msg.contains(fn_name),
+                "{snippet}: error should mention '{fn_name}', got: {msg}"
+            );
+            assert!(
+                msg.contains(expected),
+                "{snippet}: error should mention '{expected}', got: {msg}"
+            );
+        }
     }
 }

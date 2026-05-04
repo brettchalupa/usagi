@@ -131,3 +131,4 @@ examples:
     just example waypoint
     just example shader
     just example keyboard
+    just example util

@@ -43,6 +43,19 @@ Features:
   `input.mouse_released(button)` fire the frame the input transitions from held
   to up. Mirrors `pressed` for the release edge; useful for charge-and-release
   mechanics (jump-on-release, slingshot pull-back).
+- New `util` global with drop-in math/geometry helpers: `util.clamp`,
+  `util.sign`, `util.round`, `util.approach`, `util.lerp`, `util.wrap`,
+  `util.flash`, `util.vec_normalize`, `util.vec_dist`, `util.vec_dist_sq`,
+  `util.vec_from_angle`, `util.rect_overlap`, `util.circ_overlap`,
+  `util.circ_rect_overlap`. Pure Lua, available without
+  `require`. Source is at `runtime/util.lua` for forkability. Open it to read
+  the implementations or override individual functions in your own `_init`.
+  Functions that take shaped tables check the shape and raise an error pointing
+  at your call site (e.g.
+  `util.rect_overlap: arg 1 table
+  missing or non-numeric field 'h'`) instead
+  of failing deep inside the helper. `util.min` / `util.max` aren't included
+  since Lua's `math.min` / `math.max` already do the job.
 - Direct keyboard reads via `input.key_pressed(key)`, `input.key_held(key)`, and
   `input.key_released(key)`, paired with `input.KEY_*` constants for letters,
   digits, F1–F12, arrows, modifiers, common punctuation, and a few specials
