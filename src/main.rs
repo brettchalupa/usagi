@@ -12,8 +12,11 @@
 //! shell fetches a `.usagi` bundle and writes it to `/game.usagi` in the
 //! wasm virtual FS before `main()` runs, and that bundle is executed.
 
-// Don't show the Raylib log pop-up when running Windows release binaries
-#![windows_subsystem = "windows"]
+// The CLI binary stays in the console subsystem so commands like
+// `usagi run`, `usagi templates list`, etc. print to the terminal on
+// Windows. Exported games avoid the console pop-up via a PE-header
+// subsystem patch applied during `usagi export`'s Windows fuse step
+// (see `export::patch_windows_subsystem_to_gui`).
 
 mod api;
 mod assets;
