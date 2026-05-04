@@ -90,6 +90,8 @@ Fixes:
 
 - <kbd>Alt</kbd>+<kbd>Enter</kbd> no longer opens the Pause Menu while toggling
   fullscreen. Pause Menu only opens on <kbd>Enter</kbd> when Alt isn't held.
+- `usagi` commands now correctly log the output on Windows and the exported game
+  window does not show them, see #79.
 
 ## v0.4.0 - May 3, 2026
 

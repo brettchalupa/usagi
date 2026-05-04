@@ -245,7 +245,7 @@ fn export_from_host_exe(
         opts.bundle_id,
         opts.icns_bytes,
     )?;
-    fuse_exe(bundle, &current_exe, &staged_exe)?;
+    fuse_exe(bundle, &current_exe, &staged_exe, target)?;
     ensure_parent(out_path)?;
     zip_dir(stage.path(), out_path)?;
     crate::msg::info!(
@@ -303,7 +303,7 @@ fn export_from_runtime_dir(
                 opts.bundle_id,
                 opts.icns_bytes,
             )?;
-            fuse_exe(bundle, &exe, &staged_exe)?;
+            fuse_exe(bundle, &exe, &staged_exe, target)?;
         }
         templates::Runtime::Web { js, wasm, html } => {
             let html_src = opts.web_shell_override.unwrap_or(&html);
@@ -326,16 +326,76 @@ fn export_from_runtime_dir(
     Ok(())
 }
 
-fn fuse_exe(bundle: &Bundle, base_exe: &Path, out_path: &Path) -> Result<()> {
+fn fuse_exe(
+    bundle: &Bundle,
+    base_exe: &Path,
+    out_path: &Path,
+    target: templates::Target,
+) -> Result<()> {
     bundle
         .fuse(base_exe, out_path)
         .map_err(|e| Error::Cli(format!("fusing bundle onto {}: {e}", base_exe.display())))?;
+    if target == templates::Target::Windows {
+        // The shipped CLI runtime is console-subsystem so `usagi run`
+        // / `usagi dev` and friends print to the terminal. Exported
+        // games shouldn't pop up a black console window, so flip the
+        // PE subsystem byte from CONSOLE (3) to WINDOWS_GUI (2)
+        // here, after the bundle has been fused.
+        patch_windows_subsystem_to_gui(out_path)?;
+    }
     crate::msg::info!(
         "fused {} ({} file(s), {} bytes bundled)",
         out_path.display(),
         bundle.file_count(),
         bundle.total_bytes(),
     );
+    Ok(())
+}
+
+/// Rewrites the PE optional header's `Subsystem` field from
+/// `IMAGE_SUBSYSTEM_WINDOWS_CUI` (3, console) to
+/// `IMAGE_SUBSYSTEM_WINDOWS_GUI` (2, windowed). Used during the
+/// Windows export fuse step so end users running an exported game
+/// don't get a console pop-up, while the engine's CLI binary stays
+/// console-subsystem at the source level (so `usagi run` etc. print
+/// to the terminal on Windows).
+///
+/// PE layout cribbed from the Microsoft "PE Format" spec:
+/// `e_lfanew` at DOS offset 0x3C points at the PE signature; after
+/// the 4-byte signature and the 20-byte COFF File Header comes the
+/// Optional Header, whose Subsystem field sits at offset 0x44 for
+/// both PE32 and PE32+ images.
+fn patch_windows_subsystem_to_gui(path: &Path) -> Result<()> {
+    let mut bytes = std::fs::read(path)
+        .map_err(|e| Error::Cli(format!("reading {} for PE patch: {e}", path.display())))?;
+    if bytes.len() < 0x40 || &bytes[0..2] != b"MZ" {
+        return Err(Error::Cli(format!(
+            "{} is not a PE file (missing MZ header)",
+            path.display()
+        )));
+    }
+    let pe_offset = u32::from_le_bytes(
+        bytes[0x3C..0x40]
+            .try_into()
+            .expect("4-byte slice at 0x3C is always convertible"),
+    ) as usize;
+    if bytes.len() < pe_offset + 4 || &bytes[pe_offset..pe_offset + 4] != b"PE\0\0" {
+        return Err(Error::Cli(format!(
+            "{} missing PE signature at offset {pe_offset:#x}",
+            path.display()
+        )));
+    }
+    let subsystem_offset = pe_offset + 4 + 20 + 0x44;
+    if bytes.len() < subsystem_offset + 2 {
+        return Err(Error::Cli(format!(
+            "{} truncated before PE Optional Header subsystem field",
+            path.display()
+        )));
+    }
+    bytes[subsystem_offset] = 0x02;
+    bytes[subsystem_offset + 1] = 0x00;
+    std::fs::write(path, &bytes)
+        .map_err(|e| Error::Cli(format!("writing {} after PE patch: {e}", path.display())))?;
     Ok(())
 }
 
@@ -559,6 +619,64 @@ fn entry_modified_time(path: &Path) -> Option<zip::DateTime> {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    /// Builds a minimal byte buffer that's just-enough-PE for
+    /// `patch_windows_subsystem_to_gui` to traverse: DOS header with
+    /// `e_lfanew` pointing at the PE signature, COFF File Header,
+    /// and an Optional Header padded out past the subsystem field.
+    fn build_minimal_pe_with_subsystem(value: u16) -> (Vec<u8>, usize) {
+        let pe_offset: usize = 0x80;
+        let mut bytes = vec![0u8; pe_offset + 4 + 20 + 0x46];
+        bytes[0] = b'M';
+        bytes[1] = b'Z';
+        bytes[0x3C..0x40].copy_from_slice(&(pe_offset as u32).to_le_bytes());
+        bytes[pe_offset..pe_offset + 4].copy_from_slice(b"PE\0\0");
+        let subsystem_offset = pe_offset + 4 + 20 + 0x44;
+        bytes[subsystem_offset..subsystem_offset + 2].copy_from_slice(&value.to_le_bytes());
+        (bytes, subsystem_offset)
+    }
+
+    #[test]
+    fn patch_windows_subsystem_to_gui_flips_subsystem_byte() {
+        let dir = tempdir().unwrap();
+        let exe = dir.path().join("fake.exe");
+        let (bytes, subsystem_offset) = build_minimal_pe_with_subsystem(3);
+        std::fs::write(&exe, &bytes).unwrap();
+        patch_windows_subsystem_to_gui(&exe).unwrap();
+        let patched = std::fs::read(&exe).unwrap();
+        assert_eq!(patched[subsystem_offset], 0x02);
+        assert_eq!(patched[subsystem_offset + 1], 0x00);
+        // No other bytes touched.
+        for (i, (a, b)) in bytes.iter().zip(patched.iter()).enumerate() {
+            if i == subsystem_offset || i == subsystem_offset + 1 {
+                continue;
+            }
+            assert_eq!(a, b, "byte {i} unexpectedly changed");
+        }
+    }
+
+    #[test]
+    fn patch_windows_subsystem_rejects_non_pe_files() {
+        let dir = tempdir().unwrap();
+        let f = dir.path().join("not_a_pe");
+        std::fs::write(&f, b"this is just text, not a PE binary").unwrap();
+        let err = patch_windows_subsystem_to_gui(&f).unwrap_err();
+        assert!(format!("{err}").contains("MZ"), "got: {err}");
+    }
+
+    #[test]
+    fn patch_windows_subsystem_rejects_truncated_pe() {
+        let dir = tempdir().unwrap();
+        let f = dir.path().join("truncated.exe");
+        // Has MZ + e_lfanew but the file ends before the PE signature.
+        let mut bytes = vec![0u8; 0x40];
+        bytes[0] = b'M';
+        bytes[1] = b'Z';
+        bytes[0x3C..0x40].copy_from_slice(&0x100u32.to_le_bytes());
+        std::fs::write(&f, &bytes).unwrap();
+        let err = patch_windows_subsystem_to_gui(&f).unwrap_err();
+        assert!(format!("{err}").contains("PE signature"), "got: {err}");
+    }
 
     #[test]
     fn web_shell_override_uses_explicit_flag_when_given() {
