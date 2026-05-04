@@ -59,7 +59,9 @@ function _draw(_dt)
   end
   gfx.text(label, 4, 12, gfx.COLOR_LIGHT_GRAY)
 
-  local hint = "BTN1: reroll  BTN2: seed(42)"
+  local b1 = input.mapping_for(input.BTN1) or "BTN1"
+  local b2 = input.mapping_for(input.BTN2) or "BTN2"
+  local hint = b1 .. ": reroll  " .. b2 .. ": seed(42)"
   if State.pinned then
     hint = hint .. "  [pinned]"
   end

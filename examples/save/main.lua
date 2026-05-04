@@ -56,5 +56,8 @@ function _draw(_dt)
   local saved = State.last_saved_at and os.date("%Y-%m-%d %H:%M:%S", State.last_saved_at) or "never"
   gfx.text("last saved at: " .. saved, 10, 46, gfx.COLOR_PINK)
   gfx.text(string.format("playtime: %.1fs", State.playtime), 10, 62, gfx.COLOR_YELLOW)
-  gfx.text("BTN1 to save; BTN2 to reset; BTN3 to load", 10, usagi.GAME_H - 18, gfx.COLOR_LIGHT_GRAY)
+  local b1 = input.mapping_for(input.BTN1) or "BTN1"
+  local b2 = input.mapping_for(input.BTN2) or "BTN2"
+  local b3 = input.mapping_for(input.BTN3) or "BTN3"
+  gfx.text(b1 .. " save; " .. b2 .. " reset; " .. b3 .. " load", 10, usagi.GAME_H - 18, gfx.COLOR_LIGHT_GRAY)
 end

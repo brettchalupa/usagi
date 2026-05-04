@@ -184,16 +184,24 @@ function music.stop() end
 ---
 ---- MOUSE_LEFT:  left mouse button
 ---- MOUSE_RIGHT: right mouse button
+---
+---Source identifiers for `input.last_source()` and the source-aware
+---`input.mapping_for`:
+---
+---- SOURCE_KEYBOARD: "keyboard"
+---- SOURCE_GAMEPAD:  "gamepad"
 ---@class Usagi.Input
----@field LEFT        integer
----@field RIGHT       integer
----@field UP          integer
----@field DOWN        integer
----@field BTN1        integer
----@field BTN2        integer
----@field BTN3        integer
----@field MOUSE_LEFT  integer
----@field MOUSE_RIGHT integer
+---@field LEFT             integer
+---@field RIGHT            integer
+---@field UP               integer
+---@field DOWN             integer
+---@field BTN1             integer
+---@field BTN2             integer
+---@field BTN3             integer
+---@field MOUSE_LEFT       integer
+---@field MOUSE_RIGHT      integer
+---@field SOURCE_KEYBOARD  string
+---@field SOURCE_GAMEPAD   string
 input = {}
 
 ---Returns true the frame any source bound to `action` first went down.
@@ -205,6 +213,22 @@ function input.pressed(action) end
 ---@param action integer  one of input.LEFT / RIGHT / UP / DOWN / BTN1 / BTN2 / BTN3
 ---@return boolean
 function input.down(action) end
+
+---Label of the active input source's primary binding for `action` (e.g.
+---"Z" on keyboard, "Pad-A" on gamepad). Honors any keymap remap the
+---player set via the pause menu's Configure Keys flow. Useful for
+---rendering contextual control prompts. Returns `nil` for unknown
+---actions or when the active source has no binding for `action`.
+---@param action integer  one of input.LEFT / RIGHT / UP / DOWN / BTN1 / BTN2 / BTN3
+---@return string?
+function input.mapping_for(action) end
+
+---The input source that most recently fired any bound action. Returns
+---`input.SOURCE_KEYBOARD` ("keyboard") or `input.SOURCE_GAMEPAD`
+---("gamepad"). Switches only when a *bound* input fires, so menu keys
+---and idle activity don't flip it.
+---@return string  matches one of input.SOURCE_KEYBOARD / input.SOURCE_GAMEPAD
+function input.last_source() end
 
 ---Cursor position in game-space pixels (so it lines up with `gfx.*`
 ---coords regardless of window size or pixel-perfect scaling). Returns

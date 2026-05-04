@@ -36,6 +36,8 @@ function _draw(dt)
   gfx.text("score   " .. State.score, 8, 8, gfx.COLOR_WHITE)
   gfx.text("timer   " .. string.format("%.1f", State.timer), 8, 20, gfx.COLOR_WHITE)
   gfx.text("pulse   " .. string.format("%.2f", State.pulse), 8, 32, gfx.COLOR_WHITE)
-  gfx.text("BTN1 bumps   " .. State.bumps, 8, 52, gfx.COLOR_YELLOW)
-  gfx.text("BTN2 resets bumps", 8, 64, gfx.COLOR_YELLOW)
+  local b1 = input.mapping_for(input.BTN1) or "BTN1"
+  local b2 = input.mapping_for(input.BTN2) or "BTN2"
+  gfx.text(b1 .. " bumps   " .. State.bumps, 8, 52, gfx.COLOR_YELLOW)
+  gfx.text(b2 .. " resets bumps", 8, 64, gfx.COLOR_YELLOW)
 end

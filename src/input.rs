@@ -137,28 +137,93 @@ fn key_label(k: KeyboardKey) -> &'static str {
     }
 }
 
-fn button_label(b: GamepadButton) -> &'static str {
-    match b {
-        GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_LEFT => "DPad-L",
-        GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_RIGHT => "DPad-R",
-        GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_UP => "DPad-U",
-        GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_DOWN => "DPad-D",
-        GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN => "Pad-A",
-        GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT => "Pad-B",
-        GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_UP => "Pad-Y",
-        GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_LEFT => "Pad-X",
-        GamepadButton::GAMEPAD_BUTTON_LEFT_TRIGGER_1 => "L-Bumper",
-        GamepadButton::GAMEPAD_BUTTON_RIGHT_TRIGGER_1 => "R-Bumper",
+/// Face-button glyph family. Detected from the connected gamepad's
+/// name; falls back to Xbox for unknown / generic / Steam Deck pads.
+#[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
+pub enum GamepadFamily {
+    #[default]
+    Xbox,
+    PlayStation,
+    Nintendo,
+}
+
+impl GamepadFamily {
+    /// Substring-matches the gamepad name from `GetGamepadName`. Names
+    /// vary by OS and driver, so the matchers are intentionally loose.
+    pub fn detect(name: &str) -> Self {
+        let n = name.to_ascii_lowercase();
+        if n.contains("playstation")
+            || n.contains("dualshock")
+            || n.contains("dualsense")
+            || n.contains("sony")
+            || n.starts_with("ps")
+        {
+            return GamepadFamily::PlayStation;
+        }
+        if n.contains("switch")
+            || n.contains("nintendo")
+            || n.contains("joy-con")
+            || n.contains("pro controller")
+        {
+            return GamepadFamily::Nintendo;
+        }
+        GamepadFamily::Xbox
+    }
+}
+
+/// First connected gamepad's family. Multiple pads are rare in
+/// practice; pick slot 0 (or the lowest connected slot) so the glyphs
+/// stay stable as long as a single pad is in use.
+pub fn current_gamepad_family(rl: &RaylibHandle) -> GamepadFamily {
+    for pad in 0..MAX_GAMEPADS {
+        if rl.is_gamepad_available(pad)
+            && let Some(name) = rl.get_gamepad_name(pad)
+        {
+            return GamepadFamily::detect(&name);
+        }
+    }
+    GamepadFamily::default()
+}
+
+fn button_label(b: GamepadButton, family: GamepadFamily) -> &'static str {
+    use GamepadButton::*;
+    use GamepadFamily::*;
+    // Face buttons differ by family. South face is always at the
+    // bottom of the diamond but its label is A on Xbox, Cross on
+    // PlayStation, B on Switch (Nintendo mirrors A/B/X/Y vs Xbox).
+    match (b, family) {
+        (GAMEPAD_BUTTON_RIGHT_FACE_DOWN, Xbox) => "A",
+        (GAMEPAD_BUTTON_RIGHT_FACE_DOWN, PlayStation) => "Cross",
+        (GAMEPAD_BUTTON_RIGHT_FACE_DOWN, Nintendo) => "B",
+        (GAMEPAD_BUTTON_RIGHT_FACE_RIGHT, Xbox) => "B",
+        (GAMEPAD_BUTTON_RIGHT_FACE_RIGHT, PlayStation) => "Circle",
+        (GAMEPAD_BUTTON_RIGHT_FACE_RIGHT, Nintendo) => "A",
+        (GAMEPAD_BUTTON_RIGHT_FACE_UP, Xbox) => "Y",
+        (GAMEPAD_BUTTON_RIGHT_FACE_UP, PlayStation) => "Triangle",
+        (GAMEPAD_BUTTON_RIGHT_FACE_UP, Nintendo) => "X",
+        (GAMEPAD_BUTTON_RIGHT_FACE_LEFT, Xbox) => "X",
+        (GAMEPAD_BUTTON_RIGHT_FACE_LEFT, PlayStation) => "Square",
+        (GAMEPAD_BUTTON_RIGHT_FACE_LEFT, Nintendo) => "Y",
+        (GAMEPAD_BUTTON_LEFT_FACE_LEFT, _) => "Left",
+        (GAMEPAD_BUTTON_LEFT_FACE_RIGHT, _) => "Right",
+        (GAMEPAD_BUTTON_LEFT_FACE_UP, _) => "Up",
+        (GAMEPAD_BUTTON_LEFT_FACE_DOWN, _) => "Down",
+        (GAMEPAD_BUTTON_LEFT_TRIGGER_1, Xbox) => "LB",
+        (GAMEPAD_BUTTON_LEFT_TRIGGER_1, PlayStation) => "L1",
+        (GAMEPAD_BUTTON_LEFT_TRIGGER_1, Nintendo) => "L",
+        (GAMEPAD_BUTTON_RIGHT_TRIGGER_1, Xbox) => "RB",
+        (GAMEPAD_BUTTON_RIGHT_TRIGGER_1, PlayStation) => "R1",
+        (GAMEPAD_BUTTON_RIGHT_TRIGGER_1, Nintendo) => "R",
         _ => "?",
     }
 }
 
 fn axis_label(axis: GamepadAxis, sign: i8) -> &'static str {
     match (axis, sign.signum()) {
-        (GamepadAxis::GAMEPAD_AXIS_LEFT_X, -1) => "Stick-L",
-        (GamepadAxis::GAMEPAD_AXIS_LEFT_X, 1) => "Stick-R",
-        (GamepadAxis::GAMEPAD_AXIS_LEFT_Y, -1) => "Stick-U",
-        (GamepadAxis::GAMEPAD_AXIS_LEFT_Y, 1) => "Stick-D",
+        (GamepadAxis::GAMEPAD_AXIS_LEFT_X, -1) => "Left",
+        (GamepadAxis::GAMEPAD_AXIS_LEFT_X, 1) => "Right",
+        (GamepadAxis::GAMEPAD_AXIS_LEFT_Y, -1) => "Up",
+        (GamepadAxis::GAMEPAD_AXIS_LEFT_Y, 1) => "Down",
         _ => "?",
     }
 }
@@ -166,7 +231,10 @@ fn axis_label(axis: GamepadAxis, sign: i8) -> &'static str {
 /// Per-action binding split into keyboard and gamepad strings for the
 /// pause menu's Input Test table. Override-replaces-keyboard mirrors
 /// `action_pressed`.
-pub fn binding_columns(keymap: &Keymap) -> [(&'static str, String, String); 7] {
+pub fn binding_columns(
+    keymap: &Keymap,
+    family: GamepadFamily,
+) -> [(&'static str, String, String); 7] {
     let mut out: [(&'static str, String, String); 7] =
         std::array::from_fn(|i| (ACTION_NAMES[i], String::new(), String::new()));
     for (i, b) in BINDINGS.iter().enumerate() {
@@ -182,7 +250,7 @@ pub fn binding_columns(keymap: &Keymap) -> [(&'static str, String, String); 7] {
         };
         let mut gp = Vec::new();
         for btn in b.buttons {
-            gp.push(button_label(*btn).to_string());
+            gp.push(button_label(*btn, family).to_string());
         }
         for (axis, sign) in b.axes {
             gp.push(axis_label(*axis, *sign).to_string());
@@ -193,14 +261,102 @@ pub fn binding_columns(keymap: &Keymap) -> [(&'static str, String, String); 7] {
     out
 }
 
-/// Single canonical key for `action`: override if set, else the first
-/// default from `BINDINGS`. Wraps a future `input.mapped_key` Lua API.
-#[allow(dead_code)]
-pub fn mapped_key(action: u32, keymap: &Keymap) -> Option<KeyboardKey> {
-    if let Some(k) = keymap.override_for(action) {
-        return Some(k);
+/// Which input source most recently fired any bound action. Drives
+/// `mapping_for` so games can render the right glyph based on what
+/// the player just used. Stored on `InputState` and refreshed each
+/// frame in `sample`.
+#[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
+pub enum InputSource {
+    #[default]
+    Keyboard,
+    Gamepad,
+}
+
+impl InputSource {
+    /// Lowercase name exposed to Lua as `input.last_source()` and the
+    /// `input.SOURCE_*` constants.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            InputSource::Keyboard => "keyboard",
+            InputSource::Gamepad => "gamepad",
+        }
     }
-    binding(action)?.keys.first().copied()
+}
+
+/// Label of the primary binding for `action` on the given input source,
+/// honoring `keymap` overrides and the suppress-overridden-defaults
+/// rule. Returns `None` for unknown actions or when no source-side
+/// binding exists (e.g. every keyboard default for the action has been
+/// claimed as another action's override).
+pub fn mapping_for(
+    action: u32,
+    keymap: &Keymap,
+    source: InputSource,
+    family: GamepadFamily,
+) -> Option<&'static str> {
+    let b = binding(action)?;
+    match source {
+        InputSource::Keyboard => {
+            if let Some(k) = keymap.override_for(action) {
+                return Some(key_label(k));
+            }
+            for k in b.keys {
+                if !keymap.is_used_as_override(*k) {
+                    return Some(key_label(*k));
+                }
+            }
+            None
+        }
+        InputSource::Gamepad => {
+            if let Some(btn) = b.buttons.first() {
+                return Some(button_label(*btn, family));
+            }
+            b.axes.first().map(|(axis, sign)| axis_label(*axis, *sign))
+        }
+    }
+}
+
+/// Returns the input source that fired any bound action this frame
+/// (gamepad wins ties since gamepads only emit deliberate input).
+/// If neither side fired anything bound, `prior` is preserved so a
+/// stray Esc or F-key press can't flip the indicator.
+pub fn detect_source(rl: &RaylibHandle, keymap: &Keymap, prior: InputSource) -> InputSource {
+    for b in BINDINGS.iter() {
+        for pad in 0..MAX_GAMEPADS {
+            if !rl.is_gamepad_available(pad) {
+                continue;
+            }
+            for btn in b.buttons {
+                if rl.is_gamepad_button_down(pad, *btn) {
+                    return InputSource::Gamepad;
+                }
+            }
+            for (axis, sign) in b.axes {
+                let v = rl.get_gamepad_axis_movement(pad, *axis);
+                if (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE) {
+                    return InputSource::Gamepad;
+                }
+            }
+        }
+    }
+    for (i, b) in BINDINGS.iter().enumerate() {
+        let action = (i + 1) as u32;
+        if let Some(k) = keymap.override_for(action) {
+            if rl.is_key_down(k) {
+                return InputSource::Keyboard;
+            }
+        } else {
+            for k in b.keys {
+                if keymap.is_used_as_override(*k) {
+                    continue;
+                }
+                if rl.is_key_down(*k) {
+                    return InputSource::Keyboard;
+                }
+            }
+        }
+    }
+    prior
 }
 
 /// True if `action` is one of the exposed `ACTION_*` constants. Currently
@@ -340,12 +496,24 @@ pub struct InputState {
     mouse_right_pressed: bool,
     mouse_x: i32,
     mouse_y: i32,
+    /// Per-action label for the currently-active source's primary
+    /// binding. Indexed by `action - 1`. Pre-computed in `sample` so
+    /// the `input.mapping_for` Lua closure stays cheap.
+    mapping: [Option<&'static str>; 7],
+    last_source: InputSource,
+    gamepad_family: GamepadFamily,
 }
 
 impl InputState {
     /// Polls raylib once and rolls the result into a snapshot. Called
-    /// at the top of each frame, before user Lua runs.
-    pub fn sample(rl: &RaylibHandle, pixel_perfect: bool, keymap: &Keymap) -> Self {
+    /// at the top of each frame, before user Lua runs. `prior_source`
+    /// carries forward when no bound input fired this frame.
+    pub fn sample(
+        rl: &RaylibHandle,
+        pixel_perfect: bool,
+        keymap: &Keymap,
+        prior_source: InputSource,
+    ) -> Self {
         let mut down = 0u32;
         let mut pressed = 0u32;
         for (i, _) in BINDINGS.iter().enumerate() {
@@ -361,6 +529,11 @@ impl InputState {
         let sw = rl.get_screen_width();
         let sh = rl.get_screen_height();
         let (mx, my) = screen_to_game(m.x, m.y, sw, sh, pixel_perfect);
+        let last_source = detect_source(rl, keymap, prior_source);
+        let gamepad_family = current_gamepad_family(rl);
+        let mapping = std::array::from_fn(|i| {
+            mapping_for((i + 1) as u32, keymap, last_source, gamepad_family)
+        });
         Self {
             actions_down: down,
             actions_pressed: pressed,
@@ -370,7 +543,23 @@ impl InputState {
             mouse_right_pressed: rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_RIGHT),
             mouse_x: mx,
             mouse_y: my,
+            mapping,
+            last_source,
+            gamepad_family,
         }
+    }
+
+    pub fn mapping_for(&self, action: u32) -> Option<&'static str> {
+        let i = action.checked_sub(1)? as usize;
+        self.mapping.get(i).copied().flatten()
+    }
+
+    pub fn last_source(&self) -> InputSource {
+        self.last_source
+    }
+
+    pub fn gamepad_family(&self) -> GamepadFamily {
+        self.gamepad_family
     }
 
     pub fn action_down(&self, action: u32) -> bool {
@@ -440,7 +629,7 @@ mod tests {
     #[test]
     fn binding_columns_cover_every_action_with_filled_keyboard_and_gamepad() {
         let keymap = Keymap::default();
-        let cols = binding_columns(&keymap);
+        let cols = binding_columns(&keymap, GamepadFamily::Xbox);
         assert_eq!(cols.len(), BINDINGS.len());
         for (i, (name, kb, gp)) in cols.iter().enumerate() {
             assert_eq!(*name, ACTION_NAMES[i]);
@@ -469,27 +658,131 @@ mod tests {
     fn binding_columns_swaps_keyboard_portion_for_override() {
         let mut keymap = Keymap::default();
         keymap.overrides[ACTION_LEFT as usize - 1] = Some(KeyboardKey::KEY_W);
-        let cols = binding_columns(&keymap);
+        let cols = binding_columns(&keymap, GamepadFamily::Xbox);
         let (_, kb, gp) = &cols[ACTION_LEFT as usize - 1];
         assert_eq!(kb, "W");
         assert!(!gp.contains('W'));
         assert!(
-            gp.contains("DPad-L"),
+            gp.contains("Left"),
             "gamepad column must survive keyboard override: {gp}"
         );
     }
 
     #[test]
-    fn mapped_key_returns_override_when_set_else_first_default() {
+    fn mapping_for_keyboard_returns_override_or_first_default() {
         let mut keymap = Keymap::default();
+        let xbox = GamepadFamily::Xbox;
         assert_eq!(
-            mapped_key(ACTION_LEFT, &keymap),
-            Some(KeyboardKey::KEY_LEFT)
+            mapping_for(ACTION_LEFT, &keymap, InputSource::Keyboard, xbox),
+            Some("Left"),
         );
         keymap.overrides[ACTION_LEFT as usize - 1] = Some(KeyboardKey::KEY_W);
-        assert_eq!(mapped_key(ACTION_LEFT, &keymap), Some(KeyboardKey::KEY_W));
+        assert_eq!(
+            mapping_for(ACTION_LEFT, &keymap, InputSource::Keyboard, xbox),
+            Some("W"),
+        );
         // Unknown action.
-        assert_eq!(mapped_key(99, &keymap), None);
+        assert_eq!(mapping_for(99, &keymap, InputSource::Keyboard, xbox), None,);
+    }
+
+    #[test]
+    fn mapping_for_keyboard_skips_defaults_used_as_overrides_elsewhere() {
+        // RIGHT remapped to Left arrow. LEFT now exposes A as its
+        // canonical key because the Left arrow has been claimed.
+        let mut keymap = Keymap::default();
+        let xbox = GamepadFamily::Xbox;
+        keymap.overrides[ACTION_RIGHT as usize - 1] = Some(KeyboardKey::KEY_LEFT);
+        assert_eq!(
+            mapping_for(ACTION_LEFT, &keymap, InputSource::Keyboard, xbox),
+            Some("A"),
+        );
+        assert_eq!(
+            mapping_for(ACTION_RIGHT, &keymap, InputSource::Keyboard, xbox),
+            Some("Left"),
+        );
+    }
+
+    #[test]
+    fn mapping_for_gamepad_returns_first_button_or_axis_per_family() {
+        let keymap = Keymap::default();
+        // Xbox: BTN1 south face = "A".
+        assert_eq!(
+            mapping_for(
+                ACTION_BTN1,
+                &keymap,
+                InputSource::Gamepad,
+                GamepadFamily::Xbox
+            ),
+            Some("A"),
+        );
+        // PlayStation: south face = "Cross".
+        assert_eq!(
+            mapping_for(
+                ACTION_BTN1,
+                &keymap,
+                InputSource::Gamepad,
+                GamepadFamily::PlayStation,
+            ),
+            Some("Cross"),
+        );
+        // Switch: south face = "B" (Nintendo mirrors A/B vs Xbox).
+        assert_eq!(
+            mapping_for(
+                ACTION_BTN1,
+                &keymap,
+                InputSource::Gamepad,
+                GamepadFamily::Nintendo,
+            ),
+            Some("B"),
+        );
+        // Directional actions have no buttons in BINDINGS; they fall
+        // through to the first dpad entry, family-agnostic.
+        assert_eq!(
+            mapping_for(
+                ACTION_LEFT,
+                &keymap,
+                InputSource::Gamepad,
+                GamepadFamily::PlayStation
+            ),
+            Some("Left"),
+        );
+    }
+
+    #[test]
+    fn input_source_as_str_round_trips_lowercase_names() {
+        assert_eq!(InputSource::Keyboard.as_str(), "keyboard");
+        assert_eq!(InputSource::Gamepad.as_str(), "gamepad");
+    }
+
+    #[test]
+    fn gamepad_family_detect_classifies_known_names() {
+        // Names captured loosely; matches are case-insensitive
+        // substrings since OS/driver text varies. Default falls
+        // through to Xbox so Steam Deck and generic pads are right.
+        assert_eq!(
+            GamepadFamily::detect("Sony DualSense Wireless Controller"),
+            GamepadFamily::PlayStation,
+        );
+        assert_eq!(
+            GamepadFamily::detect("PS4 Controller"),
+            GamepadFamily::PlayStation,
+        );
+        assert_eq!(
+            GamepadFamily::detect("Nintendo Switch Pro Controller"),
+            GamepadFamily::Nintendo,
+        );
+        assert_eq!(
+            GamepadFamily::detect("Joy-Con (L)"),
+            GamepadFamily::Nintendo,
+        );
+        assert_eq!(
+            GamepadFamily::detect("Xbox Wireless Controller"),
+            GamepadFamily::Xbox,
+        );
+        assert_eq!(
+            GamepadFamily::detect("Generic USB Gamepad"),
+            GamepadFamily::Xbox,
+        );
     }
 
     /// Each action should have at least one source bound, otherwise

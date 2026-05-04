@@ -47,6 +47,14 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     input.set("BTN3", ACTION_BTN3)?;
     input.set("MOUSE_LEFT", MOUSE_LEFT)?;
     input.set("MOUSE_RIGHT", MOUSE_RIGHT)?;
+    input.set(
+        "SOURCE_KEYBOARD",
+        crate::input::InputSource::Keyboard.as_str(),
+    )?;
+    input.set(
+        "SOURCE_GAMEPAD",
+        crate::input::InputSource::Gamepad.as_str(),
+    )?;
     lua.globals().set("input", input)?;
 
     let sfx = lua.create_table()?;
@@ -275,20 +283,23 @@ mod tests {
     /// Every `input.*` constant must map to a valid action in
     /// `crate::input`. Guards against adding a new input action to
     /// `setup_api` without extending `BINDINGS`, which would make
-    /// `input.down(input.X)` always return false. `MOUSE_*` constants
-    /// are skipped here because they're indexes into a separate raylib
-    /// enum, not action IDs.
+    /// `input.down(input.X)` always return false. `MOUSE_*` and
+    /// `SOURCE_*` constants are skipped here because they're not
+    /// action IDs.
     #[test]
     fn every_input_constant_is_a_valid_action() {
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
         let input: LuaTable = lua.globals().get("input").unwrap();
         let mut checked = 0;
-        for pair in input.pairs::<String, u32>() {
-            let (name, code) = pair.unwrap();
-            if name.starts_with("MOUSE_") {
+        for pair in input.pairs::<String, mlua::Value>() {
+            let (name, value) = pair.unwrap();
+            if name.starts_with("MOUSE_") || name.starts_with("SOURCE_") {
                 continue;
             }
+            let code: u32 = mlua::FromLua::from_lua(value, &lua).unwrap_or_else(|e| {
+                panic!("input.{name} should be a u32 action id but was not: {e}")
+            });
             assert!(
                 is_valid_action(code),
                 "input.{name} = {code} is not a valid action",
@@ -372,6 +383,14 @@ mod tests {
                 scope.create_function(|_, _v: bool| Ok(()))?,
             )?;
             input.set("mouse_visible", scope.create_function(|_, ()| Ok(true))?)?;
+            input.set(
+                "mapping_for",
+                scope.create_function(|_, _k: u32| Ok(None::<String>))?,
+            )?;
+            input.set(
+                "last_source",
+                scope.create_function(|_, ()| Ok("keyboard"))?,
+            )?;
 
             let sfx: LuaTable = lua.globals().get("sfx")?;
             sfx.set("play", scope.create_function(|_, _n: String| Ok(()))?)?;
