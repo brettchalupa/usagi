@@ -23,6 +23,10 @@ Features:
   `keymap.json` next to `settings.json` (web: localStorage
   `usagi.keymap.<game_id>`). Override semantics are "replace": once you map LEFT
   to W, the default arrow Left no longer fires LEFT.
+- Switch face buttons follow Nintendo convention: BTN1 fires from A (east) and
+  BTN2 from B (south), so "A confirms, B cancels" feels native on Switch. Xbox
+  and PlayStation are unchanged (BTN1=south, BTN2=east). Triggers (LB/RB) and
+  BTN3 stay put across all families.
 - New Lua API for source-aware control glyphs: `input.mapping_for(action)`
   returns the label of the active source's primary binding (e.g. `"Z"` while the
   player is on keyboard; `"A"` on Xbox, `"Cross"` on PlayStation, `"B"` on

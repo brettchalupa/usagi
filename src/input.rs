@@ -113,6 +113,35 @@ fn binding(action: u32) -> Option<&'static Binding> {
     BINDINGS.get(action.checked_sub(1)? as usize)
 }
 
+// Nintendo's UX swaps which face button is "primary": A is east, B is
+// south (vs Xbox/PS where the primary lands on south). To make
+// BTN1=primary and BTN2=cancel feel native on Switch, swap south/east
+// for those two actions. Triggers (LB/RB) and BTN3 stay put.
+const SWITCH_BTN1_BUTTONS: [GamepadButton; 2] = [
+    GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT,
+    GamepadButton::GAMEPAD_BUTTON_LEFT_TRIGGER_1,
+];
+const SWITCH_BTN2_BUTTONS: [GamepadButton; 2] = [
+    GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
+    GamepadButton::GAMEPAD_BUTTON_RIGHT_TRIGGER_1,
+];
+
+/// Gamepad face buttons that fire `action` for the given family. Same
+/// as the static `BINDINGS[i].buttons` for everyone except Switch on
+/// BTN1/BTN2, where south/east are swapped to match Nintendo's
+/// "A=primary, B=cancel" convention.
+fn effective_face_buttons(action: u32, family: GamepadFamily) -> &'static [GamepadButton] {
+    use GamepadFamily::Nintendo;
+    match (action, family) {
+        (ACTION_BTN1, Nintendo) => &SWITCH_BTN1_BUTTONS,
+        (ACTION_BTN2, Nintendo) => &SWITCH_BTN2_BUTTONS,
+        _ => match binding(action) {
+            Some(b) => b.buttons,
+            None => &[],
+        },
+    }
+}
+
 /// Display names for `ACTION_*`, indexed by `action - 1`. Used by the
 /// pause menu's Input views.
 pub const ACTION_NAMES: [&str; 7] = ["LEFT", "RIGHT", "UP", "DOWN", "BTN1", "BTN2", "BTN3"];
@@ -249,7 +278,7 @@ pub fn binding_columns(
                 .join(", "),
         };
         let mut gp = Vec::new();
-        for btn in b.buttons {
+        for btn in effective_face_buttons(action, family) {
             gp.push(button_label(*btn, family).to_string());
         }
         for (axis, sign) in b.axes {
@@ -308,7 +337,8 @@ pub fn mapping_for(
             None
         }
         InputSource::Gamepad => {
-            if let Some(btn) = b.buttons.first() {
+            let buttons = effective_face_buttons(action, family);
+            if let Some(btn) = buttons.first() {
                 return Some(button_label(*btn, family));
             }
             b.axes.first().map(|(axis, sign)| axis_label(*axis, *sign))
@@ -371,7 +401,7 @@ pub fn is_valid_action(action: u32) -> bool {
 /// semantics); a default key claimed as another action's override is
 /// suppressed so a key only fires its current owner. Gamepad and
 /// axes always use the static defaults.
-pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
+pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, family: GamepadFamily, action: u32) -> bool {
     let Some(b) = binding(action) else {
         return false;
     };
@@ -389,11 +419,12 @@ pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
             }
         }
     }
+    let buttons = effective_face_buttons(action, family);
     for pad in 0..MAX_GAMEPADS {
         if !rl.is_gamepad_available(pad) {
             continue;
         }
-        for btn in b.buttons {
+        for btn in buttons {
             if rl.is_gamepad_button_down(pad, *btn) {
                 return true;
             }
@@ -412,7 +443,12 @@ pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
 /// pressed. Analog sticks aren't edge-detected; if you want "just pushed
 /// the stick past the deadzone" semantics, track the last frame yourself
 /// using `action_down`. Override semantics match `action_down`.
-pub fn action_pressed(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
+pub fn action_pressed(
+    rl: &RaylibHandle,
+    keymap: &Keymap,
+    family: GamepadFamily,
+    action: u32,
+) -> bool {
     let Some(b) = binding(action) else {
         return false;
     };
@@ -430,11 +466,12 @@ pub fn action_pressed(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
             }
         }
     }
+    let buttons = effective_face_buttons(action, family);
     for pad in 0..MAX_GAMEPADS {
         if !rl.is_gamepad_available(pad) {
             continue;
         }
-        for btn in b.buttons {
+        for btn in buttons {
             if rl.is_gamepad_button_pressed(pad, *btn) {
                 return true;
             }
@@ -514,14 +551,15 @@ impl InputState {
         keymap: &Keymap,
         prior_source: InputSource,
     ) -> Self {
+        let gamepad_family = current_gamepad_family(rl);
         let mut down = 0u32;
         let mut pressed = 0u32;
         for (i, _) in BINDINGS.iter().enumerate() {
             let action = (i + 1) as u32;
-            if action_down(rl, keymap, action) {
+            if action_down(rl, keymap, gamepad_family, action) {
                 down |= 1 << i;
             }
-            if action_pressed(rl, keymap, action) {
+            if action_pressed(rl, keymap, gamepad_family, action) {
                 pressed |= 1 << i;
             }
         }
@@ -530,7 +568,6 @@ impl InputState {
         let sh = rl.get_screen_height();
         let (mx, my) = screen_to_game(m.x, m.y, sw, sh, pixel_perfect);
         let last_source = detect_source(rl, keymap, prior_source);
-        let gamepad_family = current_gamepad_family(rl);
         let mapping = std::array::from_fn(|i| {
             mapping_for((i + 1) as u32, keymap, last_source, gamepad_family)
         });
@@ -725,16 +762,6 @@ mod tests {
             ),
             Some("Cross"),
         );
-        // Switch: south face = "B" (Nintendo mirrors A/B vs Xbox).
-        assert_eq!(
-            mapping_for(
-                ACTION_BTN1,
-                &keymap,
-                InputSource::Gamepad,
-                GamepadFamily::Nintendo,
-            ),
-            Some("B"),
-        );
         // Directional actions have no buttons in BINDINGS; they fall
         // through to the first dpad entry, family-agnostic.
         assert_eq!(
@@ -745,6 +772,85 @@ mod tests {
                 GamepadFamily::PlayStation
             ),
             Some("Left"),
+        );
+    }
+
+    #[test]
+    fn nintendo_swaps_btn1_and_btn2_face_buttons() {
+        // Switch convention: A (east) = primary, B (south) = cancel.
+        // Usagi swaps so BTN1 fires from A and BTN2 from B, matching
+        // every native Switch game.
+        let keymap = Keymap::default();
+        assert_eq!(
+            mapping_for(
+                ACTION_BTN1,
+                &keymap,
+                InputSource::Gamepad,
+                GamepadFamily::Nintendo,
+            ),
+            Some("A"),
+        );
+        assert_eq!(
+            mapping_for(
+                ACTION_BTN2,
+                &keymap,
+                InputSource::Gamepad,
+                GamepadFamily::Nintendo,
+            ),
+            Some("B"),
+        );
+        // BTN3 is unaffected (north + west buttons read the same on
+        // any family).
+        assert_eq!(
+            mapping_for(
+                ACTION_BTN3,
+                &keymap,
+                InputSource::Gamepad,
+                GamepadFamily::Nintendo,
+            ),
+            Some("X"),
+        );
+    }
+
+    #[test]
+    fn effective_face_buttons_swaps_only_btn1_and_btn2_on_nintendo() {
+        use GamepadButton::*;
+        // Xbox: untouched defaults from BINDINGS.
+        let xbox = effective_face_buttons(ACTION_BTN1, GamepadFamily::Xbox);
+        assert_eq!(xbox.first().copied(), Some(GAMEPAD_BUTTON_RIGHT_FACE_DOWN));
+        // Nintendo: swapped.
+        let n_btn1 = effective_face_buttons(ACTION_BTN1, GamepadFamily::Nintendo);
+        assert_eq!(
+            n_btn1.first().copied(),
+            Some(GAMEPAD_BUTTON_RIGHT_FACE_RIGHT),
+        );
+        let n_btn2 = effective_face_buttons(ACTION_BTN2, GamepadFamily::Nintendo);
+        assert_eq!(
+            n_btn2.first().copied(),
+            Some(GAMEPAD_BUTTON_RIGHT_FACE_DOWN),
+        );
+        // BTN3 untouched on Nintendo.
+        let n_btn3 = effective_face_buttons(ACTION_BTN3, GamepadFamily::Nintendo);
+        assert_eq!(n_btn3.first().copied(), Some(GAMEPAD_BUTTON_RIGHT_FACE_UP));
+        // Triggers (LB/RB) preserved across the swap.
+        assert!(n_btn1.contains(&GAMEPAD_BUTTON_LEFT_TRIGGER_1));
+        assert!(n_btn2.contains(&GAMEPAD_BUTTON_RIGHT_TRIGGER_1));
+    }
+
+    #[test]
+    fn binding_columns_reflects_nintendo_face_swap() {
+        let keymap = Keymap::default();
+        let cols = binding_columns(&keymap, GamepadFamily::Nintendo);
+        // BTN1's gamepad column starts with the Nintendo-A label.
+        assert!(
+            cols[ACTION_BTN1 as usize - 1].2.starts_with("A"),
+            "BTN1 should lead with Nintendo's A: {:?}",
+            cols[ACTION_BTN1 as usize - 1].2,
+        );
+        assert!(
+            cols[ACTION_BTN2 as usize - 1].2.starts_with("B"),
+            "BTN2 should lead with Nintendo's B: {:?}",
+            cols[ACTION_BTN2 as usize - 1].2,
         );
     }
 
