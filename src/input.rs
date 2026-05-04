@@ -326,6 +326,60 @@ pub fn current_gamepad_family(rl: &RaylibHandle) -> GamepadFamily {
     GamepadFamily::default()
 }
 
+/// Tracks per-slot gamepad names across frames so the session can log
+/// connect / disconnect / hot-swap events exactly once. Connection
+/// events include the raw name and the detected family, which is
+/// what you want when a controller's face buttons feel wrong: the
+/// name is the only knob `GamepadFamily::detect` reads.
+///
+/// Cheap to call every frame: the inner state is `MAX_GAMEPADS`
+/// `Option<String>`s and the comparison is a string equality test
+/// per slot.
+pub struct GamepadProbe {
+    last_seen: [Option<String>; MAX_GAMEPADS as usize],
+}
+
+impl GamepadProbe {
+    pub fn new() -> Self {
+        Self {
+            last_seen: std::array::from_fn(|_| None),
+        }
+    }
+
+    /// Polls every slot and emits one log line per state change.
+    pub fn poll(&mut self, rl: &RaylibHandle) {
+        for pad in 0..MAX_GAMEPADS {
+            let idx = pad as usize;
+            let current: Option<String> = if rl.is_gamepad_available(pad) {
+                rl.get_gamepad_name(pad)
+            } else {
+                None
+            };
+            match (self.last_seen[idx].as_deref(), current.as_deref()) {
+                (None, Some(name)) => {
+                    let family = GamepadFamily::detect(name);
+                    crate::msg::info!("gamepad {pad} connected: '{name}' (family: {family:?})");
+                }
+                (Some(prev), Some(name)) if prev != name => {
+                    let family = GamepadFamily::detect(name);
+                    crate::msg::info!("gamepad {pad} changed: '{name}' (family: {family:?})");
+                }
+                (Some(prev), None) => {
+                    crate::msg::info!("gamepad {pad} disconnected: '{prev}'");
+                }
+                _ => {}
+            }
+            self.last_seen[idx] = current;
+        }
+    }
+}
+
+impl Default for GamepadProbe {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn button_label(b: GamepadButton, family: GamepadFamily) -> &'static str {
     use GamepadButton::*;
     use GamepadFamily::*;
@@ -459,10 +513,20 @@ pub fn mapping_for(
 }
 
 /// Returns the input source that fired any bound action this frame
-/// (gamepad wins ties since gamepads only emit deliberate input).
-/// If neither side fired anything bound, `prior` is preserved so a
-/// stray Esc or F-key press can't flip the indicator.
-pub fn detect_source(rl: &RaylibHandle, keymap: &Keymap, prior: InputSource) -> InputSource {
+/// and, for gamepad sources, the specific pad slot that fired. Gamepad
+/// wins ties since gamepads only emit deliberate input. If neither
+/// side fired anything bound, `(prior, None)` is returned so a stray
+/// Esc or F-key press can't flip the indicator.
+///
+/// The pad slot is what lets `mapping_for` pick the right family for
+/// glyphs when multiple controllers of different families are
+/// connected: pressing X on a DualShock at slot 1 should label as
+/// "Cross" regardless of what's at slot 0.
+pub fn detect_source(
+    rl: &RaylibHandle,
+    keymap: &Keymap,
+    prior: InputSource,
+) -> (InputSource, Option<i32>) {
     for b in BINDINGS.iter() {
         for pad in 0..MAX_GAMEPADS {
             if !rl.is_gamepad_available(pad) {
@@ -470,13 +534,13 @@ pub fn detect_source(rl: &RaylibHandle, keymap: &Keymap, prior: InputSource) -> 
             }
             for btn in b.buttons {
                 if rl.is_gamepad_button_down(pad, *btn) {
-                    return InputSource::Gamepad;
+                    return (InputSource::Gamepad, Some(pad));
                 }
             }
             for (axis, sign) in b.axes {
                 let v = rl.get_gamepad_axis_movement(pad, *axis);
                 if (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE) {
-                    return InputSource::Gamepad;
+                    return (InputSource::Gamepad, Some(pad));
                 }
             }
         }
@@ -485,7 +549,7 @@ pub fn detect_source(rl: &RaylibHandle, keymap: &Keymap, prior: InputSource) -> 
         let action = (i + 1) as u32;
         if let Some(k) = keymap.override_for(action) {
             if rl.is_key_down(k) {
-                return InputSource::Keyboard;
+                return (InputSource::Keyboard, None);
             }
         } else {
             for k in b.keys {
@@ -493,12 +557,12 @@ pub fn detect_source(rl: &RaylibHandle, keymap: &Keymap, prior: InputSource) -> 
                     continue;
                 }
                 if rl.is_key_down(*k) {
-                    return InputSource::Keyboard;
+                    return (InputSource::Keyboard, None);
                 }
             }
         }
     }
-    prior
+    (prior, None)
 }
 
 /// True if `action` is one of the exposed `ACTION_*` constants. Currently
@@ -511,9 +575,10 @@ pub fn is_valid_action(action: u32) -> bool {
 /// True while any source bound to `action` is held. An override
 /// replaces this action's keyboard defaults (Pico-8 "replace"
 /// semantics); a default key claimed as another action's override is
-/// suppressed so a key only fires its current owner. Gamepad and
-/// axes always use the static defaults.
-pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, family: GamepadFamily, action: u32) -> bool {
+/// suppressed so a key only fires its current owner. Gamepad face
+/// buttons use the per-pad family (so a Switch Pro at slot 2 fires
+/// BTN1 from its A button, even if an Xbox-style pad is in slot 0).
+pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
     let Some(b) = binding(action) else {
         return false;
     };
@@ -531,11 +596,11 @@ pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, family: GamepadFamily, ac
             }
         }
     }
-    let buttons = effective_face_buttons(action, family);
     for pad in 0..MAX_GAMEPADS {
         if !rl.is_gamepad_available(pad) {
             continue;
         }
+        let buttons = effective_face_buttons(action, pad_family(rl, pad));
         for btn in buttons {
             if rl.is_gamepad_button_down(pad, *btn) {
                 return true;
@@ -554,13 +619,9 @@ pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, family: GamepadFamily, ac
 /// True the frame any key or button bound to `action` transitions to
 /// pressed. Analog sticks aren't edge-detected; if you want "just pushed
 /// the stick past the deadzone" semantics, track the last frame yourself
-/// using `action_down`. Override semantics match `action_down`.
-pub fn action_pressed(
-    rl: &RaylibHandle,
-    keymap: &Keymap,
-    family: GamepadFamily,
-    action: u32,
-) -> bool {
+/// using `action_down`. Override semantics match `action_down`. Face
+/// buttons use the per-pad family.
+pub fn action_pressed(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
     let Some(b) = binding(action) else {
         return false;
     };
@@ -578,11 +639,11 @@ pub fn action_pressed(
             }
         }
     }
-    let buttons = effective_face_buttons(action, family);
     for pad in 0..MAX_GAMEPADS {
         if !rl.is_gamepad_available(pad) {
             continue;
         }
+        let buttons = effective_face_buttons(action, pad_family(rl, pad));
         for btn in buttons {
             if rl.is_gamepad_button_pressed(pad, *btn) {
                 return true;
@@ -594,13 +655,8 @@ pub fn action_pressed(
 
 /// True the frame any key or button bound to `action` transitions from
 /// down to up. Analog sticks aren't edge-detected. Override semantics
-/// match `action_down`.
-pub fn action_released(
-    rl: &RaylibHandle,
-    keymap: &Keymap,
-    family: GamepadFamily,
-    action: u32,
-) -> bool {
+/// match `action_down`. Face buttons use the per-pad family.
+pub fn action_released(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
     let Some(b) = binding(action) else {
         return false;
     };
@@ -618,11 +674,11 @@ pub fn action_released(
             }
         }
     }
-    let buttons = effective_face_buttons(action, family);
     for pad in 0..MAX_GAMEPADS {
         if !rl.is_gamepad_available(pad) {
             continue;
         }
+        let buttons = effective_face_buttons(action, pad_family(rl, pad));
         for btn in buttons {
             if rl.is_gamepad_button_released(pad, *btn) {
                 return true;
@@ -630,6 +686,16 @@ pub fn action_released(
         }
     }
     false
+}
+
+/// Resolves the family of a single pad slot. Used by `action_down` /
+/// `action_pressed` / `action_released` so each connected pad is
+/// matched against its own family's face button layout. Falls back to
+/// `GamepadFamily::default` for slots whose name can't be read.
+fn pad_family(rl: &RaylibHandle, pad: i32) -> GamepadFamily {
+    rl.get_gamepad_name(pad)
+        .map(|n| GamepadFamily::detect(&n))
+        .unwrap_or_default()
 }
 
 /// Inverts the screen-to-game render transform so a window-pixel mouse
@@ -698,32 +764,38 @@ pub struct InputState {
     /// the `input.mapping_for` Lua closure stays cheap.
     mapping: [Option<&'static str>; 7],
     last_source: InputSource,
+    /// Slot of the most recently active gamepad, carried forward across
+    /// frames so glyphs stay stable when no input fires. `None` until
+    /// any gamepad has fired this session. Drives `gamepad_family` for
+    /// the precomputed `mapping` so multi-pad setups label correctly.
+    last_pad: Option<i32>,
     gamepad_family: GamepadFamily,
 }
 
 impl InputState {
     /// Polls raylib once and rolls the result into a snapshot. Called
     /// at the top of each frame, before user Lua runs. `prior_source`
-    /// carries forward when no bound input fired this frame.
+    /// and `prior_pad` carry forward when no bound input fired this
+    /// frame, so glyphs stay stable across idle moments.
     pub fn sample(
         rl: &RaylibHandle,
         pixel_perfect: bool,
         keymap: &Keymap,
         prior_source: InputSource,
+        prior_pad: Option<i32>,
     ) -> Self {
-        let gamepad_family = current_gamepad_family(rl);
         let mut down = 0u32;
         let mut pressed = 0u32;
         let mut released = 0u32;
         for (i, _) in BINDINGS.iter().enumerate() {
             let action = (i + 1) as u32;
-            if action_down(rl, keymap, gamepad_family, action) {
+            if action_down(rl, keymap, action) {
                 down |= 1 << i;
             }
-            if action_pressed(rl, keymap, gamepad_family, action) {
+            if action_pressed(rl, keymap, action) {
                 pressed |= 1 << i;
             }
-            if action_released(rl, keymap, gamepad_family, action) {
+            if action_released(rl, keymap, action) {
                 released |= 1 << i;
             }
         }
@@ -731,7 +803,17 @@ impl InputState {
         let sw = rl.get_screen_width();
         let sh = rl.get_screen_height();
         let (mx, my) = screen_to_game(m.x, m.y, sw, sh, pixel_perfect);
-        let last_source = detect_source(rl, keymap, prior_source);
+        let (last_source, fired_pad) = detect_source(rl, keymap, prior_source);
+        // Carry the slot forward when nothing fired so a stretch of
+        // idle frames doesn't wipe the glyph identity.
+        let last_pad = fired_pad.or(prior_pad);
+        // Family follows whichever pad was last actively used. Falls
+        // back to slot 0's family (or default) before any pad has
+        // fired so glyphs render reasonably on first frame.
+        let gamepad_family = match last_pad {
+            Some(pad) => pad_family(rl, pad),
+            None => current_gamepad_family(rl),
+        };
         let mapping = std::array::from_fn(|i| {
             mapping_for((i + 1) as u32, keymap, last_source, gamepad_family)
         });
@@ -767,6 +849,7 @@ impl InputState {
             mouse_y: my,
             mapping,
             last_source,
+            last_pad,
             gamepad_family,
         }
     }
@@ -778,6 +861,10 @@ impl InputState {
 
     pub fn last_source(&self) -> InputSource {
         self.last_source
+    }
+
+    pub fn last_pad(&self) -> Option<i32> {
+        self.last_pad
     }
 
     pub fn gamepad_family(&self) -> GamepadFamily {

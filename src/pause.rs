@@ -28,7 +28,7 @@ mod key_config;
 mod top;
 mod volume;
 
-use crate::input::{self, GamepadFamily};
+use crate::input::GamepadFamily;
 use crate::keymap::{self, Keymap};
 use crate::palette;
 use crate::palette::Pal;
@@ -109,11 +109,10 @@ impl PauseMenu {
         keymap: &Keymap,
         dt: f32,
     ) -> Option<PauseAction> {
-        let family = input::current_gamepad_family(rl);
-        let menu_inputs = read_inputs(rl, keymap, family);
+        let menu_inputs = read_inputs(rl, keymap);
 
         // Snapshot the held actions so `draw` doesn't need `rl`.
-        self.tester_input = snapshot_tester(rl, keymap, family);
+        self.tester_input = snapshot_tester(rl, keymap);
 
         // Only drain raylib's key queue while capturing, so presses
         // on other views aren't silently consumed.

@@ -12,8 +12,7 @@
 
 use super::ACTION_COUNT;
 use crate::input::{
-    self, ACTION_BTN1, ACTION_BTN2, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
-    GamepadFamily, MAX_GAMEPADS,
+    self, ACTION_BTN1, ACTION_BTN2, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP, MAX_GAMEPADS,
 };
 use crate::keymap::Keymap;
 use sola_raylib::prelude::*;
@@ -41,9 +40,11 @@ pub(super) struct KeyConfigInputs {
     pub backspace: bool,
 }
 
-/// Reads the navigation inputs once per frame. `family` decides which
-/// face buttons map to BTN1/BTN2 on Switch vs. Xbox/PS.
-pub(super) fn read_inputs(rl: &RaylibHandle, keymap: &Keymap, family: GamepadFamily) -> MenuInputs {
+/// Reads the navigation inputs once per frame. Face buttons are
+/// per-pad family-aware inside `action_pressed`, so this works
+/// correctly when multiple controllers of different families are
+/// connected.
+pub(super) fn read_inputs(rl: &RaylibHandle, keymap: &Keymap) -> MenuInputs {
     // Enter alone toggles, but Alt+Enter is reserved for fullscreen.
     let alt_held =
         rl.is_key_down(KeyboardKey::KEY_LEFT_ALT) || rl.is_key_down(KeyboardKey::KEY_RIGHT_ALT);
@@ -52,12 +53,12 @@ pub(super) fn read_inputs(rl: &RaylibHandle, keymap: &Keymap, family: GamepadFam
         || (rl.is_key_pressed(KeyboardKey::KEY_ENTER) && !alt_held)
         || gamepad_start_pressed(rl);
     MenuInputs {
-        up: input::action_pressed(rl, keymap, family, ACTION_UP),
-        down: input::action_pressed(rl, keymap, family, ACTION_DOWN),
-        left: input::action_pressed(rl, keymap, family, ACTION_LEFT),
-        right: input::action_pressed(rl, keymap, family, ACTION_RIGHT),
-        btn1: input::action_pressed(rl, keymap, family, ACTION_BTN1),
-        btn2: input::action_pressed(rl, keymap, family, ACTION_BTN2),
+        up: input::action_pressed(rl, keymap, ACTION_UP),
+        down: input::action_pressed(rl, keymap, ACTION_DOWN),
+        left: input::action_pressed(rl, keymap, ACTION_LEFT),
+        right: input::action_pressed(rl, keymap, ACTION_RIGHT),
+        btn1: input::action_pressed(rl, keymap, ACTION_BTN1),
+        btn2: input::action_pressed(rl, keymap, ACTION_BTN2),
         toggle,
     }
 }
@@ -65,14 +66,10 @@ pub(super) fn read_inputs(rl: &RaylibHandle, keymap: &Keymap, family: GamepadFam
 /// Snapshots which actions are currently held, for the Tester rects to
 /// light up. Returned as a fixed-size array so `draw` can read it
 /// without a raylib handle.
-pub(super) fn snapshot_tester(
-    rl: &RaylibHandle,
-    keymap: &Keymap,
-    family: GamepadFamily,
-) -> [bool; ACTION_COUNT] {
+pub(super) fn snapshot_tester(rl: &RaylibHandle, keymap: &Keymap) -> [bool; ACTION_COUNT] {
     let mut out = [false; ACTION_COUNT];
     for (i, slot) in out.iter_mut().enumerate() {
-        *slot = input::action_down(rl, keymap, family, (i + 1) as u32);
+        *slot = input::action_down(rl, keymap, (i + 1) as u32);
     }
     out
 }
