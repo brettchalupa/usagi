@@ -4,7 +4,7 @@
 
 use crate::input::{
     ACTION_BTN1, ACTION_BTN2, ACTION_BTN3, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
-    MOUSE_LEFT, MOUSE_RIGHT,
+    KEY_TABLE, MOUSE_LEFT, MOUSE_RIGHT,
 };
 use crate::shader::{ShaderManager, ShaderValue};
 use crate::{GAME_HEIGHT, GAME_WIDTH};
@@ -47,6 +47,12 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     input.set("BTN3", ACTION_BTN3)?;
     input.set("MOUSE_LEFT", MOUSE_LEFT)?;
     input.set("MOUSE_RIGHT", MOUSE_RIGHT)?;
+    // Direct keyboard constants (escape hatch — bypasses keymap and
+    // gamepad). See `KEY_TABLE` in `crate::input` for the full list and
+    // the rationale for only exposing common keys.
+    for (name, key) in KEY_TABLE {
+        input.set(*name, *key as i32 as u32)?;
+    }
     input.set(
         "SOURCE_KEYBOARD",
         crate::input::InputSource::Keyboard.as_str(),
@@ -283,9 +289,10 @@ mod tests {
     /// Every `input.*` constant must map to a valid action in
     /// `crate::input`. Guards against adding a new input action to
     /// `setup_api` without extending `BINDINGS`, which would make
-    /// `input.held(input.X)` always return false. `MOUSE_*` and
-    /// `SOURCE_*` constants are skipped here because they're not
-    /// action IDs.
+    /// `input.held(input.X)` always return false. `MOUSE_*`, `SOURCE_*`,
+    /// and `KEY_*` constants are skipped here because they're not
+    /// action IDs (KEY_* are raw raylib keycodes, MOUSE_* are mouse
+    /// button enum values, SOURCE_* are strings).
     #[test]
     fn every_input_constant_is_a_valid_action() {
         let lua = Lua::new();
@@ -294,7 +301,8 @@ mod tests {
         let mut checked = 0;
         for pair in input.pairs::<String, mlua::Value>() {
             let (name, value) = pair.unwrap();
-            if name.starts_with("MOUSE_") || name.starts_with("SOURCE_") {
+            if name.starts_with("MOUSE_") || name.starts_with("SOURCE_") || name.starts_with("KEY_")
+            {
                 continue;
             }
             let code: u32 = mlua::FromLua::from_lua(value, &lua).unwrap_or_else(|e| {
@@ -383,6 +391,15 @@ mod tests {
                 "mouse_released",
                 scope.create_function(|_, _b: u32| Ok(false))?,
             )?;
+            input.set("key_held", scope.create_function(|_, _k: u32| Ok(false))?)?;
+            input.set(
+                "key_pressed",
+                scope.create_function(|_, _k: u32| Ok(false))?,
+            )?;
+            input.set(
+                "key_released",
+                scope.create_function(|_, _k: u32| Ok(false))?,
+            )?;
             input.set(
                 "set_mouse_visible",
                 scope.create_function(|_, _v: bool| Ok(()))?,
@@ -432,6 +449,9 @@ mod tests {
                 assert(type(input.mouse_held(input.MOUSE_LEFT)) == "boolean")
                 assert(type(input.mouse_pressed(input.MOUSE_RIGHT)) == "boolean")
                 assert(type(input.mouse_released(input.MOUSE_LEFT)) == "boolean")
+                assert(type(input.key_held(input.KEY_F1)) == "boolean")
+                assert(type(input.key_pressed(input.KEY_BACKTICK)) == "boolean")
+                assert(type(input.key_released(input.KEY_SPACE)) == "boolean")
                 input.set_mouse_visible(false)
                 input.set_mouse_visible(true)
                 assert(type(input.mouse_visible()) == "boolean")

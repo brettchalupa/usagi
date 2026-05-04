@@ -386,6 +386,42 @@ gfx.text("Press " .. btn .. " to jump", 10, 10, gfx.COLOR_WHITE)
   the latest `set_mouse_visible` call synchronously, so toggling reads
   consistently: `input.set_mouse_visible(not input.mouse_visible())`.
 
+#### Direct keyboard (escape hatch)
+
+For dev hotkeys (toggling debug overlays, screenshotting, F-key shortcuts) and
+for keyboard-and-mouse-only games, you can read raw keyboard state by key:
+
+- `input.key_pressed(key)` — true the frame `key` first went down.
+- `input.key_held(key)` — true while `key` is held.
+- `input.key_released(key)` — true the frame `key` first went up.
+
+```lua
+if usagi.IS_DEV and input.key_pressed(input.KEY_F1) then
+  State.show_debug = not State.show_debug
+end
+```
+
+**Use sparingly for gameplay.** These bypass the action/keymap system on
+purpose, meaning they don't honor the player's pause-menu key remaps and they
+don't fire from a gamepad. Anything a player should be able to remap, or that a
+controller player needs to reach, belongs on `input.held` / `input.pressed` /
+`input.released` with an abstract action.
+
+Available constants (all `input.KEY_*`): letters `A`–`Z`, digits `0`–`9`,
+function keys `F1`–`F12`, `SPACE`, `ENTER`, `ESCAPE`, `TAB`, `BACKSPACE`,
+`DELETE`, arrows (`LEFT`, `RIGHT`, `UP`, `DOWN`), modifiers (`LSHIFT`, `RSHIFT`,
+`LCTRL`, `RCTRL`, `LALT`, `RALT`), and punctuation (`BACKTICK`, `MINUS`,
+`EQUAL`, `LBRACKET`, `RBRACKET`, `BACKSLASH`, `SEMICOLON`, `APOSTROPHE`,
+`COMMA`, `PERIOD`, `SLASH`). Numpad and the navigation cluster
+(Insert/Home/End/PgUp/PgDn) aren't exposed yet.
+[Open an issue](https://github.com/brettchalupa/usagi/issues/new) or submit a PR
+if you need them.
+
+Raw gamepad reads (analog sticks, triggers, individual face buttons by index)
+are intentionally not exposed. The abstract `input.held(input.BTN1)` family
+covers gamepad input; if you need finer-grained control than that, you've likely
+outgrown Usagi.
+
 ### `sfx`
 
 - `sfx.play(name)` — play `sfx/<name>.wav`. Unknown names silently no-op.
