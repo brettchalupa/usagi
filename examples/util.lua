@@ -2,10 +2,12 @@
 -- Move with arrows/WASD, BTN1 to shoot a 3-bullet spread. The red
 -- enemy chases you, the wall blocks the player and bullets, the green
 -- bar tracks your X position, and a tiny dot orbits the corner.
+-- Hover the enemy or wall with the mouse to see them outline.
 --
 -- Functions covered:
 --   clamp, sign, round, approach, lerp, wrap, flash
 --   vec_normalize, vec_dist, vec_dist_sq, vec_from_angle
+--   point_in_rect, point_in_circ
 --   rect_overlap, circ_overlap, circ_rect_overlap
 
 function _config()
@@ -120,11 +122,24 @@ function _draw(_dt)
 
   gfx.clear(gfx.COLOR_DARK_BLUE)
 
-  -- Wall.
-  gfx.rect_fill(w.x, w.y, w.w, w.h, gfx.COLOR_DARK_GRAY)
+  -- Mouse-hover hit tests: point_in_rect for the wall, point_in_circ
+  -- for the enemy. Hovered shapes get a yellow outline.
+  local mx, my = input.mouse()
+  local mouse = { x = mx, y = my }
+  local hover_wall = util.point_in_rect(mouse, w)
+  local hover_enemy = util.point_in_circ(mouse, e)
 
-  -- Enemy.
+  -- Wall (with hover ring).
+  gfx.rect_fill(w.x, w.y, w.w, w.h, gfx.COLOR_DARK_GRAY)
+  if hover_wall then
+    gfx.rect(w.x - 1, w.y - 1, w.w + 2, w.h + 2, gfx.COLOR_YELLOW)
+  end
+
+  -- Enemy (with hover ring).
   gfx.circ_fill(util.round(e.x), util.round(e.y), e.r, gfx.COLOR_RED)
+  if hover_enemy then
+    gfx.circ(util.round(e.x), util.round(e.y), e.r + 2, gfx.COLOR_YELLOW)
+  end
 
   -- Player (round on draw for pixel snap, flash during invincibility).
   local visible = p.hit_t <= 0 or util.flash(p.hit_t, 8)

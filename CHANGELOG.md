@@ -46,12 +46,12 @@ Features:
 - New `util` global with drop-in math/geometry helpers: `util.clamp`,
   `util.sign`, `util.round`, `util.approach`, `util.lerp`, `util.wrap`,
   `util.flash`, `util.vec_normalize`, `util.vec_dist`, `util.vec_dist_sq`,
-  `util.vec_from_angle`, `util.rect_overlap`, `util.circ_overlap`,
-  `util.circ_rect_overlap`. Pure Lua, available without
-  `require`. Source is at `runtime/util.lua` for forkability. Open it to read
-  the implementations or override individual functions in your own `_init`.
-  Functions that take shaped tables check the shape and raise an error pointing
-  at your call site (e.g.
+  `util.vec_from_angle`, `util.point_in_rect`, `util.point_in_circ`,
+  `util.rect_overlap`, `util.circ_overlap`, `util.circ_rect_overlap`. Pure Lua,
+  available without `require`. Source is at `runtime/util.lua` for forkability.
+  Open it to read the implementations or override individual functions in your
+  own `_init`. Functions that take shaped tables check the shape and raise an
+  error pointing at your call site (e.g.
   `util.rect_overlap: arg 1 table
   missing or non-numeric field 'h'`) instead
   of failing deep inside the helper. `util.min` / `util.max` aren't included

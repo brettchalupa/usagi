@@ -579,6 +579,19 @@ mod tests {
             assert(util.circ_rect_overlap({x=12,y=5,r=3}, {x=0,y=0,w=10,h=10}), "circ overlapping rect edge")
             assert(not util.circ_rect_overlap({x=20,y=20,r=3}, {x=0,y=0,w=10,h=10}), "circ far from rect")
 
+            -- point_in_rect: half-open [x, x+w) on each axis.
+            assert(util.point_in_rect({x=5,y=5}, {x=0,y=0,w=10,h=10}), "point inside rect")
+            assert(util.point_in_rect({x=0,y=0}, {x=0,y=0,w=10,h=10}), "point at top-left edge is inside")
+            assert(not util.point_in_rect({x=10,y=5}, {x=0,y=0,w=10,h=10}), "point at right edge is outside")
+            assert(not util.point_in_rect({x=5,y=10}, {x=0,y=0,w=10,h=10}), "point at bottom edge is outside")
+            assert(not util.point_in_rect({x=-1,y=5}, {x=0,y=0,w=10,h=10}), "point left of rect")
+
+            -- point_in_circ: strict (boundary outside, matching circ_overlap).
+            assert(util.point_in_circ({x=0,y=0}, {x=0,y=0,r=5}), "point at center")
+            assert(util.point_in_circ({x=3,y=0}, {x=0,y=0,r=5}), "point inside circle")
+            assert(not util.point_in_circ({x=5,y=0}, {x=0,y=0,r=5}), "point on boundary is outside")
+            assert(not util.point_in_circ({x=10,y=0}, {x=0,y=0,r=5}), "point far from circle")
+
             eq(util.sign(5), 1, "sign positive")
             eq(util.sign(-3), -1, "sign negative")
             eq(util.sign(0), 0, "sign zero")
@@ -652,6 +665,16 @@ mod tests {
                 "util.vec_dist_sq({x=0,y=0}, 'oops')",
                 "vec_dist_sq",
                 "must be a table",
+            ),
+            (
+                "util.point_in_rect({x=0}, {x=0,y=0,w=10,h=10})",
+                "point_in_rect",
+                "'y'",
+            ),
+            (
+                "util.point_in_circ({x=0,y=0}, {x=0,y=0})",
+                "point_in_circ",
+                "'r'",
             ),
         ];
 
