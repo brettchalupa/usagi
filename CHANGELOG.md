@@ -5,6 +5,20 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+## v0.5.0 - May 4, 2026
+
+Breaking:
+
+- `settings.json` replaces the single `volume` key with `music_volume` and
+  `sfx_volume`. Existing settings are auto-migrated on load: the old `volume`
+  value is copied into both new fields the first time the engine reads them. No
+  action required.
+- `input.down(action)` is renamed to `input.held(action)` and
+  `input.mouse_down(button)` to `input.mouse_held(button)`. The old names
+  collided with directional input names (`input.down(input.DOWN)` was ambiguous)
+  and "held" reads more naturally as the level-state pair to the edge-state
+  `pressed` / `released`. Update calls; behavior is unchanged.
+
 Features:
 
 - Pause Menu is now navigable. Up/Down moves between items, Left/Right adjusts
@@ -73,18 +87,6 @@ Features:
   errors at a glance. Color is auto-disabled when stdout isn't a terminal
   (piping to a file, CI logs) or when `NO_COLOR` is set, per
   <https://no-color.org>.
-
-Breaking:
-
-- `settings.json` replaces the single `volume` key with `music_volume` and
-  `sfx_volume`. Existing settings are auto-migrated on load: the old `volume`
-  value is copied into both new fields the first time the engine reads them. No
-  action required.
-- `input.down(action)` is renamed to `input.held(action)` and
-  `input.mouse_down(button)` to `input.mouse_held(button)`. The old names
-  collided with directional input names (`input.down(input.DOWN)` was ambiguous)
-  and "held" reads more naturally as the level-state pair to the edge-state
-  `pressed` / `released`. Update calls; behavior is unchanged.
 
 Fixes:
 
