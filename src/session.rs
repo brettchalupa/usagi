@@ -288,6 +288,13 @@ struct Session {
     /// snapshot, current cursor visibility, and any pending visibility
     /// toggle that the frame loop needs to apply via `&mut rl`.
     input_bridge: InputBridge,
+    /// Logs gamepad connect / disconnect / hot-swap events so the
+    /// player can see what the engine sees. Useful when face buttons
+    /// feel wrong: the printed name is the only knob
+    /// `GamepadFamily::detect` reads, so a name that doesn't contain
+    /// any of the Nintendo / PlayStation substrings gets the Xbox
+    /// fallback layout.
+    gamepad_probe: input::GamepadProbe,
     /// In-game GIF recorder, toggled with F9 / Cmd+G. Native-only:
     /// emscripten has no real filesystem to write to.
     #[cfg(not(target_os = "emscripten"))]
@@ -447,6 +454,7 @@ impl Session {
             config.pixel_perfect,
             &keymap,
             input::InputSource::default(),
+            None,
         ));
         register_input_api(&lua, &input_bridge)
             .map_err(|e| crate::Error::Cli(format!("registering input.* API: {e}")))?;
@@ -518,6 +526,7 @@ impl Session {
             elapsed: 0.0,
             pause: PauseMenu::new(),
             input_bridge,
+            gamepad_probe: input::GamepadProbe::new(),
             #[cfg(not(target_os = "emscripten"))]
             recorder: Recorder::new(),
             // Captures (gifs + screenshots) land in `<cwd>/captures/`.
@@ -550,6 +559,12 @@ impl Session {
             return false;
         }
 
+        // Logs gamepad connect / disconnect once each, so a misdetected
+        // controller (e.g. Switch Pro showing as "Wireless Gamepad" and
+        // falling back to the Xbox face layout) is debuggable from the
+        // CLI output alone.
+        self.gamepad_probe.poll(&self.rl);
+
         if self.reload {
             self.maybe_reload_assets();
         }
@@ -574,12 +589,13 @@ impl Session {
         // `input.*` closures see consistent values throughout `_update`
         // and `_draw`. raylib polls input once per frame anyway, so
         // sampling here matches what live calls would return.
-        let prior_source = self.input_bridge.state.get().last_source();
+        let prior_state = self.input_bridge.state.get();
         self.input_bridge.state.set(input::InputState::sample(
             &self.rl,
             self.config.pixel_perfect,
             &self.keymap,
-            prior_source,
+            prior_state.last_source(),
+            prior_state.last_pad(),
         ));
 
         // Apply any cursor-visibility toggle that user Lua requested

@@ -22,6 +22,16 @@ function _update(_dt)
   State.btn1_held = input.held(input.BTN1)
   State.btn2_held = input.held(input.BTN2)
   State.btn3_held = input.held(input.BTN3)
+
+  if input.pressed(input.BTN1) then
+    print("BTN1 Mapping: " .. input.mapping_for(input.BTN1))
+  end
+  if input.pressed(input.BTN2) then
+    print("BTN2 Mapping: " .. input.mapping_for(input.BTN2))
+  end
+  if input.pressed(input.BTN3) then
+    print("BTN3 Mapping: " .. input.mapping_for(input.BTN3))
+  end
 end
 
 local function label_for(action)
