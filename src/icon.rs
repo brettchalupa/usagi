@@ -27,7 +27,7 @@ pub fn apply(rl: &mut RaylibHandle) {
     #[cfg(not(target_os = "emscripten"))]
     match Image::load_image_from_mem(".png", ICON_PNG) {
         Ok(image) => apply_multires(rl, &image),
-        Err(e) => eprintln!("[usagi] failed to decode icon.png: {e}"),
+        Err(e) => crate::msg::err!("failed to decode icon.png: {e}"),
     }
 }
 

@@ -87,7 +87,7 @@ pub(super) fn handle_input(rl: &mut RaylibHandle, _state: &mut State) -> Option<
             } else {
                 format!("{snippet} (clipboard unavailable)")
             };
-            println!("[usagi] {msg}");
+            crate::msg::info!("{msg}");
             return Some(msg);
         }
     }

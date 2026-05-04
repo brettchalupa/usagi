@@ -467,7 +467,7 @@ impl Session {
         // session also holds, so user calls flow through the same
         // library that the engine drives every frame.
         let audio: Option<&'static RaylibAudio> = RaylibAudio::init_audio_device()
-            .map_err(|e| eprintln!("[usagi] audio init failed: {}", e))
+            .map_err(|e| crate::msg::err!("audio init failed: {}", e))
             .ok()
             .map(|a| &*Box::leak(Box::new(a)));
 
@@ -654,18 +654,18 @@ impl Session {
             // Drop cached require results so dependencies re-execute when
             // main.lua re-runs. Built-in libs are untouched.
             if let Err(e) = clear_user_modules(&self.lua, self.vfs.as_ref()) {
-                eprintln!("[usagi] clear_user_modules: {e}");
+                crate::msg::err!("clear_user_modules: {e}");
             }
             match load_script(&self.lua, self.vfs.as_ref()) {
                 Ok(()) => {
-                    println!("[usagi] reloaded {} & requires", self.vfs.script_name());
+                    crate::msg::info!("reloaded {} & required dependents", self.vfs.script_name());
                     self.update = self.lua.globals().get("_update").ok();
                     self.draw = self.lua.globals().get("_draw").ok();
                     self.last_error = None;
                 }
                 Err(e) => {
                     let msg = format!("reload: {}", e);
-                    eprintln!("[usagi] {}", msg);
+                    crate::msg::err!("{}", msg);
                     self.last_error = Some(msg);
                 }
             }
@@ -681,13 +681,13 @@ impl Session {
             .sprites
             .reload_if_changed(&mut self.rl, &self.thread, self.vfs.as_ref())
         {
-            println!("[usagi] reloaded sprites.png");
+            crate::msg::info!("reloaded sprites.png");
         }
 
         if let Some(a) = self.audio
             && self.sfx.reload_if_changed(a, self.vfs.as_ref())
         {
-            println!("[usagi] reloaded sfx ({} sound(s))", self.sfx.len());
+            crate::msg::info!("reloaded sfx ({} sound(s))", self.sfx.len());
         }
 
         if let Some(a) = self.audio
@@ -696,10 +696,7 @@ impl Session {
                 .borrow_mut()
                 .reload_if_changed(a, self.vfs.as_ref())
         {
-            println!(
-                "[usagi] reloaded music ({} track(s))",
-                self.music.borrow().len()
-            );
+            crate::msg::info!("reloaded music ({} track(s))", self.music.borrow().len());
         }
 
         if self
@@ -707,7 +704,7 @@ impl Session {
             .borrow_mut()
             .reload_if_changed(&mut self.rl, &self.thread, self.vfs.as_ref())
         {
-            println!("[usagi] reloaded shader");
+            crate::msg::info!("reloaded shader");
         }
     }
 
@@ -720,7 +717,7 @@ impl Session {
             self.rl.toggle_borderless_windowed();
             self.settings.fullscreen = !self.settings.fullscreen;
             if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
-                eprintln!("[usagi] settings write failed: {e}");
+                crate::msg::err!("settings write failed: {e}");
             }
         }
 
@@ -744,12 +741,12 @@ impl Session {
         if reset && let Ok(init) = self.lua.globals().get::<LuaFunction>("_init") {
             match init.call::<()>(()) {
                 Ok(()) => {
-                    println!("[usagi] reset");
+                    crate::msg::info!("reset");
                     self.last_error = None;
                 }
                 Err(e) => {
                     let msg = format!("_init: {}", e);
-                    eprintln!("[usagi] {}", msg);
+                    crate::msg::err!("{}", msg);
                     self.last_error = Some(msg);
                 }
             }
@@ -780,9 +777,9 @@ impl Session {
             self.music.borrow_mut().set_volume(m);
             self.sfx.set_volume(s);
             if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
-                eprintln!("[usagi] settings write failed: {e}");
+                crate::msg::err!("settings write failed: {e}");
             }
-            eprintln!("[usagi] music: {m:.2}, sfx: {s:.2}");
+            crate::msg::err!("music: {m:.2}, sfx: {s:.2}");
         }
 
         // F9 / Cmd+G / Ctrl+G toggles GIF recording.
@@ -804,7 +801,7 @@ impl Session {
                     .recorder
                     .toggle(&self.captures_dir, &self.capture_prefix)
             {
-                eprintln!("[usagi] recorder toggle failed: {e}");
+                crate::msg::err!("recorder toggle failed: {e}");
             }
 
             // F8 / Cmd+F / Ctrl+F saves a one-shot PNG screenshot.
@@ -815,7 +812,7 @@ impl Session {
             if take_shot
                 && let Err(e) = save_screenshot(&self.rt, &self.captures_dir, &self.capture_prefix)
             {
-                eprintln!("[usagi] screenshot failed: {e}");
+                crate::msg::err!("screenshot failed: {e}");
             }
         }
     }
@@ -832,7 +829,7 @@ impl Session {
                 self.settings.music_volume = v;
                 self.music.borrow_mut().set_volume(v);
                 if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
-                    eprintln!("[usagi] settings write failed: {e}");
+                    crate::msg::err!("settings write failed: {e}");
                 }
             }
             PauseAction::SetSfxVolume(v) => {
@@ -840,26 +837,26 @@ impl Session {
                 self.settings.sfx_volume = v;
                 self.sfx.set_volume(v);
                 if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
-                    eprintln!("[usagi] settings write failed: {e}");
+                    crate::msg::err!("settings write failed: {e}");
                 }
             }
             PauseAction::ToggleFullscreen => {
                 self.rl.toggle_borderless_windowed();
                 self.settings.fullscreen = !self.settings.fullscreen;
                 if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
-                    eprintln!("[usagi] settings write failed: {e}");
+                    crate::msg::err!("settings write failed: {e}");
                 }
             }
             PauseAction::ResetGame => {
                 if let Ok(init) = self.lua.globals().get::<LuaFunction>("_init") {
                     match init.call::<()>(()) {
                         Ok(()) => {
-                            println!("[usagi] reset");
+                            crate::msg::info!("reset");
                             self.last_error = None;
                         }
                         Err(e) => {
                             let msg = format!("_init: {}", e);
-                            eprintln!("[usagi] {}", msg);
+                            crate::msg::err!("{}", msg);
                             self.last_error = Some(msg);
                         }
                     }
@@ -868,16 +865,16 @@ impl Session {
             PauseAction::ClearSave => {
                 #[cfg(not(target_os = "emscripten"))]
                 match crate::save::clear_save(&self.game_id) {
-                    Ok(()) => println!("[usagi] save data cleared"),
-                    Err(e) => eprintln!("[usagi] save clear failed: {e}"),
+                    Ok(()) => crate::msg::info!("save data cleared"),
+                    Err(e) => crate::msg::err!("save clear failed: {e}"),
                 }
                 #[cfg(target_os = "emscripten")]
-                eprintln!("[usagi] clear save data is not supported on web yet");
+                crate::msg::err!("clear save data is not supported on web yet");
             }
             PauseAction::SetKeymap(km) => {
                 self.keymap = km;
                 if let Err(e) = crate::keymap::write(&self.game_id, &self.keymap) {
-                    eprintln!("[usagi] keymap write failed: {e}");
+                    crate::msg::err!("keymap write failed: {e}");
                 }
             }
             PauseAction::Quit => {

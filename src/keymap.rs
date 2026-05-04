@@ -51,14 +51,14 @@ pub fn load(game_id: &GameId) -> Keymap {
         Ok(Some(s)) => s,
         Ok(None) => return Keymap::default(),
         Err(e) => {
-            eprintln!("[usagi] keymap: read error: {e}; using defaults");
+            crate::msg::warn!("keymap: read error: {e}; using defaults");
             return Keymap::default();
         }
     };
     let value: serde_json::Value = match serde_json::from_str(&body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("[usagi] keymap: parse error: {e}; using defaults");
+            crate::msg::warn!("keymap: parse error: {e}; using defaults");
             return Keymap::default();
         }
     };

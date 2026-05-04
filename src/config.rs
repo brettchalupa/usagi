@@ -76,7 +76,7 @@ impl Config {
             }
             Err(e) => {
                 let msg = format!("_config: {}", e);
-                eprintln!("[usagi] {}", msg);
+                crate::msg::err!("{}", msg);
                 if let Some(sink) = error_sink {
                     *sink = Some(msg);
                 }

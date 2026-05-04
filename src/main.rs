@@ -24,6 +24,7 @@ mod error;
 mod font;
 mod icon;
 mod input;
+mod msg;
 mod palette;
 mod pause;
 mod preprocess;
@@ -228,7 +229,7 @@ fn finish(result: Result<()>) -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("[usagi] {e}");
+            crate::msg::err!("{e}");
             ExitCode::FAILURE
         }
     }

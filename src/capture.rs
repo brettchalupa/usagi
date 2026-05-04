@@ -162,7 +162,7 @@ impl Recorder {
                 let mut encoder =
                     gif::Encoder::new(writer, GIF_W, GIF_H, &palette).map_err(io_err)?;
                 encoder.set_repeat(gif::Repeat::Infinite).map_err(io_err)?;
-                eprintln!("[usagi] recording started: {}", path.display());
+                crate::msg::info!("recording started: {}", path.display());
                 *self = Recorder::Recording(Box::new(RecordingState {
                     encoder,
                     path,
@@ -182,11 +182,7 @@ impl Recorder {
                     ..
                 } = *state;
                 drop(encoder);
-                eprintln!(
-                    "[usagi] recording saved: {} ({} frame(s))",
-                    path.display(),
-                    frames
-                );
+                crate::msg::info!("recording saved: {} ({} frame(s))", path.display(), frames);
                 Ok(Some(path))
             }
         }
@@ -208,7 +204,7 @@ impl Recorder {
             ..
         } = state.as_mut();
         let Ok(image) = rt.texture().load_image() else {
-            eprintln!("[usagi] recorder: failed to read RT pixels");
+            crate::msg::err!("recorder: failed to read RT pixels");
             return;
         };
         let pixels = image.get_image_data();
@@ -223,8 +219,8 @@ impl Recorder {
         let out_h = src_h * scale;
         let expected_src = src_w * src_h;
         if pixels.len() != expected_src {
-            eprintln!(
-                "[usagi] recorder: unexpected RT size: got {}, expected {}",
+            crate::msg::err!(
+                "recorder: unexpected RT size: got {}, expected {}",
                 pixels.len(),
                 expected_src
             );
@@ -250,7 +246,7 @@ impl Recorder {
         let mut frame = gif::Frame::from_indexed_pixels(GIF_W, GIF_H, indexed, None);
         frame.delay = FRAME_DELAY_CS;
         if let Err(e) = encoder.write_frame(&frame) {
-            eprintln!("[usagi] recorder: write_frame failed: {e}");
+            crate::msg::err!("recorder: write_frame failed: {e}");
             return;
         }
         *frames = frames.saturating_add(1);
@@ -319,7 +315,7 @@ pub fn save_screenshot(
         .to_str()
         .ok_or_else(|| std::io::Error::other("screenshot path is not valid UTF-8"))?;
     image.export_image(path_str);
-    eprintln!("[usagi] screenshot saved: {}", path.display());
+    crate::msg::info!("screenshot saved: {}", path.display());
     Ok(path)
 }
 

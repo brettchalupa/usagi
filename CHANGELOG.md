@@ -66,6 +66,13 @@ Features:
   reach with a controller still belongs on the abstract `input.held` /
   `input.pressed` / `input.released` actions. Raw gamepad reads remain
   intentionally unexposed.
+- CLI output is now color-coded: success and reload messages render in green,
+  warnings (graceful fallbacks like a missing keymap or skipped export target)
+  in yellow, and errors in red. The `[usagi]` prefix is dimmed so the message
+  itself reads as the foreground content. Reload messages no longer look like
+  errors at a glance. Color is auto-disabled when stdout isn't a terminal
+  (piping to a file, CI logs) or when `NO_COLOR` is set, per
+  <https://no-color.org>.
 
 Breaking:
 
