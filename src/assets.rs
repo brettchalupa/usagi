@@ -100,10 +100,10 @@ pub fn clear_user_modules(lua: &Lua, vfs: &dyn VirtualFs) -> LuaResult<()> {
 
 fn load_texture(rl: &mut RaylibHandle, thread: &RaylibThread, bytes: &[u8]) -> Option<Texture2D> {
     let image = Image::load_image_from_mem(".png", bytes)
-        .map_err(|e| eprintln!("[usagi] failed to decode sprites.png: {e}"))
+        .map_err(|e| crate::msg::err!("failed to decode sprites.png: {e}"))
         .ok()?;
     rl.load_texture_from_image(thread, &image)
-        .map_err(|e| eprintln!("[usagi] failed to upload sprite texture: {e}"))
+        .map_err(|e| crate::msg::err!("failed to upload sprite texture: {e}"))
         .ok()
 }
 
@@ -152,11 +152,11 @@ impl SpriteSheet {
 fn load_sound<'a>(audio: &'a RaylibAudio, stem: &str, bytes: &[u8]) -> Option<Sound<'a>> {
     let wave = audio
         .new_wave_from_memory(".wav", bytes)
-        .map_err(|e| eprintln!("[usagi] failed to decode sfx '{stem}': {e}"))
+        .map_err(|e| crate::msg::err!("failed to decode sfx '{stem}': {e}"))
         .ok()?;
     audio
         .new_sound_from_wave(&wave)
-        .map_err(|e| eprintln!("[usagi] failed to create sfx '{stem}': {e}"))
+        .map_err(|e| crate::msg::err!("failed to create sfx '{stem}': {e}"))
         .ok()
 }
 
@@ -282,7 +282,7 @@ impl<'a> MusicLibrary<'a> {
                 Ok(music) => {
                     tracks.insert(stem, music);
                 }
-                Err(e) => eprintln!("[usagi] failed to load music '{stem}.{ext}': {e}"),
+                Err(e) => crate::msg::err!("failed to load music '{stem}.{ext}': {e}"),
             }
         }
         Self {

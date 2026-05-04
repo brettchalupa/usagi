@@ -114,7 +114,7 @@ pub fn cache_templates_root() -> Result<PathBuf> {
 /// Used by `usagi templates list`.
 pub fn list_cache(root: &Path) -> Result<()> {
     if !root.exists() {
-        println!("[usagi] no templates cached at {}", root.display());
+        crate::msg::info!("no templates cached at {}", root.display());
         return Ok(());
     }
     let mut total: u64 = 0;
@@ -134,22 +134,19 @@ pub fn list_cache(root: &Path) -> Result<()> {
             );
         }
     }
-    println!(
-        "[usagi] {count} cached, {total} bytes total at {}",
-        root.display()
-    );
+    crate::msg::info!("{count} cached, {total} bytes total at {}", root.display());
     Ok(())
 }
 
 /// Wipes every cached template at `root`. Used by `usagi templates clear`.
 pub fn clear_cache(root: &Path) -> Result<()> {
     if !root.exists() {
-        println!("[usagi] nothing to clear at {}", root.display());
+        crate::msg::info!("nothing to clear at {}", root.display());
         return Ok(());
     }
     std::fs::remove_dir_all(root)
         .map_err(|e| Error::Cli(format!("clearing {}: {e}", root.display())))?;
-    println!("[usagi] cleared {}", root.display());
+    crate::msg::info!("cleared {}", root.display());
     Ok(())
 }
 
@@ -213,7 +210,7 @@ pub fn ensure_cached(
         target.archive_ext()
     ));
     let url = template_url(base_url, version, target);
-    println!("[usagi] downloading {url}");
+    crate::msg::info!("downloading {url}");
     download_with_verify(&url, &archive).map_err(|e| match e {
         Error::Cli(msg) => Error::Cli(format!(
             "{msg}. If this version isn't published, pass --template-path or --template-url."

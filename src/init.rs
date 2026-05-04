@@ -38,18 +38,18 @@ pub fn run(path: &str) -> Result<()> {
     for (rel, contents) in entries {
         let target = dir.join(rel);
         if target.exists() {
-            println!("[usagi] skipped {rel} (already exists)");
+            crate::msg::info!("skipped {rel} (already exists)");
             skipped += 1;
         } else {
             fs::write(&target, contents)
                 .map_err(|e| Error::Cli(format!("writing {}: {e}", target.display())))?;
-            println!("[usagi] created {rel}");
+            crate::msg::info!("created {rel}");
             created += 1;
         }
     }
 
-    println!(
-        "[usagi] initialized at {} ({created} created, {skipped} skipped)",
+    crate::msg::info!(
+        "initialized at {} ({created} created, {skipped} skipped)",
         dir.display()
     );
     if created > 0 {
@@ -58,7 +58,7 @@ pub fn run(path: &str) -> Result<()> {
         } else {
             format!("usagi dev {path}")
         };
-        println!("[usagi]   next: {next}");
+        crate::msg::info!("  next: {next}");
     }
     Ok(())
 }

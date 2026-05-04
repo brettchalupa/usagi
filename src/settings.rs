@@ -57,14 +57,14 @@ pub fn load(game_id: &GameId) -> Settings {
         Ok(Some(s)) => s,
         Ok(None) => return Settings::default(),
         Err(e) => {
-            eprintln!("[usagi] settings: read error: {e}; using defaults");
+            crate::msg::err!("settings: read error: {e}; using defaults");
             return Settings::default();
         }
     };
     let value: serde_json::Value = match serde_json::from_str(&body) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("[usagi] settings: parse error: {e}; using defaults");
+            crate::msg::err!("settings: parse error: {e}; using defaults");
             return Settings::default();
         }
     };

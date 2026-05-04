@@ -78,7 +78,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     rl.set_target_fps(60);
 
     let audio = RaylibAudio::init_audio_device()
-        .map_err(|e| eprintln!("[usagi] audio init failed: {}", e))
+        .map_err(|e| crate::msg::err!("audio init failed: {}", e))
         .ok();
 
     let mut sfx = match (&audio, &vfs) {
@@ -128,17 +128,14 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
             && sfx.reload_if_changed(a, v)
         {
             state.jukebox.refresh_names(&sfx.sounds);
-            println!("[usagi] jukebox reloaded sfx ({} sound(s))", sfx.len());
+            crate::msg::info!("jukebox reloaded sfx ({} sound(s))", sfx.len());
         }
 
         if let (Some(a), Some(v)) = (&audio, &vfs)
             && music_lib.reload_if_changed(a, v)
         {
             state.jukebox.refresh_music_names(music_lib.track_names());
-            println!(
-                "[usagi] jukebox reloaded music ({} track(s))",
-                music_lib.len()
-            );
+            crate::msg::info!("jukebox reloaded music ({} track(s))", music_lib.len());
         }
         // raylib's music streams need an update each frame to refill the
         // audio buffer, even when the jukebox tab isn't active.
@@ -147,7 +144,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         if let (Some(sheet), Some(v)) = (sprites.as_mut(), vfs.as_ref())
             && sheet.reload_if_changed(&mut rl, &thread, v)
         {
-            println!("[usagi] tools reloaded sprites.png");
+            crate::msg::info!("tools reloaded sprites.png");
         }
 
         // Global tab shortcuts. Applied before per-tool input so switching

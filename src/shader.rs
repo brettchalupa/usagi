@@ -153,7 +153,7 @@ impl ShaderManager {
         name: &str,
     ) {
         let Some((fs_key, fs_bytes)) = read_with_fallback(vfs, name, "fs") else {
-            eprintln!("[usagi] shader '{name}': no shaders/{name}.fs (or _es.fs) found");
+            crate::msg::err!("shader '{name}': no shaders/{name}.fs (or _es.fs) found");
             self.active = None;
             return;
         };
@@ -161,7 +161,7 @@ impl ShaderManager {
         let fs_src = match std::str::from_utf8(&fs_bytes) {
             Ok(s) => s.to_string(),
             Err(e) => {
-                eprintln!("[usagi] shader '{name}': fragment source not valid utf-8: {e}");
+                crate::msg::err!("shader '{name}': fragment source not valid utf-8: {e}");
                 self.active = None;
                 return;
             }
@@ -170,7 +170,7 @@ impl ShaderManager {
             Some((_, bytes)) => match std::str::from_utf8(bytes) {
                 Ok(s) => Some(s.to_string()),
                 Err(e) => {
-                    eprintln!("[usagi] shader '{name}': vertex source not valid utf-8: {e}");
+                    crate::msg::err!("shader '{name}': vertex source not valid utf-8: {e}");
                     self.active = None;
                     return;
                 }
@@ -180,7 +180,7 @@ impl ShaderManager {
 
         let shader = rl.load_shader_from_memory(thread, vs_src.as_deref(), Some(&fs_src));
         if !shader.is_shader_valid() {
-            eprintln!("[usagi] shader '{name}': compile/link failed (see GL log above)");
+            crate::msg::err!("shader '{name}': compile/link failed (see GL log above)");
             // Drop the bad shader and keep whatever was active before
             // unset. Returning early here means `active` isn't
             // overwritten with a broken handle.

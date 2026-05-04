@@ -84,7 +84,7 @@ pub fn run(
         match crate::icon::resolve_icns_for_export(&project_config, &script_path) {
             Ok(bytes) => Some(bytes),
             Err(e) => {
-                eprintln!("[usagi] icon: {e}; macOS bundle will ship without an icon");
+                crate::msg::warn!("icon: {e}; macOS bundle will ship without an icon");
                 None
             }
         };
@@ -164,7 +164,7 @@ fn export_all(
         match export_one_target(bundle, project_name, target, &inner, &zip) {
             Ok(()) => succeeded += 1,
             Err(e) => {
-                eprintln!("[usagi] skipping {target:?}: {e}");
+                crate::msg::warn!("skipping {target:?}: {e}");
                 last_err = Some(e);
             }
         }
@@ -177,7 +177,7 @@ fn export_all(
     {
         return Err(e);
     }
-    println!("[usagi] export ready at {}/", out_dir.display());
+    crate::msg::info!("export ready at {}/", out_dir.display());
     Ok(())
 }
 
@@ -206,7 +206,7 @@ fn export_one_target(
         let dl = tempfile::tempdir()
             .map_err(|e| Error::Cli(format!("creating download tmpdir: {e}")))?;
         let archive = dl.path().join(archive_name_from_url(url));
-        println!("[usagi] downloading {url}");
+        crate::msg::info!("downloading {url}");
         templates::download_with_verify(url, &archive)?;
         return export_from_archive(bundle, project_name, &archive, target, opts, out_path);
     }
@@ -248,8 +248,8 @@ fn export_from_host_exe(
     fuse_exe(bundle, &current_exe, &staged_exe)?;
     ensure_parent(out_path)?;
     zip_dir(stage.path(), out_path)?;
-    println!(
-        "[usagi] wrote {} (target: {target:?}, host fuse, {} game file(s), {} bundle bytes)",
+    crate::msg::info!(
+        "wrote {} (target: {target:?}, host fuse, {} game file(s), {} bundle bytes)",
         out_path.display(),
         bundle.file_count(),
         bundle.total_bytes(),
@@ -317,8 +317,8 @@ fn export_from_runtime_dir(
     }
     ensure_parent(out_path)?;
     zip_dir(stage.path(), out_path)?;
-    println!(
-        "[usagi] wrote {} (target: {target:?}, {} game file(s), {} bundle bytes)",
+    crate::msg::info!(
+        "wrote {} (target: {target:?}, {} game file(s), {} bundle bytes)",
         out_path.display(),
         bundle.file_count(),
         bundle.total_bytes(),
@@ -330,8 +330,8 @@ fn fuse_exe(bundle: &Bundle, base_exe: &Path, out_path: &Path) -> Result<()> {
     bundle
         .fuse(base_exe, out_path)
         .map_err(|e| Error::Cli(format!("fusing bundle onto {}: {e}", base_exe.display())))?;
-    println!(
-        "[usagi] fused {} ({} file(s), {} bytes bundled)",
+    crate::msg::info!(
+        "fused {} ({} file(s), {} bytes bundled)",
         out_path.display(),
         bundle.file_count(),
         bundle.total_bytes(),
@@ -343,8 +343,8 @@ fn write_bundle(bundle: &Bundle, out_path: &Path) -> Result<()> {
     bundle
         .write_to_path(out_path)
         .map_err(|e| Error::Cli(format!("writing bundle to {}: {e}", out_path.display())))?;
-    println!(
-        "[usagi] wrote {} ({} file(s), {} bytes)",
+    crate::msg::info!(
+        "wrote {} ({} file(s), {} bytes)",
         out_path.display(),
         bundle.file_count(),
         bundle.total_bytes(),

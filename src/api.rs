@@ -174,7 +174,7 @@ fn read_idx(t: &LuaTable, idx: usize) -> Result<f32, String> {
 pub fn record_err(state: &mut Option<String>, label: &str, result: LuaResult<()>) {
     if let Err(e) = result {
         let msg = format!("{}: {}", label, e);
-        eprintln!("[usagi] {}", msg);
+        crate::msg::err!("{}", msg);
         *state = Some(msg);
     }
 }

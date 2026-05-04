@@ -110,7 +110,7 @@ pub(super) fn handle_input(
                 } else {
                     format!("sprite {idx} (clipboard unavailable)")
                 };
-                println!("[usagi] {msg}");
+                crate::msg::info!("{msg}");
                 return Some(msg);
             }
         }
