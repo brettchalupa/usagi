@@ -25,9 +25,12 @@ impl PauseMenu {
     /// Handles input for opening the Pause Menu and processing input when open
     pub fn update(&mut self, rl: &RaylibHandle) {
         self.last_open = self.open;
+        // Enter alone toggles, but Alt+Enter is reserved for fullscreen.
+        let alt_held =
+            rl.is_key_down(KeyboardKey::KEY_LEFT_ALT) || rl.is_key_down(KeyboardKey::KEY_RIGHT_ALT);
         let toggle = rl.is_key_pressed(KeyboardKey::KEY_ESCAPE)
             || rl.is_key_pressed(KeyboardKey::KEY_P)
-            || rl.is_key_pressed(KeyboardKey::KEY_ENTER)
+            || (rl.is_key_pressed(KeyboardKey::KEY_ENTER) && !alt_held)
             || gamepad_start_pressed(rl);
 
         if self.open {
