@@ -29,6 +29,118 @@ pub const ACTION_BTN3: u32 = 7;
 pub const MOUSE_LEFT: u32 = 0;
 pub const MOUSE_RIGHT: u32 = 1;
 
+/// Public keyboard names and their raylib `KeyboardKey` values. Single
+/// source of truth: `setup_api` registers each entry as `input.<name>`
+/// on the Lua side using the raylib enum's i32 discriminant cast to
+/// u32, and `InputState::sample` iterates this same table to fill the
+/// per-frame bitmasks. Bit position = index into `KEY_TABLE`.
+///
+/// Only common keys are exposed; numpad, Insert/Home/End/PgUp/PgDn,
+/// PrintScreen, etc. can be added on demand. Keep the length under 128
+/// or widen the bitmask. `KEY_BACKTICK` is the friendlier alias for
+/// raylib's `KEY_GRAVE` (the backtick/tilde key).
+///
+/// Note: this surface is the documented escape hatch for direct
+/// keyboard reads (dev hotkeys, KB+M-only games). It deliberately
+/// bypasses `Keymap` overrides and gamepad bindings; games that want
+/// remappable cross-device input should use the abstract `input.LEFT`
+/// / `input.BTN1` actions.
+pub const KEY_TABLE: &[(&str, KeyboardKey)] = &[
+    // Letters
+    ("KEY_A", KeyboardKey::KEY_A),
+    ("KEY_B", KeyboardKey::KEY_B),
+    ("KEY_C", KeyboardKey::KEY_C),
+    ("KEY_D", KeyboardKey::KEY_D),
+    ("KEY_E", KeyboardKey::KEY_E),
+    ("KEY_F", KeyboardKey::KEY_F),
+    ("KEY_G", KeyboardKey::KEY_G),
+    ("KEY_H", KeyboardKey::KEY_H),
+    ("KEY_I", KeyboardKey::KEY_I),
+    ("KEY_J", KeyboardKey::KEY_J),
+    ("KEY_K", KeyboardKey::KEY_K),
+    ("KEY_L", KeyboardKey::KEY_L),
+    ("KEY_M", KeyboardKey::KEY_M),
+    ("KEY_N", KeyboardKey::KEY_N),
+    ("KEY_O", KeyboardKey::KEY_O),
+    ("KEY_P", KeyboardKey::KEY_P),
+    ("KEY_Q", KeyboardKey::KEY_Q),
+    ("KEY_R", KeyboardKey::KEY_R),
+    ("KEY_S", KeyboardKey::KEY_S),
+    ("KEY_T", KeyboardKey::KEY_T),
+    ("KEY_U", KeyboardKey::KEY_U),
+    ("KEY_V", KeyboardKey::KEY_V),
+    ("KEY_W", KeyboardKey::KEY_W),
+    ("KEY_X", KeyboardKey::KEY_X),
+    ("KEY_Y", KeyboardKey::KEY_Y),
+    ("KEY_Z", KeyboardKey::KEY_Z),
+    // Digits (top row)
+    ("KEY_0", KeyboardKey::KEY_ZERO),
+    ("KEY_1", KeyboardKey::KEY_ONE),
+    ("KEY_2", KeyboardKey::KEY_TWO),
+    ("KEY_3", KeyboardKey::KEY_THREE),
+    ("KEY_4", KeyboardKey::KEY_FOUR),
+    ("KEY_5", KeyboardKey::KEY_FIVE),
+    ("KEY_6", KeyboardKey::KEY_SIX),
+    ("KEY_7", KeyboardKey::KEY_SEVEN),
+    ("KEY_8", KeyboardKey::KEY_EIGHT),
+    ("KEY_9", KeyboardKey::KEY_NINE),
+    // Function row
+    ("KEY_F1", KeyboardKey::KEY_F1),
+    ("KEY_F2", KeyboardKey::KEY_F2),
+    ("KEY_F3", KeyboardKey::KEY_F3),
+    ("KEY_F4", KeyboardKey::KEY_F4),
+    ("KEY_F5", KeyboardKey::KEY_F5),
+    ("KEY_F6", KeyboardKey::KEY_F6),
+    ("KEY_F7", KeyboardKey::KEY_F7),
+    ("KEY_F8", KeyboardKey::KEY_F8),
+    ("KEY_F9", KeyboardKey::KEY_F9),
+    ("KEY_F10", KeyboardKey::KEY_F10),
+    ("KEY_F11", KeyboardKey::KEY_F11),
+    ("KEY_F12", KeyboardKey::KEY_F12),
+    // Specials
+    ("KEY_SPACE", KeyboardKey::KEY_SPACE),
+    ("KEY_ENTER", KeyboardKey::KEY_ENTER),
+    ("KEY_ESCAPE", KeyboardKey::KEY_ESCAPE),
+    ("KEY_TAB", KeyboardKey::KEY_TAB),
+    ("KEY_BACKSPACE", KeyboardKey::KEY_BACKSPACE),
+    ("KEY_DELETE", KeyboardKey::KEY_DELETE),
+    // Arrows (prefixed so they don't collide with abstract input.LEFT etc.)
+    ("KEY_LEFT", KeyboardKey::KEY_LEFT),
+    ("KEY_RIGHT", KeyboardKey::KEY_RIGHT),
+    ("KEY_UP", KeyboardKey::KEY_UP),
+    ("KEY_DOWN", KeyboardKey::KEY_DOWN),
+    // Modifiers (short names: LSHIFT, not LEFT_SHIFT)
+    ("KEY_LSHIFT", KeyboardKey::KEY_LEFT_SHIFT),
+    ("KEY_RSHIFT", KeyboardKey::KEY_RIGHT_SHIFT),
+    ("KEY_LCTRL", KeyboardKey::KEY_LEFT_CONTROL),
+    ("KEY_RCTRL", KeyboardKey::KEY_RIGHT_CONTROL),
+    ("KEY_LALT", KeyboardKey::KEY_LEFT_ALT),
+    ("KEY_RALT", KeyboardKey::KEY_RIGHT_ALT),
+    // Punctuation. KEY_BACKTICK aliases raylib's KEY_GRAVE; nobody
+    // outside Unicode docs calls it grave.
+    ("KEY_BACKTICK", KeyboardKey::KEY_GRAVE),
+    ("KEY_MINUS", KeyboardKey::KEY_MINUS),
+    ("KEY_EQUAL", KeyboardKey::KEY_EQUAL),
+    ("KEY_LBRACKET", KeyboardKey::KEY_LEFT_BRACKET),
+    ("KEY_RBRACKET", KeyboardKey::KEY_RIGHT_BRACKET),
+    ("KEY_BACKSLASH", KeyboardKey::KEY_BACKSLASH),
+    ("KEY_SEMICOLON", KeyboardKey::KEY_SEMICOLON),
+    ("KEY_APOSTROPHE", KeyboardKey::KEY_APOSTROPHE),
+    ("KEY_COMMA", KeyboardKey::KEY_COMMA),
+    ("KEY_PERIOD", KeyboardKey::KEY_PERIOD),
+    ("KEY_SLASH", KeyboardKey::KEY_SLASH),
+];
+
+/// Lookup the bit index for a given Lua-side key value (raylib enum's
+/// i32 discriminant cast to u32). Returns `None` for any value that
+/// isn't in `KEY_TABLE`, which keeps `input.key_*` calls with bogus
+/// arguments cheap and false rather than panicking.
+fn key_bit_index(value: u32) -> Option<usize> {
+    KEY_TABLE
+        .iter()
+        .position(|(_, k)| (*k as i32 as u32) == value)
+}
+
 /// Deadzone for analog-stick direction checks. Values within +/- this
 /// range count as centered.
 const STICK_DEADZONE: f32 = 0.3;
@@ -568,6 +680,11 @@ pub struct InputState {
     actions_down: u32,
     actions_pressed: u32,
     actions_released: u32,
+    /// Bitmasks indexed by position in `KEY_TABLE`. u128 is enough for
+    /// 75-ish keys; widen if `KEY_TABLE` ever grows past 128 entries.
+    keys_held: u128,
+    keys_pressed: u128,
+    keys_released: u128,
     mouse_left_down: bool,
     mouse_right_down: bool,
     mouse_left_pressed: bool,
@@ -618,10 +735,28 @@ impl InputState {
         let mapping = std::array::from_fn(|i| {
             mapping_for((i + 1) as u32, keymap, last_source, gamepad_family)
         });
+        let mut keys_held = 0u128;
+        let mut keys_pressed = 0u128;
+        let mut keys_released = 0u128;
+        for (i, (_, key)) in KEY_TABLE.iter().enumerate() {
+            let bit = 1u128 << i;
+            if rl.is_key_down(*key) {
+                keys_held |= bit;
+            }
+            if rl.is_key_pressed(*key) {
+                keys_pressed |= bit;
+            }
+            if rl.is_key_released(*key) {
+                keys_released |= bit;
+            }
+        }
         Self {
             actions_down: down,
             actions_pressed: pressed,
             actions_released: released,
+            keys_held,
+            keys_pressed,
+            keys_released,
             mouse_left_down: rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT),
             mouse_right_down: rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_RIGHT),
             mouse_left_pressed: rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT),
@@ -695,6 +830,24 @@ impl InputState {
             Some(MouseButton::MOUSE_BUTTON_RIGHT) => self.mouse_right_released,
             _ => false,
         }
+    }
+
+    pub fn key_held(&self, key: u32) -> bool {
+        key_bit_index(key)
+            .map(|i| self.keys_held & (1u128 << i) != 0)
+            .unwrap_or(false)
+    }
+
+    pub fn key_pressed(&self, key: u32) -> bool {
+        key_bit_index(key)
+            .map(|i| self.keys_pressed & (1u128 << i) != 0)
+            .unwrap_or(false)
+    }
+
+    pub fn key_released(&self, key: u32) -> bool {
+        key_bit_index(key)
+            .map(|i| self.keys_released & (1u128 << i) != 0)
+            .unwrap_or(false)
     }
 
     pub fn mouse_position(&self) -> (i32, i32) {

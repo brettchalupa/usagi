@@ -43,6 +43,16 @@ Features:
   `input.mouse_released(button)` fire the frame the input transitions from held
   to up. Mirrors `pressed` for the release edge; useful for charge-and-release
   mechanics (jump-on-release, slingshot pull-back).
+- Direct keyboard reads via `input.key_pressed(key)`, `input.key_held(key)`, and
+  `input.key_released(key)`, paired with `input.KEY_*` constants for letters,
+  digits, F1–F12, arrows, modifiers, common punctuation, and a few specials
+  (Space, Enter, Escape, Tab, Backspace, Delete). Documented as an escape hatch
+  — these bypass the keymap override and gamepad bindings, so they're intended
+  for dev hotkeys (e.g. <kbd>F1</kbd> to toggle a debug overlay) and
+  keyboard-and-mouse-only games. Anything a player should be able to remap or
+  reach with a controller still belongs on the abstract `input.held` /
+  `input.pressed` / `input.released` actions. Raw gamepad reads remain
+  intentionally unexposed.
 
 Breaking:
 

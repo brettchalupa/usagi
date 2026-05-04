@@ -202,6 +202,81 @@ function music.stop() end
 ---@field MOUSE_RIGHT      integer
 ---@field SOURCE_KEYBOARD  string
 ---@field SOURCE_GAMEPAD   string
+---@field KEY_A            integer
+---@field KEY_B            integer
+---@field KEY_C            integer
+---@field KEY_D            integer
+---@field KEY_E            integer
+---@field KEY_F            integer
+---@field KEY_G            integer
+---@field KEY_H            integer
+---@field KEY_I            integer
+---@field KEY_J            integer
+---@field KEY_K            integer
+---@field KEY_L            integer
+---@field KEY_M            integer
+---@field KEY_N            integer
+---@field KEY_O            integer
+---@field KEY_P            integer
+---@field KEY_Q            integer
+---@field KEY_R            integer
+---@field KEY_S            integer
+---@field KEY_T            integer
+---@field KEY_U            integer
+---@field KEY_V            integer
+---@field KEY_W            integer
+---@field KEY_X            integer
+---@field KEY_Y            integer
+---@field KEY_Z            integer
+---@field KEY_0            integer
+---@field KEY_1            integer
+---@field KEY_2            integer
+---@field KEY_3            integer
+---@field KEY_4            integer
+---@field KEY_5            integer
+---@field KEY_6            integer
+---@field KEY_7            integer
+---@field KEY_8            integer
+---@field KEY_9            integer
+---@field KEY_F1           integer
+---@field KEY_F2           integer
+---@field KEY_F3           integer
+---@field KEY_F4           integer
+---@field KEY_F5           integer
+---@field KEY_F6           integer
+---@field KEY_F7           integer
+---@field KEY_F8           integer
+---@field KEY_F9           integer
+---@field KEY_F10          integer
+---@field KEY_F11          integer
+---@field KEY_F12          integer
+---@field KEY_SPACE        integer
+---@field KEY_ENTER        integer
+---@field KEY_ESCAPE       integer
+---@field KEY_TAB          integer
+---@field KEY_BACKSPACE    integer
+---@field KEY_DELETE       integer
+---@field KEY_LEFT         integer
+---@field KEY_RIGHT        integer
+---@field KEY_UP           integer
+---@field KEY_DOWN         integer
+---@field KEY_LSHIFT       integer
+---@field KEY_RSHIFT       integer
+---@field KEY_LCTRL        integer
+---@field KEY_RCTRL        integer
+---@field KEY_LALT         integer
+---@field KEY_RALT         integer
+---@field KEY_BACKTICK     integer
+---@field KEY_MINUS        integer
+---@field KEY_EQUAL        integer
+---@field KEY_LBRACKET     integer
+---@field KEY_RBRACKET     integer
+---@field KEY_BACKSLASH    integer
+---@field KEY_SEMICOLON    integer
+---@field KEY_APOSTROPHE   integer
+---@field KEY_COMMA        integer
+---@field KEY_PERIOD       integer
+---@field KEY_SLASH        integer
 input = {}
 
 ---Returns true the frame any source bound to `action` first went down.
@@ -261,6 +336,30 @@ function input.mouse_pressed(button) end
 ---@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT
 ---@return boolean
 function input.mouse_released(button) end
+
+---Returns true while the given keyboard key is held.
+---
+---Direct keyboard reads bypass the keymap override and gamepad
+---bindings — prefer `input.held(action)` for game actions players
+---should be able to remap or play with a controller. Use this for dev
+---hotkeys (toggling debug overlays, F-key shortcuts) and for
+---keyboard-and-mouse-only games.
+---@param key integer  one of the input.KEY_* constants
+---@return boolean
+function input.key_held(key) end
+
+---Returns true the frame the given keyboard key first went down. See
+---`input.key_held` for the bypass-the-keymap caveat.
+---@param key integer  one of the input.KEY_* constants
+---@return boolean
+function input.key_pressed(key) end
+
+---Returns true the frame the given keyboard key first went up
+---(transitioned from held to released). See `input.key_held` for the
+---bypass-the-keymap caveat.
+---@param key integer  one of the input.KEY_* constants
+---@return boolean
+function input.key_released(key) end
 
 ---Show or hide the OS cursor over the game window. Persists until
 ---changed. Callable from `_init` so games can hide the cursor before

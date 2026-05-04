@@ -130,3 +130,4 @@ examples:
     just example mouse_physics
     just example waypoint
     just example shader
+    just example keyboard

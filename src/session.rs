@@ -125,6 +125,18 @@ fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
         lua.create_function(move |_, button: u32| Ok(s.get().mouse_button_released(button)))?;
     input.set("mouse_released", mouse_released)?;
 
+    let s = Rc::clone(&bridge.state);
+    let key_held = lua.create_function(move |_, key: u32| Ok(s.get().key_held(key)))?;
+    input.set("key_held", key_held)?;
+
+    let s = Rc::clone(&bridge.state);
+    let key_pressed = lua.create_function(move |_, key: u32| Ok(s.get().key_pressed(key)))?;
+    input.set("key_pressed", key_pressed)?;
+
+    let s = Rc::clone(&bridge.state);
+    let key_released = lua.create_function(move |_, key: u32| Ok(s.get().key_released(key)))?;
+    input.set("key_released", key_released)?;
+
     let cv = Rc::clone(&bridge.cursor_visible);
     let pc = Rc::clone(&bridge.pending_cursor);
     let set_visible = lua.create_function(move |_, visible: bool| {
