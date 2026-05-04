@@ -39,6 +39,10 @@ Features:
   hardcoded `BTN1`/`BTN2`/`BTN3` in their on-screen prompts (sound, music, save,
   shader, rng, snake, dialog, operators, mouse) now use `input.mapping_for` so
   the prompts adapt to the active device.
+- New input functions: `input.released(action)` and
+  `input.mouse_released(button)` fire the frame the input transitions from held
+  to up. Mirrors `pressed` for the release edge; useful for charge-and-release
+  mechanics (jump-on-release, slingshot pull-back).
 
 Breaking:
 
@@ -46,6 +50,11 @@ Breaking:
   `sfx_volume`. Existing settings are auto-migrated on load: the old `volume`
   value is copied into both new fields the first time the engine reads them. No
   action required.
+- `input.down(action)` is renamed to `input.held(action)` and
+  `input.mouse_down(button)` to `input.mouse_held(button)`. The old names
+  collided with directional input names (`input.down(input.DOWN)` was ambiguous)
+  and "held" reads more naturally as the level-state pair to the edge-state
+  `pressed` / `released`. Update calls; behavior is unchanged.
 
 Fixes:
 

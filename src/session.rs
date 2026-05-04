@@ -88,8 +88,13 @@ fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
     input.set("pressed", pressed)?;
 
     let s = Rc::clone(&bridge.state);
-    let down = lua.create_function(move |_, action: u32| Ok(s.get().action_down(action)))?;
-    input.set("down", down)?;
+    let held = lua.create_function(move |_, action: u32| Ok(s.get().action_down(action)))?;
+    input.set("held", held)?;
+
+    let s = Rc::clone(&bridge.state);
+    let released =
+        lua.create_function(move |_, action: u32| Ok(s.get().action_released(action)))?;
+    input.set("released", released)?;
 
     let s = Rc::clone(&bridge.state);
     let mapping_for = lua.create_function(move |_, action: u32| {
@@ -106,14 +111,19 @@ fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
     input.set("mouse", mouse)?;
 
     let s = Rc::clone(&bridge.state);
-    let mouse_down =
+    let mouse_held =
         lua.create_function(move |_, button: u32| Ok(s.get().mouse_button_down(button)))?;
-    input.set("mouse_down", mouse_down)?;
+    input.set("mouse_held", mouse_held)?;
 
     let s = Rc::clone(&bridge.state);
     let mouse_pressed =
         lua.create_function(move |_, button: u32| Ok(s.get().mouse_button_pressed(button)))?;
     input.set("mouse_pressed", mouse_pressed)?;
+
+    let s = Rc::clone(&bridge.state);
+    let mouse_released =
+        lua.create_function(move |_, button: u32| Ok(s.get().mouse_button_released(button)))?;
+    input.set("mouse_released", mouse_released)?;
 
     let cv = Rc::clone(&bridge.cursor_visible);
     let pc = Rc::clone(&bridge.pending_cursor);

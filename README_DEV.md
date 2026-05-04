@@ -316,7 +316,10 @@ transparent.
 
 - `input.pressed(action)` — true only the frame the action first went down. Use
   for one-shot actions (fire, jump, menu select).
-- `input.down(action)` — true while the action is held. Use for movement.
+- `input.held(action)` — true while the action is held. Use for movement,
+  charging meters, "hold to skip" prompts.
+- `input.released(action)` — true only the frame the action first went up. Use
+  for charge-and-release mechanics (jump-on-release, slingshot pull-back).
 
 | Action  | Keyboard        | Gamepad                                          |
 | ------- | --------------- | ------------------------------------------------ |
@@ -371,8 +374,9 @@ gfx.text("Press " .. btn .. " to jump", 10, 10, gfx.COLOR_WHITE)
   `0..usagi.GAME_W` / `0..usagi.GAME_H`, so a bounds check is the idiomatic way
   to detect "cursor is off the play area." See
   [`examples/mouse`](https://github.com/brettchalupa/usagi/blob/main/examples/mouse/main.lua).
-- `input.mouse_down(button)` — true while `button` is held.
+- `input.mouse_held(button)` — true while `button` is held.
 - `input.mouse_pressed(button)` — true the frame `button` first went down.
+- `input.mouse_released(button)` — true the frame `button` first went up.
 - `input.MOUSE_LEFT`, `input.MOUSE_RIGHT` — the supported buttons. Wheel
   scrolling and middle-click aren't exposed yet.
 - `input.set_mouse_visible(visible)` — show or hide the OS cursor over the game

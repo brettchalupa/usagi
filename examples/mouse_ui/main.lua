@@ -1,6 +1,6 @@
 -- Bare-bones mouse UI: a button that toggles a message, plus a
 -- draggable box. Shows the click-vs-drag pattern (mouse_pressed for
--- one-shot button clicks, mouse_down + offset tracking for dragging).
+-- one-shot button clicks, mouse_held + offset tracking for dragging).
 
 function _config()
   return { name = "Mouse UI" }
@@ -41,7 +41,7 @@ function _update(_dt)
   end
 
   -- While held, follow the cursor with the original grab offset.
-  if State.drag_offset and input.mouse_down(input.MOUSE_LEFT) then
+  if State.drag_offset and input.mouse_held(input.MOUSE_LEFT) then
     State.box.x = mx + State.drag_offset.x
     State.box.y = my + State.drag_offset.y
   else
@@ -68,7 +68,7 @@ function _draw(_dt)
 
   local mx, my = input.mouse()
   local hover_btn = point_in_rect(mx, my, BUTTON)
-  local pressed_btn = hover_btn and input.mouse_down(input.MOUSE_LEFT)
+  local pressed_btn = hover_btn and input.mouse_held(input.MOUSE_LEFT)
   draw_button(BUTTON, "Toggle msg", hover_btn, pressed_btn)
 
   if State.message_visible then

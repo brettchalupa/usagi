@@ -114,7 +114,7 @@ btn = function(b)
   if a == nil then
     return false
   end
-  return input.down(a)
+  return input.held(a)
 end
 
 btnp = function(b)
