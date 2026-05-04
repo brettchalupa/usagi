@@ -21,22 +21,19 @@ function _init()
   }
 end
 
-local function point_in_rect(px, py, rect)
-  return px >= rect.x and px < rect.x + rect.w and py >= rect.y and py < rect.y + rect.h
-end
-
 function _update(_dt)
   local mx, my = input.mouse()
+  local mouse = { x = mx, y = my }
   local in_bounds = mx >= 0 and mx < usagi.GAME_W and my >= 0 and my < usagi.GAME_H
 
   -- Button: fires only on the press edge so holding the mouse down
   -- doesn't flip the message every frame.
-  if in_bounds and input.mouse_pressed(input.MOUSE_LEFT) and point_in_rect(mx, my, BUTTON) then
+  if in_bounds and input.mouse_pressed(input.MOUSE_LEFT) and util.point_in_rect(mouse, BUTTON) then
     State.message_visible = not State.message_visible
   end
 
   -- Drag start: only when the press edge lands inside the box.
-  if in_bounds and input.mouse_pressed(input.MOUSE_LEFT) and point_in_rect(mx, my, State.box) then
+  if in_bounds and input.mouse_pressed(input.MOUSE_LEFT) and util.point_in_rect(mouse, State.box) then
     State.drag_offset = { x = State.box.x - mx, y = State.box.y - my }
   end
 
@@ -67,7 +64,8 @@ function _draw(_dt)
   gfx.clear(gfx.COLOR_DARK_PURPLE)
 
   local mx, my = input.mouse()
-  local hover_btn = point_in_rect(mx, my, BUTTON)
+  local mouse = { x = mx, y = my }
+  local hover_btn = util.point_in_rect(mouse, BUTTON)
   local pressed_btn = hover_btn and input.mouse_held(input.MOUSE_LEFT)
   draw_button(BUTTON, "Toggle msg", hover_btn, pressed_btn)
 
@@ -77,7 +75,7 @@ function _draw(_dt)
 
   -- Box highlights when hovered or while being dragged, so the
   -- interaction State is readable without a tutorial.
-  local hover_box = point_in_rect(mx, my, State.box)
+  local hover_box = util.point_in_rect(mouse, State.box)
   local box_color
   if State.drag_offset then
     box_color = gfx.COLOR_PINK

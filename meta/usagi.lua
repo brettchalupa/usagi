@@ -528,6 +528,21 @@ function util.vec_dist_sq(a, b) end
 ---@return Usagi.Vec2
 function util.vec_from_angle(angle, len) end
 
+---True when the `{x, y}` point is inside the rect `{x, y, w, h}`.
+---Half-open: left/top edges are inside, right/bottom edges are
+---outside. Matches typical sprite-rect hit testing.
+---@param p Usagi.Vec2
+---@param r Usagi.Rect
+---@return boolean
+function util.point_in_rect(p, r) end
+
+---True when the `{x, y}` point is strictly inside the circle
+---`{x, y, r}`. Points on the boundary are considered outside.
+---@param p Usagi.Vec2
+---@param c Usagi.Circ
+---@return boolean
+function util.point_in_circ(p, c) end
+
 ---True when the two AABBs share interior area. Edge-adjacent rects
 ---are considered non-overlapping.
 ---@param a Usagi.Rect

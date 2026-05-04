@@ -466,7 +466,8 @@ instead of a confusing nil-arithmetic explosion deep inside the helper.
 - `util.round(v)` — half-up rounding to nearest integer. Pixel-snap world
   positions on draw to keep sprites crisp.
 - `util.approach(current, target, max_delta)` — moves `current` toward `target`
-  by at most `max_delta`. Pass a delta scaled by `dt` for frame-rate independence (`util.approach(p.vx, target, accel * dt)`).
+  by at most `max_delta`. Pass a delta scaled by `dt` for frame-rate
+  independence (`util.approach(p.vx, target, accel * dt)`).
 - `util.lerp(a, b, t)` — linear interpolation; `t = 0` → `a`, `t = 1` → `b`,
   values outside `[0, 1]` extrapolate.
 - `util.wrap(v, lo, hi)` — wraps `v` into `[lo, hi)`. Cycle-safe for negatives.
@@ -485,6 +486,10 @@ instead of a confusing nil-arithmetic explosion deep inside the helper.
 
 **Geometry overlap:**
 
+- `util.point_in_rect(p, r)` — point-in-rect hit test. Half-open `[x, x+w)` on
+  each axis: top/left edges are inside, bottom/right edges are outside.
+- `util.point_in_circ(p, c)` — point-in-circle hit test. Boundary is outside
+  (matches `circ_overlap` convention).
 - `util.rect_overlap(a, b)` — AABB overlap. Edge-adjacent rects don't overlap.
 - `util.circ_overlap(a, b)` — circle-vs-circle. Tangent circles don't overlap.
 - `util.circ_rect_overlap(c, r)` — circle-vs-rect via closest-point method.

@@ -141,6 +141,28 @@ function util.vec_from_angle(angle, len)
   return { x = math.cos(angle) * len, y = math.sin(angle) * len }
 end
 
+-- True when the {x, y} point is inside the rect {x, y, w, h}. Half-
+-- open: the rect's left/top edges are inside, the right/bottom edges
+-- are outside. Matches typical sprite-rect hit testing where a 16x16
+-- sprite covers pixels x..x+15.
+function util.point_in_rect(p, r)
+  assert_shape(p, { "x", "y" }, "point_in_rect", 1)
+  assert_shape(r, { "x", "y", "w", "h" }, "point_in_rect", 2)
+  return p.x >= r.x and p.x < r.x + r.w
+    and p.y >= r.y and p.y < r.y + r.h
+end
+
+-- True when the {x, y} point is strictly inside the circle {x, y, r}.
+-- Points on the boundary are considered outside, matching the
+-- non-overlap convention used by `circ_overlap`.
+function util.point_in_circ(p, c)
+  assert_shape(p, { "x", "y" }, "point_in_circ", 1)
+  assert_shape(c, { "x", "y", "r" }, "point_in_circ", 2)
+  local dx = p.x - c.x
+  local dy = p.y - c.y
+  return dx * dx + dy * dy < c.r * c.r
+end
+
 -- AABB overlap. True when the two rects share interior area;
 -- rects sharing only an edge or corner are considered non-overlapping.
 function util.rect_overlap(a, b)
