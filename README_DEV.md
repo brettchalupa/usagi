@@ -448,6 +448,47 @@ lives in a separate directory from sfx because the formats and lifetimes differ
 — sfx is loaded fully into memory and one-shotted, music is decoded
 incrementally on the audio thread.
 
+### `util`
+
+Drop-in math and geometry helpers. Pure Lua, no engine state, available as a
+global `util` table.
+
+Functions taking shaped tables (vectors `{x, y}`, rects `{x, y, w, h}`, circles
+`{x, y, r}`) check their args and raise an error pointing at _your_ call site
+when a field is missing, so a typo like `util.rect_overlap({x=0, y=0, w=10})`
+fails with `util.rect_overlap: arg 1 table missing or non-numeric field 'h'`
+instead of a confusing nil-arithmetic explosion deep inside the helper.
+
+**Scalar math:**
+
+- `util.clamp(v, lo, hi)` — clamps `v` into `[lo, hi]`.
+- `util.sign(v)` — returns `-1`, `0`, or `1`. Lua doesn't have this built-in.
+- `util.round(v)` — half-up rounding to nearest integer. Pixel-snap world
+  positions on draw to keep sprites crisp.
+- `util.approach(current, target, max_delta)` — moves `current` toward `target`
+  by at most `max_delta`. Pass a delta scaled by `dt` for frame-rate independence (`util.approach(p.vx, target, accel * dt)`).
+- `util.lerp(a, b, t)` — linear interpolation; `t = 0` → `a`, `t = 1` → `b`,
+  values outside `[0, 1]` extrapolate.
+- `util.wrap(v, lo, hi)` — wraps `v` into `[lo, hi)`. Cycle-safe for negatives.
+- `util.flash(t, hz)` — boolean from time, toggles `hz` times per second.
+
+**Vectors:**
+
+- `util.vec_normalize({x, y})` — returns a new unit-length vector. Zero in →
+  zero out (no divide-by-zero).
+- `util.vec_dist(a, b)` — distance between two `{x, y}` points.
+- `util.vec_dist_sq(a, b)` — squared distance, for "is X closer than Y?" hot
+  loops where you don't want the sqrt. Compare against `r * r`.
+- `util.vec_from_angle(angle, len?)` — vector at `angle` (radians) with
+  magnitude `len` (default 1). Pair with `math.atan(dy, dx)` to convert any
+  direction into a velocity.
+
+**Geometry overlap:**
+
+- `util.rect_overlap(a, b)` — AABB overlap. Edge-adjacent rects don't overlap.
+- `util.circ_overlap(a, b)` — circle-vs-circle. Tangent circles don't overlap.
+- `util.circ_rect_overlap(c, r)` — circle-vs-rect via closest-point method.
+
 ### `usagi`
 
 Engine-level info.
