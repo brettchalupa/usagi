@@ -276,6 +276,9 @@ struct Session {
     /// at boot. Held on the session so the global mute hotkey can
     /// flip the volume in-place and persist the change.
     settings: crate::settings::Settings,
+    /// Per-game keyboard overrides. Read by `input::action_*`; the
+    /// pause menu's Configure Keys flow writes through here.
+    keymap: crate::keymap::Keymap,
     /// Resolved game id, kept on the session so settings writes
     /// (mute toggles) can address the same per-game storage as save
     /// data. Cloned out of the resolver since `register_save_api`
@@ -336,6 +339,7 @@ impl Session {
             project_name_hint.as_deref(),
         );
         let settings = crate::settings::load(&resolved_game_id);
+        let keymap = crate::keymap::load(&resolved_game_id);
         #[cfg(not(target_os = "emscripten"))]
         let capture_prefix = resolved_game_id.short_name().to_string();
 
@@ -406,9 +410,11 @@ impl Session {
         let input_bridge = InputBridge::new();
         // Seed the snapshot once so `_init` reads real values (mouse
         // position over the live window, etc.) instead of zeroed defaults.
-        input_bridge
-            .state
-            .set(input::InputState::sample(&rl, config.pixel_perfect));
+        input_bridge.state.set(input::InputState::sample(
+            &rl,
+            config.pixel_perfect,
+            &keymap,
+        ));
         register_input_api(&lua, &input_bridge)
             .map_err(|e| crate::Error::Cli(format!("registering input.* API: {e}")))?;
 
@@ -492,6 +498,7 @@ impl Session {
             #[cfg(not(target_os = "emscripten"))]
             capture_prefix,
             settings,
+            keymap,
             game_id,
             should_quit: false,
             dev,
@@ -516,7 +523,9 @@ impl Session {
         self.handle_global_shortcuts();
 
         let dt = self.rl.get_frame_time();
-        let pause_action = self.pause.update(&self.rl, &self.settings, dt);
+        let pause_action = self
+            .pause
+            .update(&mut self.rl, &self.settings, &self.keymap, dt);
         if let Some(action) = pause_action {
             self.apply_pause_action(action);
         }
@@ -535,6 +544,7 @@ impl Session {
         self.input_bridge.state.set(input::InputState::sample(
             &self.rl,
             self.config.pixel_perfect,
+            &self.keymap,
         ));
 
         // Apply any cursor-visibility toggle that user Lua requested
@@ -591,10 +601,11 @@ impl Session {
             pause,
             font,
             settings,
+            keymap,
             ..
         } = self;
         let mut d_rt = rl.begin_texture_mode(thread, rt);
-        pause.draw(&mut d_rt, font, settings);
+        pause.draw(&mut d_rt, font, settings, keymap);
     }
 
     fn maybe_reload_assets(&mut self) {
@@ -826,6 +837,12 @@ impl Session {
                 }
                 #[cfg(target_os = "emscripten")]
                 eprintln!("[usagi] clear save data is not supported on web yet");
+            }
+            PauseAction::SetKeymap(km) => {
+                self.keymap = km;
+                if let Err(e) = crate::keymap::write(&self.game_id, &self.keymap) {
+                    eprintln!("[usagi] keymap write failed: {e}");
+                }
             }
             PauseAction::Quit => {
                 self.should_quit = true;

@@ -127,13 +127,6 @@ simple yet surprisingly powerful, making it a good fit for Usagi.
 If you want to build a medium-to-large polished game, Usagi would not be a good
 fit.
 
-## Roadmap
-
-Not sure yet what's next! Some ideas:
-
-- Pause menu w/ settings and input mapping for players
-- Code signing for macOS app exports
-
 ## Project Layout
 
 An Usagi game is either a single `.lua` file or a directory with a `main.lua` in
