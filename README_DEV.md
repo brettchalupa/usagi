@@ -100,16 +100,9 @@ source. You can also run `usagi update` to fetch the latest version if there is
 one.
 
 To refresh engine-owned files in a project (the LSP type stubs and the embedded
-docs), delete them and re-run `usagi init` from the project root:
-
-```sh
-rm meta/usagi.lua USAGI.md
-usagi init .
-```
-
-`init` skips files that already exist, so your `main.lua`, `.luarc.json`, and
-`.gitignore` stay untouched. The version stamp at the top of `meta/usagi.lua`
-and `USAGI.md` tells you which `usagi` produced them.
+docs), run: `usagi refresh`. It updates `meta/usagi.lua`, `.luarc.json`, and
+`USAGI.md`. Does **not** update `main.lua`. Use this after `usagi update` to get
+the docs and LSP integration for the `usagi -V` you're using.
 
 ## Project Goal
 

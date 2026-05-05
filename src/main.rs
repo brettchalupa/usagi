@@ -12,12 +12,6 @@
 //! shell fetches a `.usagi` bundle and writes it to `/game.usagi` in the
 //! wasm virtual FS before `main()` runs, and that bundle is executed.
 
-// The CLI binary stays in the console subsystem so commands like
-// `usagi run`, `usagi templates list`, etc. print to the terminal on
-// Windows. Exported games avoid the console pop-up via a PE-header
-// subsystem patch applied during `usagi export`'s Windows fuse step
-// (see `export::patch_windows_subsystem_to_gui`).
-
 mod api;
 mod assets;
 mod bundle;
@@ -74,6 +68,8 @@ mod export;
 mod init;
 #[cfg(not(target_os = "emscripten"))]
 mod macos_app;
+#[cfg(not(target_os = "emscripten"))]
+mod refresh;
 #[cfg(not(target_os = "emscripten"))]
 mod templates;
 #[cfg(not(target_os = "emscripten"))]
@@ -175,6 +171,19 @@ enum Command {
     },
     /// Update the usagi binary in place to the latest GitHub release.
     Update,
+    /// Re-sync engine-managed files (USAGI.md, meta/usagi.lua,
+    /// .luarc.json) from the running engine version. Interactive by
+    /// default; never touches main.lua or .gitignore.
+    Refresh {
+        /// Path to the project root. Defaults to ".".
+        path: Option<String>,
+        /// Skip prompts and overwrite all engine-managed files that differ.
+        #[arg(short, long, conflicts_with = "dry_run")]
+        yes: bool,
+        /// Report what would change without writing anything.
+        #[arg(long, conflicts_with = "yes")]
+        dry_run: bool,
+    },
 }
 
 #[cfg(not(target_os = "emscripten"))]
@@ -228,6 +237,9 @@ fn main() -> ExitCode {
                 web_shell.as_deref(),
             ),
             Command::Update => update::run(),
+            Command::Refresh { path, yes, dry_run } => {
+                refresh::run(path.as_deref().unwrap_or("."), yes, dry_run)
+            }
         };
         finish(result)
     }

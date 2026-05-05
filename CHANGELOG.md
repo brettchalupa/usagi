@@ -10,6 +10,10 @@ Features:
 - Experimental `usagi update` command to update the binary in place when new
   versions are released. Won't be useful and fully testable until the next
   release comes out.
+- `usagi refresh` command to update the ancillary engine files when a new
+  version is released. Currently updates `meta/usagi.lua`, `.luarc.json`, and
+  `USAGI.md`. Does **not** update `main.lua`. Use this after `usagi update` to
+  get the docs and LSP integration for the `usagi -V` you're using.
 
 ## v0.5.0 - May 4, 2026
 
