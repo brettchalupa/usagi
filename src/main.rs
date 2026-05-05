@@ -76,6 +76,8 @@ mod init;
 mod macos_app;
 #[cfg(not(target_os = "emscripten"))]
 mod templates;
+#[cfg(not(target_os = "emscripten"))]
+mod update;
 
 pub use error::{Error, Result};
 
@@ -171,6 +173,8 @@ enum Command {
         #[arg(long)]
         web_shell: Option<String>,
     },
+    /// Update the usagi binary in place to the latest GitHub release.
+    Update,
 }
 
 #[cfg(not(target_os = "emscripten"))]
@@ -223,6 +227,7 @@ fn main() -> ExitCode {
                 no_cache,
                 web_shell.as_deref(),
             ),
+            Command::Update => update::run(),
         };
         finish(result)
     }

@@ -5,6 +5,12 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Features:
+
+- Experimental `usagi update` command to update the binary in place when new
+  versions are released. Won't be useful and fully testable until the next
+  release comes out.
+
 ## v0.5.0 - May 4, 2026
 
 Breaking:

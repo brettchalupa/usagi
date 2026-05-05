@@ -233,6 +233,11 @@ pub enum Runtime {
     },
 }
 
+/// Hard ceiling on a single archive download. Real binaries are a few
+/// MB; the cap is just to keep a misconfigured `USAGI_TEMPLATE_BASE` or
+/// hostile mirror from streaming gigabytes onto disk.
+const MAX_ARCHIVE_BYTES: u64 = 256 * 1024 * 1024;
+
 /// Streams `url` to `dest`. ureq's default `http_status_as_error` means
 /// 4xx/5xx surface as `call()` errors with the status in the message.
 pub fn download(url: &str, dest: &Path) -> Result<()> {
@@ -241,9 +246,14 @@ pub fn download(url: &str, dest: &Path) -> Result<()> {
         .map_err(|e| Error::Cli(format!("downloading {url}: {e}")))?;
     let mut out =
         File::create(dest).map_err(|e| Error::Cli(format!("creating {}: {e}", dest.display())))?;
-    let mut body = response.body_mut().as_reader();
-    std::io::copy(&mut body, &mut out)
+    let mut body = response.body_mut().as_reader().take(MAX_ARCHIVE_BYTES + 1);
+    let written = std::io::copy(&mut body, &mut out)
         .map_err(|e| Error::Cli(format!("writing {}: {e}", dest.display())))?;
+    if written > MAX_ARCHIVE_BYTES {
+        return Err(Error::Cli(format!(
+            "response from {url} exceeds {MAX_ARCHIVE_BYTES}-byte cap"
+        )));
+    }
     Ok(())
 }
 
@@ -263,6 +273,7 @@ pub fn download_with_verify(archive_url: &str, dest: &Path) -> Result<()> {
 }
 
 fn fetch_text(url: &str) -> Result<String> {
+    const MAX_TEXT_BYTES: u64 = 64 * 1024;
     let mut response = ureq::get(url)
         .call()
         .map_err(|e| Error::Cli(format!("downloading {url}: {e}")))?;
@@ -270,8 +281,14 @@ fn fetch_text(url: &str) -> Result<String> {
     response
         .body_mut()
         .as_reader()
+        .take(MAX_TEXT_BYTES + 1)
         .read_to_end(&mut bytes)
         .map_err(|e| Error::Cli(format!("reading body of {url}: {e}")))?;
+    if bytes.len() as u64 > MAX_TEXT_BYTES {
+        return Err(Error::Cli(format!(
+            "response from {url} exceeds {MAX_TEXT_BYTES}-byte cap"
+        )));
+    }
     String::from_utf8(bytes).map_err(|e| Error::Cli(format!("non-utf8 body from {url}: {e}")))
 }
 

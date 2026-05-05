@@ -53,6 +53,10 @@ icns = "0.3"
 # frames to disk so memory stays bounded on long recordings. Web has no
 # file system to write to, hence non-emscripten only.
 gif = "0.13"
+# In-place binary replacement for `usagi update`. Handles the rename
+# dance on Windows (you can't overwrite a running .exe) and the simple
+# atomic rename on Unix.
+self-replace = "1"
 
 # Smaller binaries on all targets. Cargo automatically uses panic=unwind
 # for the test profile so `cargo test` is unaffected. Note this does NOT
