@@ -93,10 +93,11 @@ iteration cycles.
 Need to revise a sprite quickly? Just open `sprites.png` in your sprite editor,
 change it, save it, and see it update in the context of your game.
 
-## Upgrading Usagi
+## Updating Usagi
 
-Replace the `usagi` binary with a newer release. **NOTE:** Usagi is pre-v1.0,
-meaning there's no guarantee of API compatibility between releases right now.
+Replace the `usagi` binary with a newer release from your preferred download
+source. You can also run `usagi update` to fetch the latest version if there is
+one.
 
 To refresh engine-owned files in a project (the LSP type stubs and the embedded
 docs), delete them and re-run `usagi init` from the project root:
