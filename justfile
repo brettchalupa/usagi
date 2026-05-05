@@ -135,3 +135,4 @@ examples:
     just example effect
     just example resolution/vertical
     just example resolution/high_res
+    just example custom_sprite_size

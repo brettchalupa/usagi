@@ -2,8 +2,7 @@
 //! with constants. The per-frame closures (gfx.clear, input.pressed, etc.)
 //! live in the game loop because they need to borrow frame-local state.
 
-use crate::SPRITE_SIZE;
-use crate::config::Resolution;
+use crate::config::{DEFAULT_SPRITE_SIZE, Resolution};
 use crate::input::{
     ACTION_BTN1, ACTION_BTN2, ACTION_BTN3, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
     KEY_TABLE, MOUSE_LEFT, MOUSE_RIGHT,
@@ -81,7 +80,7 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     // `_init` runs.
     usagi.set("GAME_W", Resolution::DEFAULT.w)?;
     usagi.set("GAME_H", Resolution::DEFAULT.h)?;
-    usagi.set("SPRITE_SIZE", SPRITE_SIZE)?;
+    usagi.set("SPRITE_SIZE", DEFAULT_SPRITE_SIZE)?;
     // True when running under `usagi dev`. False for `usagi run` and
     // fused/compiled binaries. Lets games gate debug overlays, dev menus,
     // verbose logging, etc.
@@ -226,7 +225,10 @@ mod tests {
 
         assert_eq!(usagi.get::<f32>("GAME_W").unwrap(), Resolution::DEFAULT.w);
         assert_eq!(usagi.get::<f32>("GAME_H").unwrap(), Resolution::DEFAULT.h);
-        assert_eq!(usagi.get::<i32>("SPRITE_SIZE").unwrap(), SPRITE_SIZE);
+        assert_eq!(
+            usagi.get::<i32>("SPRITE_SIZE").unwrap(),
+            DEFAULT_SPRITE_SIZE
+        );
         assert_eq!(usagi.get::<f64>("elapsed").unwrap(), 0.0);
     }
 

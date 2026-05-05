@@ -13,11 +13,6 @@ use sola_raylib::prelude::*;
 /// `png_to_icns` for the macOS bundle.
 pub const ICON_PNG: &[u8] = include_bytes!("../assets/icon.png");
 
-/// Icon source size; one sprite cell. Larger render targets (macOS
-/// Dock at 1024x1024) come from nearest-neighbor scaling, preserving
-/// the pixel-art look.
-const ICON_SIZE: i32 = crate::SPRITE_SIZE;
-
 /// Decodes the embedded default PNG and hands it to raylib as the
 /// current window icon. No-op on emscripten because the browser tab
 /// uses an HTML favicon, not an OS window icon.
@@ -31,20 +26,26 @@ pub fn apply(rl: &mut RaylibHandle) {
     }
 }
 
-/// Slices tile `index` (1-based) out of `sprites_bytes` and applies
-/// it as the window icon. Falls back silently to the embedded
-/// default if the index is out of range, the sprite sheet can't be
-/// decoded, or the sprite sheet isn't a multiple of `ICON_SIZE`
+/// Slices tile `index` (1-based) out of `sprites_bytes` (using
+/// `sprite_size`-pixel cells, matching `gfx.spr` semantics) and
+/// applies it as the window icon. Falls back silently to the
+/// embedded default if the index is out of range, the sprite sheet
+/// can't be decoded, or the sheet isn't a multiple of `sprite_size`
 /// wide. No-op on emscripten.
-pub fn apply_from_sprites(rl: &mut RaylibHandle, sprites_bytes: &[u8], index: u32) {
+pub fn apply_from_sprites(
+    rl: &mut RaylibHandle,
+    sprites_bytes: &[u8],
+    index: u32,
+    sprite_size: i32,
+) {
     #[cfg(target_os = "emscripten")]
     {
-        let _ = (rl, sprites_bytes, index);
+        let _ = (rl, sprites_bytes, index, sprite_size);
         return;
     }
     #[cfg(not(target_os = "emscripten"))]
     {
-        let Some(tile) = slice_sprite_tile(sprites_bytes, index) else {
+        let Some(tile) = slice_sprite_tile(sprites_bytes, index, sprite_size) else {
             apply(rl);
             return;
         };
@@ -86,18 +87,18 @@ fn apply_multires(rl: &mut RaylibHandle, src: &Image) {
     rl.set_window_icons(&mut images);
 }
 
-/// Loads `sprites_bytes` and extracts the 16x16 region at the
-/// 1-based `index` (matches `gfx.spr` semantics: `1` = top-left
-/// cell, then row-major). Returns `None` on any failure so the
-/// caller can fall back to the default icon.
+/// Loads `sprites_bytes` and extracts the `sprite_size`-pixel-square
+/// region at the 1-based `index` (matches `gfx.spr` semantics: `1` =
+/// top-left cell, then row-major). Returns `None` on any failure so
+/// the caller can fall back to the default icon.
 #[cfg(not(target_os = "emscripten"))]
-fn slice_sprite_tile(sprites_bytes: &[u8], index: u32) -> Option<Image> {
-    if index < 1 {
+fn slice_sprite_tile(sprites_bytes: &[u8], index: u32, sprite_size: i32) -> Option<Image> {
+    if index < 1 || sprite_size < 1 {
         return None;
     }
     let full = Image::load_image_from_mem(".png", sprites_bytes).ok()?;
-    let cols = full.width() / ICON_SIZE;
-    let rows = full.height() / ICON_SIZE;
+    let cols = full.width() / sprite_size;
+    let rows = full.height() / sprite_size;
     if cols <= 0 || rows <= 0 {
         return None;
     }
@@ -106,13 +107,13 @@ fn slice_sprite_tile(sprites_bytes: &[u8], index: u32) -> Option<Image> {
         return None;
     }
     let zero = (index - 1) as i32;
-    let x = (zero % cols) * ICON_SIZE;
-    let y = (zero / cols) * ICON_SIZE;
+    let x = (zero % cols) * sprite_size;
+    let y = (zero / cols) * sprite_size;
     Some(full.from_image(Rectangle {
         x: x as f32,
         y: y as f32,
-        width: ICON_SIZE as f32,
-        height: ICON_SIZE as f32,
+        width: sprite_size as f32,
+        height: sprite_size as f32,
     }))
 }
 
@@ -145,7 +146,7 @@ fn sprite_icon_source(
     let index = config.icon.filter(|&i| i >= 1)?;
     let vfs = crate::vfs::FsBacked::from_script_path(script_path);
     let sprites_bytes = crate::vfs::VirtualFs::read_sprites(&vfs)?;
-    slice_sprite_tile(&sprites_bytes, index)
+    slice_sprite_tile(&sprites_bytes, index, config.sprite_size)
 }
 
 /// Encodes a raylib `Image` as a multi-resolution `.icns` container

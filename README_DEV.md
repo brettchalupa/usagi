@@ -240,6 +240,12 @@ Supported fields:
   save data and the macOS bundle identifier. Optional.
 - `icon`: 1-based tile index into `sprites.png`, used as the window icon and (on
   `usagi export --target macos`) the `.app` icon.
+- `sprite_size` (default `16`): side length, in pixels, of one cell in
+  `sprites.png`. Drives `gfx.spr` indexing, the tilepicker tool's grid, and the
+  window-icon slicer. Your `sprites.png` must use a multiple of this value on
+  both axes; the window icon falls back to the default when the layout doesn't
+  fit. The value also flows into `usagi.SPRITE_SIZE` so Lua code can read the
+  active cell size.
 - `game_width` (default `320`) and `game_height` (default `180`): override the
   game's render resolution. The internal render target is sized to these
   dimensions; the window upscales to fit, preserving aspect ratio. Tested band
@@ -261,6 +267,7 @@ function _config()
     icon = 1,
     -- game_width = 480,   -- optional; default 320
     -- game_height = 270,  -- optional; default 180
+    -- sprite_size = 32,   -- optional; default 16
   }
 end
 ```

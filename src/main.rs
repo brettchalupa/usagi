@@ -88,12 +88,6 @@ use clap::{Parser, Subcommand};
 #[cfg(not(target_os = "emscripten"))]
 use export::ExportTarget;
 
-/// Side length, in pixels, of one cell in `sprites.png`. Drives `gfx.spr`
-/// indexing, the tilepicker tool, the window-icon slicer, and the
-/// `usagi.SPRITE_SIZE` Lua constant. Single source of truth so a future
-/// resolution change only touches one line.
-pub const SPRITE_SIZE: i32 = 16;
-
 #[cfg(not(target_os = "emscripten"))]
 #[derive(Parser)]
 #[command(name = "usagi", version, about = "Rapid 2D game prototyping with Lua")]
