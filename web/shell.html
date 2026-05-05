@@ -17,16 +17,19 @@
                 display: grid;
                 place-items: center;
             }
-            /* Scale the canvas to fill the viewport while preserving its 16:9
-         aspect (matches GAME_WIDTH/GAME_HEIGHT in src/main.rs). The
-         backing store stays at the size raylib chose; CSS just resizes
-         the displayed pixels, with `image-rendering: pixelated` keeping
-         the upscale crisp. */
+            /* Scale the canvas to fill the viewport while preserving its
+         configured aspect ratio. `--game-aspect` is set from JS at load
+         time by reading the canvas's intrinsic backing-store dims, so a
+         game shipped at any `_config().game_width / game_height` lays
+         out correctly without an HTML edit. The backing store stays at
+         export-time dims; CSS just resizes the displayed pixels, with
+         `image-rendering: pixelated` keeping the upscale crisp. */
             canvas {
                 display: block;
                 image-rendering: pixelated;
-                width: min(100vw, calc(100vh * 16 / 9));
-                height: min(100vh, calc(100vw * 9 / 16));
+                aspect-ratio: var(--game-aspect, 16 / 9);
+                max-width: 100vw;
+                max-height: 100vh;
             }
             #overlay {
                 position: fixed;
@@ -68,6 +71,20 @@
     </head>
     <body>
         <canvas id="canvas" width="640" height="360"></canvas>
+        <script>
+            // Drive the CSS aspect ratio from the canvas backing-store dims so
+            // the layout follows the configured `_config().game_width /
+            // game_height` without a CSS edit. `usagi export --target web`
+            // substitutes the canvas attrs above with the user's resolution at
+            // export time; this script reads them at load.
+            (function () {
+                const c = document.getElementById("canvas");
+                document.documentElement.style.setProperty(
+                    "--game-aspect",
+                    `${c.width} / ${c.height}`,
+                );
+            })();
+        </script>
         <div id="overlay" role="button" tabindex="0">
             <button id="start" disabled>Loading…</button>
             <div class="sub"></div>

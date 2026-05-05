@@ -20,9 +20,32 @@
 
 use mlua::prelude::*;
 
+/// Game render dimensions in pixels. Travels as a unit through every
+/// pipeline step (window sizing, RT creation, view transform, capture,
+/// pause-menu layout) so call sites can't accidentally swap the two
+/// floats.
+#[derive(Debug, Clone, Copy)]
+pub struct Resolution {
+    pub w: f32,
+    pub h: f32,
+}
+
+impl Resolution {
+    /// Engine default. Mirrored into Lua as `usagi.GAME_W` /
+    /// `usagi.GAME_H` when `_config().game_width / game_height` are
+    /// not set.
+    pub const DEFAULT: Self = Self { w: 320.0, h: 180.0 };
+}
+
+impl Default for Resolution {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
 /// Fully-resolved project config, with defaults filled in for any
 /// fields `_config()` didn't set.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Config {
     /// Display name from `_config().name`. Resolved (with the project
     /// directory as fallback) by `crate::project_name::ProjectName`.
@@ -41,6 +64,25 @@ pub struct Config {
     /// `gfx.spr`). `None` means "use the embedded usagi default
     /// icon".
     pub icon: Option<u32>,
+    /// Game render dimensions, defaulting to 320x180. Set via
+    /// `_config().game_width` / `game_height`. The internal RT is
+    /// sized to this; the window upscales to fit, preserving aspect
+    /// ratio. Tested range is roughly 160..640 on either axis;
+    /// pause-menu and tools UI may overflow or look sparse outside
+    /// that band.
+    pub resolution: Resolution,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            name: None,
+            pixel_perfect: false,
+            game_id: None,
+            icon: None,
+            resolution: Resolution::DEFAULT,
+        }
+    }
 }
 
 impl Config {
@@ -72,6 +114,16 @@ impl Config {
                 }
                 if let Ok(Some(n)) = tbl.get::<Option<u32>>("icon") {
                     config.icon = Some(n);
+                }
+                if let Ok(Some(w)) = tbl.get::<Option<f32>>("game_width")
+                    && w >= 1.0
+                {
+                    config.resolution.w = w;
+                }
+                if let Ok(Some(h)) = tbl.get::<Option<f32>>("game_height")
+                    && h >= 1.0
+                {
+                    config.resolution.h = h;
                 }
             }
             Err(e) => {

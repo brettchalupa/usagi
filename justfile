@@ -132,4 +132,6 @@ examples:
     just example shader
     just example keyboard
     just example util
-    just example effects
+    just example effect
+    just example resolution/vertical
+    just example resolution/high_res

@@ -2,12 +2,13 @@
 //! with constants. The per-frame closures (gfx.clear, input.pressed, etc.)
 //! live in the game loop because they need to borrow frame-local state.
 
+use crate::SPRITE_SIZE;
+use crate::config::Resolution;
 use crate::input::{
     ACTION_BTN1, ACTION_BTN2, ACTION_BTN3, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
     KEY_TABLE, MOUSE_LEFT, MOUSE_RIGHT,
 };
 use crate::shader::{ShaderManager, ShaderValue};
-use crate::{GAME_HEIGHT, GAME_WIDTH, SPRITE_SIZE};
 use mlua::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -73,8 +74,13 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     // reserved for engine-level info: runtime constants, current frame stats,
     // etc. Not a namespace for the per-domain APIs.
     let usagi = lua.create_table()?;
-    usagi.set("GAME_W", GAME_WIDTH)?;
-    usagi.set("GAME_H", GAME_HEIGHT)?;
+    // GAME_W / GAME_H are seeded with the engine defaults at API
+    // setup so tests / tools that don't drive a session see sane
+    // values. The session re-writes them with the resolved
+    // `_config().game_width / game_height` once read, before
+    // `_init` runs.
+    usagi.set("GAME_W", Resolution::DEFAULT.w)?;
+    usagi.set("GAME_H", Resolution::DEFAULT.h)?;
     usagi.set("SPRITE_SIZE", SPRITE_SIZE)?;
     // True when running under `usagi dev`. False for `usagi run` and
     // fused/compiled binaries. Lets games gate debug overlays, dev menus,
@@ -218,8 +224,8 @@ mod tests {
         assert!(music.get::<LuaValue>("loop").unwrap().is_nil());
         assert!(music.get::<LuaValue>("stop").unwrap().is_nil());
 
-        assert_eq!(usagi.get::<f32>("GAME_W").unwrap(), GAME_WIDTH);
-        assert_eq!(usagi.get::<f32>("GAME_H").unwrap(), GAME_HEIGHT);
+        assert_eq!(usagi.get::<f32>("GAME_W").unwrap(), Resolution::DEFAULT.w);
+        assert_eq!(usagi.get::<f32>("GAME_H").unwrap(), Resolution::DEFAULT.h);
         assert_eq!(usagi.get::<i32>("SPRITE_SIZE").unwrap(), SPRITE_SIZE);
         assert_eq!(usagi.get::<f64>("elapsed").unwrap(), 0.0);
     }

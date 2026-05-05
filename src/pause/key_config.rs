@@ -13,7 +13,6 @@ use crate::input::ACTION_NAMES;
 use crate::keymap::{self, Keymap};
 use crate::palette;
 use crate::palette::Pal;
-use crate::{GAME_HEIGHT, GAME_WIDTH};
 use sola_raylib::prelude::*;
 
 /// In-flight Key Config capture. Mutated as the player presses keys;
@@ -112,7 +111,13 @@ impl PauseMenu {
         None
     }
 
-    pub(super) fn draw_key_config<D: RaylibDraw>(&self, d: &mut D, font: &Font, mut y: f32) {
+    pub(super) fn draw_key_config<D: RaylibDraw>(
+        &self,
+        d: &mut D,
+        font: &Font,
+        mut y: f32,
+        res: crate::config::Resolution,
+    ) {
         let size = crate::font::MONOGRAM_SIZE as f32;
         let line_h = size + 2.0;
         let color = palette::color(Pal::White);
@@ -137,7 +142,7 @@ impl PauseMenu {
             "Capture complete".to_string()
         };
         let prompt_m = font.measure_text(&prompt, size, 0.0);
-        let prompt_x = ((GAME_WIDTH - prompt_m.x) * 0.5).round();
+        let prompt_x = ((res.w - prompt_m.x) * 0.5).round();
         d.draw_text_ex(font, &prompt, Vector2::new(prompt_x, y), size, 0.0, color);
         y += line_h * 1.5;
 
@@ -162,7 +167,7 @@ impl PauseMenu {
             .iter()
             .map(|(_, name, label)| font.measure_text(&format!("{name}: {label}"), size, 0.0).x)
             .fold(0.0_f32, f32::max);
-        let item_x = ((GAME_WIDTH - widest) * 0.5).round();
+        let item_x = ((res.w - widest) * 0.5).round();
 
         for (i, name, label) in entries {
             let line = format!("{name}: {label}");
@@ -181,18 +186,35 @@ impl PauseMenu {
             y += line_h;
         }
 
-        let footer = "ESC CANCEL  -  BKSP UNDO  -  DEL RESET";
-        let footer_m = font.measure_text(footer, size, 0.0);
-        let footer_x = ((GAME_WIDTH - footer_m.x) * 0.5).round();
-        let footer_y = GAME_HEIGHT - size - 8.0;
-        d.draw_text_ex(
-            font,
-            footer,
-            Vector2::new(footer_x, footer_y),
-            size,
-            0.0,
-            color,
-        );
+        // Footer with the three keyboard hotkeys. At the default
+        // 320-wide game it fits on one line; at narrower configs
+        // (vertical or sub-default widths) it stacks vertically so
+        // the actions stay readable instead of clipping off-screen.
+        let one_liner = "ESC CANCEL  -  BKSP UNDO  -  DEL RESET";
+        let one_liner_w = font.measure_text(one_liner, size, 0.0).x;
+        let margin = 8.0;
+        if one_liner_w + margin * 2.0 <= res.w {
+            let footer_x = ((res.w - one_liner_w) * 0.5).round();
+            let footer_y = res.h - size - 8.0;
+            d.draw_text_ex(
+                font,
+                one_liner,
+                Vector2::new(footer_x, footer_y),
+                size,
+                0.0,
+                color,
+            );
+        } else {
+            let lines = ["ESC CANCEL", "BKSP UNDO", "DEL RESET"];
+            let stacked_h = size * lines.len() as f32 + 2.0 * (lines.len() - 1) as f32;
+            let mut fy = res.h - stacked_h - 4.0;
+            for line in lines {
+                let m = font.measure_text(line, size, 0.0);
+                let fx = ((res.w - m.x) * 0.5).round();
+                d.draw_text_ex(font, line, Vector2::new(fx, fy), size, 0.0, color);
+                fy += size + 2.0;
+            }
+        }
     }
 }
 

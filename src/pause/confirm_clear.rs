@@ -7,7 +7,6 @@ use super::PauseMenu;
 use super::View;
 use super::draw_indicator;
 use super::inputs::MenuInputs;
-use crate::GAME_WIDTH;
 use crate::palette;
 use crate::palette::Pal;
 use sola_raylib::prelude::*;
@@ -31,14 +30,20 @@ impl PauseMenu {
         None
     }
 
-    pub(super) fn draw_confirm_clear<D: RaylibDraw>(&self, d: &mut D, font: &Font, mut y: f32) {
+    pub(super) fn draw_confirm_clear<D: RaylibDraw>(
+        &self,
+        d: &mut D,
+        font: &Font,
+        mut y: f32,
+        res: crate::config::Resolution,
+    ) {
         let size = crate::font::MONOGRAM_SIZE as f32;
         let line_h = size + 6.0;
         let item_x = 32.0_f32;
 
         let prompt = "Wipe all save data for this game?";
         let prompt_m = font.measure_text(prompt, size, 0.0);
-        let prompt_x = ((GAME_WIDTH - prompt_m.x) * 0.5).round();
+        let prompt_x = ((res.w - prompt_m.x) * 0.5).round();
         d.draw_text_ex(
             font,
             prompt,

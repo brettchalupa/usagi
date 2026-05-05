@@ -412,6 +412,8 @@ function usagi.load() end
 ---@field pixel_perfect? boolean false (default) = any scale that fits the window while preserving aspect ratio; true = integer scale only with letterbox bars
 ---@field game_id? string  reverse-DNS identifier (e.g. "com.you.mygame"), required for save/load
 ---@field icon? integer  1-based tile index into sprites.png to use as the window icon (same indexing as gfx.spr); omit for the default Usagi bunny
+---@field game_width? number  game render width in pixels (default 320). Tested range 160..640
+---@field game_height? number  game render height in pixels (default 180). Tested range 90..360
 
 ---Optional. Returns engine config read once before the window opens.
 ---Omit if the defaults are fine.

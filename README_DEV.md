@@ -41,7 +41,7 @@ change in the future or be configurable.
   with your newest code and assets, enabling rapid development
 - **Cross Platform Export**: run `usagi export` and your game is exported for
   Linux, macOS, Windows, and web
-- **Limited Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely
+- **Default Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely
   to common monitor sizes
 - **One Spritesheet**: `sprites.png` is the only image file for textures that
   can be loaded
@@ -240,6 +240,17 @@ Supported fields:
   save data and the macOS bundle identifier. Optional.
 - `icon`: 1-based tile index into `sprites.png`, used as the window icon and (on
   `usagi export --target macos`) the `.app` icon.
+- `game_width` (default `320`) and `game_height` (default `180`): override the
+  game's render resolution. The internal render target is sized to these
+  dimensions; the window upscales to fit, preserving aspect ratio. Tested band
+  is roughly 320x180 to 640x360. Outside that, the pause-menu and tools UI are
+  pixel-fixed and may overflow at very small sizes or look sparse at very large
+  ones. Sprite size (`usagi.SPRITE_SIZE`, 16) and the bundled font (5x7) don't
+  scale with the resolution, so a 1280x720 game has tiny sprites and tiny text
+  relative to the screen. The web export templates the canvas backing-store and
+  aspect ratio from the configured resolution, so non-16:9 / non-default games
+  ship correctly with the default shell (no `--web-shell` needed) and embed
+  cleanly in itch at any iframe size.
 
 ```lua
 function _config()
@@ -248,6 +259,8 @@ function _config()
     pixel_perfect = true,
     game_id = "com.example.snake",
     icon = 1,
+    -- game_width = 480,   -- optional; default 320
+    -- game_height = 270,  -- optional; default 180
   }
 end
 ```

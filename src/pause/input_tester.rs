@@ -15,7 +15,6 @@ use crate::input::{
 use crate::keymap::Keymap;
 use crate::palette;
 use crate::palette::Pal;
-use crate::{GAME_HEIGHT, GAME_WIDTH};
 use sola_raylib::prelude::*;
 
 impl PauseMenu {
@@ -32,6 +31,7 @@ impl PauseMenu {
         keymap: &Keymap,
         gamepad_family: GamepadFamily,
         body_y: f32,
+        res: crate::config::Resolution,
     ) {
         let size = crate::font::MONOGRAM_SIZE as f32;
         let white = palette::color(Pal::White);
@@ -47,7 +47,7 @@ impl PauseMenu {
         let btn_w = btn_cell * 3.0 + gap * 2.0;
         let cluster_gap = 16.0_f32;
         let cluster_total = dpad_w + cluster_gap + btn_w;
-        let dpad_x = ((GAME_WIDTH - cluster_total) * 0.5).round();
+        let dpad_x = ((res.w - cluster_total) * 0.5).round();
         let dpad_y = body_y;
 
         let draw_box = |d: &mut D, x: f32, y: f32, w: f32, on: bool| {
@@ -141,8 +141,8 @@ impl PauseMenu {
         // only players see a path out.
         let footer = "ESC OR START TO BACK";
         let footer_m = font.measure_text(footer, size, 0.0);
-        let footer_x = ((GAME_WIDTH - footer_m.x) * 0.5).round();
-        let footer_y = GAME_HEIGHT - size - 4.0;
+        let footer_x = ((res.w - footer_m.x) * 0.5).round();
+        let footer_y = res.h - size - 4.0;
         d.draw_text_ex(
             font,
             footer,
