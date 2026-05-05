@@ -7,7 +7,7 @@ use crate::input::{
     KEY_TABLE, MOUSE_LEFT, MOUSE_RIGHT,
 };
 use crate::shader::{ShaderManager, ShaderValue};
-use crate::{GAME_HEIGHT, GAME_WIDTH};
+use crate::{GAME_HEIGHT, GAME_WIDTH, SPRITE_SIZE};
 use mlua::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -75,6 +75,7 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     let usagi = lua.create_table()?;
     usagi.set("GAME_W", GAME_WIDTH)?;
     usagi.set("GAME_H", GAME_HEIGHT)?;
+    usagi.set("SPRITE_SIZE", SPRITE_SIZE)?;
     // True when running under `usagi dev`. False for `usagi run` and
     // fused/compiled binaries. Lets games gate debug overlays, dev menus,
     // verbose logging, etc.
@@ -219,6 +220,7 @@ mod tests {
 
         assert_eq!(usagi.get::<f32>("GAME_W").unwrap(), GAME_WIDTH);
         assert_eq!(usagi.get::<f32>("GAME_H").unwrap(), GAME_HEIGHT);
+        assert_eq!(usagi.get::<i32>("SPRITE_SIZE").unwrap(), SPRITE_SIZE);
         assert_eq!(usagi.get::<f64>("elapsed").unwrap(), 0.0);
     }
 

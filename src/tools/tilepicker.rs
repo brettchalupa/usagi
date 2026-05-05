@@ -7,7 +7,7 @@ use sola_raylib::prelude::*;
 use std::path::Path;
 
 /// Matches `gfx.spr` in the runtime.
-const TILE_SIZE: i32 = 16;
+const TILE_SIZE: i32 = crate::SPRITE_SIZE;
 const PAN_SPEED: f32 = 400.0; // pixels/second, dt-scaled
 const ZOOM_STEP: f32 = 0.5;
 const ZOOM_MIN: f32 = 0.5;
