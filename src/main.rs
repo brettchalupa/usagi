@@ -17,6 +17,7 @@ mod assets;
 mod bundle;
 mod cli;
 mod config;
+mod effect;
 mod error;
 mod font;
 mod icon;

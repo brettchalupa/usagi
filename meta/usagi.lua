@@ -563,3 +563,41 @@ function util.circ_overlap(a, b) end
 ---@param r Usagi.Rect
 ---@return boolean
 function util.circ_rect_overlap(c, r) end
+
+---Engine-level juice primitives: hitstop, screen shake, flash, and
+---slow-motion. Each call sets per-session state that decays once per
+---frame. Stacking rule across all four: longer duration wins; for
+---the magnitude param, the latest call wins. Spam-calling is safe.
+effect = {}
+
+---Freezes the game's `_update` loop for `time` seconds. `_draw` keeps
+---running so the world stays on-screen. The classic juice trick for
+---weighty hits: pair with `effect.screen_shake` and `effect.flash` on
+---impact. If a longer hitstop is already in flight, this call is a
+---no-op (longer wins).
+---@param time number  seconds to freeze update
+function effect.hitstop(time) end
+
+---Shakes the rendered view for `time` seconds with up to `intensity`
+---game-pixel offset. Magnitude decays linearly to zero across the
+---duration. The shake is applied to the RT-to-screen blit, so
+---overlays drawn outside the world (error, REC indicator) stay
+---stable.
+---@param time      number  seconds to shake
+---@param intensity number  maximum offset in game pixels (try 2-6)
+function effect.screen_shake(time, intensity) end
+
+---Flashes a full-screen overlay of palette color `color` over the
+---rendered view for `time` seconds. Alpha decays linearly from
+---opaque to transparent. White on hits, red on damage, etc.
+---@param time  number   seconds the flash is visible
+---@param color integer  a gfx.COLOR_* constant
+function effect.flash(time, color) end
+
+---Scales the `dt` passed to `_update` for `time` seconds. `scale=0.5`
+---is half-speed; `scale=0` freezes update (use `effect.hitstop` for
+---that explicitly); `scale>1` plays faster. Wall-clock decay is
+---unaffected; the slow_mo timer itself counts down at real time.
+---@param time  number  seconds the scale is applied
+---@param scale number  dt multiplier; 0..1 for slow, >1 for fast
+function effect.slow_mo(time, scale) end

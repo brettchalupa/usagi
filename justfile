@@ -132,3 +132,4 @@ examples:
     just example shader
     just example keyboard
     just example util
+    just example effects
