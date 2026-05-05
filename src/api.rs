@@ -174,14 +174,19 @@ fn read_idx(t: &LuaTable, idx: usize) -> Result<f32, String> {
     Ok(v as f32)
 }
 
-/// Records a Lua error: prints to stderr and stores the message so it can be
-/// displayed on-screen. Wraps every call into user Lua so a typo / nil-call /
-/// runtime error doesn't tear down the process.
+/// Records a Lua error: stores the message so it can be displayed on-screen,
+/// and prints to stderr only when the message changed from what `state` was
+/// already holding. Wraps every call into user Lua so a typo / nil-call /
+/// runtime error doesn't tear down the process. Per-frame callbacks
+/// (`_update`, `_draw`) hit this every frame while a bug stands; the
+/// dedupe keeps the terminal usable until the user fixes the script.
 pub fn record_err(state: &mut Option<String>, label: &str, result: LuaResult<()>) {
     if let Err(e) = result {
         let msg = format!("{}: {}", label, e);
-        crate::msg::err!("{}", msg);
-        *state = Some(msg);
+        if state.as_deref() != Some(msg.as_str()) {
+            crate::msg::err!("{}", msg);
+            *state = Some(msg);
+        }
     }
 }
 
@@ -261,6 +266,36 @@ mod tests {
         let mut state = Some("previous".to_string());
         record_err(&mut state, "_update", Ok(()));
         assert_eq!(state.as_deref(), Some("previous"));
+    }
+
+    /// Repeating the same error (the typical per-frame `_update` /
+    /// `_draw` failure) overwrites `state` with the same text but
+    /// must not change anything observable. The visible promise this
+    /// test stands behind is the `record_err` body's `as_deref()
+    /// != Some(...)` guard around the stderr write.
+    #[test]
+    fn record_err_is_idempotent_for_repeated_messages() {
+        let mut state = None;
+        record_err(&mut state, "_update", Err(mlua::Error::external("same")));
+        let first = state.clone().expect("first should record");
+        record_err(&mut state, "_update", Err(mlua::Error::external("same")));
+        assert_eq!(state.as_deref(), Some(first.as_str()));
+    }
+
+    /// A new error message after an old one still records (and
+    /// would be logged): the dedupe is per-content, not "log only
+    /// once ever".
+    #[test]
+    fn record_err_records_new_message_after_old() {
+        let mut state = None;
+        record_err(&mut state, "_update", Err(mlua::Error::external("alpha")));
+        record_err(&mut state, "_update", Err(mlua::Error::external("beta")));
+        let stored = state.expect("second error should record");
+        assert!(stored.contains("beta"), "got: {stored}");
+        assert!(
+            !stored.contains("alpha"),
+            "old text should be replaced: {stored}"
+        );
     }
 
     /// Every `gfx.COLOR_*` constant must map to a real palette entry.

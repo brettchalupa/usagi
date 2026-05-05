@@ -49,6 +49,12 @@ Features:
   end
   ```
 
+Fixes:
+
+- A persistent error in `_update` or `_draw` no longer spams stderr 60x/sec.
+  `record_err` now logs only when the message changes; the on-screen overlay
+  still updates every frame, so users see live changes when they edit and save.
+
 ## v0.5.0 - May 4, 2026
 
 Breaking:
