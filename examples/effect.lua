@@ -19,20 +19,48 @@ function _init()
     y = 40,
     vx = 90,
     vy = 60,
+    toasts = {},
   }
 end
 
+local TOAST_TTL = 1.0
+
+local function toast(text)
+  table.insert(State.toasts, { text = text, age = 0 })
+end
+
 function _update(dt)
-  if input.key_pressed(input.KEY_1) then effect.hitstop(0.4) end
-  if input.key_pressed(input.KEY_2) then effect.screen_shake(0.4, 4) end
-  if input.key_pressed(input.KEY_3) then effect.flash(0.4, gfx.COLOR_WHITE) end
-  if input.key_pressed(input.KEY_4) then effect.slow_mo(1.5, 0.3) end
+  if input.key_pressed(input.KEY_1) then
+    effect.hitstop(0.4)
+    toast("hitstop")
+  end
+  if input.key_pressed(input.KEY_2) then
+    effect.screen_shake(0.4, 4)
+    toast("screen_shake")
+  end
+  if input.key_pressed(input.KEY_3) then
+    effect.flash(0.4, gfx.COLOR_WHITE)
+    toast("flash")
+  end
+  if input.key_pressed(input.KEY_4) then
+    effect.slow_mo(1.5, 0.3)
+    toast("slow_mo")
+  end
 
   if input.pressed(input.BTN1) then
     effect.hitstop(0.06)
     effect.screen_shake(0.3, 4)
     effect.flash(0.1, gfx.COLOR_WHITE)
     effect.slow_mo(0.8, 0.4)
+    toast("combo!")
+  end
+
+  for i = #State.toasts, 1, -1 do
+    local t = State.toasts[i]
+    t.age = t.age + dt
+    if t.age >= TOAST_TTL then
+      table.remove(State.toasts, i)
+    end
   end
 
   State.x = State.x + State.vx * dt
@@ -52,4 +80,18 @@ function _draw(dt)
   gfx.text("4  slow_mo", 6, 54, gfx.COLOR_LIGHT_GRAY)
   local btn = input.mapping_for(input.BTN1)
   gfx.text(btn .. "  combo", 6, 68, gfx.COLOR_PINK)
+
+  -- Toasts: most recent at top, right-aligned. Skip every other
+  -- frame in the last 25% of life so they visually "blink out".
+  for i, t in ipairs(State.toasts) do
+    local life_t = t.age / TOAST_TTL
+    local blinking = life_t > 0.75 and math.floor(t.age * 30) % 2 == 0
+    if not blinking then
+      local w = usagi.measure_text(t.text)
+      local x = usagi.GAME_W - w - 6
+      local y = 6 + (i - 1) * 10
+      gfx.text(t.text, x + 1, y + 1, gfx.COLOR_BLACK)
+      gfx.text(t.text, x, y, gfx.COLOR_YELLOW)
+    end
+  end
 end
