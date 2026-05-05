@@ -13,10 +13,10 @@ use sola_raylib::prelude::*;
 /// `png_to_icns` for the macOS bundle.
 pub const ICON_PNG: &[u8] = include_bytes!("../assets/icon.png");
 
-/// Width / height of every Usagi sprite tile and the canonical icon
-/// source size. Larger render targets (macOS Dock at 1024x1024) come
-/// from nearest-neighbor scaling, preserving the pixel-art look.
-const ICON_SIZE: i32 = 16;
+/// Icon source size; one sprite cell. Larger render targets (macOS
+/// Dock at 1024x1024) come from nearest-neighbor scaling, preserving
+/// the pixel-art look.
+const ICON_SIZE: i32 = crate::SPRITE_SIZE;
 
 /// Decodes the embedded default PNG and hands it to raylib as the
 /// current window icon. No-op on emscripten because the browser tab

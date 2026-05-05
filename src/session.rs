@@ -1108,7 +1108,7 @@ impl Session {
                     // and `spr_flipped` so the bookkeeping stays in
                     // one place.
                     fn cell_for(tex: &Texture2D, idx: i32) -> Option<(i32, i32, i32)> {
-                        const CELL: i32 = 16;
+                        const CELL: i32 = crate::SPRITE_SIZE;
                         if idx < 1 {
                             return None;
                         }

@@ -493,6 +493,9 @@ instead of a confusing nil-arithmetic explosion deep inside the helper.
 Engine-level info.
 
 - `usagi.GAME_W`, `usagi.GAME_H` — game render dimensions (320, 180).
+- `usagi.SPRITE_SIZE` — side length, in pixels, of one cell in `sprites.png`
+  (currently 16). Use it for tile-grid math instead of hardcoding 16:
+  `gfx.spr(idx, col * usagi.SPRITE_SIZE, row * usagi.SPRITE_SIZE)`.
 - `usagi.IS_DEV` — `true` when running under `usagi dev`; `false` under
   `usagi run` and inside exported binaries. Useful for gating debug overlays,
   dev menus, verbose logging:

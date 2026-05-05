@@ -27,6 +27,9 @@ Features:
     spam-calling is safe. See `examples/effect.lua` for a runnable demo. The
     `notetris` example now uses `effect.screen_shake` in place of its bespoke
     shake.
+- New `usagi.SPRITE_SIZE` constant (returns `16`) for tile-grid math without
+  hardcoding the cell size. Same value the engine uses internally for `gfx.spr`
+  indexing, the tilepicker tool, and the window-icon slicer.
 
 ## v0.5.0 - May 4, 2026
 

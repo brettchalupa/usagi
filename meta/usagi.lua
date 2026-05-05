@@ -377,10 +377,11 @@ function input.mouse_visible() end
 ---Engine-level info. The per-domain APIs (`gfx`, `input`) are top-level
 ---globals, not fields on this table.
 ---@class Usagi
----@field GAME_W  number   game render width in pixels
----@field GAME_H  number   game render height in pixels
----@field IS_DEV  boolean  true under `usagi dev`; false for `usagi run` and compiled binaries
----@field elapsed number   wall-clock seconds since session start; updated once per frame before _update
+---@field GAME_W      number   game render width in pixels
+---@field GAME_H      number   game render height in pixels
+---@field SPRITE_SIZE integer  side length, in pixels, of one cell in `sprites.png` (drives `gfx.spr` indexing)
+---@field IS_DEV      boolean  true under `usagi dev`; false for `usagi run` and compiled binaries
+---@field elapsed     number   wall-clock seconds since session start; updated once per frame before _update
 usagi = {}
 
 ---Measures `text` in the bundled font and returns its rendered size
