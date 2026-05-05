@@ -24,11 +24,11 @@ jobs:
             ext: ""
             archive: tar.gz
           - name: macos-aarch64
-            os: macos-latest
+            os: macos-15
             ext: ""
             archive: tar.gz
           - name: windows-x86_64
-            os: windows-latest
+            os: windows-2022
             ext: ".exe"
             archive: zip
     steps:
@@ -132,7 +132,7 @@ jobs:
   publish:
     name: publish
     needs: [build, build-web]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/download-artifact@v4
         with:
