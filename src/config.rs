@@ -43,6 +43,12 @@ impl Default for Resolution {
     }
 }
 
+/// Default cell size, in pixels, of one tile in `sprites.png` when
+/// `_config().sprite_size` isn't set. Mirrored into Lua as
+/// `usagi.SPRITE_SIZE`. Drives `gfx.spr` indexing, the tile-picker
+/// tool's grid, and the window-icon slicer.
+pub const DEFAULT_SPRITE_SIZE: i32 = 16;
+
 /// Fully-resolved project config, with defaults filled in for any
 /// fields `_config()` didn't set.
 #[derive(Debug, Clone)]
@@ -71,6 +77,13 @@ pub struct Config {
     /// pause-menu and tools UI may overflow or look sparse outside
     /// that band.
     pub resolution: Resolution,
+    /// Side length, in pixels, of one cell in `sprites.png`. Defaults
+    /// to 16. Set via `_config().sprite_size`. Drives `gfx.spr`
+    /// indexing, the tile-picker tool's grid, and the window-icon
+    /// slicer. The bundled `sprites.png` must use a multiple of this
+    /// value on both axes; mismatches fall back to the default icon
+    /// for the window-icon path.
+    pub sprite_size: i32,
 }
 
 impl Default for Config {
@@ -81,6 +94,7 @@ impl Default for Config {
             game_id: None,
             icon: None,
             resolution: Resolution::DEFAULT,
+            sprite_size: DEFAULT_SPRITE_SIZE,
         }
     }
 }
@@ -124,6 +138,11 @@ impl Config {
                     && h >= 1.0
                 {
                     config.resolution.h = h;
+                }
+                if let Ok(Some(s)) = tbl.get::<Option<i32>>("sprite_size")
+                    && s >= 1
+                {
+                    config.sprite_size = s;
                 }
             }
             Err(e) => {

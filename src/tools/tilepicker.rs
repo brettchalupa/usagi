@@ -6,8 +6,6 @@ use crate::palette::{Pal, color};
 use sola_raylib::prelude::*;
 use std::path::Path;
 
-/// Matches `gfx.spr` in the runtime.
-const TILE_SIZE: i32 = crate::SPRITE_SIZE;
 const PAN_SPEED: f32 = 400.0; // pixels/second, dt-scaled
 const ZOOM_STEP: f32 = 0.5;
 const ZOOM_MIN: f32 = 0.5;
@@ -26,15 +24,21 @@ pub(super) struct State {
     pub pos: Vector2,
     pub show_overlay: bool,
     pub bg_idx: usize,
+    /// Cell size, in pixels, of the loaded `sprites.png`. Read from
+    /// the project's `_config().sprite_size` at tools startup
+    /// (defaulting to 16). Drives the grid overlay and the
+    /// 1-based-index click-to-copy.
+    pub sprite_size: i32,
 }
 
 impl State {
-    pub fn new() -> Self {
+    pub fn new(sprite_size: i32) -> Self {
         Self {
             zoom: 3.0,
             pos: default_pos(),
             show_overlay: true,
             bg_idx: 0,
+            sprite_size,
         }
     }
 }
@@ -90,7 +94,7 @@ pub(super) fn handle_input(
             && mouse.x < VIEW_X + VIEW_W
             && mouse.y >= VIEW_Y
             && mouse.y < VIEW_Y + VIEW_H;
-        let cell = TILE_SIZE as f32 * state.zoom;
+        let cell = state.sprite_size as f32 * state.zoom;
         let tex_w = tex.width as f32 * state.zoom;
         let tex_h = tex.height as f32 * state.zoom;
         let in_image = mouse.x >= state.pos.x
@@ -100,7 +104,7 @@ pub(super) fn handle_input(
         if in_viewport && in_image {
             let tile_x = ((mouse.x - state.pos.x) / cell).floor() as i32;
             let tile_y = ((mouse.y - state.pos.y) / cell).floor() as i32;
-            let cols = tex.width / TILE_SIZE;
+            let cols = tex.width / state.sprite_size;
             if cols > 0 {
                 let idx = tile_y * cols + tile_x + 1; // 1-based to match gfx.spr
                 let s = idx.to_string();
@@ -136,8 +140,8 @@ pub(super) fn draw(
     );
 
     if let Some(tex) = texture {
-        let tw = tex.width / TILE_SIZE;
-        let th = tex.height / TILE_SIZE;
+        let tw = tex.width / state.sprite_size;
+        let th = tex.height / state.sprite_size;
         d.draw_text_ex(
             font,
             &format!(
@@ -198,12 +202,12 @@ pub(super) fn draw(
 }
 
 fn draw_overlay<T: RaylibDraw>(d: &mut T, font: &Font, tex: &Texture2D, state: &State) {
-    let cols = tex.width / TILE_SIZE;
-    let rows = tex.height / TILE_SIZE;
+    let cols = tex.width / state.sprite_size;
+    let rows = tex.height / state.sprite_size;
     if cols <= 0 || rows <= 0 {
         return;
     }
-    let cell = TILE_SIZE as f32 * state.zoom;
+    let cell = state.sprite_size as f32 * state.zoom;
     // Semi-transparent cyan. Readable on any bg without a per-bg palette.
     let overlay = Color::new(0, 180, 200, 220);
 

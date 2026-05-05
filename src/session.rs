@@ -477,7 +477,9 @@ impl Session {
         // ignore this (Cocoa limitation); the bundle path in
         // `usagi export` is what makes the Dock icon stick there.
         match (config.icon, vfs.read_sprites()) {
-            (Some(n), Some(bytes)) => crate::icon::apply_from_sprites(&mut rl, &bytes, n),
+            (Some(n), Some(bytes)) => {
+                crate::icon::apply_from_sprites(&mut rl, &bytes, n, config.sprite_size)
+            }
             _ => crate::icon::apply(&mut rl),
         }
 
@@ -512,6 +514,7 @@ impl Session {
         if let Ok(usagi_tbl) = lua.globals().get::<LuaTable>("usagi") {
             let _ = usagi_tbl.set("GAME_W", res.w);
             let _ = usagi_tbl.set("GAME_H", res.h);
+            let _ = usagi_tbl.set("SPRITE_SIZE", config.sprite_size);
         }
 
         // Load the font before `_init` runs so we can register
@@ -1033,6 +1036,7 @@ impl Session {
     fn run_draw(&mut self, dt: f32, fps: u32) {
         let flash_overlay = self.effects.borrow().flash_overlay();
         let res = self.config.resolution;
+        let sprite_size = self.config.sprite_size;
         let Self {
             lua,
             rl,
@@ -1139,30 +1143,30 @@ impl Session {
                         Ok(())
                     })?;
                     // Resolves a 1-based sprite index into a (col, row,
-                    // CELL) tuple on the loaded sheet, or None for
+                    // cell) tuple on the loaded sheet, or None for
                     // out-of-range / no-sheet. Shared between `spr`
-                    // and `spr_flipped` so the bookkeeping stays in
-                    // one place.
-                    fn cell_for(tex: &Texture2D, idx: i32) -> Option<(i32, i32, i32)> {
-                        const CELL: i32 = crate::SPRITE_SIZE;
-                        if idx < 1 {
+                    // and `spr_ex` so the bookkeeping stays in one
+                    // place. `cell` is the configured `sprite_size`
+                    // captured from the session before the scope.
+                    fn cell_for(tex: &Texture2D, idx: i32, cell: i32) -> Option<(i32, i32, i32)> {
+                        if idx < 1 || cell < 1 {
                             return None;
                         }
-                        let cols = tex.width / CELL;
+                        let cols = tex.width / cell;
                         if cols <= 0 {
                             return None;
                         }
                         let idx0 = idx - 1;
                         let col = idx0 % cols;
                         let row = idx0 / cols;
-                        if row * CELL >= tex.height {
+                        if row * cell >= tex.height {
                             return None;
                         }
-                        Some((col, row, CELL))
+                        Some((col, row, cell))
                     }
                     let spr = scope.create_function(|_, (idx, x, y): (i32, f32, f32)| {
                         if let Some(tex) = sprites_ref
-                            && let Some((col, row, cell)) = cell_for(tex, idx)
+                            && let Some((col, row, cell)) = cell_for(tex, idx, sprite_size)
                         {
                             let source = Rectangle {
                                 x: (col * cell) as f32,
@@ -1180,7 +1184,7 @@ impl Session {
                     let spr_ex = scope.create_function(
                         |_, (idx, x, y, flip_x, flip_y): (i32, f32, f32, bool, bool)| {
                             if let Some(tex) = sprites_ref
-                                && let Some((col, row, cell)) = cell_for(tex, idx)
+                                && let Some((col, row, cell)) = cell_for(tex, idx, sprite_size)
                             {
                                 // Negative source dimensions flip the
                                 // texture in `draw_texture_pro`.

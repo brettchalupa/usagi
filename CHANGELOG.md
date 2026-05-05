@@ -27,9 +27,12 @@ Features:
     spam-calling is safe. See `examples/effect.lua` for a runnable demo. The
     `notetris` example now uses `effect.screen_shake` in place of its bespoke
     shake.
-- New `usagi.SPRITE_SIZE` constant (returns `16`) for tile-grid math without
+- New `usagi.SPRITE_SIZE` constant (default `16`) for tile-grid math without
   hardcoding the cell size. Same value the engine uses internally for `gfx.spr`
-  indexing, the tilepicker tool, and the window-icon slicer.
+  indexing, the tilepicker tool, and the window-icon slicer. Override the
+  default by setting `_config().sprite_size`; the new value flows through every
+  consumer (Lua draws, icon slice on session and `usagi export --target macos`,
+  tilepicker grid in `usagi tools`).
 - `_config()` can override the game's render resolution via `game_width` and
   `game_height` (defaults 320 and 180). The internal RT is sized to those dims;
   `usagi.GAME_W` / `GAME_H` reflect the active values. Tested band is roughly

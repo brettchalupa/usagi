@@ -64,6 +64,14 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     let vfs = project_dir
         .as_ref()
         .map(|d| FsBacked::from_project_dir(d.clone()));
+    // Read the project's `_config()` once at startup so tools that
+    // depend on its values (currently the tilepicker's grid size)
+    // pick up overrides like `sprite_size`. Falls back to defaults
+    // when there's no project path.
+    let project_config = match project_dir.as_ref() {
+        Some(dir) => crate::config::Config::read_for_export(&dir.join("main.lua")),
+        None => crate::config::Config::default(),
+    };
     let sfx_dir_display = project_dir.as_ref().map(|d| d.join("sfx"));
     let music_dir_display = project_dir.as_ref().map(|d| d.join("music"));
     let sprites_path_display = project_dir.as_ref().map(|d| d.join("sprites.png"));
@@ -108,7 +116,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     let mut state = State {
         active: Tool::Jukebox,
         jukebox: jukebox::State::new(&sfx.sounds, music_lib.track_names()),
-        tilepicker: tilepicker::State::new(),
+        tilepicker: tilepicker::State::new(project_config.sprite_size),
         save_inspector: save_inspector::State::new(project_path),
         color_palette: color_palette::State::new(),
         toast: None,
