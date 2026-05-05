@@ -30,6 +30,21 @@ Features:
 - New `usagi.SPRITE_SIZE` constant (returns `16`) for tile-grid math without
   hardcoding the cell size. Same value the engine uses internally for `gfx.spr`
   indexing, the tilepicker tool, and the window-icon slicer.
+- `_config()` can override the game's render resolution via `game_width` and
+  `game_height` (defaults 320 and 180). The internal RT is sized to those dims;
+  `usagi.GAME_W` / `GAME_H` reflect the active values. Tested band is roughly
+  320x180 to 640x360; pause-menu and tools UI are pixel-fixed and may overflow
+  at very small sizes or look sparse at very large ones. The web export
+  templates the canvas backing-store and aspect ratio from the configured
+  resolution, so non-16:9 / non-default games ship correctly with the default
+  shell (no `--web-shell` needed) and embed cleanly in itch at any iframe size.
+  Sprite size and bundled font are still fixed at 16 and 5x7.
+
+  ```lua
+  function _config()
+    return { game_width = 480, game_height = 270 }
+  end
+  ```
 
 ## v0.5.0 - May 4, 2026
 

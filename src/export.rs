@@ -98,6 +98,7 @@ pub fn run(
         // pass `GameId` through every export-target helper.
         bundle_id: bundle_id.as_str(),
         icns_bytes: app_icns.as_deref(),
+        resolution: project_config.resolution,
     };
     let out_path = output
         .map(PathBuf::from)
@@ -127,6 +128,11 @@ struct Opts<'a> {
     /// `.app` ships without an icon (Linux/Windows/web targets ignore
     /// this field).
     icns_bytes: Option<&'a [u8]>,
+    /// Game render dimensions read from `_config()`. The web export
+    /// templates the canvas backing-store from this so non-default
+    /// resolutions ship with the right aspect ratio. Other targets
+    /// don't read it (the runtime resolves from `_config()` at boot).
+    resolution: crate::config::Resolution,
 }
 
 /// Builds every cross-platform zip plus the portable `.usagi` bundle.
@@ -155,6 +161,7 @@ fn export_all(
         web_shell_override: opts.web_shell_override,
         bundle_id: opts.bundle_id,
         icns_bytes: opts.icns_bytes,
+        resolution: opts.resolution,
     };
     let slug = project_name.slug();
     let mut succeeded = 0;
@@ -307,7 +314,7 @@ fn export_from_runtime_dir(
         }
         templates::Runtime::Web { js, wasm, html } => {
             let html_src = opts.web_shell_override.unwrap_or(&html);
-            stage_file(html_src, &stage.path().join("index.html"))?;
+            stage_web_shell(html_src, &stage.path().join("index.html"), opts.resolution)?;
             stage_file(&js, &stage.path().join("usagi.js"))?;
             stage_file(&wasm, &stage.path().join("usagi.wasm"))?;
             bundle
@@ -422,6 +429,42 @@ fn stage_file(src: &Path, dst: &Path) -> Result<()> {
         ))
     })?;
     Ok(())
+}
+
+/// Reads the web shell HTML, substitutes the canvas backing-store
+/// dims to match `_config().game_width / game_height`, and writes the
+/// result to `dst`. The aspect-ratio CSS in the bundled shell reads
+/// the canvas attrs at load time, so a single replacement of
+/// `width="640" height="360"` (the engine default's 2x backing store)
+/// is enough to specialize layout for any resolution. Custom shells
+/// that don't include the default attrs pass through unchanged;
+/// users running their own HTML are expected to manage their own
+/// dims.
+fn stage_web_shell(src: &Path, dst: &Path, res: crate::config::Resolution) -> Result<()> {
+    let html = std::fs::read_to_string(src)
+        .map_err(|e| Error::Cli(format!("reading {}: {e}", src.display())))?;
+    let (cw, ch) = web_canvas_dims(res);
+    let rendered = html.replace(
+        r#"width="640" height="360""#,
+        &format!(r#"width="{cw}" height="{ch}""#),
+    );
+    std::fs::write(dst, rendered)
+        .map_err(|e| Error::Cli(format!("writing {}: {e}", dst.display())))?;
+    Ok(())
+}
+
+/// Canvas backing-store dimensions for a given game resolution. Mirrors
+/// the native window-scale rule: 2x for default-and-smaller games (so
+/// a 320x180 game ships a 640x360 canvas, the size we've been
+/// shipping), 1x for anything bigger so the shell doesn't push past
+/// reasonable embed sizes.
+fn web_canvas_dims(res: crate::config::Resolution) -> (i32, i32) {
+    let scale = if res.w.max(res.h) > crate::config::Resolution::DEFAULT.w * 2.0 {
+        1.0
+    } else {
+        2.0
+    };
+    ((res.w * scale) as i32, (res.h * scale) as i32)
 }
 
 fn ensure_parent(path: &Path) -> Result<()> {
@@ -720,6 +763,71 @@ mod tests {
         std::fs::write(&script, b"-- game").unwrap();
         let resolved = resolve_web_shell_override(&script, None).unwrap();
         assert!(resolved.is_none());
+    }
+
+    #[test]
+    fn web_canvas_dims_doubles_default_size() {
+        let (w, h) = web_canvas_dims(crate::config::Resolution::DEFAULT);
+        assert_eq!((w, h), (640, 360));
+    }
+
+    #[test]
+    fn web_canvas_dims_doubles_at_or_below_threshold() {
+        let r = crate::config::Resolution { w: 640.0, h: 360.0 };
+        assert_eq!(web_canvas_dims(r), (1280, 720));
+        let r = crate::config::Resolution { w: 180.0, h: 320.0 };
+        assert_eq!(web_canvas_dims(r), (360, 640));
+        let r = crate::config::Resolution { w: 160.0, h: 90.0 };
+        assert_eq!(web_canvas_dims(r), (320, 180));
+    }
+
+    #[test]
+    fn web_canvas_dims_passes_through_above_threshold() {
+        let r = crate::config::Resolution { w: 800.0, h: 450.0 };
+        assert_eq!(web_canvas_dims(r), (800, 450));
+        let r = crate::config::Resolution {
+            w: 1280.0,
+            h: 720.0,
+        };
+        assert_eq!(web_canvas_dims(r), (1280, 720));
+    }
+
+    #[test]
+    fn stage_web_shell_substitutes_canvas_dims() {
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("shell.html");
+        let dst = dir.path().join("index.html");
+        std::fs::write(
+            &src,
+            r#"<canvas id="canvas" width="640" height="360"></canvas>"#,
+        )
+        .unwrap();
+        let r = crate::config::Resolution { w: 480.0, h: 270.0 };
+        stage_web_shell(&src, &dst, r).unwrap();
+        let written = std::fs::read_to_string(&dst).unwrap();
+        assert!(
+            written.contains(r#"width="960" height="540""#),
+            "got: {written}"
+        );
+        assert!(
+            !written.contains(r#"width="640" height="360""#),
+            "old dims should be gone: {written}"
+        );
+    }
+
+    #[test]
+    fn stage_web_shell_passes_through_custom_shell_without_default_dims() {
+        // A user shell that doesn't include the literal `width="640"
+        // height="360"` substring should be written verbatim. Users
+        // running their own HTML are responsible for their canvas dims.
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("shell.html");
+        let dst = dir.path().join("index.html");
+        let original = r#"<canvas id="canvas" width="800" height="450"></canvas>"#;
+        std::fs::write(&src, original).unwrap();
+        let r = crate::config::Resolution::DEFAULT;
+        stage_web_shell(&src, &dst, r).unwrap();
+        assert_eq!(std::fs::read_to_string(&dst).unwrap(), original);
     }
 
     #[test]

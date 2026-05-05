@@ -26,7 +26,6 @@ use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 
 use crate::palette;
-use crate::{GAME_HEIGHT, GAME_WIDTH};
 
 /// Centiseconds per frame written to the GIF. The game runs at 60 fps
 /// (16.67 ms), but GIF delays are integer centiseconds and most viewers
@@ -39,11 +38,6 @@ const FRAME_DELAY_CS: u16 = 2;
 /// Nearest-neighbor upscale applied to every recorded frame. 2x reads
 /// well when sharing.
 const RECORDING_SCALE: u16 = 2;
-
-/// Output GIF dimensions, after the upscale. `gif::Encoder` wants u16.
-/// Cast is safe: GAME_WIDTH/HEIGHT are 320/180 by definition.
-const GIF_W: u16 = GAME_WIDTH as u16 * RECORDING_SCALE;
-const GIF_H: u16 = GAME_HEIGHT as u16 * RECORDING_SCALE;
 
 /// Resolved RGB triples for the 16 palette entries, in palette-index
 /// order. Built once and reused for every captured frame.
@@ -125,6 +119,11 @@ pub struct RecordingState {
     path: PathBuf,
     palette_index: PaletteIndex,
     frames: u32,
+    /// Source RT dims at the moment recording started. Captured on
+    /// start so `capture()` always matches the encoder's frame size,
+    /// independent of any later config reload.
+    game_w: u16,
+    game_h: u16,
 }
 
 /// Top-level recorder state machine. Idle by default; user hotkey
@@ -152,15 +151,24 @@ impl Recorder {
     /// `dest_dir` is the directory `.gif` files land in. The recorder
     /// creates it if it doesn't exist. `prefix` is the filename
     /// prefix (typically the game's short name).
-    pub fn toggle(&mut self, dest_dir: &Path, prefix: &str) -> std::io::Result<Option<PathBuf>> {
+    pub fn toggle(
+        &mut self,
+        dest_dir: &Path,
+        prefix: &str,
+        res: crate::config::Resolution,
+    ) -> std::io::Result<Option<PathBuf>> {
         match std::mem::replace(self, Recorder::Idle) {
             Recorder::Idle => {
                 let path = next_capture_path(dest_dir, prefix, "gif")?;
                 let file = File::create(&path)?;
                 let writer = BufWriter::new(file);
                 let palette = palette_rgb();
+                let game_w = res.w as u16;
+                let game_h = res.h as u16;
+                let gif_w = game_w.saturating_mul(RECORDING_SCALE);
+                let gif_h = game_h.saturating_mul(RECORDING_SCALE);
                 let mut encoder =
-                    gif::Encoder::new(writer, GIF_W, GIF_H, &palette).map_err(io_err)?;
+                    gif::Encoder::new(writer, gif_w, gif_h, &palette).map_err(io_err)?;
                 encoder.set_repeat(gif::Repeat::Infinite).map_err(io_err)?;
                 crate::msg::info!("recording started: {}", path.display());
                 *self = Recorder::Recording(Box::new(RecordingState {
@@ -168,6 +176,8 @@ impl Recorder {
                     path,
                     palette_index: PaletteIndex::new(),
                     frames: 0,
+                    game_w,
+                    game_h,
                 }));
                 Ok(None)
             }
@@ -201,6 +211,8 @@ impl Recorder {
             encoder,
             palette_index,
             frames,
+            game_w,
+            game_h,
             ..
         } = state.as_mut();
         let Ok(image) = rt.texture().load_image() else {
@@ -208,12 +220,14 @@ impl Recorder {
             return;
         };
         let pixels = image.get_image_data();
-        // Source dims are the game RT size; the GIF dims above are
-        // already scaled. Both the row-flip (RTs are stored bottom-up
-        // in OpenGL) and the nearest-neighbor 2x upscale happen in
-        // this single pass so we only walk the indexed buffer once.
-        let src_w = GAME_WIDTH as usize;
-        let src_h = GAME_HEIGHT as usize;
+        // Source dims are the game RT size at recording start; the GIF
+        // dims (game_w * RECORDING_SCALE, game_h * RECORDING_SCALE) are
+        // already baked into the encoder. Both the row-flip (RTs are
+        // stored bottom-up in OpenGL) and the nearest-neighbor 2x
+        // upscale happen in this single pass so we only walk the
+        // indexed buffer once.
+        let src_w = *game_w as usize;
+        let src_h = *game_h as usize;
         let scale = RECORDING_SCALE as usize;
         let out_w = src_w * scale;
         let out_h = src_h * scale;
@@ -243,7 +257,9 @@ impl Recorder {
                 }
             }
         }
-        let mut frame = gif::Frame::from_indexed_pixels(GIF_W, GIF_H, indexed, None);
+        let gif_w = (*game_w).saturating_mul(RECORDING_SCALE);
+        let gif_h = (*game_h).saturating_mul(RECORDING_SCALE);
+        let mut frame = gif::Frame::from_indexed_pixels(gif_w, gif_h, indexed, None);
         frame.delay = FRAME_DELAY_CS;
         if let Err(e) = encoder.write_frame(&frame) {
             crate::msg::err!("recorder: write_frame failed: {e}");
@@ -303,13 +319,15 @@ pub fn save_screenshot(
     rt: &RenderTexture2D,
     dest_dir: &Path,
     prefix: &str,
+    res: crate::config::Resolution,
 ) -> std::io::Result<PathBuf> {
     let mut image = rt
         .texture()
         .load_image()
         .map_err(|e| std::io::Error::other(format!("read RT pixels: {e}")))?;
     image.flip_vertical();
-    image.resize_nn(GIF_W as i32, GIF_H as i32);
+    let scale = RECORDING_SCALE as i32;
+    image.resize_nn((res.w as i32) * scale, (res.h as i32) * scale);
     let path = next_capture_path(dest_dir, prefix, "png")?;
     let path_str = path
         .to_str()

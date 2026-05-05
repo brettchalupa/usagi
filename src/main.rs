@@ -88,11 +88,6 @@ use clap::{Parser, Subcommand};
 #[cfg(not(target_os = "emscripten"))]
 use export::ExportTarget;
 
-/// Game render dimensions, in pixels. The internal RT is always this size;
-/// the window upscales to fit.
-pub const GAME_WIDTH: f32 = 320.;
-pub const GAME_HEIGHT: f32 = 180.;
-
 /// Side length, in pixels, of one cell in `sprites.png`. Drives `gfx.spr`
 /// indexing, the tilepicker tool, the window-icon slicer, and the
 /// `usagi.SPRITE_SIZE` Lua constant. Single source of truth so a future

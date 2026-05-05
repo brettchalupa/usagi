@@ -701,16 +701,18 @@ fn pad_family(rl: &RaylibHandle, pad: i32) -> GamepadFamily {
 /// Inverts the screen-to-game render transform so a window-pixel mouse
 /// position becomes game-pixel coords. Pure (no raylib handle), so tests
 /// can exercise the math directly. May return values outside
-/// `0..GAME_WIDTH` / `0..GAME_HEIGHT` when the cursor is over the
-/// letterbox bars; games can detect that with a simple bounds check.
+/// `0..game.w` / `0..game.h` when the cursor is over the letterbox
+/// bars; games can detect that with a simple bounds check.
 pub fn screen_to_game(
     mouse_x: f32,
     mouse_y: f32,
     screen_w: i32,
     screen_h: i32,
+    res: crate::config::Resolution,
     pixel_perfect: bool,
 ) -> (i32, i32) {
-    let (scale, ox, oy) = crate::render::game_view_transform(screen_w, screen_h, pixel_perfect);
+    let (scale, ox, oy) =
+        crate::render::game_view_transform(screen_w, screen_h, res, pixel_perfect);
     let gx = ((mouse_x - ox) / scale).floor() as i32;
     let gy = ((mouse_y - oy) / scale).floor() as i32;
     (gx, gy)
@@ -779,6 +781,7 @@ impl InputState {
     /// frame, so glyphs stay stable across idle moments.
     pub fn sample(
         rl: &RaylibHandle,
+        res: crate::config::Resolution,
         pixel_perfect: bool,
         keymap: &Keymap,
         prior_source: InputSource,
@@ -802,7 +805,7 @@ impl InputState {
         let m = rl.get_mouse_position();
         let sw = rl.get_screen_width();
         let sh = rl.get_screen_height();
-        let (mx, my) = screen_to_game(m.x, m.y, sw, sh, pixel_perfect);
+        let (mx, my) = screen_to_game(m.x, m.y, sw, sh, res, pixel_perfect);
         let (last_source, fired_pad) = detect_source(rl, keymap, prior_source);
         // Carry the slot forward when nothing fired so a stretch of
         // idle frames doesn't wipe the glyph identity.
@@ -1232,12 +1235,13 @@ mod tests {
     #[test]
     fn screen_to_game_at_clean_4x_scale() {
         let (sw, sh) = (1280, 720);
-        assert_eq!(screen_to_game(640.0, 360.0, sw, sh, false), (160, 90));
-        assert_eq!(screen_to_game(0.0, 0.0, sw, sh, false), (0, 0));
+        let res = crate::config::Resolution::DEFAULT;
+        assert_eq!(screen_to_game(640.0, 360.0, sw, sh, res, false), (160, 90));
+        assert_eq!(screen_to_game(0.0, 0.0, sw, sh, res, false), (0, 0));
         // Pixel just past the right edge: outside the game viewport
         // (game is 320 wide, so 320 itself is one past the last pixel).
         assert_eq!(
-            screen_to_game(1280.0, 720.0, sw, sh, false),
+            screen_to_game(1280.0, 720.0, sw, sh, res, false),
             (320, 180),
             "should return out-of-range, not clamp"
         );
@@ -1253,10 +1257,11 @@ mod tests {
         // 600/180 = 3.33, so scale = 2.5 (non-pixel-perfect). Scaled
         // height = 450, leaving 75px black bars top and bottom.
         let (sw, sh) = (800, 600);
-        let (cx, cy) = screen_to_game(400.0, 300.0, sw, sh, false);
+        let res = crate::config::Resolution::DEFAULT;
+        let (cx, cy) = screen_to_game(400.0, 300.0, sw, sh, res, false);
         assert_eq!((cx, cy), (160, 90));
         // Click on the top letterbox bar: y should be negative.
-        let (_, top_y) = screen_to_game(400.0, 10.0, sw, sh, false);
+        let (_, top_y) = screen_to_game(400.0, 10.0, sw, sh, res, false);
         assert!(top_y < 0, "expected negative y for top bar, got {top_y}");
     }
 
@@ -1266,15 +1271,25 @@ mod tests {
     #[test]
     fn screen_to_game_pixel_perfect_floors_scale() {
         let (sw, sh) = (800, 600);
-        let (free, _) = screen_to_game(400.0, 300.0, sw, sh, false);
-        let (pp, _) = screen_to_game(400.0, 300.0, sw, sh, true);
+        let res = crate::config::Resolution::DEFAULT;
+        let (free, _) = screen_to_game(400.0, 300.0, sw, sh, res, false);
+        let (pp, _) = screen_to_game(400.0, 300.0, sw, sh, res, true);
         assert_eq!(free, 160);
         assert_eq!(pp, 160, "center stays mapped to game center either way");
         // Off-center: free scale = 2.5, pp scale = 2.0, so a 100px
         // window offset yields different game offsets.
-        let (free_x, _) = screen_to_game(500.0, 300.0, sw, sh, false);
-        let (pp_x, _) = screen_to_game(500.0, 300.0, sw, sh, true);
+        let (free_x, _) = screen_to_game(500.0, 300.0, sw, sh, res, false);
+        let (pp_x, _) = screen_to_game(500.0, 300.0, sw, sh, res, true);
         assert_eq!(free_x, 200);
         assert_eq!(pp_x, 210);
+    }
+
+    /// Different game resolution exercises the parameterized math.
+    #[test]
+    fn screen_to_game_at_custom_resolution() {
+        // 480x270 game in a 1920x1080 window: clean 4x scale.
+        let (sw, sh) = (1920, 1080);
+        let res = crate::config::Resolution { w: 480.0, h: 270.0 };
+        assert_eq!(screen_to_game(960.0, 540.0, sw, sh, res, false), (240, 135));
     }
 }

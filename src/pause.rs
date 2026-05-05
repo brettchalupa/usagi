@@ -33,7 +33,6 @@ use crate::keymap::{self, Keymap};
 use crate::palette;
 use crate::palette::Pal;
 use crate::settings::Settings;
-use crate::{GAME_HEIGHT, GAME_WIDTH};
 use inputs::{KeyConfigInputs, MenuInputs, read_inputs, snapshot_tester};
 use key_config::{KeyConfigState, is_reserved_key};
 use sola_raylib::prelude::*;
@@ -214,20 +213,21 @@ impl PauseMenu {
         settings: &Settings,
         keymap: &Keymap,
         gamepad_family: GamepadFamily,
+        res: crate::config::Resolution,
     ) {
         d.draw_rectangle(
             0,
             0,
-            GAME_WIDTH as i32,
-            GAME_HEIGHT as i32,
+            res.w as i32,
+            res.h as i32,
             palette::color(Pal::Black).alpha(0.8),
         );
         let border_padding = 4;
         d.draw_rectangle_lines(
             border_padding,
             border_padding,
-            GAME_WIDTH as i32 - border_padding * 2,
-            GAME_HEIGHT as i32 - border_padding * 2,
+            res.w as i32 - border_padding * 2,
+            res.h as i32 - border_padding * 2,
             palette::color(Pal::White),
         );
 
@@ -240,7 +240,7 @@ impl PauseMenu {
             View::ConfirmClearSave => "CLEAR SAVE?",
         };
         let title_m = font.measure_text(title, size, 0.0);
-        let title_x = ((GAME_WIDTH - title_m.x) * 0.5).round();
+        let title_x = ((res.w - title_m.x) * 0.5).round();
         let title_y = 16.0;
         d.draw_text_ex(
             font,
@@ -255,9 +255,11 @@ impl PauseMenu {
         match self.view {
             View::Top => self.draw_top(d, font, settings, body_y),
             View::InputMenu => self.draw_input_menu(d, font, body_y),
-            View::InputTester => self.draw_input_tester(d, font, keymap, gamepad_family, body_y),
-            View::KeyConfig => self.draw_key_config(d, font, body_y),
-            View::ConfirmClearSave => self.draw_confirm_clear(d, font, body_y),
+            View::InputTester => {
+                self.draw_input_tester(d, font, keymap, gamepad_family, body_y, res)
+            }
+            View::KeyConfig => self.draw_key_config(d, font, body_y, res),
+            View::ConfirmClearSave => self.draw_confirm_clear(d, font, body_y, res),
         }
     }
 }

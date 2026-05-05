@@ -20,7 +20,6 @@ use crate::pause::{PauseAction, PauseMenu};
 use crate::render::{draw_error_overlay, draw_render_target, game_view_transform};
 use crate::shader::ShaderManager;
 use crate::vfs::VirtualFs;
-use crate::{GAME_HEIGHT, GAME_WIDTH};
 
 use mlua::prelude::*;
 use sola_raylib::prelude::*;
@@ -435,6 +434,24 @@ impl Session {
         #[cfg(not(target_os = "emscripten"))]
         let capture_prefix = resolved_game_id.short_name().to_string();
 
+        // Resolved at this point from `_config().game_width / game_height`,
+        // defaulting to 320x180 when the user doesn't override.
+        let res = config.resolution;
+
+        // Games up to 640x360 open at 2x for readability; bigger
+        // games open at 1x so the initial window doesn't blow past
+        // common laptop displays. The 640 threshold means the
+        // default 320x180 game opens at 640x360 and a 640x360 game
+        // opens at 1280x720 (a nice minimal-fullscreen baseline);
+        // anything past that lands native-sized. The window is
+        // resizable, so users can drag it bigger.
+        let win_scale_threshold = crate::config::Resolution::DEFAULT.w * 2.0;
+        let win_scale = if res.w.max(res.h) > win_scale_threshold {
+            1.0
+        } else {
+            2.0
+        };
+
         // `.highdpi()` and `.resizable()` are desktop-only: on emscripten
         // they fight the JS shell's CSS scaling. `.highdpi()` doubles the
         // canvas backing-store via devicePixelRatio. `.resizable()` makes
@@ -442,11 +459,11 @@ impl Session {
         // to `window.innerWidth × window.innerHeight` on every resize event
         // (and one fires at page load), stretching the framebuffer to
         // viewport dims and breaking aspect ratio. On web we keep the
-        // backing-store at GAME_WIDTH*2 × GAME_HEIGHT*2 and let the shell's
-        // CSS upscale via `image-rendering: pixelated`.
+        // backing-store at res.w*win_scale × res.h*win_scale and let the
+        // shell's CSS upscale via `image-rendering: pixelated`.
         let mut builder = sola_raylib::init();
         builder
-            .size((GAME_WIDTH * 2.) as i32, (GAME_HEIGHT * 2.) as i32)
+            .size((res.w * win_scale) as i32, (res.h * win_scale) as i32)
             .title(project_name.display());
         #[cfg(not(target_os = "emscripten"))]
         {
@@ -483,11 +500,19 @@ impl Session {
         // Don't let resizing shrink the window below the game's native
         // resolution: smaller than that and `pixel_perfect` falls below 1×.
         #[cfg(not(target_os = "emscripten"))]
-        rl.set_window_min_size(GAME_WIDTH as i32, GAME_HEIGHT as i32);
+        rl.set_window_min_size(res.w as i32, res.h as i32);
         rl.set_exit_key(None);
         let rt: RenderTexture2D = rl
-            .load_render_texture(&thread, GAME_WIDTH as u32, GAME_HEIGHT as u32)
+            .load_render_texture(&thread, res.w as u32, res.h as u32)
             .unwrap();
+
+        // Mirror the resolved dims into the Lua side immediately so
+        // `_init` reads the correct `usagi.GAME_W` / `GAME_H`. The api
+        // setup seeded defaults; this writes the active values.
+        if let Ok(usagi_tbl) = lua.globals().get::<LuaTable>("usagi") {
+            let _ = usagi_tbl.set("GAME_W", res.w);
+            let _ = usagi_tbl.set("GAME_H", res.h);
+        }
 
         // Load the font before `_init` runs so we can register
         // `usagi.measure_text` against a leaked `&'static Font`. That
@@ -504,6 +529,7 @@ impl Session {
         // position over the live window, etc.) instead of zeroed defaults.
         input_bridge.state.set(input::InputState::sample(
             &rl,
+            res,
             config.pixel_perfect,
             &keymap,
             input::InputSource::default(),
@@ -651,6 +677,7 @@ impl Session {
         let prior_state = self.input_bridge.state.get();
         self.input_bridge.state.set(input::InputState::sample(
             &self.rl,
+            self.config.resolution,
             self.config.pixel_perfect,
             &self.keymap,
             prior_state.last_source(),
@@ -713,6 +740,7 @@ impl Session {
     /// out so the borrow-splitting destructure stays local.
     fn draw_paused(&mut self) {
         let family = self.input_bridge.state.get().gamepad_family();
+        let res = self.config.resolution;
         let Self {
             rl,
             thread,
@@ -724,7 +752,7 @@ impl Session {
             ..
         } = self;
         let mut d_rt = rl.begin_texture_mode(thread, rt);
-        pause.draw(&mut d_rt, font, settings, keymap, family);
+        pause.draw(&mut d_rt, font, settings, keymap, family, res);
     }
 
     fn maybe_reload_assets(&mut self) {
@@ -880,9 +908,11 @@ impl Session {
             let cmd_g = (g_pressed && mod_held) || (mod_just_pressed && g_down);
             let toggle_rec = self.rl.is_key_pressed(KeyboardKey::KEY_F9) || cmd_g;
             if toggle_rec
-                && let Err(e) = self
-                    .recorder
-                    .toggle(&self.captures_dir, &self.capture_prefix)
+                && let Err(e) = self.recorder.toggle(
+                    &self.captures_dir,
+                    &self.capture_prefix,
+                    self.config.resolution,
+                )
             {
                 crate::msg::err!("recorder toggle failed: {e}");
             }
@@ -893,7 +923,12 @@ impl Session {
             let cmd_f = (f_pressed && mod_held) || (mod_just_pressed && f_down);
             let take_shot = self.rl.is_key_pressed(KeyboardKey::KEY_F8) || cmd_f;
             if take_shot
-                && let Err(e) = save_screenshot(&self.rt, &self.captures_dir, &self.capture_prefix)
+                && let Err(e) = save_screenshot(
+                    &self.rt,
+                    &self.captures_dir,
+                    &self.capture_prefix,
+                    self.config.resolution,
+                )
             {
                 crate::msg::err!("screenshot failed: {e}");
             }
@@ -997,6 +1032,7 @@ impl Session {
 
     fn run_draw(&mut self, dt: f32, fps: u32) {
         let flash_overlay = self.effects.borrow().flash_overlay();
+        let res = self.config.resolution;
         let Self {
             lua,
             rl,
@@ -1257,7 +1293,7 @@ impl Session {
         if let Some((idx, alpha)) = flash_overlay {
             let mut c = color(idx);
             c.a = alpha;
-            d_rt.draw_rectangle(0, 0, GAME_WIDTH as i32, GAME_HEIGHT as i32, c);
+            d_rt.draw_rectangle(0, 0, res.w as i32, res.h as i32, c);
         }
         if *show_fps {
             d_rt.draw_text_ex(
@@ -1294,14 +1330,15 @@ impl Session {
         // Letterbox bars stay black (window clear above). Skipped
         // when no shake is active, since the RT blit covers the
         // full viewport in that case.
+        let res = self.config.resolution;
         if shake != (0.0, 0.0) {
             let (scale, top_left_x, top_left_y) =
-                game_view_transform(screen_w, screen_h, self.config.pixel_perfect);
+                game_view_transform(screen_w, screen_h, res, self.config.pixel_perfect);
             d.draw_rectangle(
                 top_left_x as i32,
                 top_left_y as i32,
-                (GAME_WIDTH * scale) as i32,
-                (GAME_HEIGHT * scale) as i32,
+                (res.w * scale) as i32,
+                (res.h * scale) as i32,
                 color(self.last_clear.get()),
             );
         }
@@ -1319,6 +1356,7 @@ impl Session {
                     &mut self.rt,
                     screen_w,
                     screen_h,
+                    res,
                     self.config.pixel_perfect,
                     shake,
                 );
@@ -1328,6 +1366,7 @@ impl Session {
                     &mut self.rt,
                     screen_w,
                     screen_h,
+                    res,
                     self.config.pixel_perfect,
                     shake,
                 );

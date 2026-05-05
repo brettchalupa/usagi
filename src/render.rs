@@ -1,7 +1,7 @@
 //! Rendering helpers that live outside the main game loop: final RT-to-
 //! window blit and the on-screen error overlay.
 
-use crate::{GAME_HEIGHT, GAME_WIDTH};
+use crate::config::Resolution;
 use sola_raylib::prelude::*;
 
 /// Maps the game's render target onto the window. Returned tuple is
@@ -11,16 +11,24 @@ use sola_raylib::prelude::*;
 /// coords can be inverted back into game space using exactly the same
 /// transform that drew the frame; if these drift, click positions will
 /// fall offset from where the player visually aimed.
-pub fn game_view_transform(screen_w: i32, screen_h: i32, pixel_perfect: bool) -> (f32, f32, f32) {
-    let mut scale = (screen_w as f32 / GAME_WIDTH).min(screen_h as f32 / GAME_HEIGHT);
+///
+/// `res` is the configured render resolution (default 320x180;
+/// overridable via `_config().game_width / game_height`).
+pub fn game_view_transform(
+    screen_w: i32,
+    screen_h: i32,
+    res: Resolution,
+    pixel_perfect: bool,
+) -> (f32, f32, f32) {
+    let mut scale = (screen_w as f32 / res.w).min(screen_h as f32 / res.h);
     if pixel_perfect {
         scale = scale.floor();
     }
     if scale < 1.0 {
         scale = 1.0;
     }
-    let scaled_w = GAME_WIDTH * scale;
-    let scaled_h = GAME_HEIGHT * scale;
+    let scaled_w = res.w * scale;
+    let scaled_h = res.h * scale;
     let top_left_x = (screen_w / 2) as f32 - scaled_w / 2.0;
     let top_left_y = (screen_h / 2) as f32 - scaled_h / 2.0;
     (scale, top_left_x, top_left_y)
@@ -39,12 +47,13 @@ pub fn draw_render_target<D: RaylibDraw>(
     rt: &mut RenderTexture2D,
     screen_w: i32,
     screen_h: i32,
+    res: Resolution,
     pixel_perfect: bool,
     shake: (f32, f32),
 ) {
-    let (scale, _, _) = game_view_transform(screen_w, screen_h, pixel_perfect);
-    let scaled_w = GAME_WIDTH * scale;
-    let scaled_h = GAME_HEIGHT * scale;
+    let (scale, _, _) = game_view_transform(screen_w, screen_h, res, pixel_perfect);
+    let scaled_w = res.w * scale;
+    let scaled_h = res.h * scale;
     let (sx, sy) = shake;
     let dest_rect = Rectangle {
         x: (screen_w / 2) as f32 + sx * scale,
@@ -59,8 +68,8 @@ pub fn draw_render_target<D: RaylibDraw>(
         Rectangle {
             x: 0.0,
             y: 0.0,
-            width: GAME_WIDTH,
-            height: -GAME_HEIGHT,
+            width: res.w,
+            height: -res.h,
         },
         dest_rect,
         origin,
