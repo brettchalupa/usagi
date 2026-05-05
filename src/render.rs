@@ -30,19 +30,25 @@ pub fn game_view_transform(screen_w: i32, screen_h: i32, pixel_perfect: bool) ->
 /// Generic over the draw handle so this composes with `RaylibShaderMode`
 /// (the post-process wrapper used by `gfx.shader_set`) as well as the
 /// plain `RaylibDrawHandle`.
+///
+/// `shake` is an offset in *game pixels* (not screen pixels) added to
+/// the dest rect after upscaling, so `effect.screen_shake(t, 4)` looks
+/// the same regardless of window size.
 pub fn draw_render_target<D: RaylibDraw>(
     d: &mut D,
     rt: &mut RenderTexture2D,
     screen_w: i32,
     screen_h: i32,
     pixel_perfect: bool,
+    shake: (f32, f32),
 ) {
     let (scale, _, _) = game_view_transform(screen_w, screen_h, pixel_perfect);
     let scaled_w = GAME_WIDTH * scale;
     let scaled_h = GAME_HEIGHT * scale;
+    let (sx, sy) = shake;
     let dest_rect = Rectangle {
-        x: (screen_w / 2) as f32,
-        y: (screen_h / 2) as f32,
+        x: (screen_w / 2) as f32 + sx * scale,
+        y: (screen_h / 2) as f32 + sy * scale,
         width: scaled_w,
         height: scaled_h,
     };

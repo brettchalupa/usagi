@@ -29,7 +29,7 @@ local function spawn(key)
   if board.collides(State.board, State.piece, 0, 0) then
     State.alive = false
     sfx.play("gameover")
-    effects.trigger_shake(State.fx, 1, 0.25)
+    effect.screen_shake(0.25, 1)
     usagi.save({ high_score = State.high_score })
   end
 end
@@ -65,7 +65,7 @@ local function commit_piece()
 
     sfx.play(n == 4 and "tetris" or "clear")
     if n == 4 then
-      effects.trigger_shake(State.fx, 1, 0.1)
+      effect.screen_shake(0.1, 1)
       local sum_y = 0
       for _, r in ipairs(rows) do
         sum_y = sum_y + (cfg.BOARD_Y + (r - 1) * cfg.CELL + cfg.CELL / 2)
@@ -281,10 +281,8 @@ function _draw(_dt)
 
   gfx.clear(gfx.COLOR_DARK_BLUE)
 
-  -- Playfield-only shake offset: HUD stays anchored, board rattles.
-  local sx, sy = effects.shake_offset(State.fx)
-  local bx = cfg.BOARD_X + sx
-  local by = cfg.BOARD_Y + sy
+  local bx = cfg.BOARD_X
+  local by = cfg.BOARD_Y
 
   -- Playfield: dark border, then black interior.
   gfx.rect_fill(bx - 2, by - 2, cfg.BOARD_W + 4, cfg.BOARD_H + 4, gfx.COLOR_LIGHT_GRAY)
@@ -321,7 +319,7 @@ function _draw(_dt)
     )
   end
 
-  effects.draw_popups(State.fx, sx, sy)
+  effects.draw_popups(State.fx)
 
   gfx.text("notetris", usagi.GAME_W - usagi.measure_text("notetris") - 10, 10, gfx.COLOR_WHITE)
 

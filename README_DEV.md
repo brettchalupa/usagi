@@ -555,6 +555,47 @@ Engine-level info.
   strings, numbers, booleans, nil. Functions, userdata, NaN, and circular tables
   raise an error.
 
+### Effects: hitstop, screen shake, flash, slow-mo
+
+The `effect.*` module gives you four engine-level juice primitives. Each is a
+single call from anywhere in `_init` / `_update` / `_draw`; the engine decays
+them once per frame and threads them into the right point in the update / render
+loop, so you don't have to plumb shake offsets through your draws or gate
+`_update` on a freeze flag.
+
+```lua
+effect.hitstop(0.06)                     -- freeze _update for 60 ms
+effect.screen_shake(0.3, 4)              -- shake 0.3 s, up to 4 game pixels
+effect.flash(0.1, gfx.COLOR_WHITE)       -- white flash, fades over 100 ms
+effect.slow_mo(1.5, 0.3)                 -- 1.5 s at 30% speed
+```
+
+- **`effect.hitstop(time)`** skips the call to `_update` for `time` seconds.
+  `_draw` still runs so the world stays on screen.
+- **`effect.screen_shake(time, intensity)`** offsets the RT-to-window blit.
+  `intensity` is a max offset in _game pixels_ (try 2-6); the magnitude decays
+  linearly to zero. Overlays drawn outside the world (the engine error overlay,
+  the REC indicator) stay anchored.
+- **`effect.flash(time, color)`** draws a full-screen overlay of palette `color`
+  on top of `_draw`'s output. Alpha decays from opaque to transparent. White on
+  hits, red on damage.
+- **`effect.slow_mo(time, scale)`** multiplies the `dt` passed to `_update` by
+  `scale`. `scale=0.5` is half-speed, `scale=2.0` is double-speed, `scale=0`
+  freezes (use `effect.hitstop` for that intent). The slow_mo timer itself
+  counts down at real wall-clock, so the cinematic always ends on schedule.
+
+**Stacking.** Across all four, longer duration wins; for the magnitude
+parameter, the latest call wins. `effect.screen_shake(0.1, 2)` followed by
+`effect.screen_shake(0.5, 4)` gives 0.5 s at intensity 4. Spam-calling is safe.
+
+**Pause.** When the engine pause overlay is open, effect timers don't tick and
+shake is suppressed under the "PAUSED" view, so nothing decays or rattles while
+the game is held.
+
+See
+[`examples/effect.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/effect.lua)
+for a runnable demo (one key per primitive plus a combo button).
+
 ### Shaders (advanced, experimental)
 
 Post-process GLSL fragment shaders run as the final pass when the game's render

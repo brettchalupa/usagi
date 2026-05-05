@@ -14,6 +14,19 @@ Features:
   version is released. Currently updates `meta/usagi.lua`, `.luarc.json`, and
   `USAGI.md`. Does **not** update `main.lua`. Use this after `usagi update` to
   get the docs and LSP integration for the `usagi -V` you're using.
+- New `effect.*` Lua module for engine-level juice. Four primitives, all decay
+  automatically once per frame:
+  - `effect.hitstop(time)` freezes `_update` for `time` seconds.
+  - `effect.screen_shake(time, intensity)` shakes the blit, magnitude in game
+    pixels, decays linearly.
+  - `effect.flash(time, color)` full-screen palette-color overlay that fades
+    from opaque to transparent.
+  - `effect.slow_mo(time, scale)` scales the `dt` passed to `_update`;
+    `scale=0.5` is half-speed, `scale=0` freezes (use `hitstop` for that).
+    Stacking rule across all four: longer duration wins, latest magnitude wins;
+    spam-calling is safe. See `examples/effect.lua` for a runnable demo. The
+    `notetris` example now uses `effect.screen_shake` in place of its bespoke
+    shake.
 
 ## v0.5.0 - May 4, 2026
 

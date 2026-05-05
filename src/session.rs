@@ -13,10 +13,11 @@ use crate::assets::{
 };
 #[cfg(not(target_os = "emscripten"))]
 use crate::capture::{Recorder, save_screenshot};
+use crate::effect::Effects;
 use crate::input;
 use crate::palette::color;
 use crate::pause::{PauseAction, PauseMenu};
-use crate::render::{draw_error_overlay, draw_render_target};
+use crate::render::{draw_error_overlay, draw_render_target, game_view_transform};
 use crate::shader::ShaderManager;
 use crate::vfs::VirtualFs;
 use crate::{GAME_HEIGHT, GAME_WIDTH};
@@ -153,6 +154,45 @@ fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
     Ok(())
 }
 
+/// Installs `effect.hitstop` / `screen_shake` / `flash` / `slow_mo` once
+/// at session startup. Closures share an `Rc<RefCell<Effects>>` with
+/// the session so writes from any callback (`_init`, `_update`,
+/// `_draw`) land in the same per-frame state.
+fn register_effect_api(lua: &Lua, effects: &Rc<std::cell::RefCell<Effects>>) -> LuaResult<()> {
+    let effect = lua.create_table()?;
+
+    let e = Rc::clone(effects);
+    let hitstop = lua.create_function(move |_, time: f32| {
+        e.borrow_mut().hitstop(time);
+        Ok(())
+    })?;
+    effect.set("hitstop", hitstop)?;
+
+    let e = Rc::clone(effects);
+    let screen_shake = lua.create_function(move |_, (time, intensity): (f32, f32)| {
+        e.borrow_mut().screen_shake(time, intensity);
+        Ok(())
+    })?;
+    effect.set("screen_shake", screen_shake)?;
+
+    let e = Rc::clone(effects);
+    let flash = lua.create_function(move |_, (time, color_index): (f32, i32)| {
+        e.borrow_mut().flash(time, color_index);
+        Ok(())
+    })?;
+    effect.set("flash", flash)?;
+
+    let e = Rc::clone(effects);
+    let slow_mo = lua.create_function(move |_, (time, scale): (f32, f32)| {
+        e.borrow_mut().slow_mo(time, scale);
+        Ok(())
+    })?;
+    effect.set("slow_mo", slow_mo)?;
+
+    lua.globals().set("effect", effect)?;
+    Ok(())
+}
+
 /// Installs `music.play` / `music.loop` / `music.stop` once at session
 /// startup against a shared `MusicLibrary`. The closures `borrow_mut`
 /// the library on each call, so they can be invoked from `_init` (e.g.
@@ -278,6 +318,19 @@ struct Session {
     /// `usagi.elapsed` Lua field at the start of each frame, before
     /// `_update`. f64 to avoid f32 precision drift over hour-long runs.
     elapsed: f64,
+
+    /// Engine-level juice state (hitstop, screen shake, flash, slow_mo)
+    /// driven by the `effect.*` Lua API. Decayed once per frame in
+    /// `frame()` (gated on the pause overlay being closed), then read
+    /// from the update gate, dt scaler, blit, and post-draw overlay.
+    effects: Rc<std::cell::RefCell<Effects>>,
+
+    /// Most recent palette index passed to `gfx.clear`. Read by the
+    /// blit when shake is active so the strips exposed at the edges
+    /// of the shifted RT are filled with the game's bg color rather
+    /// than letterbox black. Defaults to 0 (black) so a game that
+    /// never calls `gfx.clear` gets the prior behavior.
+    last_clear: std::cell::Cell<i32>,
 
     /// Engine-level pause overlay. While `pause.open` is true, `_update`
     /// and `_draw` are skipped and the RT renders a black "PAUSED"
@@ -499,6 +552,10 @@ impl Session {
         register_shader_api(&lua, &shader)
             .map_err(|e| crate::Error::Cli(format!("registering gfx.shader_* API: {e}")))?;
 
+        let effects = Rc::new(std::cell::RefCell::new(Effects::new()));
+        register_effect_api(&lua, &effects)
+            .map_err(|e| crate::Error::Cli(format!("registering effect.* API: {e}")))?;
+
         if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
             record_err(&mut last_error, "_init", init.call::<()>(()));
         }
@@ -524,6 +581,8 @@ impl Session {
             show_fps: false,
             config,
             elapsed: 0.0,
+            effects,
+            last_clear: std::cell::Cell::new(0),
             pause: PauseMenu::new(),
             input_bridge,
             gamepad_probe: input::GamepadProbe::new(),
@@ -625,7 +684,15 @@ impl Session {
             self.run_draw(dt, fps);
             self.draw_paused();
         } else {
-            self.run_update(dt);
+            // Decay juice timers with real wall-clock dt before
+            // anything reads them, so hitstop/shake/flash/slow_mo
+            // expire on schedule even when slow_mo is active.
+            self.effects.borrow_mut().tick(dt);
+            let frozen = self.effects.borrow().frozen();
+            let scaled_dt = dt * self.effects.borrow().time_scale();
+            if !frozen {
+                self.run_update(scaled_dt);
+            }
             self.run_draw(dt, fps);
         }
 
@@ -929,6 +996,7 @@ impl Session {
     }
 
     fn run_draw(&mut self, dt: f32, fps: u32) {
+        let flash_overlay = self.effects.borrow().flash_overlay();
         let Self {
             lua,
             rl,
@@ -940,6 +1008,7 @@ impl Session {
             draw,
             last_error,
             show_fps,
+            last_clear,
             ..
         } = self;
         let mut d_rt = rl.begin_texture_mode(thread, rt);
@@ -954,6 +1023,7 @@ impl Session {
                 lua.scope(|scope| {
                     let gfx_tbl: LuaTable = lua.globals().get("gfx")?;
                     let clear = scope.create_function(|_, c: i32| {
+                        last_clear.set(c);
                         d_rt_cell.borrow_mut().clear_background(color(c));
                         Ok(())
                     })?;
@@ -1184,6 +1254,11 @@ impl Session {
                 }),
             );
         }
+        if let Some((idx, alpha)) = flash_overlay {
+            let mut c = color(idx);
+            c.a = alpha;
+            d_rt.draw_rectangle(0, 0, GAME_WIDTH as i32, GAME_HEIGHT as i32, c);
+        }
         if *show_fps {
             d_rt.draw_text_ex(
                 font,
@@ -1200,8 +1275,36 @@ impl Session {
     fn blit_and_overlay(&mut self, screen_w: i32, screen_h: i32) {
         #[cfg(not(target_os = "emscripten"))]
         let recording = self.recorder.is_recording();
+        // Shake offset is sampled here (post-update, post-draw) so the
+        // RT itself stays unshaken; only the blit's dest rect moves.
+        // That keeps overlays drawn outside this function (error,
+        // REC) stable while the world dances. Suppressed under the
+        // pause overlay so the world doesn't keep shaking under
+        // "PAUSED".
+        let shake = if self.pause.open {
+            (0.0, 0.0)
+        } else {
+            self.effects.borrow_mut().shake_offset()
+        };
         let mut d = self.rl.begin_drawing(&self.thread);
         d.clear_background(Color::BLACK);
+        // Fill the unshaken game viewport with the most recent
+        // `gfx.clear` color so the strips exposed at the shifted
+        // RT's edges read as the game's bg, not letterbox black.
+        // Letterbox bars stay black (window clear above). Skipped
+        // when no shake is active, since the RT blit covers the
+        // full viewport in that case.
+        if shake != (0.0, 0.0) {
+            let (scale, top_left_x, top_left_y) =
+                game_view_transform(screen_w, screen_h, self.config.pixel_perfect);
+            d.draw_rectangle(
+                top_left_x as i32,
+                top_left_y as i32,
+                (GAME_WIDTH * scale) as i32,
+                (GAME_HEIGHT * scale) as i32,
+                color(self.last_clear.get()),
+            );
+        }
         // Wrap the RT-to-window blit in `begin_shader_mode` when a
         // shader is active so the post-process runs at window
         // resolution (smoother than game-res). The error overlay and
@@ -1217,6 +1320,7 @@ impl Session {
                     screen_w,
                     screen_h,
                     self.config.pixel_perfect,
+                    shake,
                 );
             } else {
                 draw_render_target(
@@ -1225,6 +1329,7 @@ impl Session {
                     screen_w,
                     screen_h,
                     self.config.pixel_perfect,
+                    shake,
                 );
             }
         }
