@@ -1,15 +1,8 @@
-#version 330
-
-in vec2 fragTexCoord;
-in vec4 fragColor;
-
-uniform sampler2D texture0;
+#usagi shader 1
 
 uniform float u_time;
 uniform float u_pulse;
 uniform float u_pulse_y;
-
-out vec4 finalColor;
 
 float hash(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -25,9 +18,8 @@ vec3 sparkle_color(float seed) {
     return vec3(0.65, 1.00, 0.55);
 }
 
-void main() {
-    vec2 uv = fragTexCoord;
-
+vec4 usagi_main(vec2 uv, vec4 color) {
+    vec2 base_uv = uv;
     float ring_radius = (1.0 - u_pulse) * 0.7;
     float dist = abs(uv.y - u_pulse_y);
     float band = exp(-pow((dist - ring_radius) * 12.0, 2.0));
@@ -35,10 +27,10 @@ void main() {
     float warp = sin(dist * 60.0 - u_time * 22.0) * band * 0.018 * u_pulse;
     uv.x += warp;
 
-    vec3 col = texture(texture0, clamp(uv, 0.0, 1.0)).rgb;
+    vec3 col = usagi_texture(texture0, clamp(uv, 0.0, 1.0)).rgb;
 
     vec2 grid_res = vec2(80.0, 45.0);
-    vec2 grid = floor(fragTexCoord * grid_res);
+    vec2 grid = floor(base_uv * grid_res);
     float tick = floor(u_time * 16.0);
     float n = hash(grid + tick * 0.137);
     float zone = exp(-pow((dist - ring_radius) * 5.0, 2.0));
@@ -47,5 +39,5 @@ void main() {
 
     col += band * u_pulse * 0.22;
 
-    finalColor = vec4(col, 1.0);
+    return vec4(col, 1.0);
 }

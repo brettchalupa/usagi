@@ -3,10 +3,9 @@
 //! Games declare a fragment shader that runs as a final pass on the
 //! game render target as it's blitted to the window. Lua API:
 //!
-//! - `gfx.shader_set("name")` activates `shaders/<name>.fs` (and an
-//!   optional `<name>.vs`). On web the loader prefers `<name>_es.fs`,
-//!   on desktop it prefers `<name>.fs`; whichever isn't found falls
-//!   back to the other. Pass `nil` to clear.
+//! - `gfx.shader_set("name")` activates `shaders/<name>.usagi.fs`,
+//!   or falls back to native `shaders/<name>.fs` / `<name>_es.fs`
+//!   plus an optional `<name>.vs`. Pass `nil` to clear.
 //! - `gfx.shader_uniform(name, value)` queues a uniform write. Number
 //!   maps to float; 2/3/4-length tables map to vec2/vec3/vec4.
 //!
@@ -50,7 +49,7 @@ struct Active {
     name: String,
     shader: Shader,
     /// Bundle/vfs key the fragment source was read from. May be
-    /// `<name>.fs` or `<name>_es.fs` depending on platform / fallback.
+    /// `<name>.usagi.fs`, `<name>.fs`, or `<name>_es.fs`.
     fs_key: String,
     /// Same for the optional vertex source.
     vs_key: Option<String>,
@@ -110,8 +109,8 @@ impl ShaderManager {
         }
     }
 
-    /// Re-reads source from the vfs if either the .fs or .vs mtime
-    /// has moved. Replays cached uniforms onto the rebuilt shader.
+    /// Re-reads source from the vfs if either the fragment or vertex
+    /// mtime has moved. Replays cached uniforms onto the rebuilt shader.
     pub fn reload_if_changed(
         &mut self,
         rl: &mut RaylibHandle,
@@ -152,20 +151,15 @@ impl ShaderManager {
         vfs: &dyn VirtualFs,
         name: &str,
     ) {
-        let Some((fs_key, fs_bytes)) = read_with_fallback(vfs, name, "fs") else {
-            crate::msg::err!("shader '{name}': no shaders/{name}.fs (or _es.fs) found");
-            self.active = None;
-            return;
-        };
-        let vs_pair = read_with_fallback(vfs, name, "vs");
-        let fs_src = match std::str::from_utf8(&fs_bytes) {
-            Ok(s) => s.to_string(),
+        let (fs_key, fs_src) = match read_fragment_source(vfs, name) {
+            Ok(src) => src,
             Err(e) => {
-                crate::msg::err!("shader '{name}': fragment source not valid utf-8: {e}");
+                crate::msg::err!("shader '{name}': {e}");
                 self.active = None;
                 return;
             }
         };
+        let vs_pair = read_with_fallback(vfs, name, "vs");
         let vs_src = match vs_pair.as_ref() {
             Some((_, bytes)) => match std::str::from_utf8(bytes) {
                 Ok(s) => Some(s.to_string()),
@@ -202,6 +196,87 @@ impl ShaderManager {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShaderProfile {
+    #[cfg(any(not(target_os = "emscripten"), test))]
+    DesktopGlsl330,
+    #[cfg(any(target_os = "emscripten", test))]
+    WebGlslEs100,
+}
+
+fn read_fragment_source(vfs: &dyn VirtualFs, name: &str) -> Result<(String, String), String> {
+    let generic_key = generic_fragment_key(name);
+    if let Some(bytes) = vfs.read_file(&generic_key) {
+        let src = std::str::from_utf8(&bytes)
+            .map_err(|e| format!("{generic_key}: source not valid utf-8: {e}"))?;
+        let generated = generate_generic_fragment(src, target_profile())
+            .map_err(|e| format!("{generic_key}: {e}"))?;
+        return Ok((generic_key, generated));
+    }
+
+    let Some((key, bytes)) = read_with_fallback(vfs, name, "fs") else {
+        return Err(format!(
+            "no shaders/{name}.usagi.fs, shaders/{name}.fs, or shaders/{name}_es.fs found"
+        ));
+    };
+    let src = std::str::from_utf8(&bytes)
+        .map_err(|e| format!("{key}: fragment source not valid utf-8: {e}"))?;
+    Ok((key, src.to_string()))
+}
+
+fn generate_generic_fragment(src: &str, profile: ShaderProfile) -> Result<String, String> {
+    let body = strip_usagi_shader_directive(src).trim_start_matches('\n');
+    if body.contains("#version") {
+        return Err("generic shaders must not declare #version".to_string());
+    }
+    if !body.contains("usagi_main") {
+        return Err("generic shaders must define vec4 usagi_main(vec2 uv, vec4 color)".to_string());
+    }
+
+    let header = match profile {
+        #[cfg(any(not(target_os = "emscripten"), test))]
+        ShaderProfile::DesktopGlsl330 => {
+            "#version 330\n\nin vec2 fragTexCoord;\nin vec4 fragColor;\nuniform sampler2D texture0;\nout vec4 finalColor;\n#define usagi_texture(texture_name, uv) texture(texture_name, uv)\n\n"
+        }
+        #[cfg(any(target_os = "emscripten", test))]
+        ShaderProfile::WebGlslEs100 => {
+            "#version 100\n\nprecision mediump float;\n\nvarying vec2 fragTexCoord;\nvarying vec4 fragColor;\nuniform sampler2D texture0;\n#define usagi_texture(texture_name, uv) texture2D(texture_name, uv)\n\n"
+        }
+    };
+    let footer = match profile {
+        #[cfg(any(not(target_os = "emscripten"), test))]
+        ShaderProfile::DesktopGlsl330 => {
+            "\n\nvoid main() {\n    finalColor = usagi_main(fragTexCoord, fragColor);\n}\n"
+        }
+        #[cfg(any(target_os = "emscripten", test))]
+        ShaderProfile::WebGlslEs100 => {
+            "\n\nvoid main() {\n    gl_FragColor = usagi_main(fragTexCoord, fragColor);\n}\n"
+        }
+    };
+
+    let mut out = String::with_capacity(header.len() + body.len() + footer.len());
+    out.push_str(header);
+    out.push_str(body);
+    out.push_str(footer);
+    Ok(out)
+}
+
+fn strip_usagi_shader_directive(src: &str) -> &str {
+    let mut start = 0;
+    for line in src.split_inclusive('\n') {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            start += line.len();
+            continue;
+        }
+        if trimmed == "#usagi shader 1" {
+            return &src[start + line.len()..];
+        }
+        return &src[start..];
+    }
+    &src[start..]
+}
+
 /// Reads `shaders/<name>.<ext>` with the platform-preferred filename
 /// first and the alt as fallback. Returns the key that hit and its
 /// bytes so callers can stat / reload against the same file.
@@ -219,6 +294,19 @@ fn read_with_fallback(vfs: &dyn VirtualFs, name: &str, ext: &str) -> Option<(Str
 
 fn file_mtime(vfs: &dyn VirtualFs, key: &str) -> Option<SystemTime> {
     vfs.file_mtime(key)
+}
+
+fn generic_fragment_key(name: &str) -> String {
+    format!("shaders/{name}.usagi.fs")
+}
+
+#[cfg(target_os = "emscripten")]
+fn target_profile() -> ShaderProfile {
+    ShaderProfile::WebGlslEs100
+}
+#[cfg(not(target_os = "emscripten"))]
+fn target_profile() -> ShaderProfile {
+    ShaderProfile::DesktopGlsl330
 }
 
 #[cfg(target_os = "emscripten")]
@@ -262,5 +350,201 @@ mod tests {
         let mut m = ShaderManager::new();
         m.request_set(None);
         assert!(matches!(m.pending_shader, Some(None)));
+    }
+
+    #[test]
+    fn generic_fragment_key_uses_usagi_suffix() {
+        assert_eq!(generic_fragment_key("crt"), "shaders/crt.usagi.fs");
+    }
+
+    #[test]
+    fn generic_fragment_source_wins_over_native_fallback() {
+        let mut bundle = crate::bundle::Bundle::new();
+        bundle.insert("main.lua", Vec::new());
+        bundle.insert(
+            "shaders/crt.usagi.fs",
+            b"vec4 usagi_main(vec2 uv, vec4 color) { return vec4(0.1, 0.2, 0.3, 1.0); }\n".to_vec(),
+        );
+        bundle.insert(
+            "shaders/crt.fs",
+            b"#version 330\n// native_only_marker\nvoid main() {}\n".to_vec(),
+        );
+        let vfs = crate::vfs::BundleBacked::new(bundle);
+
+        let (key, src) = read_fragment_source(&vfs, "crt").unwrap();
+
+        assert_eq!(key, "shaders/crt.usagi.fs");
+        assert!(src.contains("return vec4(0.1, 0.2, 0.3, 1.0);"));
+        assert!(!src.contains("native_only_marker"));
+    }
+
+    #[test]
+    fn generic_fragment_generates_desktop_shader() {
+        let src = "#usagi shader 1\n\nvec4 usagi_main(vec2 uv, vec4 color) {\n    return usagi_texture(texture0, uv) * color;\n}\n";
+        let out = generate_generic_fragment(src, ShaderProfile::DesktopGlsl330).unwrap();
+
+        assert!(out.contains("#version 330"));
+        assert!(out.contains("in vec2 fragTexCoord;"));
+        assert!(out.contains("out vec4 finalColor;"));
+        assert!(out.contains("#define usagi_texture(texture_name, uv) texture(texture_name, uv)"));
+        assert!(out.contains("finalColor = usagi_main(fragTexCoord, fragColor);"));
+        assert!(!out.contains("#usagi shader 1"));
+    }
+
+    #[test]
+    fn generic_fragment_generates_web_shader() {
+        let src = "vec4 usagi_main(vec2 uv, vec4 color) {\n    return usagi_texture(texture0, uv) * color;\n}\n";
+        let out = generate_generic_fragment(src, ShaderProfile::WebGlslEs100).unwrap();
+
+        assert!(out.contains("#version 100"));
+        assert!(out.contains("precision mediump float;"));
+        assert!(out.contains("varying vec2 fragTexCoord;"));
+        assert!(
+            out.contains("#define usagi_texture(texture_name, uv) texture2D(texture_name, uv)")
+        );
+        assert!(out.contains("gl_FragColor = usagi_main(fragTexCoord, fragColor);"));
+    }
+
+    #[test]
+    fn generic_fragment_rejects_version_directive() {
+        let err = generate_generic_fragment(
+            "#version 330\nvec4 usagi_main(vec2 uv, vec4 color) { return color; }\n",
+            ShaderProfile::DesktopGlsl330,
+        )
+        .unwrap_err();
+
+        assert!(err.contains("must not declare #version"));
+    }
+
+    #[test]
+    fn generic_fragment_rejects_missing_entrypoint() {
+        let err = generate_generic_fragment(
+            "vec4 tint(vec4 color) { return color; }\n",
+            target_profile(),
+        )
+        .unwrap_err();
+
+        assert!(err.contains("usagi_main"));
+    }
+
+    #[cfg(not(target_os = "emscripten"))]
+    #[test]
+    #[ignore = "requires a desktop OpenGL context; run with `cargo test shader_runtime -- --ignored`"]
+    fn shader_runtime_examples_compile_and_gameboy_pixels_match() {
+        let (mut rl, thread) = sola_raylib::init()
+            .size(32, 32)
+            .title("usagi shader runtime test")
+            .log_level(TraceLogLevel::LOG_WARNING)
+            .build();
+        for (name, src) in [
+            (
+                "crt",
+                include_str!("../examples/shader/shaders/crt.usagi.fs"),
+            ),
+            (
+                "gameboy",
+                include_str!("../examples/shader/shaders/gameboy.usagi.fs"),
+            ),
+            (
+                "notetris",
+                include_str!("../examples/notetris/shaders/notetris.usagi.fs"),
+            ),
+            (
+                "playdate_palette",
+                include_str!("../examples/playdate/shaders/playdate_palette.usagi.fs"),
+            ),
+        ] {
+            let generated = generate_generic_fragment(src, ShaderProfile::DesktopGlsl330)
+                .unwrap_or_else(|e| panic!("{name}: generic shader generation failed: {e}"));
+            let shader = rl.load_shader_from_memory(&thread, None, Some(&generated));
+            assert!(
+                shader.is_shader_valid(),
+                "{name}: generated shader did not compile"
+            );
+        }
+
+        let gameboy_src = include_str!("../examples/shader/shaders/gameboy.usagi.fs");
+        let generated = generate_generic_fragment(gameboy_src, ShaderProfile::DesktopGlsl330)
+            .expect("gameboy shader generation failed");
+        let mut shader = rl.load_shader_from_memory(&thread, None, Some(&generated));
+        assert!(shader.is_shader_valid());
+
+        const W: u32 = 4;
+        const H: u32 = 4;
+        let mut source = rl
+            .load_render_texture(&thread, W, H)
+            .expect("source render texture");
+        let mut target = rl
+            .load_render_texture(&thread, W, H)
+            .expect("target render texture");
+
+        {
+            let mut d = rl.begin_texture_mode(&thread, &mut source);
+            d.clear_background(Color::BLACK);
+            d.draw_rectangle(0, 0, 1, H as i32, Color::new(0, 0, 0, 255));
+            d.draw_rectangle(1, 0, 1, H as i32, Color::new(96, 96, 96, 255));
+            d.draw_rectangle(2, 0, 1, H as i32, Color::new(160, 160, 160, 255));
+            d.draw_rectangle(3, 0, 1, H as i32, Color::new(255, 255, 255, 255));
+        }
+
+        {
+            let mut d = rl.begin_texture_mode(&thread, &mut target);
+            d.clear_background(Color::BLACK);
+            let mut s = d.begin_shader_mode(&mut shader);
+            s.draw_texture_pro(
+                source.texture(),
+                Rectangle {
+                    x: 0.0,
+                    y: 0.0,
+                    width: W as f32,
+                    height: -(H as f32),
+                },
+                Rectangle {
+                    x: 0.0,
+                    y: 0.0,
+                    width: W as f32,
+                    height: H as f32,
+                },
+                Vector2::new(0.0, 0.0),
+                0.0,
+                Color::WHITE,
+            );
+        }
+
+        let image = target.texture().load_image().expect("target readback");
+        let pixels = image.get_image_data();
+        assert_eq!(pixels.len(), (W * H) as usize);
+
+        let y = 1usize;
+        let expected = [
+            Color::new(15, 56, 15, 255),
+            Color::new(48, 98, 48, 255),
+            Color::new(139, 172, 15, 255),
+            Color::new(155, 188, 15, 255),
+        ];
+        for (x, want) in expected.into_iter().enumerate() {
+            let got = pixels[y * W as usize + x];
+            assert_color_near(got, want, 5, "gameboy palette stripe");
+        }
+    }
+
+    #[cfg(not(target_os = "emscripten"))]
+    fn assert_color_near(got: Color, want: Color, tolerance: u8, label: &str) {
+        let near = |a: u8, b: u8| a.abs_diff(b) <= tolerance;
+        assert!(
+            near(got.r, want.r)
+                && near(got.g, want.g)
+                && near(got.b, want.b)
+                && near(got.a, want.a),
+            "{label}: got rgba({}, {}, {}, {}), want near rgba({}, {}, {}, {})",
+            got.r,
+            got.g,
+            got.b,
+            got.a,
+            want.r,
+            want.g,
+            want.b,
+            want.a
+        );
     }
 }

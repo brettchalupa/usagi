@@ -422,12 +422,17 @@ mod tests {
         let root = dir.path();
         fs::write(root.join("main.lua"), b"-- main").unwrap();
         fs::create_dir(root.join("shaders")).unwrap();
+        fs::write(root.join("shaders/crt.usagi.fs"), b"// generic frag").unwrap();
         fs::write(root.join("shaders/crt.fs"), b"// frag").unwrap();
         fs::write(root.join("shaders/crt_es.fs"), b"// frag es").unwrap();
         fs::write(root.join("shaders/wave.vs"), b"// vert").unwrap();
         fs::write(root.join("shaders/notes.txt"), b"ignored").unwrap();
 
         let bundle = Bundle::from_project(&root.join("main.lua")).unwrap();
+        assert_eq!(
+            bundle.get("shaders/crt.usagi.fs"),
+            Some(b"// generic frag".as_slice())
+        );
         assert_eq!(bundle.get("shaders/crt.fs"), Some(b"// frag".as_slice()));
         assert_eq!(
             bundle.get("shaders/crt_es.fs"),
