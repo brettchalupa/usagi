@@ -202,7 +202,7 @@ and creates a GitHub Release **as a draft** with the archives attached. Once the
 workflow finishes, there will be a draft release.
 
 Copy the Changelog notes and assets on the Releases page, then click Publish to
-make it public. Tags containing a hyphen (`v0.1.0-dev.1`) are flagged as
+make it public. Tags containing a hyphen (`v0.1.0-rc.1`) are flagged as
 prereleases following semver convention.
 
 ### Release Artifacts
@@ -224,7 +224,8 @@ the URL convention `${USAGI_TEMPLATE_BASE}/v<ver>/<file>`.
 
 ### Update itch.io
 
-`just push-itch`
+1. `just push-itch`
+2. Publish a devlog with the changes
 
 ### Post Release
 
