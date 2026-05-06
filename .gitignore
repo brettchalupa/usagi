@@ -1,4 +1,5 @@
 /target
+/tmp
 captures/
 **/*/captures/
 export/

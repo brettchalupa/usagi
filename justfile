@@ -56,7 +56,7 @@ the wasm-eh ABI rationale.
 """)]
 build-web:
     bash -c 'set -e; \
-      command -v emcc >/dev/null 2>&1 || source ~/.local/share/emsdk/emsdk_env.sh >/dev/null 2>&1 || { echo "[usagi] emcc not on PATH and no emsdk at ~/.local/share/emsdk/. Run setup-emscripten.sh first." >&2; exit 1; }; \
+      command -v emcc >/dev/null 2>&1 || source ~/.local/share/emsdk/emsdk_env.sh >/dev/null 2>&1 || { echo "[usagi] emcc not on PATH and no emsdk at ~/.local/share/emsdk/. Run scripts/setup_emscripten.sh first." >&2; exit 1; }; \
       EMCC_CFLAGS="-fwasm-exceptions -sSUPPORT_LONGJMP=wasm -s USE_LIBPNG=1 -s USE_OGG=1 -s USE_VORBIS=1" \
         cargo build --target wasm32-unknown-emscripten'
     mkdir -p target/web
@@ -68,7 +68,7 @@ build-web:
 
 build-web-release:
     bash -c 'set -e; \
-      command -v emcc >/dev/null 2>&1 || source ~/.local/share/emsdk/emsdk_env.sh >/dev/null 2>&1 || { echo "[usagi] emcc not on PATH and no emsdk at ~/.local/share/emsdk/. Run setup-emscripten.sh first." >&2; exit 1; }; \
+      command -v emcc >/dev/null 2>&1 || source ~/.local/share/emsdk/emsdk_env.sh >/dev/null 2>&1 || { echo "[usagi] emcc not on PATH and no emsdk at ~/.local/share/emsdk/. Run scripts/setup_emscripten.sh first." >&2; exit 1; }; \
       EMCC_CFLAGS="-fwasm-exceptions -sSUPPORT_LONGJMP=wasm -s USE_LIBPNG=1 -s USE_OGG=1 -s USE_VORBIS=1" \
         cargo build --release --target wasm32-unknown-emscripten'
     mkdir -p target/web
@@ -99,6 +99,19 @@ serve-web:
 bundle name:
     cargo run --quiet -- export examples/{{ name }} --target bundle
     cargo run --quiet -- run {{ name }}.usagi
+
+[doc("""
+Push usagi release archives to itch.io via butler. Defaults to the latest
+published GitHub release; pass a tag to push a different version. Use
+--dry-run to download archives without pushing.
+
+Examples:
+  just push-itch
+  just push-itch v0.6.0
+  just push-itch --dry-run
+""")]
+push-itch *args:
+    ruby scripts/push_itch.rb {{ args }}
 
 # Release-build the usagi binary and copy it to ~/.local/bin/ for testing.
 install:

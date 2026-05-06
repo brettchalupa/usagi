@@ -70,8 +70,8 @@ While developing Usagi itself, replace `usagi` with `cargo run --` (for example
 `cargo run -- dev examples/hello_usagi.lua`).
 
 `just build-web` then `just serve-web` builds the wasm runtime and serves it
-locally on port 3535. Needs emscripten on PATH; run `./setup-emscripten.sh` once
-to install it on Fedora. `brew install emscripten` works on macOS.
+locally on port 3535. Needs emscripten on PATH; run `./scripts/setup_emscripten.sh`
+once to install it on Fedora. `brew install emscripten` works on macOS.
 
 See `justfile` for the full list of recipes.
 
@@ -180,21 +180,9 @@ the URL convention `${USAGI_TEMPLATE_BASE}/v<ver>/<file>`.
 
 ### Update itch.io
 
-1. Download the artifacts from the GitHub Release
-2. Upload the Linux, macOS, and Windows archives to
-   https://itch.io/game/edit/4525259
-3. Publish the itch.io page
-4. Publish a devlog with the changelog
+`just push-itch`
 
 ### Post Release
-
-After the release is made, bump the version in `Cargo.toml` to the next version
-that will be worked on and add the `-dev` suffix. So if `v1.1.0` was just
-released, update it to `1.2.0-dev` and run `cargo update -p usagi`. Commit and
-push this to GitHub. This helps make it clear that what's on `main` is not the
-published version nor the upcoming version (yet).
-
-Push a new version of notetris to itch.io: `./examples/notetris/push.rb`
 
 Share the release:
 
@@ -203,6 +191,14 @@ Share the release:
 - r/UsagiEngine
 - YouTube post
 - Discord
+
+Push a new version of notetris to itch.io: `./examples/notetris/push.rb`
+
+After the release is made, bump the version in `Cargo.toml` to the next version
+that will be worked on and add the `-dev` suffix. So if `v1.1.0` was just
+released, update it to `1.2.0-dev` and run `cargo update -p usagi`. Commit and
+push this to GitHub. This helps make it clear that what's on `main` is not the
+published version nor the upcoming version (yet).
 
 ## Build Environment Notes
 
@@ -218,9 +214,10 @@ web build breaks, start here.
 ### Toolchain
 
 - Stable Rust (currently 1.95.0 verified). No `rust-toolchain.toml` pin.
-- Emscripten via emsdk. `setup-emscripten.sh` installs to `$XDG_DATA_HOME/emsdk`
-  (or `~/.local/share/emsdk`); source `~/.local/share/emsdk/emsdk_env.sh` to put
-  `emcc` on `PATH`. On macOS, you can do `brew install emscripten`.
+- Emscripten via emsdk. `scripts/setup_emscripten.sh` installs to
+  `$XDG_DATA_HOME/emsdk` (or `~/.local/share/emsdk`); source
+  `~/.local/share/emsdk/emsdk_env.sh` to put `emcc` on `PATH`. On macOS, you can
+  do `brew install emscripten`.
 - emcc 5.0.6 verified.
 
 Build with `just build-web` (or `just build-web-release`).
@@ -313,7 +310,7 @@ without an emcc rebuild on the user's machine.
 Quickstart:
 
 1. One-time setup (per machine):
-   - `bash setup-emscripten.sh` (installs emsdk to `~/.local/share/emsdk`).
+   - `bash scripts/setup_emscripten.sh` (installs emsdk to `~/.local/share/emsdk`).
    - `just setup-web` (adds the wasm target and a tiny static server).
 2. Each new shell session, source emsdk so `emcc` is on PATH:
    ```sh
