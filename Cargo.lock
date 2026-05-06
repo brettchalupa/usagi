@@ -1106,8 +1106,7 @@ dependencies = [
 [[package]]
 name = "sola-raylib-sys"
 version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d1229ef69ed7e2573585263bccc9d6e7ddf27850718b49a9e37448bd4221432"
+source = "git+https://github.com/codedevmk/sola-raylib.git?rev=ca31f316e4cc7d7bd79d2aa27171c20a60a42115#ca31f316e4cc7d7bd79d2aa27171c20a60a42115"
 dependencies = [
  "bindgen",
  "cc",

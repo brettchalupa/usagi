@@ -195,7 +195,7 @@ fn main() -> ExitCode {
     // Web build: there is no CLI, no fused-exe trick, no export mode. The
     // JS shell preloads the bundle at `/game.usagi` in the wasm virtual FS
     // before calling main(); the runtime then loads and runs it. See
-    // `web/shell.html` and `docs/web-build.md`.
+    // `web/shell.html` and `DEVELOPING.md`.
     #[cfg(target_os = "emscripten")]
     {
         return finish(start_session("/game.usagi", false));

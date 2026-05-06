@@ -197,11 +197,24 @@ impl ShaderManager {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShaderBuildTarget {
+    Desktop,
+    Web,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ShaderProfile {
-    #[cfg(any(not(target_os = "emscripten"), test))]
     DesktopGlsl330,
-    #[cfg(any(target_os = "emscripten", test))]
     WebGlslEs100,
+}
+
+impl ShaderProfile {
+    fn for_build_target(target: ShaderBuildTarget) -> Self {
+        match target {
+            ShaderBuildTarget::Desktop => Self::DesktopGlsl330,
+            ShaderBuildTarget::Web => Self::WebGlslEs100,
+        }
+    }
 }
 
 fn read_fragment_source(vfs: &dyn VirtualFs, name: &str) -> Result<(String, String), String> {
@@ -234,21 +247,17 @@ fn generate_generic_fragment(src: &str, profile: ShaderProfile) -> Result<String
     }
 
     let header = match profile {
-        #[cfg(any(not(target_os = "emscripten"), test))]
         ShaderProfile::DesktopGlsl330 => {
             "#version 330\n\nin vec2 fragTexCoord;\nin vec4 fragColor;\nuniform sampler2D texture0;\nout vec4 finalColor;\n#define usagi_texture(texture_name, uv) texture(texture_name, uv)\n\n"
         }
-        #[cfg(any(target_os = "emscripten", test))]
         ShaderProfile::WebGlslEs100 => {
             "#version 100\n\nprecision mediump float;\n\nvarying vec2 fragTexCoord;\nvarying vec4 fragColor;\nuniform sampler2D texture0;\n#define usagi_texture(texture_name, uv) texture2D(texture_name, uv)\n\n"
         }
     };
     let footer = match profile {
-        #[cfg(any(not(target_os = "emscripten"), test))]
         ShaderProfile::DesktopGlsl330 => {
             "\n\nvoid main() {\n    finalColor = usagi_main(fragTexCoord, fragColor);\n}\n"
         }
-        #[cfg(any(target_os = "emscripten", test))]
         ShaderProfile::WebGlslEs100 => {
             "\n\nvoid main() {\n    gl_FragColor = usagi_main(fragTexCoord, fragColor);\n}\n"
         }
@@ -300,30 +309,38 @@ fn generic_fragment_key(name: &str) -> String {
     format!("shaders/{name}.usagi.fs")
 }
 
-#[cfg(target_os = "emscripten")]
-fn target_profile() -> ShaderProfile {
-    ShaderProfile::WebGlslEs100
-}
-#[cfg(not(target_os = "emscripten"))]
-fn target_profile() -> ShaderProfile {
-    ShaderProfile::DesktopGlsl330
+fn build_target() -> ShaderBuildTarget {
+    if cfg!(target_family = "wasm") {
+        ShaderBuildTarget::Web
+    } else {
+        ShaderBuildTarget::Desktop
+    }
 }
 
-#[cfg(target_os = "emscripten")]
+fn target_profile() -> ShaderProfile {
+    ShaderProfile::for_build_target(build_target())
+}
+
 fn primary_key(name: &str, ext: &str) -> String {
-    format!("shaders/{name}_es.{ext}")
+    primary_key_for_target(build_target(), name, ext)
 }
-#[cfg(target_os = "emscripten")]
+
 fn alt_key(name: &str, ext: &str) -> String {
-    format!("shaders/{name}.{ext}")
+    alt_key_for_target(build_target(), name, ext)
 }
-#[cfg(not(target_os = "emscripten"))]
-fn primary_key(name: &str, ext: &str) -> String {
-    format!("shaders/{name}.{ext}")
+
+fn primary_key_for_target(target: ShaderBuildTarget, name: &str, ext: &str) -> String {
+    match target {
+        ShaderBuildTarget::Desktop => format!("shaders/{name}.{ext}"),
+        ShaderBuildTarget::Web => format!("shaders/{name}_es.{ext}"),
+    }
 }
-#[cfg(not(target_os = "emscripten"))]
-fn alt_key(name: &str, ext: &str) -> String {
-    format!("shaders/{name}_es.{ext}")
+
+fn alt_key_for_target(target: ShaderBuildTarget, name: &str, ext: &str) -> String {
+    match target {
+        ShaderBuildTarget::Desktop => format!("shaders/{name}_es.{ext}"),
+        ShaderBuildTarget::Web => format!("shaders/{name}.{ext}"),
+    }
 }
 
 #[cfg(test)]
@@ -337,6 +354,49 @@ mod tests {
         assert!(p == "shaders/crt.fs" || p == "shaders/crt_es.fs");
         assert!(a == "shaders/crt.fs" || a == "shaders/crt_es.fs");
         assert_ne!(p, a);
+    }
+
+    #[test]
+    fn compiled_build_target_selects_expected_shader_profile() {
+        if cfg!(target_family = "wasm") {
+            assert_eq!(build_target(), ShaderBuildTarget::Web);
+            assert_eq!(target_profile(), ShaderProfile::WebGlslEs100);
+        } else {
+            assert_eq!(build_target(), ShaderBuildTarget::Desktop);
+            assert_eq!(target_profile(), ShaderProfile::DesktopGlsl330);
+        }
+    }
+
+    #[test]
+    fn shader_profiles_map_from_explicit_build_targets() {
+        assert_eq!(
+            ShaderProfile::for_build_target(ShaderBuildTarget::Desktop),
+            ShaderProfile::DesktopGlsl330
+        );
+        assert_eq!(
+            ShaderProfile::for_build_target(ShaderBuildTarget::Web),
+            ShaderProfile::WebGlslEs100
+        );
+    }
+
+    #[test]
+    fn native_shader_fallback_order_matches_build_target() {
+        assert_eq!(
+            primary_key_for_target(ShaderBuildTarget::Desktop, "crt", "fs"),
+            "shaders/crt.fs"
+        );
+        assert_eq!(
+            alt_key_for_target(ShaderBuildTarget::Desktop, "crt", "fs"),
+            "shaders/crt_es.fs"
+        );
+        assert_eq!(
+            primary_key_for_target(ShaderBuildTarget::Web, "crt", "fs"),
+            "shaders/crt_es.fs"
+        );
+        assert_eq!(
+            alt_key_for_target(ShaderBuildTarget::Web, "crt", "fs"),
+            "shaders/crt.fs"
+        );
     }
 
     #[test]

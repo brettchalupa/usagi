@@ -1084,7 +1084,7 @@ automatically. Override per-build with `--web-shell PATH`.
 - `just ok` - run all checks
 - `just fmt` - format Rust code
 - `just serve-web` - build and serve the web build at <http://localhost:3535>
-  (requires `emcc` on PATH; see [docs/web-build.md](docs/web-build.md))
+  (requires emsdk; see [DEVELOPING.md](DEVELOPING.md))
 
 ## Reference and Inspiration
 

@@ -45,12 +45,13 @@ cat <<EOF
 
     source $EMSDK_DIR/emsdk_env.sh
 
-Add that line to your ~/.bashrc / ~/.zshrc to make it persistent.
+Add that line to your ~/.bashrc / ~/.zshrc to make it persistent. On Windows,
+`just build-web` imports the emsdk environment automatically.
 
 Then in the usagi project:
 
     just setup-web    # adds the wasm rustup target + simple-http-server
-    just build-web    # produces target/web/{usagi.wasm, usagi.js, usagi.data, index.html}
+    just build-web    # produces target/web/{usagi.wasm, usagi.js, game.usagi, index.html}
     just serve-web    # serves it at http://localhost:3535
 
 EOF

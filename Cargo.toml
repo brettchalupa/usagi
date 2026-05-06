@@ -58,10 +58,15 @@ gif = "0.13"
 # atomic rename on Unix.
 self-replace = "1"
 
+[patch.crates-io]
+# Windows emscripten build fix pending upstream:
+# https://github.com/brettchalupa/sola-raylib/pull/48
+sola-raylib-sys = { git = "https://github.com/codedevmk/sola-raylib.git", rev = "ca31f316e4cc7d7bd79d2aa27171c20a60a42115", package = "sola-raylib-sys" }
+
 # Smaller binaries on all targets. Cargo automatically uses panic=unwind
 # for the test profile so `cargo test` is unaffected. Note this does NOT
 # disable `-fwasm-exceptions` on the emscripten target (Rust 1.93+ passes
-# it unconditionally); see `docs/web-build.md`.
+# it unconditionally); see `DEVELOPING.md`.
 [profile.dev]
 panic = "abort"
 

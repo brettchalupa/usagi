@@ -70,9 +70,9 @@ While developing Usagi itself, replace `usagi` with `cargo run --` (for example
 `cargo run -- dev examples/hello_usagi.lua`).
 
 `just build-web` then `just serve-web` builds the wasm runtime and serves it
-locally on port 3535. Needs emscripten on PATH; run
-`./scripts/setup_emscripten.sh` once to install it on Fedora.
-`brew install emscripten` works on macOS.
+locally on port 3535. Needs emscripten; run `./scripts/setup_emscripten.sh`
+once to install it on Fedora or Windows. `brew install emscripten` works on
+macOS.
 
 See `justfile` for the full list of recipes.
 
@@ -82,7 +82,7 @@ See `justfile` for the full list of recipes.
 - `just ok` - run all checks
 - `just fmt` - format Rust code
 - `just serve-web` - build and serve the web build at <http://localhost:3535>
-  (requires `emcc` on PATH; see [docs/web-build.md](docs/web-build.md))
+  (requires emsdk; `just build-web` is OS-aware)
 
 ## Adding Lua API bindings
 
@@ -262,10 +262,14 @@ web build breaks, start here.
 - Emscripten via emsdk. `scripts/setup_emscripten.sh` installs to
   `$XDG_DATA_HOME/emsdk` (or `~/.local/share/emsdk`); source
   `~/.local/share/emsdk/emsdk_env.sh` to put `emcc` on `PATH`. On macOS, you can
-  do `brew install emscripten`.
+  do `brew install emscripten`. On Windows, install emsdk to
+  `%USERPROFILE%\.local\share\emsdk`; `just build-web` imports `emsdk_env.bat`
+  and pins the emscripten CMake wrappers for Cargo.
 - emcc 5.0.6 verified.
 
-Build with `just build-web` (or `just build-web-release`).
+Build with `just build-web` (or `just build-web-release`) on every supported
+host. The `justfile` dispatches to `scripts/build_web.sh` on Unix and
+`scripts/build_web.ps1` on Windows.
 
 ### The wasm exception ABI: what you need to know
 
@@ -294,10 +298,16 @@ symbols like `__cxa_find_matching_catch_3`.
    `CFLAGS_wasm32_unknown_emscripten` and `CXXFLAGS_wasm32_unknown_emscripten`
    set to `-fwasm-exceptions -sSUPPORT_LONGJMP=wasm`. cc-rs reads these when
    compiling C deps for the target, including mlua's vendored Lua.
-3. **emcc CFLAGS** via `EMCC_CFLAGS` in the justfile recipes:
+3. **emcc CFLAGS** via `EMCC_CFLAGS` in `scripts/build_web.sh` and
+   `scripts/build_web.ps1`:
    `-fwasm-exceptions -sSUPPORT_LONGJMP=wasm` (alongside the raylib port flags).
    raylib's CMake build is invoked through emcc directly, bypassing cc-rs, so it
    needs the same flags via `EMCC_CFLAGS`.
+4. **Windows emscripten wrappers** in the patched `sola-raylib-sys` build script:
+   Cargo's CMake helper needs `EMCMAKE` / `EMMAKE` to point at emsdk's `.bat`
+   wrappers, and raylib's CMake flags must be defined before the helper can
+   append `cmd /c emcc.bat` wrapper tokens as C flags. Bindgen also needs the
+   emscripten sysroot so `<stdarg.h>` resolves while generating raylib bindings.
 
 If you change one of these, change them together. A mismatch shows up as either
 a `__cxa_find_matching_catch_*` undefined symbol error (some object file used
@@ -358,10 +368,11 @@ Quickstart:
    - `bash scripts/setup_emscripten.sh` (installs emsdk to
      `~/.local/share/emsdk`).
    - `just setup-web` (adds the wasm target and a tiny static server).
-2. Each new shell session, source emsdk so `emcc` is on PATH:
+2. Each new Unix shell session, source emsdk so `emcc` is on PATH:
    ```sh
    source ~/.local/share/emsdk/emsdk_env.sh
    ```
+   On Windows, `just build-web` imports emsdk automatically.
 3. Build + serve at `http://localhost:3535`:
    ```sh
    just serve-web

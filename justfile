@@ -1,3 +1,7 @@
+set windows-shell := ["pwsh.exe", "-NoProfile", "-Command"]
+
+web_port := env_var_or_default("PORT", "3535")
+
 # One-time per-clone setup: point git at .githooks/ so the pre-push hook (which runs `just ok`) fires for everyone working in this repo.
 setup:
     git config core.hooksPath .githooks
@@ -29,9 +33,9 @@ tools *args:
 One-time toolchain setup for the web build: emscripten + wasm target +
 a tiny static server.
 
-emscripten itself is not installed by this recipe — install it from
-<https://emscripten.org/docs/getting_started/downloads.html>. After
-install, run `source emsdk_env.sh` in your shell so `emcc` is on PATH.
+emscripten itself is not installed by this recipe; run
+`scripts/setup_emscripten.sh` or install it from
+<https://emscripten.org/docs/getting_started/downloads.html>.
 """)]
 setup-web:
     rustup target add wasm32-unknown-emscripten
@@ -49,34 +53,27 @@ Build the web (wasm) runtime. The runtime is game-agnostic: the bundle
 does not require an emcc rebuild. `just example-web <name>` rebundles
 without touching the runtime.
 
-Requires `emcc` on PATH (see `just setup-web` for the setup notes).
-`EMCC_CFLAGS` extends emcc's default flags for *every* invocation
-(emscripten ports, raylib's CMake, etc.). See `docs/web-build.md` for
-the wasm-eh ABI rationale.
+Requires emsdk (see `just setup-web` for the Rust target and helper server).
+Unix builds source emsdk when `emcc` is not already on PATH; Windows builds
+import `emsdk_env.bat` in the PowerShell wrapper. `EMCC_CFLAGS` extends emcc's
+default flags for emscripten ports and raylib's CMake build. See
+`DEVELOPING.md` for the wasm-eh ABI rationale.
 """)]
+[windows]
 build-web:
-    bash -c 'set -e; \
-      command -v emcc >/dev/null 2>&1 || source ~/.local/share/emsdk/emsdk_env.sh >/dev/null 2>&1 || { echo "[usagi] emcc not on PATH and no emsdk at ~/.local/share/emsdk/. Run scripts/setup_emscripten.sh first." >&2; exit 1; }; \
-      EMCC_CFLAGS="-fwasm-exceptions -sSUPPORT_LONGJMP=wasm -s USE_LIBPNG=1 -s USE_OGG=1 -s USE_VORBIS=1" \
-        cargo build --target wasm32-unknown-emscripten'
-    mkdir -p target/web
-    rm -rf target/web/*
-    cp web/shell.html target/web/index.html
-    cp target/wasm32-unknown-emscripten/debug/usagi.wasm target/web/
-    cp target/wasm32-unknown-emscripten/debug/usagi.js target/web/
-    cargo run --quiet -- export examples/snake --target bundle -o target/web/game.usagi
+    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/build_web.ps1
 
+[unix]
+build-web:
+    bash scripts/build_web.sh
+
+[windows]
 build-web-release:
-    bash -c 'set -e; \
-      command -v emcc >/dev/null 2>&1 || source ~/.local/share/emsdk/emsdk_env.sh >/dev/null 2>&1 || { echo "[usagi] emcc not on PATH and no emsdk at ~/.local/share/emsdk/. Run scripts/setup_emscripten.sh first." >&2; exit 1; }; \
-      EMCC_CFLAGS="-fwasm-exceptions -sSUPPORT_LONGJMP=wasm -s USE_LIBPNG=1 -s USE_OGG=1 -s USE_VORBIS=1" \
-        cargo build --release --target wasm32-unknown-emscripten'
-    mkdir -p target/web
-    rm -rf target/web/*
-    cp web/shell.html target/web/index.html
-    cp target/wasm32-unknown-emscripten/release/usagi.wasm target/web/
-    cp target/wasm32-unknown-emscripten/release/usagi.js target/web/
-    cargo run --release --quiet -- export examples/snake --target bundle -o target/web/game.usagi
+    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/build_web.ps1 -Release
+
+[unix]
+build-web-release:
+    bash scripts/build_web.sh --release
 
 [doc("""
 Rebundle target/web/game.usagi from a different example without
@@ -93,7 +90,7 @@ Serve target/web/ locally on port 3535. Does NOT rebuild; pair with
 (swap games without clobbering the runtime).
 """)]
 serve-web:
-    simple-http-server --index --nocache -p ${PORT:=3535} target/web
+    simple-http-server --index --nocache -p {{ web_port }} target/web
 
 # Smoke-test a `.usagi` bundle: export it, then run via `usagi run`. Drops the bundle file in the cwd. Example: `just bundle snake`.
 bundle name:
