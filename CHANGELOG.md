@@ -5,11 +5,14 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+## v0.6.1 - May 6, 2026
+
 Fixes:
 
 - No longer crash on Windows when `require`d Lua files have a syntax error. See
-  #105.
-- No longer crash on Windows when invalid args are passed. See #103.
+  [#105](https://github.com/brettchalupa/usagi/issues/105).
+- No longer crash on Windows when invalid args are passed. See
+  [#103](https://github.com/brettchalupa/usagi/issues/103).
 
 ## v0.6.0 - May 5, 2026
 
