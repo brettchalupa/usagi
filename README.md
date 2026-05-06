@@ -116,9 +116,9 @@ the docs and LSP integration for the `usagi -V` you're using.
 
 ## Feedback and Issues
 
-[Create a new GitHub issue](https://github.com/brettchalupa/usagi/issues/new/choose) to
-share feedback on the engine, make requests, and report bugs. Be sure to search
-to see if there's already an existing issue.
+[Create a new GitHub issue](https://github.com/brettchalupa/usagi/issues/new/choose)
+to share feedback on the engine, make requests, and report bugs. Be sure to
+search to see if there's already an existing issue.
 
 ## Project Goal
 

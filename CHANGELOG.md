@@ -7,7 +7,9 @@ Doesn't contain updates relating to developing the engine itself.
 
 Fixes:
 
-- No longer crash on Windows when `require`d Lua files have a syntax error. See #105.
+- No longer crash on Windows when `require`d Lua files have a syntax error. See
+  #105.
+- No longer crash on Windows when invalid args are passed. See #103.
 
 ## v0.6.0 - May 5, 2026
 
@@ -123,9 +125,9 @@ Features:
   own `_init`. Functions that take shaped tables check the shape and raise an
   error pointing at your call site (e.g.
   `util.rect_overlap: arg 1 table
-missing or non-numeric field 'h'`) instead
-  of failing deep inside the helper. `util.min` / `util.max` aren't included
-  since Lua's `math.min` / `math.max` already do the job.
+missing or non-numeric field 'h'`) instead of
+  failing deep inside the helper. `util.min` / `util.max` aren't included since
+  Lua's `math.min` / `math.max` already do the job.
 - Direct keyboard reads via `input.key_pressed(key)`, `input.key_held(key)`, and
   `input.key_released(key)`, paired with `input.KEY_*` constants for letters,
   digits, F1–F12, arrows, modifiers, common punctuation, and a few specials

@@ -53,9 +53,9 @@ pub fn install_require(lua: &Lua, vfs: Rc<dyn VirtualFs>) -> LuaResult<()> {
                 // and it returns `Err`, mlua re-raises via `lua_error`, and
                 // the longjmp has to unwind across Rust frames. On Windows
                 // MSVC that trips the GS stack-cookie check and aborts the
-                // process with STATUS_STACK_BUFFER_OVERRUN (BR-2796). Keeping
-                // the loader Lua-only confines the longjmp to Lua/C frames
-                // back to the require pcall which is fine on every platform.
+                // process with STATUS_STACK_BUFFER_OVERRUN. Keeping the loader
+                // Lua-only confines the longjmp to Lua/C frames back to the
+                // require pcall which is fine on every platform.
                 let prepared = preprocess(&bytes);
                 let loader: LuaFunction = match lua
                     .load(prepared.as_slice())
