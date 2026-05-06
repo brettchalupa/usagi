@@ -1,0 +1,83 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in usagi
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report! Please fill out the sections below so we can reproduce and fix the issue quickly.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: A clear and concise description of the bug.
+      placeholder: When I do X, Y happens instead of Z.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce the bug? Numbered steps work best.
+      placeholder: |
+        1. Run `usagi run example.lua`
+        2. Press the spacebar
+        3. Observe that ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: false
+
+  - type: textarea
+    id: source
+    attributes:
+      label: Source / minimal example
+      description: Paste the smallest Lua snippet (or link to a repo) that reproduces the issue. Trim it down as much as you can.
+      render: lua
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot or recording
+      description: If the bug is visual, drag and drop an image or short video here.
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: usagi version
+      description: Output of `usagi -V`.
+      placeholder: usagi 0.6.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other (mention in additional context)
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that might help, such as logs, OS version, GPU, or related issues.
+    validations:
+      required: false

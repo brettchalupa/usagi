@@ -5,6 +5,8 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+## v0.6.0 - May 5, 2026
+
 Features:
 
 - Experimental `usagi update` command to update the binary in place when new
@@ -117,7 +119,7 @@ Features:
   own `_init`. Functions that take shaped tables check the shape and raise an
   error pointing at your call site (e.g.
   `util.rect_overlap: arg 1 table
-  missing or non-numeric field 'h'`) instead
+missing or non-numeric field 'h'`) instead
   of failing deep inside the helper. `util.min` / `util.max` aren't included
   since Lua's `math.min` / `math.max` already do the job.
 - Direct keyboard reads via `input.key_pressed(key)`, `input.key_held(key)`, and
@@ -249,7 +251,7 @@ Features:
 - Post-process shaders (advanced, **experimental**). New
   `gfx.shader_set("name")` / `gfx.shader_set(nil)` /
   `gfx.shader_uniform(name,
-  value)` Lua API. Drops `shaders/<name>.fs` (and an
+value)` Lua API. Drops `shaders/<name>.fs` (and an
   optional `<name>.vs`) from the project root through raylib's GLSL pipeline as
   a final pass when the game render target blits to the window. Web targets
   prefer `<name>_es.fs` (GLSL ES 100, WebGL 1) and desktop prefers `<name>.fs`

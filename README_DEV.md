@@ -14,15 +14,18 @@ likely to change until v1.0.0 releases.
 Usagi is made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to
 the public domain.
 
-[There's a chill Discord if you want to chat about the engine, share what you
-make, and get help.](https://usagiengine.com/discord)
+Key links:
+
+- Website: [usagiengine.com](https://usagiengine.com)
+- Discord: [usagiengine.com/discord](https://usagiengine.com/discord)
+- Reddit: [reddit.com/r/UsagiEngine](https://reddit.com/r/UsagiEngine)
 
 ## Install
 
 [Download the latest Usagi build for your operating
 system.](https://github.com/brettchalupa/usagi/releases/latest)
 
-**Latest Usagi release:** v0.5.0
+**Latest Usagi release:** v0.6.0
 
 You can keep the `usagi` executable in your project folder or install it
 globally on your computer.
@@ -42,18 +45,25 @@ change in the future or be configurable.
 - **Cross Platform Export**: run `usagi export` and your game is exported for
   Linux, macOS, Windows, and web
 - **Default Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely
-  to common monitor sizes
+  to common monitor sizes; override with `_config()`
 - **One Spritesheet**: `sprites.png` is the only image file for textures that
   can be loaded
 - **Small API**: you can't do everything with Usagi, but there's enough to make
   simple 2D games
-- **Sprite Size**: 16px by 16px - using `gfx.spr` uses the index based on this
-  sized sprite; you can draw larger sprites with `gfx.sspr`
+- **Default Sprit Size**: 16px by 16px - using `gfx.spr` uses the index based on
+  this sized sprite; you can draw larger sprites with `gfx.sspr`; override with
+  `_config()`
+- **3 Action Buttons**: Embrace modernity with 3 different action buttons!
 - **Pico-8 Colors**: the color palette for drawing are the same as Pico-8 (but
   with constants for easy reference)
+- **Pause Menu with Settings and Input Mapping**: don't spend your time coding a
+  pause menu and settings, focus on your game instead! Usagi comes with a Pause
+  menu with sound effect and music volume, fullscreen toggle, and keyboard input
+  mapping
+- **Easy Save Data**: use a single function to save and load your game data via
+  a Lua table
 
-You currently must bring your own sound effects and sprite editor. A sprite
-editor could be nice in the future as part of the `usagi tools`.
+Bring your own sound effects, sprite editor, and music.
 
 ## Hello, Usagi
 
@@ -103,6 +113,12 @@ To refresh engine-owned files in a project (the LSP type stubs and the embedded
 docs), run: `usagi refresh`. It updates `meta/usagi.lua`, `.luarc.json`, and
 `USAGI.md`. Does **not** update `main.lua`. Use this after `usagi update` to get
 the docs and LSP integration for the `usagi -V` you're using.
+
+## Feedback and Issues
+
+[Create a new GitHub issue](https://github.com/brettchalupa/usagi/issues/new) to
+share feedback on the engine, make requests, and report bugs. Be sure to search
+to see if there's already an existing issue.
 
 ## Project Goal
 
@@ -181,6 +197,13 @@ at file scope is flagged as an accidental missing `local`. Engine API (`gfx`,
 `input`, `sfx`, `music`, `usagi`) stays lowercase and is exempt from the lint
 via `meta/usagi.lua`.
 
+### Cheatsheet
+
+TODO: add this
+
+```lua
+```
+
 ### Compound assignment operators
 
 Usagi runs each `.lua` source through a tiny preprocessor before handing it to
@@ -225,8 +248,8 @@ Supported fields:
   directory (`Sprite Example.app`), the Info.plist `CFBundleName` /
   `CFBundleDisplayName`, and (after slugging to ASCII kebab-case) the archive
   filenames + Linux/Windows binary names produced by `usagi
-  export`. Defaults
-  to the project directory name (`examples/spr/main.lua` → "spr"); falls back to
+export`. Defaults to
+  the project directory name (`examples/spr/main.lua` → "spr"); falls back to
   "Usagi" if no path is available.
 - `pixel_perfect` (default `false`): when `true`, the game renders at integer
   scale multiples only (1×, 2×, 3×, ...) with black letterbox bars filling any
