@@ -69,7 +69,14 @@ sh!("gh release download #{Shellwords.escape(tag)} --dir #{Shellwords.escape(wor
 CHANNELS.each do |suffix, channel|
   archive = Dir.glob(File.join(work, "*-#{suffix}")).first
   abort("[push_itch] missing archive matching *-#{suffix} in #{work}") unless archive
-  cmd = "butler push #{Shellwords.escape(archive)} #{TARGET}:#{channel} --userversion #{Shellwords.escape(version)}"
+
+  # Strip the version from the filename so the itch download is just
+  # `usagi-<platform>-<arch>.<ext>`. butler uses the file's basename as the
+  # upload's display name; --userversion still tracks the version separately.
+  renamed = File.join(work, "usagi-#{suffix}")
+  FileUtils.mv(archive, renamed, force: true) unless archive == renamed
+
+  cmd = "butler push #{Shellwords.escape(renamed)} #{TARGET}:#{channel} --userversion #{Shellwords.escape(version)}"
   if dry_run
     puts "[dry-run] #{cmd}"
   else
