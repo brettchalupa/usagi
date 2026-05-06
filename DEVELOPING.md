@@ -196,6 +196,14 @@ published version nor the upcoming version (yet).
 
 Push a new version of notetris to itch.io: `./examples/notetris/push.rb`
 
+Share the release:
+
+- Bluesky
+- Mastodon
+- r/UsagiEngine
+- YouTube post
+- Discord
+
 ## Build Environment Notes
 
 - The Linux runner is `ubuntu-22.04` (glibc 2.35) for portability. Binaries

@@ -14,15 +14,18 @@ likely to change until v1.0.0 releases.
 Usagi is made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to
 the public domain.
 
-[There's a chill Discord if you want to chat about the engine, share what you
-make, and get help.](https://usagiengine.com/discord)
+Key links:
+
+- Website: [usagiengine.com](https://usagiengine.com)
+- Discord: [usagiengine.com/discord](https://usagiengine.com/discord)
+- Reddit: [reddit.com/r/UsagiEngine](https://reddit.com/r/UsagiEngine)
 
 ## Install
 
 [Download the latest Usagi build for your operating
 system.](https://github.com/brettchalupa/usagi/releases/latest)
 
-**Latest Usagi release:** v0.5.0
+**Latest Usagi release:** v0.6.0
 
 You can keep the `usagi` executable in your project folder or install it
 globally on your computer.
@@ -41,19 +44,26 @@ change in the future or be configurable.
   with your newest code and assets, enabling rapid development
 - **Cross Platform Export**: run `usagi export` and your game is exported for
   Linux, macOS, Windows, and web
-- **Limited Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely
-  to common monitor sizes
+- **Default Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely
+  to common monitor sizes; override with `_config()`
 - **One Spritesheet**: `sprites.png` is the only image file for textures that
   can be loaded
 - **Small API**: you can't do everything with Usagi, but there's enough to make
   simple 2D games
-- **Sprite Size**: 16px by 16px - using `gfx.spr` uses the index based on this
-  sized sprite; you can draw larger sprites with `gfx.sspr`
+- **Default Sprit Size**: 16px by 16px - using `gfx.spr` uses the index based on
+  this sized sprite; you can draw larger sprites with `gfx.sspr`; override with
+  `_config()`
+- **3 Action Buttons**: Embrace modernity with 3 different action buttons!
 - **Pico-8 Colors**: the color palette for drawing are the same as Pico-8 (but
   with constants for easy reference)
+- **Pause Menu with Settings and Input Mapping**: don't spend your time coding a
+  pause menu and settings, focus on your game instead! Usagi comes with a Pause
+  menu with sound effect and music volume, fullscreen toggle, and keyboard input
+  mapping
+- **Easy Save Data**: use a single function to save and load your game data via
+  a Lua table
 
-You currently must bring your own sound effects and sprite editor. A sprite
-editor could be nice in the future as part of the `usagi tools`.
+Bring your own sound effects, sprite editor, and music.
 
 ## Hello, Usagi
 
@@ -93,22 +103,22 @@ iteration cycles.
 Need to revise a sprite quickly? Just open `sprites.png` in your sprite editor,
 change it, save it, and see it update in the context of your game.
 
-## Upgrading Usagi
+## Updating Usagi
 
-Replace the `usagi` binary with a newer release. **NOTE:** Usagi is pre-v1.0,
-meaning there's no guarantee of API compatibility between releases right now.
+Replace the `usagi` binary with a newer release from your preferred download
+source. You can also run `usagi update` to fetch the latest version if there is
+one.
 
 To refresh engine-owned files in a project (the LSP type stubs and the embedded
-docs), delete them and re-run `usagi init` from the project root:
+docs), run: `usagi refresh`. It updates `meta/usagi.lua`, `.luarc.json`, and
+`USAGI.md`. Does **not** update `main.lua`. Use this after `usagi update` to get
+the docs and LSP integration for the `usagi -V` you're using.
 
-```sh
-rm meta/usagi.lua USAGI.md
-usagi init .
-```
+## Feedback and Issues
 
-`init` skips files that already exist, so your `main.lua`, `.luarc.json`, and
-`.gitignore` stay untouched. The version stamp at the top of `meta/usagi.lua`
-and `USAGI.md` tells you which `usagi` produced them.
+[Create a new GitHub issue](https://github.com/brettchalupa/usagi/issues/new) to
+share feedback on the engine, make requests, and report bugs. Be sure to search
+to see if there's already an existing issue.
 
 ## Project Goal
 
@@ -187,6 +197,13 @@ at file scope is flagged as an accidental missing `local`. Engine API (`gfx`,
 `input`, `sfx`, `music`, `usagi`) stays lowercase and is exempt from the lint
 via `meta/usagi.lua`.
 
+### Cheatsheet
+
+TODO: add this
+
+```lua
+```
+
 ### Compound assignment operators
 
 Usagi runs each `.lua` source through a tiny preprocessor before handing it to
@@ -231,8 +248,8 @@ Supported fields:
   directory (`Sprite Example.app`), the Info.plist `CFBundleName` /
   `CFBundleDisplayName`, and (after slugging to ASCII kebab-case) the archive
   filenames + Linux/Windows binary names produced by `usagi
-  export`. Defaults
-  to the project directory name (`examples/spr/main.lua` → "spr"); falls back to
+export`. Defaults to
+  the project directory name (`examples/spr/main.lua` → "spr"); falls back to
   "Usagi" if no path is available.
 - `pixel_perfect` (default `false`): when `true`, the game renders at integer
   scale multiples only (1×, 2×, 3×, ...) with black letterbox bars filling any
@@ -246,6 +263,23 @@ Supported fields:
   save data and the macOS bundle identifier. Optional.
 - `icon`: 1-based tile index into `sprites.png`, used as the window icon and (on
   `usagi export --target macos`) the `.app` icon.
+- `sprite_size` (default `16`): side length, in pixels, of one cell in
+  `sprites.png`. Drives `gfx.spr` indexing, the tilepicker tool's grid, and the
+  window-icon slicer. Your `sprites.png` must use a multiple of this value on
+  both axes; the window icon falls back to the default when the layout doesn't
+  fit. The value also flows into `usagi.SPRITE_SIZE` so Lua code can read the
+  active cell size.
+- `game_width` (default `320`) and `game_height` (default `180`): override the
+  game's render resolution. The internal render target is sized to these
+  dimensions; the window upscales to fit, preserving aspect ratio. Tested band
+  is roughly 320x180 to 640x360. Outside that, the pause-menu and tools UI are
+  pixel-fixed and may overflow at very small sizes or look sparse at very large
+  ones. Sprite size (`usagi.SPRITE_SIZE`, 16) and the bundled font (5x7) don't
+  scale with the resolution, so a 1280x720 game has tiny sprites and tiny text
+  relative to the screen. The web export templates the canvas backing-store and
+  aspect ratio from the configured resolution, so non-16:9 / non-default games
+  ship correctly with the default shell (no `--web-shell` needed) and embed
+  cleanly in itch at any iframe size.
 
 ```lua
 function _config()
@@ -254,6 +288,9 @@ function _config()
     pixel_perfect = true,
     game_id = "com.example.snake",
     icon = 1,
+    -- game_width = 480,   -- optional; default 320
+    -- game_height = 270,  -- optional; default 180
+    -- sprite_size = 32,   -- optional; default 16
   }
 end
 ```
@@ -499,6 +536,9 @@ instead of a confusing nil-arithmetic explosion deep inside the helper.
 Engine-level info.
 
 - `usagi.GAME_W`, `usagi.GAME_H` — game render dimensions (320, 180).
+- `usagi.SPRITE_SIZE` — side length, in pixels, of one cell in `sprites.png`
+  (currently 16). Use it for tile-grid math instead of hardcoding 16:
+  `gfx.spr(idx, col * usagi.SPRITE_SIZE, row * usagi.SPRITE_SIZE)`.
 - `usagi.IS_DEV` — `true` when running under `usagi dev`; `false` under
   `usagi run` and inside exported binaries. Useful for gating debug overlays,
   dev menus, verbose logging:
@@ -560,6 +600,47 @@ Engine-level info.
   leaves the previous save intact. JSON values must be representable: tables,
   strings, numbers, booleans, nil. Functions, userdata, NaN, and circular tables
   raise an error.
+
+### Effects: hitstop, screen shake, flash, slow-mo
+
+The `effect.*` module gives you four engine-level juice primitives. Each is a
+single call from anywhere in `_init` / `_update` / `_draw`; the engine decays
+them once per frame and threads them into the right point in the update / render
+loop, so you don't have to plumb shake offsets through your draws or gate
+`_update` on a freeze flag.
+
+```lua
+effect.hitstop(0.06)                     -- freeze _update for 60 ms
+effect.screen_shake(0.3, 4)              -- shake 0.3 s, up to 4 game pixels
+effect.flash(0.1, gfx.COLOR_WHITE)       -- white flash, fades over 100 ms
+effect.slow_mo(1.5, 0.3)                 -- 1.5 s at 30% speed
+```
+
+- **`effect.hitstop(time)`** skips the call to `_update` for `time` seconds.
+  `_draw` still runs so the world stays on screen.
+- **`effect.screen_shake(time, intensity)`** offsets the RT-to-window blit.
+  `intensity` is a max offset in _game pixels_ (try 2-6); the magnitude decays
+  linearly to zero. Overlays drawn outside the world (the engine error overlay,
+  the REC indicator) stay anchored.
+- **`effect.flash(time, color)`** draws a full-screen overlay of palette `color`
+  on top of `_draw`'s output. Alpha decays from opaque to transparent. White on
+  hits, red on damage.
+- **`effect.slow_mo(time, scale)`** multiplies the `dt` passed to `_update` by
+  `scale`. `scale=0.5` is half-speed, `scale=2.0` is double-speed, `scale=0`
+  freezes (use `effect.hitstop` for that intent). The slow_mo timer itself
+  counts down at real wall-clock, so the cinematic always ends on schedule.
+
+**Stacking.** Across all four, longer duration wins; for the magnitude
+parameter, the latest call wins. `effect.screen_shake(0.1, 2)` followed by
+`effect.screen_shake(0.5, 4)` gives 0.5 s at intensity 4. Spam-calling is safe.
+
+**Pause.** When the engine pause overlay is open, effect timers don't tick and
+shake is suppressed under the "PAUSED" view, so nothing decays or rattles while
+the game is held.
+
+See
+[`examples/effect.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/effect.lua)
+for a runnable demo (one key per primitive plus a combo button).
 
 ### Shaders (advanced, experimental)
 

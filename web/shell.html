@@ -1,170 +1,170 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <title>Usagi</title>
-        <style>
-            html,
-            body {
-                margin: 0;
-                height: 100%;
-                overflow: hidden;
-                background: #000;
-                color: #fff1e8;
-                font-family: system-ui, sans-serif;
-            }
-            body {
-                display: grid;
-                place-items: center;
-            }
-            /* Scale the canvas to fill the viewport while preserving its
-         configured aspect ratio. `--game-aspect` is set from JS at load
-         time by reading the canvas's intrinsic backing-store dims, so a
-         game shipped at any `_config().game_width / game_height` lays
-         out correctly without an HTML edit. The backing store stays at
-         export-time dims; CSS just resizes the displayed pixels, with
-         `image-rendering: pixelated` keeping the upscale crisp. */
-            canvas {
-                display: block;
-                image-rendering: pixelated;
-                aspect-ratio: var(--game-aspect, 16 / 9);
-                max-width: 100vw;
-                max-height: 100vh;
-            }
-            #overlay {
-                position: fixed;
-                inset: 0;
-                background: #000000;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                z-index: 10;
-                cursor: pointer;
-                text-align: center;
-                padding: 24px;
-                box-sizing: border-box;
-            }
-            #overlay button {
-                background: #ffa300;
-                color: #000000;
-                border: none;
-                padding: 14px 32px;
-                font: inherit;
-                font-size: 18px;
-                font-weight: 600;
-                cursor: pointer;
-                border-radius: 4px;
-                min-width: 200px;
-            }
-            #overlay button:disabled {
-                background: #5f574f;
-                color: #fff1e8;
-                cursor: progress;
-            }
-            #overlay .sub {
-                opacity: 0.6;
-                font-size: 13px;
-                margin-top: 16px;
-            }
-        </style>
-    </head>
-    <body>
-        <canvas id="canvas" width="640" height="360"></canvas>
-        <script>
-            // Drive the CSS aspect ratio from the canvas backing-store dims so
-            // the layout follows the configured `_config().game_width /
-            // game_height` without a CSS edit. `usagi export --target web`
-            // substitutes the canvas attrs above with the user's resolution at
-            // export time; this script reads them at load.
-            (function () {
-                const c = document.getElementById("canvas");
-                document.documentElement.style.setProperty(
-                    "--game-aspect",
-                    `${c.width} / ${c.height}`,
-                );
-            })();
-        </script>
-        <div id="overlay" role="button" tabindex="0">
-            <button id="start" disabled>Loading…</button>
-            <div class="sub"></div>
-        </div>
-        <script>
-            // Click-to-play overlay. Two jobs:
-            //   1. Browsers block AudioContext until a user gesture, so we hold
-            //      `main()` until a click and start everything inside it.
-            //   2. We fetch the game bundle (`game.usagi`) over HTTP and write it
-            //      to the wasm virtual FS before calling main(). This is how a
-            //      single prebuilt usagi runtime can ship any game without an
-            //      emcc rebuild. Override the bundle URL by setting
-            //      `window.USAGI_BUNDLE_URL` before this script runs.
-            const overlay = document.getElementById("overlay");
-            const startBtn = document.getElementById("start");
-            const subText = overlay.querySelector(".sub");
-            const bundleUrl = window.USAGI_BUNDLE_URL || "game.usagi";
-            let runtimeReady = false;
-            let started = false;
+  <head>
+    <meta charset="UTF-8" />
+    <title>Usagi</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+        color: #fff1e8;
+        font-family: system-ui, sans-serif;
+      }
+      body {
+        display: grid;
+        place-items: center;
+      }
+      /* Scale the canvas to fill the viewport while preserving its
+      configured aspect ratio. `--game-aspect` is set from JS at load
+      time by reading the canvas's intrinsic backing-store dims, so a
+      game shipped at any `_config().game_width / game_height` lays
+      out correctly without an HTML edit. The backing store stays at
+      export-time dims; CSS just resizes the displayed pixels, with
+      `image-rendering: pixelated` keeping the upscale crisp. */
+      canvas {
+        display: block;
+        image-rendering: pixelated;
+        aspect-ratio: var(--game-aspect, 16 / 9);
+        max-width: 100vw;
+        max-height: 100vh;
+      }
+      #overlay {
+        position: fixed;
+        inset: 0;
+        background: #000000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        cursor: pointer;
+        text-align: center;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+      #overlay button {
+        background: #ffa300;
+        color: #000000;
+        border: none;
+        padding: 14px 32px;
+        font: inherit;
+        font-size: 18px;
+        font-weight: 600;
+        cursor: pointer;
+        border-radius: 4px;
+        min-width: 200px;
+      }
+      #overlay button:disabled {
+        background: #5f574f;
+        color: #fff1e8;
+        cursor: progress;
+      }
+      #overlay .sub {
+        opacity: 0.6;
+        font-size: 13px;
+        margin-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" width="640" height="360"></canvas>
+    <script>
+      // Drive the CSS aspect ratio from the canvas backing-store dims so
+      // the layout follows the configured `_config().game_width /
+      // game_height` without a CSS edit. `usagi export --target web`
+      // substitutes the canvas attrs above with the user's resolution at
+      // export time; this script reads them at load.
+      (function () {
+        const c = document.getElementById("canvas");
+        document.documentElement.style.setProperty(
+          "--game-aspect",
+          `${c.width} / ${c.height}`,
+        );
+      })();
+    </script>
+    <div id="overlay" role="button" tabindex="0">
+      <button id="start" disabled>Loading…</button>
+      <div class="sub"></div>
+    </div>
+    <script>
+      // Click-to-play overlay. Two jobs:
+      //   1. Browsers block AudioContext until a user gesture, so we hold
+      //      `main()` until a click and start everything inside it.
+      //   2. We fetch the game bundle (`game.usagi`) over HTTP and write it
+      //      to the wasm virtual FS before calling main(). This is how a
+      //      single prebuilt usagi runtime can ship any game without an
+      //      emcc rebuild. Override the bundle URL by setting
+      //      `window.USAGI_BUNDLE_URL` before this script runs.
+      const overlay = document.getElementById("overlay");
+      const startBtn = document.getElementById("start");
+      const subText = overlay.querySelector(".sub");
+      const bundleUrl = window.USAGI_BUNDLE_URL || "game.usagi";
+      let runtimeReady = false;
+      let started = false;
 
-            var Module = {
-                canvas: document.getElementById("canvas"),
-                // Don't auto-run main(); we drive it from the click handler so the
-                // bundle is in place and we're inside a user gesture.
-                noInitialRun: true,
-                onRuntimeInitialized: function () {
-                    runtimeReady = true;
-                    startBtn.disabled = false;
-                    startBtn.textContent = "Click to play";
-                },
-            };
+      var Module = {
+        canvas: document.getElementById("canvas"),
+        // Don't auto-run main(); we drive it from the click handler so the
+        // bundle is in place and we're inside a user gesture.
+        noInitialRun: true,
+        onRuntimeInitialized: function () {
+          runtimeReady = true;
+          startBtn.disabled = false;
+          startBtn.textContent = "Click to play";
+        },
+      };
 
-            async function start() {
-                if (started || !runtimeReady) return;
-                started = true;
-                startBtn.disabled = true;
-                startBtn.textContent = "Loading game…";
+      async function start() {
+        if (started || !runtimeReady) return;
+        started = true;
+        startBtn.disabled = true;
+        startBtn.textContent = "Loading game…";
 
-                try {
-                    const res = await fetch(bundleUrl);
-                    if (!res.ok) {
-                        throw new Error(
-                            `${bundleUrl}: HTTP ${res.status} ${res.statusText}`,
-                        );
-                    }
-                    const bytes = new Uint8Array(await res.arrayBuffer());
-                    Module.FS.writeFile("/game.usagi", bytes);
-                } catch (e) {
-                    console.error("usagi: bundle fetch failed", e);
-                    startBtn.textContent = "Failed to load";
-                    subText.textContent = String(e.message || e);
-                    started = false;
-                    startBtn.disabled = false;
-                    return;
-                }
+        try {
+          const res = await fetch(bundleUrl);
+          if (!res.ok) {
+            throw new Error(
+              `${bundleUrl}: HTTP ${res.status} ${res.statusText}`,
+            );
+          }
+          const bytes = new Uint8Array(await res.arrayBuffer());
+          Module.FS.writeFile("/game.usagi", bytes);
+        } catch (e) {
+          console.error("usagi: bundle fetch failed", e);
+          startBtn.textContent = "Failed to load";
+          subText.textContent = String(e.message || e);
+          started = false;
+          startBtn.disabled = false;
+          return;
+        }
 
-                overlay.style.display = "none";
+        overlay.style.display = "none";
 
-                // Resume any AudioContext emscripten/raylib already created. Most
-                // are created later inside main() (still inside the user gesture)
-                // and start in `running` state automatically.
-                if (
-                    Module.audioContext &&
-                    Module.audioContext.state === "suspended"
-                ) {
-                    Module.audioContext.resume();
-                }
+        // Resume any AudioContext emscripten/raylib already created. Most
+        // are created later inside main() (still inside the user gesture)
+        // and start in `running` state automatically.
+        if (
+          Module.audioContext &&
+          Module.audioContext.state === "suspended"
+        ) {
+          Module.audioContext.resume();
+        }
 
-                try {
-                    Module.callMain([]);
-                } catch (e) {
-                    console.error("usagi: main() threw", e);
-                }
-            }
+        try {
+          Module.callMain([]);
+        } catch (e) {
+          console.error("usagi: main() threw", e);
+        }
+      }
 
-            overlay.addEventListener("click", start);
-            overlay.addEventListener("keydown", (e) => {
-                if (e.key === "Enter" || e.key === " ") start();
-            });
-        </script>
-        <script src="usagi.js"></script>
-    </body>
+      overlay.addEventListener("click", start);
+      overlay.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") start();
+      });
+    </script>
+    <script src="usagi.js"></script>
+  </body>
 </html>
