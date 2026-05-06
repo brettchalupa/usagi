@@ -6,10 +6,8 @@ Usagi is a simple 2D game engine for quickly making games with **Lua** 5.4. It
 features live-reloading as you change your game code and assets. Its API is
 clear, consistent, and familiar.
 
-[Watch the intro video!](https://www.youtube.com/watch?v=byp3rKd626M)
-
-**WARNING:** Usagi is early in development and not stable. APIs and commands are
-likely to change until v1.0.0 releases.
+**WARNING:** Usagi is is pre-v1 and not yet stable. APIs and commands may
+change. Features may break. Updates are released frequently.
 
 Usagi is made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to
 the public domain.
@@ -19,6 +17,11 @@ Key links:
 - Website: [usagiengine.com](https://usagiengine.com)
 - Discord: [usagiengine.com/discord](https://usagiengine.com/discord)
 - Reddit: [reddit.com/r/UsagiEngine](https://reddit.com/r/UsagiEngine)
+
+Videos:
+
+- [v0.1 to v0.6 overview](https://www.youtube.com/watch?v=wYIGB91i8Lc)
+- [Introduction with initial release of v0.1](https://www.youtube.com/watch?v=byp3rKd626M)
 
 ## Install
 
