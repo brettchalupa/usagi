@@ -5,6 +5,10 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Fixes:
+
+- No longer crash on Windows when `require`d Lua files have a syntax error. See #105.
+
 ## v0.6.0 - May 5, 2026
 
 Features:

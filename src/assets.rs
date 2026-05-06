@@ -42,17 +42,38 @@ pub fn install_require(lua: &Lua, vfs: Rc<dyn VirtualFs>) -> LuaResult<()> {
     let searcher = lua.create_function(move |lua, name: String| -> LuaResult<LuaMultiValue> {
         match vfs_for_searcher.read_module(&name) {
             Some((bytes, chunk_name)) => {
-                // Preprocess once at searcher-time so the bytes captured
-                // in the loader closure are already rewritten.
+                // Preprocess and compile here, in the searcher, rather than
+                // wrapping the load in a Rust loader callback. The loader
+                // returned to `require` is then a precompiled Lua function
+                // (or a tiny Lua thunk that calls `error(...)` if compile
+                // failed), never a Rust closure.
+                //
+                // Why: Lua reports errors via `lua_error`, which longjmps to
+                // the nearest `lua_pcall`. When the loader is a Rust callback
+                // and it returns `Err`, mlua re-raises via `lua_error`, and
+                // the longjmp has to unwind across Rust frames. On Windows
+                // MSVC that trips the GS stack-cookie check and aborts the
+                // process with STATUS_STACK_BUFFER_OVERRUN (BR-2796). Keeping
+                // the loader Lua-only confines the longjmp to Lua/C frames
+                // back to the require pcall which is fine on every platform.
                 let prepared = preprocess(&bytes);
-                let chunk_name_for_loader = chunk_name.clone();
-                let loader = lua.create_function(
-                    move |lua, (modname, _chunk): (String, LuaValue)| -> LuaResult<LuaMultiValue> {
-                        lua.load(prepared.as_slice())
-                            .set_name(chunk_name_for_loader.as_str())
-                            .call(modname)
-                    },
-                )?;
+                let loader: LuaFunction = match lua
+                    .load(prepared.as_slice())
+                    .set_name(chunk_name.as_str())
+                    .into_function()
+                {
+                    Ok(f) => f,
+                    Err(e) => {
+                        // Build a Lua closure that throws when called. error()
+                        // is a Lua builtin, so its longjmp originates inside
+                        // Lua's C, which means no Rust frames to unwind through.
+                        let msg = format!("error loading module '{name}':\n  {e}");
+                        let msg_str = lua.create_string(&msg)?;
+                        lua.load("local msg = ...; return function() error(msg, 0) end")
+                            .set_name("=usagi require error thunk")
+                            .call::<LuaFunction>(msg_str)?
+                    }
+                };
                 Ok(LuaMultiValue::from_vec(vec![
                     LuaValue::Function(loader),
                     LuaValue::String(lua.create_string(&chunk_name)?),
@@ -476,6 +497,37 @@ mod tests {
         install_require(&lua, vfs.clone()).unwrap();
         load_script(&lua, vfs.as_ref()).unwrap();
         assert_eq!(lua.globals().get::<i32>("result").unwrap(), 12);
+    }
+
+    #[test]
+    fn require_with_syntax_error_in_module_returns_err_not_panic() {
+        // A syntax error in a required file used to crash
+        // the dev process on Windows. Root cause was the loader closure: it
+        // ran `lua.load(bytes).call(...)` from a Rust callback, so a syntax
+        // error returned `Err` which mlua re-raised via `lua_error`. The
+        // longjmp had to unwind across Rust frames, which trips MSVC's GS
+        // stack-cookie check. Pre-compiling in the searcher and returning a
+        // Lua-only loader (or a Lua thunk that calls `error()` for compile
+        // failures) keeps the longjmp inside Lua/C frames.
+        //
+        // This test exercises the API contract on every platform; on Mac/Linux
+        // longjmp through Rust frames happened to work, so this test passed
+        // pre-fix too. It locks in the behavior so the loader is never put
+        // back in Rust-callback form.
+        let lua = Lua::new();
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("main.lua"), "require 'broken'").unwrap();
+        fs::write(root.join("broken.lua"), "local x = }").unwrap();
+        let vfs: Rc<dyn VirtualFs> = Rc::new(FsBacked::from_script_path(&root.join("main.lua")));
+        install_require(&lua, vfs.clone()).unwrap();
+        let err = load_script(&lua, vfs.as_ref())
+            .expect_err("syntax error in required module must propagate as Err");
+        let s = err.to_string();
+        assert!(
+            s.contains("broken"),
+            "expected error to mention the failing module, got: {s}"
+        );
     }
 
     #[test]
