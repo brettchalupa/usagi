@@ -7,8 +7,8 @@
 # before running.
 #
 # Usage:
-#   ./setup-emscripten.sh
-#   EMSDK_DIR=/opt/emsdk ./setup-emscripten.sh
+#   ./scripts/setup_emscripten.sh
+#   EMSDK_DIR=/opt/emsdk ./scripts/setup_emscripten.sh
 
 set -euo pipefail
 
