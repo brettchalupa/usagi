@@ -7,7 +7,7 @@
 //! browser between frames). Avoiding a blocking native loop on emscripten
 //! is what lets us drop ASYNCIFY entirely.
 
-use crate::api::{record_err, register_shader_api, setup_api};
+use crate::api::{record_err, register_shader_api, setup_api, wrap};
 use crate::assets::{
     MusicLibrary, SfxLibrary, SpriteSheet, clear_user_modules, install_require, load_script,
 };
@@ -41,7 +41,10 @@ fn register_usagi_measure_text(lua: &Lua, font: &'static Font) -> LuaResult<()> 
         let m = font.measure_text(&s, crate::font::MONOGRAM_SIZE as f32, 0.0);
         Ok((m.x as i32, m.y as i32))
     })?;
-    usagi.set("measure_text", measure)?;
+    usagi.set(
+        "measure_text",
+        wrap(lua, measure, "usagi.measure_text", &["string"])?,
+    )?;
     Ok(())
 }
 
@@ -85,57 +88,84 @@ fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
 
     let s = Rc::clone(&bridge.state);
     let pressed = lua.create_function(move |_, action: u32| Ok(s.get().action_pressed(action)))?;
-    input.set("pressed", pressed)?;
+    input.set("pressed", wrap(lua, pressed, "input.pressed", &["number"])?)?;
 
     let s = Rc::clone(&bridge.state);
     let held = lua.create_function(move |_, action: u32| Ok(s.get().action_down(action)))?;
-    input.set("held", held)?;
+    input.set("held", wrap(lua, held, "input.held", &["number"])?)?;
 
     let s = Rc::clone(&bridge.state);
     let released =
         lua.create_function(move |_, action: u32| Ok(s.get().action_released(action)))?;
-    input.set("released", released)?;
+    input.set(
+        "released",
+        wrap(lua, released, "input.released", &["number"])?,
+    )?;
 
     let s = Rc::clone(&bridge.state);
     let mapping_for = lua.create_function(move |_, action: u32| {
         Ok(s.get().mapping_for(action).map(str::to_string))
     })?;
-    input.set("mapping_for", mapping_for)?;
+    input.set(
+        "mapping_for",
+        wrap(lua, mapping_for, "input.mapping_for", &["number"])?,
+    )?;
 
     let s = Rc::clone(&bridge.state);
     let last_source = lua.create_function(move |_, ()| Ok(s.get().last_source().as_str()))?;
-    input.set("last_source", last_source)?;
+    input.set(
+        "last_source",
+        wrap(lua, last_source, "input.last_source", &[])?,
+    )?;
 
     let s = Rc::clone(&bridge.state);
     let mouse = lua.create_function(move |_, ()| Ok(s.get().mouse_position()))?;
-    input.set("mouse", mouse)?;
+    input.set("mouse", wrap(lua, mouse, "input.mouse", &[])?)?;
 
     let s = Rc::clone(&bridge.state);
     let mouse_held =
         lua.create_function(move |_, button: u32| Ok(s.get().mouse_button_down(button)))?;
-    input.set("mouse_held", mouse_held)?;
+    input.set(
+        "mouse_held",
+        wrap(lua, mouse_held, "input.mouse_held", &["number"])?,
+    )?;
 
     let s = Rc::clone(&bridge.state);
     let mouse_pressed =
         lua.create_function(move |_, button: u32| Ok(s.get().mouse_button_pressed(button)))?;
-    input.set("mouse_pressed", mouse_pressed)?;
+    input.set(
+        "mouse_pressed",
+        wrap(lua, mouse_pressed, "input.mouse_pressed", &["number"])?,
+    )?;
 
     let s = Rc::clone(&bridge.state);
     let mouse_released =
         lua.create_function(move |_, button: u32| Ok(s.get().mouse_button_released(button)))?;
-    input.set("mouse_released", mouse_released)?;
+    input.set(
+        "mouse_released",
+        wrap(lua, mouse_released, "input.mouse_released", &["number"])?,
+    )?;
 
     let s = Rc::clone(&bridge.state);
     let key_held = lua.create_function(move |_, key: u32| Ok(s.get().key_held(key)))?;
-    input.set("key_held", key_held)?;
+    input.set(
+        "key_held",
+        wrap(lua, key_held, "input.key_held", &["number"])?,
+    )?;
 
     let s = Rc::clone(&bridge.state);
     let key_pressed = lua.create_function(move |_, key: u32| Ok(s.get().key_pressed(key)))?;
-    input.set("key_pressed", key_pressed)?;
+    input.set(
+        "key_pressed",
+        wrap(lua, key_pressed, "input.key_pressed", &["number"])?,
+    )?;
 
     let s = Rc::clone(&bridge.state);
     let key_released = lua.create_function(move |_, key: u32| Ok(s.get().key_released(key)))?;
-    input.set("key_released", key_released)?;
+    input.set(
+        "key_released",
+        wrap(lua, key_released, "input.key_released", &["number"])?,
+    )?;
 
     let cv = Rc::clone(&bridge.cursor_visible);
     let pc = Rc::clone(&bridge.pending_cursor);
@@ -144,11 +174,17 @@ fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
         pc.set(Some(visible));
         Ok(())
     })?;
-    input.set("set_mouse_visible", set_visible)?;
+    input.set(
+        "set_mouse_visible",
+        wrap(lua, set_visible, "input.set_mouse_visible", &["boolean"])?,
+    )?;
 
     let cv = Rc::clone(&bridge.cursor_visible);
     let is_visible = lua.create_function(move |_, ()| Ok(cv.get()))?;
-    input.set("mouse_visible", is_visible)?;
+    input.set(
+        "mouse_visible",
+        wrap(lua, is_visible, "input.mouse_visible", &[])?,
+    )?;
 
     Ok(())
 }
@@ -165,28 +201,45 @@ fn register_effect_api(lua: &Lua, effects: &Rc<std::cell::RefCell<Effects>>) -> 
         e.borrow_mut().hitstop(time);
         Ok(())
     })?;
-    effect.set("hitstop", hitstop)?;
+    effect.set(
+        "hitstop",
+        wrap(lua, hitstop, "effect.hitstop", &["number"])?,
+    )?;
 
     let e = Rc::clone(effects);
     let screen_shake = lua.create_function(move |_, (time, intensity): (f32, f32)| {
         e.borrow_mut().screen_shake(time, intensity);
         Ok(())
     })?;
-    effect.set("screen_shake", screen_shake)?;
+    effect.set(
+        "screen_shake",
+        wrap(
+            lua,
+            screen_shake,
+            "effect.screen_shake",
+            &["number", "number"],
+        )?,
+    )?;
 
     let e = Rc::clone(effects);
     let flash = lua.create_function(move |_, (time, color_index): (f32, i32)| {
         e.borrow_mut().flash(time, color_index);
         Ok(())
     })?;
-    effect.set("flash", flash)?;
+    effect.set(
+        "flash",
+        wrap(lua, flash, "effect.flash", &["number", "number"])?,
+    )?;
 
     let e = Rc::clone(effects);
     let slow_mo = lua.create_function(move |_, (time, scale): (f32, f32)| {
         e.borrow_mut().slow_mo(time, scale);
         Ok(())
     })?;
-    effect.set("slow_mo", slow_mo)?;
+    effect.set(
+        "slow_mo",
+        wrap(lua, slow_mo, "effect.slow_mo", &["number", "number"])?,
+    )?;
 
     lua.globals().set("effect", effect)?;
     Ok(())
@@ -209,21 +262,21 @@ fn register_music_api(
         m.borrow_mut().play(&name);
         Ok(())
     })?;
-    music_tbl.set("play", play)?;
+    music_tbl.set("play", wrap(lua, play, "music.play", &["string"])?)?;
 
     let m = Rc::clone(music);
     let loop_ = lua.create_function(move |_, name: String| {
         m.borrow_mut().loop_(&name);
         Ok(())
     })?;
-    music_tbl.set("loop", loop_)?;
+    music_tbl.set("loop", wrap(lua, loop_, "music.loop", &["string"])?)?;
 
     let m = Rc::clone(music);
     let stop = lua.create_function(move |_, ()| {
         m.borrow_mut().stop();
         Ok(())
     })?;
-    music_tbl.set("stop", stop)?;
+    music_tbl.set("stop", wrap(lua, stop, "music.stop", &[])?)?;
 
     Ok(())
 }
@@ -245,7 +298,7 @@ fn register_save_api(lua: &Lua, game_id: crate::game_id::GameId) -> LuaResult<()
             .map_err(|e| mlua::Error::external(format!("usagi.save: write: {e}")))?;
         Ok(())
     })?;
-    usagi.set("save", save)?;
+    usagi.set("save", wrap(lua, save, "usagi.save", &["table"])?)?;
 
     let id_for_load = game_id;
     let load = lua.create_function(move |lua, ()| match crate::save::read_save(&id_for_load) {
@@ -253,7 +306,7 @@ fn register_save_api(lua: &Lua, game_id: crate::game_id::GameId) -> LuaResult<()
         Ok(Some(s)) => crate::save::json_to_lua(lua, &s),
         Err(e) => Err(mlua::Error::external(format!("usagi.load: read: {e}"))),
     })?;
-    usagi.set("load", load)?;
+    usagi.set("load", wrap(lua, load, "usagi.load", &[])?)?;
 
     Ok(())
 }
@@ -1025,7 +1078,7 @@ impl Session {
                     sfx_ref.play(&name);
                     Ok(())
                 })?;
-                sfx_tbl.set("play", play)?;
+                sfx_tbl.set("play", wrap(lua, play, "sfx.play", &["string"])?)?;
 
                 update_fn.call::<()>(dt)?;
                 Ok(())
@@ -1269,25 +1322,106 @@ impl Session {
                             Ok(())
                         },
                     )?;
-                    gfx_tbl.set("clear", clear)?;
-                    gfx_tbl.set("text", text)?;
-                    gfx_tbl.set("rect", rect)?;
-                    gfx_tbl.set("rect_fill", rect_fill)?;
-                    gfx_tbl.set("circ", circ)?;
-                    gfx_tbl.set("circ_fill", circ_fill)?;
-                    gfx_tbl.set("line", line)?;
-                    gfx_tbl.set("pixel", pixel)?;
-                    gfx_tbl.set("spr", spr)?;
-                    gfx_tbl.set("spr_ex", spr_ex)?;
-                    gfx_tbl.set("sspr", sspr)?;
-                    gfx_tbl.set("sspr_ex", sspr_ex)?;
+                    gfx_tbl.set("clear", wrap(lua, clear, "gfx.clear", &["number"])?)?;
+                    gfx_tbl.set(
+                        "text",
+                        wrap(
+                            lua,
+                            text,
+                            "gfx.text",
+                            &["string", "number", "number", "number"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "rect",
+                        wrap(
+                            lua,
+                            rect,
+                            "gfx.rect",
+                            &["number", "number", "number", "number", "number"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "rect_fill",
+                        wrap(
+                            lua,
+                            rect_fill,
+                            "gfx.rect_fill",
+                            &["number", "number", "number", "number", "number"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "circ",
+                        wrap(
+                            lua,
+                            circ,
+                            "gfx.circ",
+                            &["number", "number", "number", "number"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "circ_fill",
+                        wrap(
+                            lua,
+                            circ_fill,
+                            "gfx.circ_fill",
+                            &["number", "number", "number", "number"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "line",
+                        wrap(
+                            lua,
+                            line,
+                            "gfx.line",
+                            &["number", "number", "number", "number", "number"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "pixel",
+                        wrap(lua, pixel, "gfx.pixel", &["number", "number", "number"])?,
+                    )?;
+                    gfx_tbl.set(
+                        "spr",
+                        wrap(lua, spr, "gfx.spr", &["number", "number", "number"])?,
+                    )?;
+                    gfx_tbl.set(
+                        "spr_ex",
+                        wrap(
+                            lua,
+                            spr_ex,
+                            "gfx.spr_ex",
+                            &["number", "number", "number", "boolean", "boolean"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "sspr",
+                        wrap(
+                            lua,
+                            sspr,
+                            "gfx.sspr",
+                            &["number", "number", "number", "number", "number", "number"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "sspr_ex",
+                        wrap(
+                            lua,
+                            sspr_ex,
+                            "gfx.sspr_ex",
+                            &[
+                                "number", "number", "number", "number", "number", "number",
+                                "number", "number", "boolean", "boolean",
+                            ],
+                        )?,
+                    )?;
 
                     let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
                     let play = scope.create_function(|_, name: String| {
                         sfx_ref.play(&name);
                         Ok(())
                     })?;
-                    sfx_tbl.set("play", play)?;
+                    sfx_tbl.set("play", wrap(lua, play, "sfx.play", &["string"])?)?;
 
                     draw_fn.call::<()>(dt)?;
                     Ok(())

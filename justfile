@@ -17,7 +17,7 @@ test:
 
 fmt:
     cargo fmt
-    deno fmt **/*.md **/*.html
+    deno fmt *.md **/*.md **/*.html
 
 # Open the Usagi tools window. Optional path is forwarded to `usagi tools`.
 

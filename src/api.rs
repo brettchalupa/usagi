@@ -12,12 +12,73 @@ use mlua::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// Lua-side argument validator. Wraps a raw Rust callback so bad input is
+/// rejected with a clean `error(...)` from Lua-land instead of propagating
+/// out of the Rust closure as `Err`. The latter triggers a longjmp through
+/// Rust frames, which crashes on Windows MSVC. Keeping the failure path inside
+/// Lua means the longjmp only ever traverses Lua/C frames back to the nearest
+/// pcall — fine on every platform.
+///
+/// The helper is exposed as the global `_usagi_wrap`; registration sites
+/// reach it via `wrap(lua, raw, name, types)` below.
+const WRAP_HELPER_LUA: &str = r##"
+return function(raw, name, ...)
+  local n = select("#", ...)
+  local types = {...}
+  return function(...)
+    for i = 1, n do
+      local expected = types[i]
+      if expected ~= "any" then
+        local got = type(select(i, ...))
+        if got ~= expected then
+          error(string.format(
+            "bad argument #%d to '%s' (%s expected, got %s)",
+            i, name, expected, got
+          ), 2)
+        end
+      end
+    end
+    return raw(...)
+  end
+end
+"##;
+
+/// Installs `_usagi_wrap` (see [`WRAP_HELPER_LUA`]). Call once before any API
+/// registration so [`wrap`] can find it.
+pub fn install_wrap_helper(lua: &Lua) -> LuaResult<()> {
+    let wrap_fn: LuaFunction = lua
+        .load(WRAP_HELPER_LUA)
+        .set_name("=usagi/wrap.lua")
+        .eval()?;
+    lua.globals().set("_usagi_wrap", wrap_fn)?;
+    Ok(())
+}
+
+/// Wraps `raw` with Lua-side argument validation. `types` lists the expected
+/// `type()` of each positional arg (`"number"`, `"string"`, `"boolean"`,
+/// `"function"`, `"table"`, `"nil"`, or `"any"` to skip the check). The
+/// returned function lives in Lua, so when validation fails it raises a
+/// Lua error that unwinds through Lua/C frames only — see
+/// [`WRAP_HELPER_LUA`] for the rationale.
+pub fn wrap(lua: &Lua, raw: LuaFunction, name: &str, types: &[&str]) -> LuaResult<LuaFunction> {
+    let wrap_fn: LuaFunction = lua.globals().get("_usagi_wrap")?;
+    let mut args: Vec<LuaValue> = Vec::with_capacity(types.len() + 2);
+    args.push(LuaValue::Function(raw));
+    args.push(LuaValue::String(lua.create_string(name)?));
+    for t in types {
+        args.push(LuaValue::String(lua.create_string(*t)?));
+    }
+    wrap_fn.call(LuaMultiValue::from_vec(args))
+}
+
 /// Installs the Lua-facing globals: `gfx`, `input`, `sfx`, `usagi`. Each is a
 /// table with any constants it owns. Per-frame function members (e.g.
 /// gfx.clear, sfx.play) are registered inside `lua.scope` blocks in the main
 /// loop so their closures can borrow the current frame's draw handle, audio
 /// device, etc.
 pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
+    install_wrap_helper(lua)?;
+
     let gfx = lua.create_table()?;
     gfx.set("COLOR_BLACK", 0)?;
     gfx.set("COLOR_DARK_BLUE", 1)?;
@@ -124,7 +185,12 @@ pub fn register_shader_api(lua: &Lua, mgr: &Rc<RefCell<ShaderManager>>) -> LuaRe
         m.borrow_mut().request_set(name);
         Ok(())
     })?;
-    gfx.set("shader_set", shader_set)?;
+    // `name` is optional (nil clears the active shader), so the wrapper
+    // accepts "any" and lets mlua's Option<String> conversion sort it.
+    gfx.set(
+        "shader_set",
+        wrap(lua, shader_set, "gfx.shader_set", &["any"])?,
+    )?;
 
     let m = Rc::clone(mgr);
     let shader_uniform = lua.create_function(move |_, (name, value): (String, LuaValue)| {
@@ -132,7 +198,15 @@ pub fn register_shader_api(lua: &Lua, mgr: &Rc<RefCell<ShaderManager>>) -> LuaRe
         m.borrow_mut().queue_uniform(name, v);
         Ok(())
     })?;
-    gfx.set("shader_uniform", shader_uniform)?;
+    gfx.set(
+        "shader_uniform",
+        wrap(
+            lua,
+            shader_uniform,
+            "gfx.shader_uniform",
+            &["string", "any"],
+        )?,
+    )?;
 
     Ok(())
 }
@@ -235,6 +309,71 @@ mod tests {
             DEFAULT_SPRITE_SIZE
         );
         assert_eq!(usagi.get::<f64>("elapsed").unwrap(), 0.0);
+    }
+
+    #[test]
+    fn wrap_rejects_bad_arg_with_lua_error_not_panic() {
+        // GH Issue #103: callbacks must reject bad input via Lua-side
+        // `error(...)` so the longjmp stays inside Lua/C frames. Returning
+        // `Err` from a typed Rust callback would re-raise via `lua_error`
+        // through Rust frames, which trips Windows MSVC's GS stack-cookie
+        // check and aborts the process.
+        //
+        // This test exercises the wrap machinery on every platform; on
+        // Mac/Linux longjmp-through-Rust happens to work, so this would
+        // have passed pre-fix too — it locks the wrap contract in place.
+        let lua = Lua::new();
+        install_wrap_helper(&lua).unwrap();
+
+        let raw = lua
+            .create_function(|_, c: i32| Ok(c * 2))
+            .expect("raw callback");
+        let wrapped = wrap(&lua, raw, "test.double", &["number"]).expect("wrap");
+        lua.globals().set("doublez", wrapped).unwrap();
+
+        // Happy path: a number passes the validator and reaches the raw fn.
+        let v: i32 = lua.load("return doublez(7)").eval().unwrap();
+        assert_eq!(v, 14);
+
+        // Sad path: nil is caught by the Lua wrapper before mlua's i32
+        // conversion even runs. The error must propagate cleanly as Err,
+        // not crash the process.
+        let err = lua
+            .load("doublez(nil)")
+            .exec()
+            .expect_err("nil arg must be rejected");
+        let s = err.to_string();
+        assert!(
+            s.contains("test.double") && s.contains("number expected"),
+            "expected friendly arg error, got: {s}"
+        );
+
+        // Sad path 2: wrong type (string) is also caught.
+        let err = lua
+            .load("doublez('hi')")
+            .exec()
+            .expect_err("string arg must be rejected");
+        assert!(err.to_string().contains("test.double"));
+    }
+
+    #[test]
+    fn wrap_with_any_skips_validation() {
+        // The "any" placeholder lets a callback opt out of Lua-side type
+        // checking for an arg whose conversion is best handled by mlua
+        // (e.g. Option<String>, LuaValue serialization).
+        let lua = Lua::new();
+        install_wrap_helper(&lua).unwrap();
+
+        let raw = lua
+            .create_function(|_, _v: LuaValue| Ok(true))
+            .expect("raw callback");
+        let wrapped = wrap(&lua, raw, "test.any", &["any"]).expect("wrap");
+        lua.globals().set("any_ok", wrapped).unwrap();
+
+        let result: bool = lua.load("return any_ok(nil)").eval().unwrap();
+        assert!(result);
+        let result: bool = lua.load("return any_ok({1, 2, 3})").eval().unwrap();
+        assert!(result);
     }
 
     #[test]

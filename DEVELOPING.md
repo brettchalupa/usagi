@@ -70,8 +70,9 @@ While developing Usagi itself, replace `usagi` with `cargo run --` (for example
 `cargo run -- dev examples/hello_usagi.lua`).
 
 `just build-web` then `just serve-web` builds the wasm runtime and serves it
-locally on port 3535. Needs emscripten on PATH; run `./scripts/setup_emscripten.sh`
-once to install it on Fedora. `brew install emscripten` works on macOS.
+locally on port 3535. Needs emscripten on PATH; run
+`./scripts/setup_emscripten.sh` once to install it on Fedora.
+`brew install emscripten` works on macOS.
 
 See `justfile` for the full list of recipes.
 
@@ -82,6 +83,49 @@ See `justfile` for the full list of recipes.
 - `just fmt` - format Rust code
 - `just serve-web` - build and serve the web build at <http://localhost:3535>
   (requires `emcc` on PATH; see [docs/web-build.md](docs/web-build.md))
+
+## Adding Lua API bindings
+
+Every Rust callback exposed to user Lua (anything registered with
+`lua.create_function` or `scope.create_function` and assigned onto `gfx`,
+`input`, `sfx`, `music`, `usagi`, `effect`, etc.) MUST go through the `wrap`
+helper in `src/api.rs` before being attached to its public table.
+
+Pattern:
+
+```rust
+let raw = lua.create_function(|_, c: i32| { /* ... */ })?;
+gfx.set("clear", wrap(lua, raw, "gfx.clear", &["number"])?)?;
+```
+
+`types` is a slice of expected `type()` strings (`"number"`, `"string"`,
+`"boolean"`, `"function"`, `"table"`, `"nil"`, or `"any"` to skip a check). The
+wrapper calls `error(...)` from Lua-land when validation fails.
+
+### Why this is mandatory
+
+Lua's only error mechanism is `lua_error`, which is `longjmp`. When a Rust
+callback returns `Err`, mlua re-raises via `lua_error`, and the longjmp has to
+unwind back to the nearest `lua_pcall`, crossing every Rust frame on the way. On
+Windows MSVC that trips the GS stack-cookie check and aborts the process with
+`STATUS_STACK_BUFFER_OVERRUN`. See
+[#103](https://github.com/brettchalupa/usagi/issues/103).
+
+The wrapper sidesteps this by validating in Lua-land first. When a user calls
+`gfx.clear(nil)`, the validator's `error(...)` originates from Lua's `error`
+builtin, so the longjmp traverses Lua/C frames only and lands safely at the
+outer pcall on every platform.
+
+This applies to BOTH stable callbacks (registered once at session start) and
+per-frame scoped callbacks inside `lua.scope` blocks. The wrap call goes inside
+the scope alongside the `scope.create_function` call.
+
+If the new binding accepts something mlua's typed conversion can't easily
+express (an `Option<T>`, a serializable `LuaValue`, a multi-type union), use
+`"any"` for that arg and let the Rust closure handle the variant.
+
+There are regression tests in `src/api.rs` (`wrap_rejects_bad_arg_*`) that lock
+the contract in place.
 
 ## Testing the Web Build Locally
 
@@ -310,7 +354,8 @@ without an emcc rebuild on the user's machine.
 Quickstart:
 
 1. One-time setup (per machine):
-   - `bash scripts/setup_emscripten.sh` (installs emsdk to `~/.local/share/emsdk`).
+   - `bash scripts/setup_emscripten.sh` (installs emsdk to
+     `~/.local/share/emsdk`).
    - `just setup-web` (adds the wasm target and a tiny static server).
 2. Each new shell session, source emsdk so `emcc` is on PATH:
    ```sh
