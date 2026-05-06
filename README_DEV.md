@@ -199,10 +199,126 @@ via `meta/usagi.lua`.
 
 ### Cheatsheet
 
-TODO: add this
-
 ```lua
+-- Engine info / config
 
+usagi.GAME_W
+usagi.GAME_H
+usagi.SPRITE_SIZE
+usagi.IS_DEV
+usagi.elapsed
+usagi.measure_text(text)
+usagi.save(t)
+usagi.load()
+
+-- Lifecycle callbacks
+
+_config()
+_init()
+_update(dt)
+_draw(dt)
+
+-- Graphics
+
+gfx.clear(color)
+gfx.text(text, x, y, color)
+gfx.rect(x, y, w, h, color)
+gfx.rect_fill(x, y, w, h, color)
+gfx.circ(x, y, r, color)
+gfx.circ_fill(x, y, r, color)
+gfx.line(x1, y1, x2, y2, color)
+gfx.pixel(x, y, color)
+gfx.spr(index, x, y)
+gfx.spr_ex(index, x, y, flip_x, flip_y)
+gfx.sspr(sx, sy, sw, sh, dx, dy)
+gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)
+gfx.shader_set(name)
+gfx.shader_uniform(name, value)
+
+-- Palette (PICO-8, 16 colors)
+
+gfx.COLOR_BLACK, gfx.COLOR_DARK_BLUE, gfx.COLOR_DARK_PURPLE, gfx.COLOR_DARK_GREEN
+gfx.COLOR_BROWN, gfx.COLOR_DARK_GRAY, gfx.COLOR_LIGHT_GRAY, gfx.COLOR_WHITE
+gfx.COLOR_RED,   gfx.COLOR_ORANGE,    gfx.COLOR_YELLOW,     gfx.COLOR_GREEN
+gfx.COLOR_BLUE,  gfx.COLOR_INDIGO,    gfx.COLOR_PINK,       gfx.COLOR_PEACH
+
+-- Sound
+
+sfx.play(name)
+music.play(name)
+music.loop(name)
+music.stop()
+
+-- Input -- actions
+
+input.pressed(action)
+input.held(action)
+input.released(action)
+input.mapping_for(action)
+input.last_source()
+
+input.LEFT, input.RIGHT, input.UP, input.DOWN
+input.BTN1, input.BTN2, input.BTN3
+input.SOURCE_KEYBOARD, input.SOURCE_GAMEPAD
+
+-- Input -- mouse
+
+input.mouse()
+input.mouse_held(button)
+input.mouse_pressed(button)
+input.mouse_released(button)
+input.set_mouse_visible(visible)
+input.mouse_visible()
+
+input.MOUSE_LEFT, input.MOUSE_RIGHT
+
+-- Input -- keyboard (bypasses the action keymap; prefer actions for game input)
+
+input.key_held(key)
+input.key_pressed(key)
+input.key_released(key)
+
+input.KEY_A   .. input.KEY_Z
+input.KEY_0   .. input.KEY_9
+input.KEY_F1  .. input.KEY_F12
+input.KEY_SPACE, KEY_ENTER, KEY_ESCAPE, KEY_TAB, KEY_BACKSPACE, KEY_DELETE
+input.KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN
+input.KEY_LSHIFT, KEY_RSHIFT, KEY_LCTRL, KEY_RCTRL, KEY_LALT, KEY_RALT
+input.KEY_BACKTICK, KEY_MINUS, KEY_EQUAL
+input.KEY_LBRACKET, KEY_RBRACKET, KEY_BACKSLASH
+input.KEY_SEMICOLON, KEY_APOSTROPHE, KEY_COMMA, KEY_PERIOD, KEY_SLASH
+
+-- Effects (juice)
+
+effect.hitstop(time)
+effect.screen_shake(time, intensity)
+effect.flash(time, color)
+effect.slow_mo(time, scale)
+
+-- Util -- math
+
+util.clamp(v, lo, hi)
+util.sign(v)
+util.round(v)
+util.approach(current, target, max_delta)
+util.lerp(a, b, t)
+util.wrap(v, lo, hi)
+util.flash(t, hz)
+
+-- Util -- vectors
+
+util.vec_normalize(v)
+util.vec_dist(a, b)
+util.vec_dist_sq(a, b)
+util.vec_from_angle(angle, len)
+
+-- Util -- geometry
+
+util.point_in_rect(p, r)
+util.point_in_circ(p, c)
+util.rect_overlap(a, b)
+util.circ_overlap(a, b)
+util.circ_rect_overlap(c, r)
 ```
 
 ### Compound assignment operators
