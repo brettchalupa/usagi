@@ -19,6 +19,8 @@ pub(crate) mod check_cli;
 mod compiler;
 mod driver_log;
 #[cfg(not(target_os = "emscripten"))]
+mod dump;
+#[cfg(not(target_os = "emscripten"))]
 pub(crate) mod emit_cli;
 #[cfg(not(target_os = "emscripten"))]
 pub(crate) mod inspect_cli;
@@ -258,6 +260,9 @@ impl ShaderManager {
             None => None,
         };
 
+        #[cfg(not(target_os = "emscripten"))]
+        dump::dump_generated_fragment(name, &fragment);
+
         let (shader, driver_log) = driver_log::load_shader_from_memory_with_log(
             rl,
             thread,
@@ -491,6 +496,15 @@ impl ShaderProfile {
             Self::DesktopGlsl330 => "GLSL 330",
             Self::DesktopGlsl440 => "GLSL 440",
             Self::WebGlslEs100 => "GLSL ES 100",
+        }
+    }
+
+    #[cfg(not(target_os = "emscripten"))]
+    pub(crate) fn file_suffix(self) -> &'static str {
+        match self {
+            Self::DesktopGlsl330 => "glsl330",
+            Self::DesktopGlsl440 => "glsl440",
+            Self::WebGlslEs100 => "es100",
         }
     }
 }

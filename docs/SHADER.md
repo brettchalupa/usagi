@@ -261,6 +261,12 @@ remapped generated GLSL line references, and the generated GLSL line range that
 maps back to `.usagi.fs` source lines so driver logs can be read against the
 user-authored file. Reload failures keep the previous shader live.
 
+Set `USAGI_SHADER_DUMP_DIR=path` before running `usagi dev` or `usagi run` to
+dump each loaded generic shader's generated GLSL and metadata JSON. Dump files
+use the same profile suffixes as `usagi shaders emit --target all`, such as
+`crt.es100.fs`, `crt.glsl330.fs`, and `crt.glsl440.fs`. Dump failures only warn
+and never block shader load.
+
 ## Offline Checks
 
 Run `usagi shaders check path/to/project` to compile every direct

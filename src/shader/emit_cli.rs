@@ -194,7 +194,7 @@ fn output_file_name(input_path: &Path, profile: ShaderProfile) -> String {
     format!(
         "{}.{}.fs",
         shader_base_name(input_path),
-        profile_file_suffix(profile)
+        profile.file_suffix()
     )
 }
 
@@ -208,14 +208,6 @@ fn shader_base_name(input_path: &Path) -> String {
         .or_else(|| file_name.strip_suffix(".fs"))
         .unwrap_or(file_name)
         .to_string()
-}
-
-fn profile_file_suffix(profile: ShaderProfile) -> &'static str {
-    match profile {
-        ShaderProfile::WebGlslEs100 => "es100",
-        ShaderProfile::DesktopGlsl330 => "glsl330",
-        ShaderProfile::DesktopGlsl440 => "glsl440",
-    }
 }
 
 #[cfg(test)]
