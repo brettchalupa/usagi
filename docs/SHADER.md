@@ -202,6 +202,8 @@ one profile before GL compile:
 - `texture(...)` and `texture2D(...)`; use `usagi_texture(...)`.
 - `in`, `out`, `varying`, `layout`, and `precision` declarations in generic
   shader source; Usagi emits the correct form for the target.
+- Structured statements outside the current contract, including `for`, `while`,
+  `do`, and `switch`; use `if` / `else` or native fallbacks.
 - Declarations of `texture0`, `fragTexCoord`, `fragColor`, `finalColor`,
   `gl_FragColor`, or `main`; Usagi owns those bindings.
 

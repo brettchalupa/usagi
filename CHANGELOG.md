@@ -15,8 +15,9 @@ Features:
   staged GLSL 440 emitter profile for future desktop backend selection. Native
   `<name>.fs` / `<name>_es.fs` files still work as the advanced fallback.
   Shader-powered examples now use one generic shader per effect. Generic
-  shaders reject GLSL preprocessor directives, target-specific qualifiers, and
-  uniform arrays so portability failures surface before the GL driver.
+  shaders reject GLSL preprocessor directives, target-specific qualifiers,
+  unsupported structured statements, and uniform arrays so portability failures
+  surface before the GL driver.
 - Native screenshots and GIF recordings now bake in the active post-process
   shader. Screenshots preserve full shader RGB; GIF frames use an adaptive
   palette when shader output is captured.
