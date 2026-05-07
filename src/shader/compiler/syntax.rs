@@ -786,6 +786,13 @@ fn parse_statement<'src>(
     match token_text(tokens, start) {
         Some("return") => parse_return_statement(tokens, start, limit),
         Some("if") => parse_if_statement(tokens, start, limit),
+        Some("for" | "while" | "do" | "switch") => Err(CompileError::at(
+            format!(
+                "generic shaders do not support '{}' statements yet; use if/else or native .fs fallbacks",
+                tokens[start].text
+            ),
+            tokens[start].span,
+        )),
         Some("{") => {
             let close_idx = find_matching(tokens, start, "{", "}").ok_or_else(|| {
                 CompileError::at("shader block has an unterminated body", tokens[start].span)
@@ -1638,6 +1645,33 @@ mod tests {
         .unwrap_err();
 
         assert!(err.contains("unmatched ']'"));
+    }
+
+    #[test]
+    fn parser_rejects_unsupported_structured_statements() {
+        for (keyword, src) in [
+            (
+                "for",
+                "vec4 usagi_main(vec2 uv, vec4 color) { for (int i = 0; i < 2; i = i + 1) color *= 0.5; return color; }\n",
+            ),
+            (
+                "while",
+                "vec4 usagi_main(vec2 uv, vec4 color) { while (uv.x > 0.5) discard; return color; }\n",
+            ),
+            (
+                "do",
+                "vec4 usagi_main(vec2 uv, vec4 color) { do discard; while (uv.x > 0.5); return color; }\n",
+            ),
+            (
+                "switch",
+                "vec4 usagi_main(vec2 uv, vec4 color) { switch (int(uv.x)) { default: discard; } return color; }\n",
+            ),
+        ] {
+            let err = UsagiShaderModule::parse(src).unwrap_err();
+
+            assert!(err.contains("do not support"));
+            assert!(err.contains(keyword));
+        }
     }
 
     #[test]
