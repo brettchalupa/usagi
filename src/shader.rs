@@ -18,7 +18,7 @@ mod compiler;
 
 use crate::vfs::VirtualFs;
 use sola_raylib::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::SystemTime;
 
 /// One uniform value. Covers the types the Lua bridge can express
@@ -61,6 +61,9 @@ struct Active {
     /// so the new shader picks up where the old one left off without
     /// the user having to call `shader_uniform` again.
     last_uniforms: HashMap<String, ShaderValue>,
+    metadata: Option<compiler::ShaderMetadata>,
+    uniform_types: HashMap<String, String>,
+    reported_uniform_type_errors: HashSet<String>,
 }
 
 #[derive(Default)]
@@ -100,6 +103,26 @@ impl ShaderManager {
         }
         if let Some(active) = self.active.as_mut() {
             for (uname, value) in self.pending_uniforms.drain(..) {
+                if active.metadata.is_some() {
+                    if let Some(expected_ty) = active.uniform_types.get(uname.as_str()) {
+                        if !shader_uniform_accepts_value(expected_ty, value) {
+                            if active.reported_uniform_type_errors.insert(uname.clone()) {
+                                crate::msg::err!(
+                                    "shader '{}': uniform '{}' expects {}, got {}; write ignored",
+                                    active.name,
+                                    uname,
+                                    expected_ty,
+                                    shader_value_kind(value)
+                                );
+                            }
+                            continue;
+                        }
+                        active.reported_uniform_type_errors.remove(&uname);
+                    } else {
+                        active.reported_uniform_type_errors.remove(uname.as_str());
+                    }
+                }
+
                 let loc = active.shader.get_shader_location(&uname);
                 value.apply(&mut active.shader, loc);
                 active.last_uniforms.insert(uname, value);
@@ -131,11 +154,29 @@ impl ShaderManager {
         let cached = active.last_uniforms.clone();
         self.load(rl, thread, vfs, &name);
         if let Some(active) = self.active.as_mut() {
+            let mut replayed = HashMap::with_capacity(cached.len());
             for (uname, value) in &cached {
+                if active.metadata.is_some()
+                    && let Some(expected_ty) = active.uniform_types.get(uname.as_str())
+                    && !shader_uniform_accepts_value(expected_ty, *value)
+                {
+                    if active.reported_uniform_type_errors.insert(uname.clone()) {
+                        crate::msg::err!(
+                            "shader '{}': uniform '{}' expects {}, got {}; replay ignored",
+                            active.name,
+                            uname,
+                            expected_ty,
+                            shader_value_kind(*value)
+                        );
+                    }
+                    continue;
+                }
+
                 let loc = active.shader.get_shader_location(uname);
                 value.apply(&mut active.shader, loc);
+                replayed.insert(uname.clone(), *value);
             }
-            active.last_uniforms = cached;
+            active.last_uniforms = replayed;
         }
         true
     }
@@ -158,7 +199,7 @@ impl ShaderManager {
         vfs: &dyn VirtualFs,
         name: &str,
     ) {
-        let (fs_key, fs_src) = match read_fragment_source(vfs, name) {
+        let fragment = match read_fragment_source(vfs, name) {
             Ok(src) => src,
             Err(e) => {
                 crate::msg::err!("shader '{name}': {e}");
@@ -179,7 +220,7 @@ impl ShaderManager {
             None => None,
         };
 
-        let shader = rl.load_shader_from_memory(thread, vs_src.as_deref(), Some(&fs_src));
+        let shader = rl.load_shader_from_memory(thread, vs_src.as_deref(), Some(&fragment.source));
         if !shader.is_shader_valid() {
             crate::msg::err!("shader '{name}': compile/link failed (see GL log above)");
             // Drop the bad shader and keep whatever was active before
@@ -188,19 +229,33 @@ impl ShaderManager {
             return;
         }
 
-        let fs_mtime = file_mtime(vfs, &fs_key);
+        let fs_mtime = file_mtime(vfs, &fragment.key);
         let vs_key = vs_pair.as_ref().map(|(k, _)| k.clone());
         let vs_mtime = vs_key.as_deref().and_then(|k| file_mtime(vfs, k));
+        let uniform_types = fragment
+            .metadata
+            .as_ref()
+            .map(shader_uniform_type_map)
+            .unwrap_or_default();
         self.active = Some(Active {
             name: name.to_string(),
             shader,
-            fs_key,
+            fs_key: fragment.key,
             vs_key,
             fs_mtime,
             vs_mtime,
             last_uniforms: HashMap::new(),
+            metadata: fragment.metadata,
+            uniform_types,
+            reported_uniform_type_errors: HashSet::new(),
         });
     }
+}
+
+struct FragmentSource {
+    key: String,
+    source: String,
+    metadata: Option<compiler::ShaderMetadata>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -229,14 +284,18 @@ impl ShaderProfile {
     }
 }
 
-fn read_fragment_source(vfs: &dyn VirtualFs, name: &str) -> Result<(String, String), String> {
+fn read_fragment_source(vfs: &dyn VirtualFs, name: &str) -> Result<FragmentSource, String> {
     let generic_key = generic_fragment_key(name);
     if let Some(bytes) = vfs.read_file(&generic_key) {
         let src = std::str::from_utf8(&bytes)
             .map_err(|e| format!("{generic_key}: source not valid utf-8: {e}"))?;
-        let generated = generate_generic_fragment(src, target_profile())
+        let compiled = generate_generic_fragment_with_metadata(src, target_profile())
             .map_err(|e| format!("{generic_key}: {e}"))?;
-        return Ok((generic_key, generated));
+        return Ok(FragmentSource {
+            key: generic_key,
+            source: compiled.source,
+            metadata: Some(compiled.metadata),
+        });
     }
 
     let Some((key, bytes)) = read_with_fallback(vfs, name, "fs") else {
@@ -246,11 +305,45 @@ fn read_fragment_source(vfs: &dyn VirtualFs, name: &str) -> Result<(String, Stri
     };
     let src = std::str::from_utf8(&bytes)
         .map_err(|e| format!("{key}: fragment source not valid utf-8: {e}"))?;
-    Ok((key, src.to_string()))
+    Ok(FragmentSource {
+        key,
+        source: src.to_string(),
+        metadata: None,
+    })
 }
 
-fn generate_generic_fragment(src: &str, profile: ShaderProfile) -> Result<String, String> {
-    compiler::compile_fragment(src, profile)
+fn generate_generic_fragment_with_metadata(
+    src: &str,
+    profile: ShaderProfile,
+) -> Result<compiler::CompiledFragment, String> {
+    compiler::compile_fragment_with_metadata(src, profile)
+}
+
+fn shader_uniform_accepts_value(uniform_ty: &str, value: ShaderValue) -> bool {
+    matches!(
+        (uniform_ty, value),
+        ("float", ShaderValue::Float(_))
+            | ("vec2", ShaderValue::Vec2(_))
+            | ("vec3", ShaderValue::Vec3(_))
+            | ("vec4", ShaderValue::Vec4(_))
+    )
+}
+
+fn shader_value_kind(value: ShaderValue) -> &'static str {
+    match value {
+        ShaderValue::Float(_) => "float",
+        ShaderValue::Vec2(_) => "vec2",
+        ShaderValue::Vec3(_) => "vec3",
+        ShaderValue::Vec4(_) => "vec4",
+    }
+}
+
+fn shader_uniform_type_map(metadata: &compiler::ShaderMetadata) -> HashMap<String, String> {
+    let mut uniforms = HashMap::with_capacity(metadata.uniforms.len());
+    for uniform in &metadata.uniforms {
+        uniforms.insert(uniform.name.clone(), uniform.ty.clone());
+    }
+    uniforms
 }
 
 /// Reads `shaders/<name>.<ext>` with the platform-preferred filename
@@ -313,6 +406,10 @@ fn alt_key_for_target(target: ShaderBuildTarget, name: &str, ext: &str) -> Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn generate_generic_fragment(src: &str, profile: ShaderProfile) -> Result<String, String> {
+        generate_generic_fragment_with_metadata(src, profile).map(|compiled| compiled.source)
+    }
 
     #[test]
     fn primary_then_alt_keys_pair_by_platform() {
@@ -398,11 +495,14 @@ mod tests {
         );
         let vfs = crate::vfs::BundleBacked::new(bundle);
 
-        let (key, src) = read_fragment_source(&vfs, "crt").unwrap();
+        let fragment = read_fragment_source(&vfs, "crt").unwrap();
 
-        assert_eq!(key, "shaders/crt.usagi.fs");
-        assert!(src.contains("return vec4(0.1, 0.2, 0.3, 1.0);"));
-        assert!(!src.contains("native_only_marker"));
+        assert_eq!(fragment.key, "shaders/crt.usagi.fs");
+        assert!(fragment.source.contains("return vec4(0.1, 0.2, 0.3, 1.0);"));
+        assert!(!fragment.source.contains("native_only_marker"));
+        let metadata = fragment.metadata.expect("generic shader metadata");
+        assert_eq!(metadata.profile, target_profile());
+        assert!(metadata.uniforms.is_empty());
     }
 
     #[test]
@@ -429,6 +529,81 @@ mod tests {
         assert!(out.contains("varying vec2 fragTexCoord;"));
         assert!(out.contains("return texture2D(texture0, uv) * color;"));
         assert!(out.contains("gl_FragColor = usagi_main(fragTexCoord, fragColor);"));
+    }
+
+    #[test]
+    fn generic_fragment_metadata_records_profile_and_uniforms() {
+        let src = concat!(
+            "#usagi shader 1\n\n",
+            "uniform float u_time;\n",
+            "uniform vec2 u_resolution, u_origin;\n\n",
+            "vec4 usagi_main(vec2 uv, vec4 color) {\n",
+            "    return color * u_time + ",
+            "vec4(u_resolution / max(u_origin, vec2(1.0)), 0.0, 0.0);\n",
+            "}\n",
+        );
+        let compiled =
+            generate_generic_fragment_with_metadata(src, ShaderProfile::DesktopGlsl330).unwrap();
+
+        assert!(compiled.source.contains("#version 330"));
+        assert_eq!(compiled.metadata.profile, ShaderProfile::DesktopGlsl330);
+        assert_eq!(compiled.metadata.uniforms.len(), 3);
+        assert_eq!(compiled.metadata.uniforms[0].ty, "float");
+        assert_eq!(compiled.metadata.uniforms[0].name, "u_time");
+        assert_eq!(compiled.metadata.uniforms[1].ty, "vec2");
+        assert_eq!(compiled.metadata.uniforms[1].name, "u_resolution");
+        assert_eq!(compiled.metadata.uniforms[2].ty, "vec2");
+        assert_eq!(compiled.metadata.uniforms[2].name, "u_origin");
+        for uniform in &compiled.metadata.uniforms {
+            assert_eq!(
+                &src[uniform.name_span.start..uniform.name_span.end],
+                uniform.name
+            );
+            assert_eq!(&src[uniform.ty_span.start..uniform.ty_span.end], uniform.ty);
+            assert!(
+                src[uniform.declaration_span.start..uniform.declaration_span.end]
+                    .starts_with("uniform ")
+            );
+        }
+
+        let uniform_types = shader_uniform_type_map(&compiled.metadata);
+        assert_eq!(
+            uniform_types.get("u_time").map(String::as_str),
+            Some("float")
+        );
+        assert_eq!(
+            uniform_types.get("u_resolution").map(String::as_str),
+            Some("vec2")
+        );
+    }
+
+    #[test]
+    fn shader_uniform_type_validation_accepts_lua_value_shapes() {
+        assert!(shader_uniform_accepts_value(
+            "float",
+            ShaderValue::Float(1.0)
+        ));
+        assert!(shader_uniform_accepts_value(
+            "vec2",
+            ShaderValue::Vec2([1.0, 2.0])
+        ));
+        assert!(shader_uniform_accepts_value(
+            "vec3",
+            ShaderValue::Vec3([1.0, 2.0, 3.0])
+        ));
+        assert!(shader_uniform_accepts_value(
+            "vec4",
+            ShaderValue::Vec4([1.0, 2.0, 3.0, 4.0])
+        ));
+
+        assert!(!shader_uniform_accepts_value(
+            "vec2",
+            ShaderValue::Float(1.0)
+        ));
+        assert!(!shader_uniform_accepts_value(
+            "sampler2D",
+            ShaderValue::Float(1.0)
+        ));
     }
 
     #[test]

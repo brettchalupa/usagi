@@ -27,6 +27,13 @@ function _draw(_dt)
 end
 ```
 
+For generic `.usagi.fs` shaders, Usagi reflects declared `float`, `vec2`,
+`vec3`, and `vec4` uniforms and reports a clear error if a queued Lua value has
+the wrong shape. Uniform names missing from the active shader remain a no-op, so
+shared game code can set optional shader uniforms safely. Native GLSL fallback
+files are loaded directly through raylib and do not have generic reflection
+metadata.
+
 ## Cross-Platform Shader Files
 
 The recommended path is one generic Usagi shader at

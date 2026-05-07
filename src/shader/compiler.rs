@@ -16,12 +16,67 @@
 
 use super::ShaderProfile;
 
-pub(super) fn compile_fragment(src: &str, profile: ShaderProfile) -> Result<String, String> {
+pub(super) fn compile_fragment_with_metadata(
+    src: &str,
+    profile: ShaderProfile,
+) -> Result<CompiledFragment, String> {
     let module = UsagiShaderModule::parse(src)?;
-    TargetEmitter { profile }.emit(&module)
+    let source = TargetEmitter { profile }.emit(&module)?;
+    let metadata = ShaderMetadata::from_module(profile, &module);
+    Ok(CompiledFragment { source, metadata })
 }
 
 type CompileResult<T> = Result<T, CompileError>;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct CompiledFragment {
+    pub(super) source: String,
+    pub(super) metadata: ShaderMetadata,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ShaderMetadata {
+    pub(super) profile: ShaderProfile,
+    pub(super) uniforms: Vec<ShaderUniform>,
+}
+
+impl ShaderMetadata {
+    fn from_module(profile: ShaderProfile, module: &UsagiShaderModule<'_>) -> Self {
+        let uniform_count = module
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                ShaderItem::Uniform(uniform) => Some(uniform.names.len()),
+                ShaderItem::Function(_) | ShaderItem::Raw(_) => None,
+            })
+            .sum();
+        let mut uniforms = Vec::with_capacity(uniform_count);
+
+        for item in &module.items {
+            let ShaderItem::Uniform(uniform) = item else {
+                continue;
+            };
+            uniforms.extend(uniform.names.iter().map(|name| ShaderUniform {
+                ty: uniform.ty.to_string(),
+                name: name.name.to_string(),
+                ty_span: uniform.ty_span.shifted(module.source_offset),
+                name_span: name.span.shifted(module.source_offset),
+                declaration_span: uniform.span.shifted(module.source_offset),
+            }));
+        }
+
+        Self { profile, uniforms }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ShaderUniform {
+    pub(super) ty: String,
+    pub(super) name: String,
+    pub(super) ty_span: SourceSpan,
+    pub(super) name_span: SourceSpan,
+    pub(super) declaration_span: SourceSpan,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct CompileError {
@@ -89,12 +144,15 @@ struct UsagiShaderModule<'src> {
     source: ShaderSource,
     items: Vec<ShaderItem<'src>>,
     entrypoint_name: &'src str,
+    source_offset: usize,
 }
 
 impl<'src> UsagiShaderModule<'src> {
     fn parse(src: &'src str) -> Result<Self, String> {
         let (body, source_offset) = shader_body(src);
-        Self::parse_body(body).map_err(|err| err.render(src, source_offset))
+        let mut module = Self::parse_body(body).map_err(|err| err.render(src, source_offset))?;
+        module.source_offset = source_offset;
+        Ok(module)
     }
 
     fn parse_body(body: &'src str) -> CompileResult<Self> {
@@ -110,14 +168,15 @@ impl<'src> UsagiShaderModule<'src> {
             source,
             items,
             entrypoint_name,
+            source_offset: 0,
         })
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct SourceSpan {
-    start: usize,
-    end: usize,
+pub(super) struct SourceSpan {
+    pub(super) start: usize,
+    pub(super) end: usize,
 }
 
 impl SourceSpan {
@@ -129,6 +188,13 @@ impl SourceSpan {
         Self {
             start: self.start.min(other.start),
             end: self.end.max(other.end),
+        }
+    }
+
+    fn shifted(self, offset: usize) -> Self {
+        Self {
+            start: self.start + offset,
+            end: self.end + offset,
         }
     }
 }
@@ -1046,6 +1112,10 @@ fn finish_call_argument(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn compile_fragment(src: &str, profile: ShaderProfile) -> Result<String, String> {
+        compile_fragment_with_metadata(src, profile).map(|compiled| compiled.source)
+    }
 
     #[test]
     fn compiler_lowers_texture_intrinsic_without_macros() {
