@@ -28,7 +28,7 @@ mod key_config;
 mod top;
 mod volume;
 
-use crate::input::GamepadFamily;
+use crate::input::{AxisEdgeTracker, GamepadFamily};
 use crate::keymap::{self, Keymap};
 use crate::palette;
 use crate::palette::Pal;
@@ -106,9 +106,10 @@ impl PauseMenu {
         rl: &mut RaylibHandle,
         settings: &Settings,
         keymap: &Keymap,
+        axes: &AxisEdgeTracker,
         dt: f32,
     ) -> Option<PauseAction> {
-        let menu_inputs = read_inputs(rl, keymap);
+        let menu_inputs = read_inputs(rl, keymap, axes);
 
         // Snapshot the held actions so `draw` doesn't need `rl`.
         self.tester_input = snapshot_tester(rl, keymap);

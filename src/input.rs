@@ -380,6 +380,62 @@ impl Default for GamepadProbe {
     }
 }
 
+/// Snapshot of the previous frame's analog-stick axis values, indexed
+/// `[pad][0] = LEFT_X`, `[pad][1] = LEFT_Y`. `action_pressed` and
+/// `action_released` consult this to edge-detect stick directions
+/// against the live raylib reading, which makes menus navigable with
+/// the stick the same way they are with the d-pad. `snapshot` is
+/// called once per frame, *after* that frame's `action_pressed` /
+/// `action_released` reads, so the values rolled forward represent
+/// "what was true at frame end."
+pub struct AxisEdgeTracker {
+    prev: [[f32; 2]; MAX_GAMEPADS as usize],
+}
+
+impl AxisEdgeTracker {
+    pub fn new() -> Self {
+        Self {
+            prev: [[0.0; 2]; MAX_GAMEPADS as usize],
+        }
+    }
+
+    fn axis_idx(axis: GamepadAxis) -> Option<usize> {
+        match axis {
+            GamepadAxis::GAMEPAD_AXIS_LEFT_X => Some(0),
+            GamepadAxis::GAMEPAD_AXIS_LEFT_Y => Some(1),
+            _ => None,
+        }
+    }
+
+    fn was_past(&self, pad: i32, axis: GamepadAxis, sign: i8) -> bool {
+        let Some(i) = Self::axis_idx(axis) else {
+            return false;
+        };
+        let v = self.prev[pad as usize][i];
+        (sign < 0 && v < -STICK_DEADZONE) || (sign > 0 && v > STICK_DEADZONE)
+    }
+
+    pub fn snapshot(&mut self, rl: &RaylibHandle) {
+        for pad in 0..MAX_GAMEPADS {
+            let idx = pad as usize;
+            if rl.is_gamepad_available(pad) {
+                self.prev[idx][0] =
+                    rl.get_gamepad_axis_movement(pad, GamepadAxis::GAMEPAD_AXIS_LEFT_X);
+                self.prev[idx][1] =
+                    rl.get_gamepad_axis_movement(pad, GamepadAxis::GAMEPAD_AXIS_LEFT_Y);
+            } else {
+                self.prev[idx] = [0.0; 2];
+            }
+        }
+    }
+}
+
+impl Default for AxisEdgeTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn button_label(b: GamepadButton, family: GamepadFamily) -> &'static str {
     use GamepadButton::*;
     use GamepadFamily::*;
@@ -616,12 +672,18 @@ pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
     false
 }
 
-/// True the frame any key or button bound to `action` transitions to
-/// pressed. Analog sticks aren't edge-detected; if you want "just pushed
-/// the stick past the deadzone" semantics, track the last frame yourself
-/// using `action_down`. Override semantics match `action_down`. Face
-/// buttons use the per-pad family.
-pub fn action_pressed(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
+/// True the frame any key, button, or stick direction bound to
+/// `action` transitions to pressed. For analog sticks, "pressed" means
+/// the stick crossed the deadzone since last frame; the comparison
+/// reads from `axes`, which the session refreshes once per frame.
+/// Override semantics match `action_down`. Face buttons use the
+/// per-pad family.
+pub fn action_pressed(
+    rl: &RaylibHandle,
+    keymap: &Keymap,
+    axes: &AxisEdgeTracker,
+    action: u32,
+) -> bool {
     let Some(b) = binding(action) else {
         return false;
     };
@@ -649,14 +711,28 @@ pub fn action_pressed(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
                 return true;
             }
         }
+        for (axis, sign) in b.axes {
+            let v = rl.get_gamepad_axis_movement(pad, *axis);
+            let curr_past = (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE);
+            if curr_past && !axes.was_past(pad, *axis, *sign) {
+                return true;
+            }
+        }
     }
     false
 }
 
-/// True the frame any key or button bound to `action` transitions from
-/// down to up. Analog sticks aren't edge-detected. Override semantics
-/// match `action_down`. Face buttons use the per-pad family.
-pub fn action_released(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
+/// True the frame any key, button, or stick direction bound to
+/// `action` transitions from pressed to released. Analog sticks
+/// release when they fall back inside the deadzone; the comparison
+/// reads from `axes`. Override semantics match `action_down`. Face
+/// buttons use the per-pad family.
+pub fn action_released(
+    rl: &RaylibHandle,
+    keymap: &Keymap,
+    axes: &AxisEdgeTracker,
+    action: u32,
+) -> bool {
     let Some(b) = binding(action) else {
         return false;
     };
@@ -681,6 +757,13 @@ pub fn action_released(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool 
         let buttons = effective_face_buttons(action, pad_family(rl, pad));
         for btn in buttons {
             if rl.is_gamepad_button_released(pad, *btn) {
+                return true;
+            }
+        }
+        for (axis, sign) in b.axes {
+            let v = rl.get_gamepad_axis_movement(pad, *axis);
+            let curr_past = (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE);
+            if !curr_past && axes.was_past(pad, *axis, *sign) {
                 return true;
             }
         }
@@ -784,6 +867,7 @@ impl InputState {
         res: crate::config::Resolution,
         pixel_perfect: bool,
         keymap: &Keymap,
+        axes: &AxisEdgeTracker,
         prior_source: InputSource,
         prior_pad: Option<i32>,
     ) -> Self {
@@ -795,10 +879,10 @@ impl InputState {
             if action_down(rl, keymap, action) {
                 down |= 1 << i;
             }
-            if action_pressed(rl, keymap, action) {
+            if action_pressed(rl, keymap, axes, action) {
                 pressed |= 1 << i;
             }
-            if action_released(rl, keymap, action) {
+            if action_released(rl, keymap, axes, action) {
                 released |= 1 << i;
             }
         }

@@ -5,6 +5,12 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Fixes:
+
+- `input.pressed` and `input.released` now edge-detect the analog stick the same
+  way they do the d-pad, so menus (including the engine pause menu) can be
+  navigated with the left stick.
+
 ## v0.6.1 - May 6, 2026
 
 Fixes:

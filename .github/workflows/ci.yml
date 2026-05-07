@@ -98,6 +98,16 @@ jobs:
           version: 5.0.6
           actions-cache-folder: emsdk-cache
 
+      - name: Clear stale raylib CMake cache
+        # rust-cache restores target/, which includes raylib's CMake build
+        # dir. The cached `CMakeCache.txt` hardcodes the emsdk path, but
+        # `mymindstorm/setup-emsdk` extracts emsdk to a fresh
+        # `/home/runner/work/_temp/<uuid>/emsdk-main` on each run, so the
+        # cached path no longer exists and CMake fails its include lookup.
+        # Wiping the build dir forces CMake to reconfigure against the
+        # current run's emsdk install.
+        run: rm -rf target/wasm32-unknown-emscripten/release/build/sola-raylib-sys-*
+
       - name: Build wasm runtime (release)
         # Mirrors `just build-web-release`: see docs/web-build.md for the
         # wasm-eh ABI rationale. EMCC_CFLAGS is read by every emcc invocation,

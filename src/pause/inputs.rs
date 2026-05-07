@@ -12,7 +12,8 @@
 
 use super::ACTION_COUNT;
 use crate::input::{
-    self, ACTION_BTN1, ACTION_BTN2, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP, MAX_GAMEPADS,
+    self, ACTION_BTN1, ACTION_BTN2, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
+    AxisEdgeTracker, MAX_GAMEPADS,
 };
 use crate::keymap::Keymap;
 use sola_raylib::prelude::*;
@@ -43,8 +44,12 @@ pub(super) struct KeyConfigInputs {
 /// Reads the navigation inputs once per frame. Face buttons are
 /// per-pad family-aware inside `action_pressed`, so this works
 /// correctly when multiple controllers of different families are
-/// connected.
-pub(super) fn read_inputs(rl: &RaylibHandle, keymap: &Keymap) -> MenuInputs {
+/// connected. Analog stick edge detection comes from `axes`.
+pub(super) fn read_inputs(
+    rl: &RaylibHandle,
+    keymap: &Keymap,
+    axes: &AxisEdgeTracker,
+) -> MenuInputs {
     // Enter alone toggles, but Alt+Enter is reserved for fullscreen.
     let alt_held =
         rl.is_key_down(KeyboardKey::KEY_LEFT_ALT) || rl.is_key_down(KeyboardKey::KEY_RIGHT_ALT);
@@ -53,12 +58,12 @@ pub(super) fn read_inputs(rl: &RaylibHandle, keymap: &Keymap) -> MenuInputs {
         || (rl.is_key_pressed(KeyboardKey::KEY_ENTER) && !alt_held)
         || gamepad_start_pressed(rl);
     MenuInputs {
-        up: input::action_pressed(rl, keymap, ACTION_UP),
-        down: input::action_pressed(rl, keymap, ACTION_DOWN),
-        left: input::action_pressed(rl, keymap, ACTION_LEFT),
-        right: input::action_pressed(rl, keymap, ACTION_RIGHT),
-        btn1: input::action_pressed(rl, keymap, ACTION_BTN1),
-        btn2: input::action_pressed(rl, keymap, ACTION_BTN2),
+        up: input::action_pressed(rl, keymap, axes, ACTION_UP),
+        down: input::action_pressed(rl, keymap, axes, ACTION_DOWN),
+        left: input::action_pressed(rl, keymap, axes, ACTION_LEFT),
+        right: input::action_pressed(rl, keymap, axes, ACTION_RIGHT),
+        btn1: input::action_pressed(rl, keymap, axes, ACTION_BTN1),
+        btn2: input::action_pressed(rl, keymap, axes, ACTION_BTN2),
         toggle,
     }
 }
