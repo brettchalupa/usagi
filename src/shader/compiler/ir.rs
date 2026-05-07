@@ -2,7 +2,7 @@ use super::CompileWarning;
 use super::opt;
 use super::syntax::{
     ExprCall, ExprCallKind, ExpressionAst, ExpressionNode, IntrinsicKind, ShaderItem, ShaderSource,
-    SourceSpan, Token, UsagiShaderModule, is_code_token,
+    SourceRewrite, SourceSpan, Token, TokenKind, UsagiShaderModule, is_code_token,
 };
 use std::collections::HashMap;
 
@@ -199,9 +199,11 @@ impl IrExpressionNode<'_> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct IrToken<'src> {
+    token_idx: usize,
     text: &'src str,
     span: SourceSpan,
     is_code: bool,
+    is_number: bool,
 }
 
 impl IrToken<'_> {
@@ -262,12 +264,14 @@ pub(super) fn lower<'module, 'src>(
     module: &'module UsagiShaderModule<'src>,
     checked: Option<&super::check::CheckedShader>,
 ) -> ShaderIr<'module, 'src> {
+    let expressions = lower_expressions(module, checked);
+    let constant_rewrites = collect_constant_fold_rewrites(&expressions, module.source_offset);
     ShaderIr {
         module,
-        source: opt::optimized_source(module),
+        source: opt::optimized_source(module, constant_rewrites),
         uniforms: lower_uniforms(module),
         functions: lower_functions(module),
-        expressions: lower_expressions(module, checked),
+        expressions,
     }
 }
 
@@ -358,6 +362,188 @@ impl<'ir, 'module, 'src> DuplicateTextureSampleAnalyzer<'ir, 'module, 'src> {
     }
 }
 
+fn collect_constant_fold_rewrites(
+    expressions: &[IrExpression<'_>],
+    source_offset: usize,
+) -> Vec<SourceRewrite> {
+    let mut rewrites = Vec::new();
+    for expression in expressions {
+        collect_expression_constant_folds(expression, source_offset, &mut rewrites);
+    }
+    rewrites
+}
+
+fn collect_expression_constant_folds(
+    expression: &IrExpression<'_>,
+    source_offset: usize,
+    out: &mut Vec<SourceRewrite>,
+) {
+    for node in &expression.nodes {
+        let IrExpressionNode::Call(call) = node else {
+            continue;
+        };
+        for arg in &call.args {
+            collect_expression_constant_folds(arg, source_offset, out);
+        }
+    }
+
+    if let Some(rewrite) = fold_numeric_expression(expression, source_offset) {
+        out.push(rewrite);
+    }
+}
+
+fn fold_numeric_expression(
+    expression: &IrExpression<'_>,
+    source_offset: usize,
+) -> Option<SourceRewrite> {
+    let code: Vec<_> = expression
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            IrExpressionNode::Token(token) if token.is_code => Some(token),
+            IrExpressionNode::Token(_) | IrExpressionNode::Call(_) => None,
+        })
+        .collect();
+    if code.len() < 3 {
+        return None;
+    }
+
+    let code = strip_outer_parentheses(&code);
+    let (lhs, next) = parse_constant_value(code, 0)?;
+    let op = code.get(next)?.text;
+    let (rhs, next) = parse_constant_value(code, next + 1)?;
+    if next != code.len() {
+        return None;
+    }
+
+    let value = fold_binary(lhs, op, rhs)?;
+    let replacement = format_constant_value(value);
+    let start_idx = code[0].token_idx;
+    let end_idx = code[code.len() - 1].token_idx + 1;
+    Some(SourceRewrite::replacement(
+        start_idx,
+        end_idx,
+        relative_span(expression.span, source_offset),
+        replacement,
+    ))
+}
+
+fn strip_outer_parentheses<'a>(code: &'a [&IrToken<'_>]) -> &'a [&'a IrToken<'a>] {
+    if code.len() >= 5 && code[0].text == "(" && code.last().expect("len checked").text == ")" {
+        &code[1..code.len() - 1]
+    } else {
+        code
+    }
+}
+
+fn parse_constant_value(code: &[&IrToken<'_>], start: usize) -> Option<(ConstantValue, usize)> {
+    let mut sign = 1.0f64;
+    let mut idx = start;
+    if let Some(token) = code.get(idx)
+        && matches!(token.text, "+" | "-")
+    {
+        if token.text == "-" {
+            sign = -1.0;
+        }
+        idx += 1;
+    }
+
+    let token = code.get(idx)?;
+    if !token.is_number {
+        return None;
+    }
+    let value = parse_number(token.text, sign)?;
+    Some((value, idx + 1))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ConstantValue {
+    Int(i32),
+    Float(f64),
+}
+
+fn parse_number(text: &str, sign: f64) -> Option<ConstantValue> {
+    if text.contains('.') || text.contains('e') || text.contains('E') {
+        let value = text.parse::<f64>().ok()? * sign;
+        if value.is_finite() {
+            Some(ConstantValue::Float(value))
+        } else {
+            None
+        }
+    } else {
+        let parsed = text.parse::<i64>().ok()?;
+        let signed = if sign.is_sign_negative() {
+            parsed.checked_neg()?
+        } else {
+            parsed
+        };
+        i32::try_from(signed).ok().map(ConstantValue::Int)
+    }
+}
+
+fn fold_binary(lhs: ConstantValue, op: &str, rhs: ConstantValue) -> Option<ConstantValue> {
+    match (lhs, rhs) {
+        (ConstantValue::Int(a), ConstantValue::Int(b)) => fold_int_binary(a, op, b),
+        _ => fold_float_binary(lhs.as_f64(), op, rhs.as_f64()).map(ConstantValue::Float),
+    }
+}
+
+fn fold_int_binary(a: i32, op: &str, b: i32) -> Option<ConstantValue> {
+    let value = match op {
+        "+" => a.checked_add(b)?,
+        "-" => a.checked_sub(b)?,
+        "*" => a.checked_mul(b)?,
+        "/" if b != 0 => a.checked_div(b)?,
+        _ => return None,
+    };
+    Some(ConstantValue::Int(value))
+}
+
+fn fold_float_binary(a: f64, op: &str, b: f64) -> Option<f64> {
+    let value = match op {
+        "+" => a + b,
+        "-" => a - b,
+        "*" => a * b,
+        "/" if b != 0.0 => a / b,
+        _ => return None,
+    };
+    value.is_finite().then_some(value)
+}
+
+impl ConstantValue {
+    fn as_f64(self) -> f64 {
+        match self {
+            Self::Int(value) => f64::from(value),
+            Self::Float(value) => value,
+        }
+    }
+}
+
+fn format_constant_value(value: ConstantValue) -> String {
+    match value {
+        ConstantValue::Int(value) => value.to_string(),
+        ConstantValue::Float(value) => format_float(value),
+    }
+}
+
+fn format_float(value: f64) -> String {
+    if value == 0.0 {
+        return "0.0".to_string();
+    }
+    let mut text = value.to_string();
+    if !text.contains('.') && !text.contains('e') && !text.contains('E') {
+        text.push_str(".0");
+    }
+    text
+}
+
+fn relative_span(span: SourceSpan, source_offset: usize) -> SourceSpan {
+    SourceSpan {
+        start: span.start.saturating_sub(source_offset),
+        end: span.end.saturating_sub(source_offset),
+    }
+}
+
 fn lower_uniforms<'src>(module: &UsagiShaderModule<'src>) -> Vec<IrUniform<'src>> {
     let uniform_count = module
         .items
@@ -421,10 +607,7 @@ fn lower_expressions<'src>(
     module: &UsagiShaderModule<'src>,
     checked: Option<&super::check::CheckedShader>,
 ) -> Vec<IrExpression<'src>> {
-    let Some(checked) = checked else {
-        return Vec::new();
-    };
-    let mut expressions = Vec::with_capacity(checked.expressions().len());
+    let mut expressions = Vec::new();
     for item in &module.items {
         match item {
             ShaderItem::Function(function) => collect_block_expressions(
@@ -445,7 +628,7 @@ fn lower_expressions<'src>(
 fn collect_block_expressions<'src>(
     statements: &[super::syntax::StatementAst<'src>],
     module: &UsagiShaderModule<'src>,
-    checked: &super::check::CheckedShader,
+    checked: Option<&super::check::CheckedShader>,
     out: &mut Vec<IrExpression<'src>>,
 ) {
     for statement in statements {
@@ -475,7 +658,7 @@ fn collect_block_expressions<'src>(
 fn collect_branch_expressions<'src>(
     branch: &super::syntax::BranchAst<'src>,
     module: &UsagiShaderModule<'src>,
-    checked: &super::check::CheckedShader,
+    checked: Option<&super::check::CheckedShader>,
     out: &mut Vec<IrExpression<'src>>,
 ) {
     match branch {
@@ -491,7 +674,7 @@ fn collect_branch_expressions<'src>(
 fn lower_expression<'src>(
     expression: &ExpressionAst<'src>,
     module: &UsagiShaderModule<'src>,
-    checked: &super::check::CheckedShader,
+    checked: Option<&super::check::CheckedShader>,
 ) -> IrExpression<'src> {
     IrExpression {
         value_type: checked_type_for_span(checked, expression.span),
@@ -507,26 +690,32 @@ fn lower_expression<'src>(
 fn lower_expression_node<'src>(
     node: &ExpressionNode<'src>,
     module: &UsagiShaderModule<'src>,
-    checked: &super::check::CheckedShader,
+    checked: Option<&super::check::CheckedShader>,
 ) -> IrExpressionNode<'src> {
     match node {
-        ExpressionNode::Token(idx) => IrExpressionNode::Token(lower_token(&module.tokens[*idx])),
+        ExpressionNode::Token(idx) => IrExpressionNode::Token(lower_token(
+            *idx,
+            &module.tokens[*idx],
+            module.source_offset,
+        )),
         ExpressionNode::Call(call) => IrExpressionNode::Call(lower_call(call, module, checked)),
     }
 }
 
-fn lower_token<'src>(token: &Token<'src>) -> IrToken<'src> {
+fn lower_token<'src>(token_idx: usize, token: &Token<'src>, source_offset: usize) -> IrToken<'src> {
     IrToken {
+        token_idx,
         text: token.text,
-        span: token.span,
+        span: token.span.shifted(source_offset),
         is_code: is_code_token(token),
+        is_number: token.kind == TokenKind::Number,
     }
 }
 
 fn lower_call<'src>(
     call: &ExprCall<'src>,
     module: &UsagiShaderModule<'src>,
-    checked: &super::check::CheckedShader,
+    checked: Option<&super::check::CheckedShader>,
 ) -> IrCall<'src> {
     IrCall {
         kind: match call.kind {
@@ -547,10 +736,10 @@ fn lower_call<'src>(
 }
 
 fn checked_type_for_span(
-    checked: &super::check::CheckedShader,
+    checked: Option<&super::check::CheckedShader>,
     span: SourceSpan,
 ) -> Option<IrType> {
-    checked
+    checked?
         .expressions()
         .iter()
         .find(|expression| expression.span == span)
