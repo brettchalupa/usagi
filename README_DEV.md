@@ -786,64 +786,13 @@ function _draw(_dt)
 end
 ```
 
-**Cross-platform shader files.** The recommended path is one generic Usagi
-shader at `shaders/<name>.usagi.fs`. Usagi parses that source, validates the
-engine-owned bindings, lowers Usagi intrinsics, and emits target GLSL. Desktop
-currently uses GLSL `#version 330`; web uses GLSL ES `#version 100` (WebGL 1 /
-GLES 2). The compiler has a GLSL 440 emitter profile staged for future desktop
-backend selection.
+The recommended cross-platform path is one generic Usagi shader at
+`shaders/<name>.usagi.fs`. Native `.fs` / `_es.fs` fallbacks remain supported
+for target-specific GLSL escape hatches.
 
-Generic shaders must not include `#version` or declare `texture0`,
-`fragTexCoord`, `fragColor`, `finalColor`, `gl_FragColor`, or `main`. Usagi
-provides those. Define exactly one entrypoint:
-
-```glsl
-#usagi shader 1
-
-vec4 usagi_main(vec2 uv, vec4 color) {
-    vec3 src = usagi_texture(texture0, uv).rgb;
-    return vec4(src, 1.0) * color;
-}
-```
-
-Use `usagi_texture(texture0, uv)` for texture reads. The compiler rejects direct
-`texture(...)` / `texture2D(...)` calls in generic shader sources so one file
-stays target-neutral.
-
-Native GLSL files remain supported as an escape hatch:
-
-- `shaders/<name>.fs`: desktop, `#version 330`, `in`/`out`, `texture(...)`,
-  custom `out vec4 finalColor`.
-- `shaders/<name>_es.fs`: web, `#version 100`, `precision mediump float;`,
-  `varying`, `texture2D(...)`, `gl_FragColor` output.
-
-Usagi first looks for `<name>.usagi.fs`. If it is missing, web prefers `_es.fs`
-and falls back to `.fs`; desktop is the reverse. If only one native file is
-shipped, every platform that loads it runs that one. Native fallback files are
-loaded directly through raylib, so they own their target-specific GLSL syntax.
-See `examples/shader/`, `examples/notetris/`, and `examples/playdate/` for
-generic shader examples.
-
-**Live reload.** Saving the active shader's `.usagi.fs`, `.fs`, or `.vs` file
-rebuilds it in-place. Cached uniforms are replayed onto the new shader. Compile
-errors print to the terminal and keep the previous shader live.
-
-**Bundling.** `usagi export` walks `shaders/` and ships every `.usagi.fs`,
-`.fs`, and `.vs` in the bundle, so shaders work the same in `usagi dev`,
-`usagi run`, `.usagi` files, and fused exes on every platform.
-
-**Captures.** F8 / Cmd+F screenshots and F9 / Cmd+G GIF recording include the
-active shader. The on-screen pass still runs at window resolution, while native
-captures render the same post-process into a game-sized capture target before
-the usual 2x export. PNG captures preserve full shader RGB. GIF captures use the
-fixed Pico palette for unshaded frames and an adaptive per-frame palette when a
-shader is baked in. Window-only overlays such as the Lua error banner and REC
-indicator stay out of saved files.
-
-Shaders resources:
-
-- [Raylib shaders demo](https://www.raylib.com/examples/shaders/loader.html?name=shaders_postprocessing)
-- [Raylib shaders source](https://github.com/raysan5/raylib/blob/master/examples/shaders/shaders_postprocessing.c)
+In the Usagi source tree, see `docs/SHADER.md` for the full shader language
+contract, target guarantees, fallback order, live reload behavior, bundling,
+captures, and examples.
 
 ### Indexing
 
