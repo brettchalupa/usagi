@@ -1104,6 +1104,8 @@ automatically. Override per-build with `--web-shell PATH`.
 - `just serve-web` - build and serve the web build at <http://localhost:3535>
   (requires emsdk; `just build-web` is OS-aware, see
   [DEVELOPING.md](DEVELOPING.md))
+- `just smoke-web-shader` - build `examples/shader` for web and validate CRT
+  plus Game Boy shaders in a headless Chromium browser
 
 ## Reference and Inspiration
 

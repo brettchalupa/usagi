@@ -53,5 +53,6 @@ Then in the usagi project:
     just setup-web    # adds the wasm rustup target + simple-http-server
     just build-web    # produces target/web/{usagi.wasm, usagi.js, game.usagi, index.html}
     just serve-web    # serves it at http://localhost:3535
+    just smoke-web-shader # validates generic shaders in a headless browser
 
 EOF

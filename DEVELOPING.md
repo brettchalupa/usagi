@@ -383,6 +383,19 @@ Quickstart:
    just build-web-release # release, much smaller, no source maps
    ```
 
+#### Web shader smoke test
+
+Run `just smoke-web-shader` after touching shader generation, the web shell, or
+emscripten build scripts. It builds `examples/shader`, serves `target/web/`,
+launches a headless Chromium browser, clicks through the overlay, validates
+that CRT and Game Boy generic shaders compile under WebGL GLSL ES 1.00, and
+writes screenshots plus `target/web-shader-smoke/report.json`.
+
+Requirements: emsdk, `simple-http-server`, Node.js 22+ (for the built-in
+WebSocket client), and Chrome/Chromium/Edge. Pass `BROWSER_PATH=/path/to/chrome`
+on Unix or `-BrowserPath` to `scripts/smoke_web_shader.ps1` when auto-detection
+does not find a browser.
+
 #### Running a different example
 
 The runtime in `target/web/` is game-agnostic. To swap the game without

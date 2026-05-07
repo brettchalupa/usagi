@@ -92,6 +92,19 @@ Serve target/web/ locally on port 3535. Does NOT rebuild; pair with
 serve-web:
     simple-http-server --index --nocache -p {{ web_port }} target/web
 
+[doc("""
+Build examples/shader for web and validate CRT + Game Boy generic shaders in
+a headless Chromium browser. Requires emsdk, Node.js 22+, and Chrome/Edge.
+Artifacts are written under target/web-shader-smoke/.
+""")]
+[windows]
+smoke-web-shader:
+    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/smoke_web_shader.ps1
+
+[unix]
+smoke-web-shader:
+    bash scripts/smoke_web_shader.sh
+
 # Smoke-test a `.usagi` bundle: export it, then run via `usagi run`. Drops the bundle file in the cwd. Example: `just bundle snake`.
 bundle name:
     cargo run --quiet -- export examples/{{ name }} --target bundle
