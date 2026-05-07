@@ -108,6 +108,7 @@ pub(super) struct ShaderIr<'module, 'src> {
     module: &'module UsagiShaderModule<'src>,
     source: ShaderSource,
     uniforms: Vec<IrUniform<'src>>,
+    #[cfg(not(target_os = "emscripten"))]
     functions: Vec<IrFunction<'src>>,
     expressions: Vec<IrExpression<'src>>,
 }
@@ -304,6 +305,7 @@ pub(super) fn lower<'module, 'src>(
         module,
         source: opt::optimized_source(module, &functions, constant_rewrites),
         uniforms: lower_uniforms(module),
+        #[cfg(not(target_os = "emscripten"))]
         functions,
         expressions,
     }
@@ -322,6 +324,7 @@ impl<'module, 'src> ShaderIr<'module, 'src> {
         &self.uniforms
     }
 
+    #[cfg(not(target_os = "emscripten"))]
     pub(super) fn functions(&self) -> &[IrFunction<'src>] {
         &self.functions
     }
