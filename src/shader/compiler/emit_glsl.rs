@@ -1,9 +1,14 @@
-use super::ShaderProfile;
 use super::ir::ShaderIr;
 use super::syntax::{IntrinsicKind, ShaderSource, SourceRewrite, Token};
+use super::{ShaderProfile, ShaderSourceMap, ShaderSourceMapLine, ShaderSourceMapLineKind};
 
-pub(super) fn emit(ir: &ShaderIr<'_, '_>, profile: ShaderProfile) -> Result<String, String> {
+pub(super) fn emit(ir: &ShaderIr<'_, '_>, profile: ShaderProfile) -> Result<GlslEmission, String> {
     TargetEmitter { profile }.emit(ir)
+}
+
+pub(super) struct GlslEmission {
+    pub(super) source: String,
+    pub(super) source_map: ShaderSourceMap,
 }
 
 struct TargetEmitter {
@@ -11,18 +16,24 @@ struct TargetEmitter {
 }
 
 impl TargetEmitter {
-    fn emit(&self, ir: &ShaderIr<'_, '_>) -> Result<String, String> {
+    fn emit(&self, ir: &ShaderIr<'_, '_>) -> Result<GlslEmission, String> {
         let module = ir.module();
         let target = target(self.profile);
         let header = target.header();
         let footer = target.footer(module.entrypoint_name);
+        let mut body = String::with_capacity(source_len(&module.tokens));
+        emit_source(&module.tokens, &module.source, target, &mut body)?;
         let mut out = String::with_capacity(
-            header.len() + source_len(&module.tokens) + footer.len() + module.items.len() * 2,
+            header.len() + body.len() + footer.len() + module.items.len() * 2,
         );
         out.push_str(&header);
-        emit_source(&module.tokens, &module.source, target, &mut out)?;
+        out.push_str(&body);
         out.push_str(&footer);
-        Ok(out)
+        let source_map = build_source_map(&header, &body, &footer, module.source_start_line);
+        Ok(GlslEmission {
+            source: out,
+            source_map,
+        })
     }
 }
 
@@ -198,6 +209,49 @@ fn source_len(tokens: &[Token<'_>]) -> usize {
     tokens.iter().map(|token| token.text.len()).sum()
 }
 
+fn build_source_map(
+    header: &str,
+    body: &str,
+    footer: &str,
+    source_start_line: usize,
+) -> ShaderSourceMap {
+    let mut source_map = ShaderSourceMap::new();
+    append_generated_lines(
+        &mut source_map,
+        header,
+        ShaderSourceMapLineKind::Generated,
+        None,
+    );
+    append_generated_lines(
+        &mut source_map,
+        body,
+        ShaderSourceMapLineKind::Source,
+        Some(source_start_line),
+    );
+    append_generated_lines(
+        &mut source_map,
+        footer,
+        ShaderSourceMapLineKind::Generated,
+        None,
+    );
+    source_map
+}
+
+fn append_generated_lines(
+    source_map: &mut ShaderSourceMap,
+    text: &str,
+    kind: ShaderSourceMapLineKind,
+    source_start_line: Option<usize>,
+) {
+    for (line_offset, _) in text.split_inclusive('\n').enumerate() {
+        source_map.lines.push(ShaderSourceMapLine {
+            generated_line: source_map.lines.len() + 1,
+            source_line: source_start_line.map(|line| line + line_offset),
+            kind,
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::ir;
@@ -214,6 +268,13 @@ mod tests {
 
     fn emit_fragment(src: &str, profile: ShaderProfile) -> Result<String, String> {
         let module = UsagiShaderModule::parse(src)?;
+        let ir = ir::lower(&module);
+        emit(&ir, profile).map(|emission| emission.source)
+    }
+
+    fn emit_fragment_with_map(src: &str, profile: ShaderProfile) -> Result<GlslEmission, String> {
+        let module = UsagiShaderModule::parse_with_diagnostic(src)
+            .map_err(|err| err.error.render(src, err.source_offset))?;
         let ir = ir::lower(&module);
         emit(&ir, profile)
     }
@@ -329,5 +390,39 @@ mod tests {
                 "}\n",
             )
         );
+    }
+
+    #[test]
+    fn emitter_maps_generated_user_source_lines_back_to_usagi_source() {
+        let emission = emit_fragment_with_map(GOLDEN_SRC, ShaderProfile::DesktopGlsl330).unwrap();
+
+        assert_eq!(
+            emission
+                .source_map
+                .original_line_for_generated_line(line_containing(&emission.source, "u_time;")),
+            Some(3)
+        );
+        assert_eq!(
+            emission
+                .source_map
+                .original_line_for_generated_line(line_containing(&emission.source, "void main")),
+            None
+        );
+        assert_eq!(
+            emission.source_map.generated_source_line_range(),
+            Some((8, 11))
+        );
+        assert_eq!(
+            emission.source_map.original_source_line_range(),
+            Some((3, 6))
+        );
+    }
+
+    fn line_containing(source: &str, needle: &str) -> usize {
+        source
+            .lines()
+            .position(|line| line.contains(needle))
+            .map(|idx| idx + 1)
+            .unwrap()
     }
 }

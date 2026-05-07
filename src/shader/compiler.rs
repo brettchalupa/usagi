@@ -41,10 +41,13 @@ pub(crate) fn compile_fragment_with_report(
         CompileFailure::from_diagnostic(err.to_diagnostic(src, module.source_offset))
     })?;
     let ir = ir::lower(&module);
-    let source = emit_glsl::emit(&ir, profile)
+    let emission = emit_glsl::emit(&ir, profile)
         .map_err(|message| CompileFailure::from_diagnostic(ShaderDiagnostic::new(message)))?;
-    let metadata = ShaderMetadata::from_module(profile, &module);
-    Ok(CompiledFragment { source, metadata })
+    let metadata = ShaderMetadata::from_module(profile, &module, emission.source_map);
+    Ok(CompiledFragment {
+        source: emission.source,
+        metadata,
+    })
 }
 
 #[cfg(not(target_os = "emscripten"))]
@@ -67,10 +70,15 @@ pub(crate) struct CompiledFragment {
 pub(crate) struct ShaderMetadata {
     pub(crate) profile: ShaderProfile,
     pub(crate) uniforms: Vec<ShaderUniform>,
+    pub(crate) source_map: ShaderSourceMap,
 }
 
 impl ShaderMetadata {
-    fn from_module(profile: ShaderProfile, module: &UsagiShaderModule<'_>) -> Self {
+    fn from_module(
+        profile: ShaderProfile,
+        module: &UsagiShaderModule<'_>,
+        source_map: ShaderSourceMap,
+    ) -> Self {
         let uniform_count = module
             .items
             .iter()
@@ -94,7 +102,77 @@ impl ShaderMetadata {
             }));
         }
 
-        Self { profile, uniforms }
+        Self {
+            profile,
+            uniforms,
+            source_map,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ShaderSourceMap {
+    pub(crate) lines: Vec<ShaderSourceMapLine>,
+}
+
+impl ShaderSourceMap {
+    pub(super) fn new() -> Self {
+        Self { lines: Vec::new() }
+    }
+
+    #[allow(
+        dead_code,
+        reason = "line-exact lookup is used by tests now and by GL-log remapping once raylib log capture is wired"
+    )]
+    pub(crate) fn original_line_for_generated_line(&self, generated_line: usize) -> Option<usize> {
+        self.lines
+            .iter()
+            .find(|line| line.generated_line == generated_line)
+            .and_then(|line| line.source_line)
+    }
+
+    pub(crate) fn generated_source_line_range(&self) -> Option<(usize, usize)> {
+        let mut source_lines = self
+            .lines
+            .iter()
+            .filter(|line| line.source_line.is_some())
+            .map(|line| line.generated_line);
+        let first = source_lines.next()?;
+        let last = source_lines.next_back().unwrap_or(first);
+        Some((first, last))
+    }
+
+    pub(crate) fn original_source_line_range(&self) -> Option<(usize, usize)> {
+        let mut source_lines = self.lines.iter().filter_map(|line| line.source_line);
+        let first = source_lines.next()?;
+        let last = source_lines.next_back().unwrap_or(first);
+        Some((first, last))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ShaderSourceMapLine {
+    pub(crate) generated_line: usize,
+    pub(crate) source_line: Option<usize>,
+    pub(crate) kind: ShaderSourceMapLineKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ShaderSourceMapLineKind {
+    Generated,
+    Source,
+}
+
+impl ShaderSourceMapLineKind {
+    #[allow(
+        dead_code,
+        reason = "native JSON emit and LSP use this; the web runtime keeps source maps but has no CLI/LSP"
+    )]
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Generated => "generated",
+            Self::Source => "source",
+        }
     }
 }
 
@@ -318,6 +396,13 @@ mod tests {
 
         assert_eq!(compiled.metadata.profile, ShaderProfile::DesktopGlsl330);
         assert_eq!(compiled.metadata.uniforms.len(), 3);
+        assert_eq!(
+            compiled
+                .metadata
+                .source_map
+                .original_line_for_generated_line(8),
+            Some(3)
+        );
         assert_eq!(compiled.metadata.uniforms[0].ty, "float");
         assert_eq!(compiled.metadata.uniforms[0].name, "u_time");
         assert_eq!(compiled.metadata.uniforms[1].ty, "vec2");

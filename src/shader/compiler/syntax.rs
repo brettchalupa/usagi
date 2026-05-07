@@ -7,6 +7,7 @@ pub(super) struct UsagiShaderModule<'src> {
     pub(super) items: Vec<ShaderItem<'src>>,
     pub(super) entrypoint_name: &'src str,
     pub(super) source_offset: usize,
+    pub(super) source_start_line: usize,
 }
 
 impl<'src> UsagiShaderModule<'src> {
@@ -22,6 +23,7 @@ impl<'src> UsagiShaderModule<'src> {
             source_offset,
         })?;
         module.source_offset = source_offset;
+        module.source_start_line = source_line_at_offset(src, source_offset);
         Ok(module)
     }
 
@@ -39,6 +41,7 @@ impl<'src> UsagiShaderModule<'src> {
             items,
             entrypoint_name,
             source_offset: 0,
+            source_start_line: 1,
         })
     }
 }
@@ -275,6 +278,14 @@ pub(super) fn source_location(src: &str, byte_idx: usize) -> (usize, usize, usiz
         .map_or(src.len(), |idx| byte_idx + idx);
     let column = src[line_start..byte_idx].chars().count() + 1;
     (line, column, line_start, line_end)
+}
+
+fn source_line_at_offset(src: &str, byte_idx: usize) -> usize {
+    src[..byte_idx.min(src.len())]
+        .bytes()
+        .filter(|b| *b == b'\n')
+        .count()
+        + 1
 }
 
 fn lex(src: &str) -> CompileResult<Vec<Token<'_>>> {

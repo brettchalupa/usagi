@@ -266,6 +266,13 @@ impl ShaderLanguageServer {
                 "ok": true,
                 "profile": profile.label(),
                 "source": compiled.source,
+                "sourceMap": compiled.metadata.source_map.lines.iter().map(|line| {
+                    json!({
+                        "generatedLine": line.generated_line,
+                        "sourceLine": line.source_line,
+                        "kind": line.kind.as_str(),
+                    })
+                }).collect::<Vec<_>>(),
                 "uniforms": compiled.metadata.uniforms.iter().map(|uniform| {
                     json!({
                         "name": uniform.name,
@@ -858,6 +865,13 @@ mod tests {
                 .as_str()
                 .unwrap()
                 .contains("texture2D(texture0, uv)")
+        );
+        assert!(
+            responses[0]["result"]["sourceMap"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|line| line["sourceLine"] == 4)
         );
     }
 

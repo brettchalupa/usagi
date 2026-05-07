@@ -89,6 +89,8 @@ use clap::{Parser, Subcommand};
 use export::ExportTarget;
 #[cfg(not(target_os = "emscripten"))]
 use shader::check_cli::{ShaderCheckFormat, ShaderCheckTarget};
+#[cfg(not(target_os = "emscripten"))]
+use shader::emit_cli::{ShaderEmitFormat, ShaderEmitTarget};
 
 #[cfg(not(target_os = "emscripten"))]
 #[derive(Parser)]
@@ -212,6 +214,20 @@ enum ShadersCmd {
         #[arg(long, value_enum, default_value = "text")]
         format: ShaderCheckFormat,
     },
+    /// Emit generated GLSL for one `.usagi.fs` shader.
+    Emit {
+        /// Path to a generic `.usagi.fs` shader source.
+        path: String,
+        /// Target profile to emit. Defaults to desktop.
+        #[arg(long, value_enum, default_value = "desktop")]
+        target: ShaderEmitTarget,
+        /// Output format. Use json to include generated-line source maps.
+        #[arg(long, value_enum, default_value = "source")]
+        format: ShaderEmitFormat,
+        /// Output file for one target, or output directory for `--target all`.
+        #[arg(short, long)]
+        output: Option<String>,
+    },
     /// Run the `.usagi.fs` language server over stdio.
     Lsp,
 }
@@ -321,6 +337,12 @@ fn run_shaders_cmd(cmd: ShadersCmd) -> Result<()> {
             target,
             format,
         } => shader::check_cli::run(path.as_deref().unwrap_or("."), target, format),
+        ShadersCmd::Emit {
+            path,
+            target,
+            format,
+            output,
+        } => shader::emit_cli::run(&path, target, format, output.as_deref()),
         ShadersCmd::Lsp => shader::lsp::run(),
     }
 }

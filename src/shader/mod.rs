@@ -17,6 +17,9 @@
 #[cfg(not(target_os = "emscripten"))]
 pub(crate) mod check_cli;
 mod compiler;
+mod driver_log;
+#[cfg(not(target_os = "emscripten"))]
+pub(crate) mod emit_cli;
 #[cfg(not(target_os = "emscripten"))]
 pub(crate) mod lsp;
 #[cfg(not(target_os = "emscripten"))]
@@ -247,17 +250,23 @@ impl ShaderManager {
             None => None,
         };
 
-        let shader = rl.load_shader_from_memory(thread, vs_src.as_deref(), Some(&fragment.source));
+        let (shader, driver_log) = driver_log::load_shader_from_memory_with_log(
+            rl,
+            thread,
+            vs_src.as_deref(),
+            Some(&fragment.source),
+        );
         if !shader.is_shader_valid() {
             crate::msg::err!(
-                "shader '{name}' [gl-driver]: compile/link failed for {} (see GL log above)",
-                fragment.key
+                "{}",
+                gl_driver_failure_message(name, &fragment, &driver_log)
             );
             // Drop the bad shader and keep whatever was active before
             // unset. Returning early here means `active` isn't
             // overwritten with a broken handle.
             return LoadOutcome::FailedKeepPrevious;
         }
+        driver_log.forward();
 
         let fs_mtime = file_mtime(vfs, &fragment.key);
         let vs_key = vs_pair.as_ref().map(|(k, _)| k.clone());
@@ -368,7 +377,6 @@ impl ShaderProfile {
         }
     }
 
-    #[cfg(not(target_os = "emscripten"))]
     pub(crate) fn label(self) -> &'static str {
         match self {
             Self::DesktopGlsl330 => "GLSL 330",
@@ -452,6 +460,40 @@ fn shader_uniform_type_map(metadata: &compiler::ShaderMetadata) -> HashMap<Strin
         uniforms.insert(uniform.name.clone(), uniform.ty.clone());
     }
     uniforms
+}
+
+fn gl_driver_failure_message(
+    shader_name: &str,
+    fragment: &FragmentSource,
+    driver_log: &driver_log::RaylibShaderLog,
+) -> String {
+    let mut message = format!(
+        "shader '{shader_name}' [gl-driver]: compile/link failed for {}",
+        fragment.key
+    );
+
+    if let Some(metadata) = &fragment.metadata {
+        message.push_str(" [");
+        message.push_str(metadata.profile.label());
+        message.push(']');
+        if let (Some((generated_start, generated_end)), Some((source_start, source_end))) = (
+            metadata.source_map.generated_source_line_range(),
+            metadata.source_map.original_source_line_range(),
+        ) {
+            message.push_str(&format!(
+                "; generated lines {generated_start}-{generated_end} map to {}:{source_start}-{source_end}",
+                fragment.key
+            ));
+        }
+        message.push_str("; inspect with `usagi shaders emit --format json`");
+    }
+
+    if driver_log.is_empty() {
+        message.push_str("; no raylib driver log lines were captured");
+    } else {
+        message.push_str(&driver_log.format_remapped(&fragment.key, fragment.metadata.as_ref()));
+    }
+    message
 }
 
 /// Reads `shaders/<name>.<ext>` with the platform-preferred filename
@@ -680,6 +722,40 @@ mod tests {
             uniform_types.get("u_resolution").map(String::as_str),
             Some("vec2")
         );
+        assert_eq!(
+            compiled.metadata.source_map.generated_source_line_range(),
+            Some((8, 13))
+        );
+        assert_eq!(
+            compiled.metadata.source_map.original_source_line_range(),
+            Some((3, 8))
+        );
+    }
+
+    #[test]
+    fn generic_gl_driver_failure_message_includes_source_map_hint() {
+        let mut bundle = crate::bundle::Bundle::new();
+        bundle.insert("main.lua", Vec::new());
+        bundle.insert(
+            "shaders/crt.usagi.fs",
+            b"#usagi shader 1\n\nvec4 usagi_main(vec2 uv, vec4 color) {\n    return color;\n}\n"
+                .to_vec(),
+        );
+        let vfs = crate::vfs::BundleBacked::new(bundle);
+        let fragment = read_fragment_source(&vfs, "crt").unwrap();
+        let driver_log = driver_log::RaylibShaderLog::from_entries(vec![(
+            "SHADER: [ID 7] Compile error: 0(8) : error C0000",
+            driver_log::RaylibLogLevel::Warning,
+        )]);
+        let message = gl_driver_failure_message("crt", &fragment, &driver_log);
+
+        assert!(message.contains("shader 'crt' [gl-driver]"));
+        assert!(message.contains("[GLSL 330]"));
+        assert!(message.contains("generated lines"));
+        assert!(message.contains("shaders/crt.usagi.fs:3-5"));
+        assert!(message.contains("usagi shaders emit --format json"));
+        assert!(message.contains("[driver-log] WARNING: SHADER: [ID 7] Compile error"));
+        assert!(message.contains("generated line 8 -> shaders/crt.usagi.fs:3"));
     }
 
     #[test]
@@ -736,6 +812,10 @@ mod tests {
         "vec4 usagi_main(vec2 uv, vec4 color) { return texture(texture0, uv); }\n";
 
     #[cfg(not(target_os = "emscripten"))]
+    const DRIVER_INVALID_RUNTIME_SHADER: &str =
+        "vec4 usagi_main(vec2 uv, vec4 color) { return vec4(no_such_symbol, 1.0); }\n";
+
+    #[cfg(not(target_os = "emscripten"))]
     fn shader_runtime_project(shader_src: &str) -> (tempfile::TempDir, crate::vfs::FsBacked) {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("main.lua"), "-- shader runtime test").unwrap();
@@ -760,6 +840,30 @@ mod tests {
         LOCK.get_or_init(|| std::sync::Mutex::new(()))
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    #[cfg(not(target_os = "emscripten"))]
+    #[test]
+    #[ignore = "requires a desktop OpenGL context; run with `cargo test shader_runtime -- --ignored`"]
+    fn shader_runtime_driver_error_log_maps_to_source_line() {
+        let _guard = shader_runtime_test_guard();
+        let (_dir, vfs) = shader_runtime_project(DRIVER_INVALID_RUNTIME_SHADER);
+        let (mut rl, thread) = shader_runtime_context("usagi shader driver log remap test");
+        let fragment = read_fragment_source(&vfs, "crt")
+            .expect("fixture must pass Usagi compiler before GL driver compile");
+        let (shader, driver_log) = driver_log::load_shader_from_memory_with_log(
+            &mut rl,
+            &thread,
+            None,
+            Some(&fragment.source),
+        );
+
+        assert!(!shader.is_shader_valid());
+        let message = gl_driver_failure_message("crt", &fragment, &driver_log);
+        assert!(message.contains("[driver-log]"));
+        assert!(message.contains("no_such_symbol"));
+        assert!(message.contains("generated line"));
+        assert!(message.contains("shaders/crt.usagi.fs:1"));
     }
 
     #[cfg(not(target_os = "emscripten"))]

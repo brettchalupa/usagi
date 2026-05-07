@@ -246,8 +246,11 @@ Saving the active shader's `.usagi.fs`, `.fs`, or `.vs` file rebuilds it
 in-place. Cached uniforms are replayed onto the new shader. Errors print to the
 terminal with a category: `[compiler]` for generic `.usagi.fs` validation and
 generation failures, `[source]` for missing or unreadable shader files, and
-`[gl-driver]` for native OpenGL/WebGL compile or link failures. Reload failures
-keep the previous shader live.
+`[gl-driver]` for native OpenGL/WebGL compile or link failures. Generic shader
+GL-driver failures include captured raylib driver log lines, remapped generated
+GLSL line references, and the generated GLSL line range that maps back to
+`.usagi.fs` source lines so driver logs can be read against the user-authored
+file. Reload failures keep the previous shader live.
 
 ## Offline Checks
 
@@ -267,6 +270,19 @@ optional byte span, optional source line, and marker length. Source failures
 such as invalid UTF-8 use the same shape as compiler diagnostics, with source
 location fields set to `null` when no shader span exists.
 
+Run `usagi shaders emit path/to/shader.usagi.fs` to print generated GLSL
+without launching the game. It defaults to the desktop GLSL 330 target. Use
+`--target web`, `--target desktop`, `--target glsl440`, or `--target all` to
+inspect specific generated output. With one target, `--output file.fs` writes
+that generated source. With `--target all`, `--output generated/` writes
+`<shader>.es100.fs`, `<shader>.glsl330.fs`, and `<shader>.glsl440.fs` into the
+given directory.
+
+Use `--format json` to inspect generated GLSL with source-map metadata. Each
+source-map row records a generated GLSL line, whether the line was emitted by
+Usagi or came from the user source, and the original `.usagi.fs` line when one
+exists.
+
 ## Editor Tooling
 
 Run `usagi shaders lsp` to start the native `.usagi.fs` language server over
@@ -275,7 +291,7 @@ GLSL emitter, diagnostics, and metadata as the runtime and `shaders check`.
 The server currently supports full-document sync, diagnostics, completions,
 hover docs, signature help for `usagi_texture(...)`, document symbols, go-to
 definition for uniforms/functions, and a custom `usagi/generatedGlsl` request
-for generated GLSL preview.
+for generated GLSL preview with source-map rows.
 
 The default diagnostic target is desktop GLSL 330. Editor clients may pass
 `initializationOptions.target` as `desktop`, `web`, or `all`; generated GLSL
