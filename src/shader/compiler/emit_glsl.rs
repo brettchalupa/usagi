@@ -274,14 +274,14 @@ mod tests {
 
     fn emit_fragment(src: &str, profile: ShaderProfile) -> Result<String, String> {
         let module = UsagiShaderModule::parse(src)?;
-        let ir = ir::lower(&module);
+        let ir = ir::lower(&module, None);
         emit(&ir, profile).map(|emission| emission.source)
     }
 
     fn emit_fragment_with_map(src: &str, profile: ShaderProfile) -> Result<GlslEmission, String> {
         let module = UsagiShaderModule::parse_with_diagnostic(src)
             .map_err(|err| err.error.render(src, err.source_offset))?;
-        let ir = ir::lower(&module);
+        let ir = ir::lower(&module, None);
         emit(&ir, profile)
     }
 

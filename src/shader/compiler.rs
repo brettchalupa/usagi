@@ -38,14 +38,14 @@ pub(crate) fn compile_fragment_with_report(
     let module = UsagiShaderModule::parse_with_diagnostic(src).map_err(|err| {
         CompileFailure::from_diagnostic(err.error.to_diagnostic(src, err.source_offset))
     })?;
-    check::validate(&module, profile).map_err(|err| {
+    let checked = check::analyze(&module, profile).map_err(|err| {
         CompileFailure::from_diagnostic(err.to_diagnostic(src, module.source_offset))
     })?;
     let warnings = check::warnings(&module)
         .into_iter()
         .map(|warning| warning.to_diagnostic(src, module.source_offset))
         .collect();
-    let ir = ir::lower(&module);
+    let ir = ir::lower(&module, Some(&checked));
     let emission = emit_glsl::emit(&ir, profile)
         .map_err(|message| CompileFailure::from_diagnostic(ShaderDiagnostic::new(message)))?;
     let metadata = ShaderMetadata::from_ir(profile, &ir, emission.source_map, warnings);
@@ -60,7 +60,7 @@ pub(crate) fn inspect_fragment(src: &str) -> Result<ShaderInspection, CompileFai
     let module = UsagiShaderModule::parse_with_diagnostic(src).map_err(|err| {
         CompileFailure::from_diagnostic(err.error.to_diagnostic(src, err.source_offset))
     })?;
-    let ir = ir::lower(&module);
+    let ir = ir::lower(&module, None);
     Ok(ShaderInspection::from_ir(&ir))
 }
 
@@ -87,6 +87,12 @@ impl ShaderMetadata {
         source_map: ShaderSourceMap,
         warnings: Vec<ShaderDiagnostic>,
     ) -> Self {
+        debug_assert!(ir.expressions().iter().all(|expression| {
+            expression.span.start <= expression.span.end
+                && expression
+                    .value_type
+                    .is_none_or(|value_type| !value_type.as_str().is_empty())
+        }));
         let uniforms = ir
             .uniforms()
             .iter()

@@ -379,7 +379,7 @@ mod tests {
 
     fn optimized_body(src: &str) -> String {
         let module = UsagiShaderModule::parse(src).unwrap();
-        let ir = ir::lower(&module);
+        let ir = ir::lower(&module, None);
         let mut out = String::new();
         super::super::emit_glsl::emit(&ir, ShaderProfile::DesktopGlsl330)
             .unwrap()
@@ -426,7 +426,7 @@ mod tests {
         assert!(!out.contains("vec4 dead"));
         assert!(!out.contains("return dead"));
         let module = UsagiShaderModule::parse(src).unwrap();
-        let ir = ir::lower(&module);
+        let ir = ir::lower(&module, None);
         let emission = super::super::emit_glsl::emit(&ir, ShaderProfile::DesktopGlsl330).unwrap();
         assert_eq!(
             emission.source_map.original_source_line_range(),

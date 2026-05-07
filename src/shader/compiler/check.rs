@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::emit_glsl::{self, GlslTarget};
+use super::ir::IrType as ShaderType;
 use super::syntax::{
     BlockAst, BranchAst, ExprCall, ExprCallKind, ExpressionAst, ExpressionNode, FunctionDecl,
     IntrinsicKind, RawItem, RawStmt, ReturnStmt, ShaderItem, StatementAst, Token, TokenKind,
@@ -8,12 +9,20 @@ use super::syntax::{
 };
 use super::{CompileError, CompileResult, CompileWarning, ShaderProfile};
 
+#[cfg(test)]
 pub(super) fn validate(
     module: &UsagiShaderModule<'_>,
     profile: ShaderProfile,
 ) -> CompileResult<()> {
+    analyze(module, profile).map(|_| ())
+}
+
+pub(super) fn analyze(
+    module: &UsagiShaderModule<'_>,
+    profile: ShaderProfile,
+) -> CompileResult<CheckedShader> {
     validate_target_tokens(&module.tokens, emit_glsl::target(profile))?;
-    SemanticValidator::new(module)?.validate()
+    SemanticValidator::new(module)?.analyze()
 }
 
 pub(super) fn warnings(module: &UsagiShaderModule<'_>) -> Vec<CompileWarning> {
@@ -68,96 +77,21 @@ fn validate_target_tokens(tokens: &[Token<'_>], target: &GlslTarget) -> CompileR
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ShaderType {
-    Void,
-    Bool,
-    Int,
-    Float,
-    Vec(u8),
-    BVec(u8),
-    IVec(u8),
-    Mat(u8),
-    Sampler2D,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct CheckedShader {
+    expressions: Vec<CheckedExpression>,
 }
 
-impl ShaderType {
-    fn parse(src: &str) -> Option<Self> {
-        match src {
-            "void" => Some(Self::Void),
-            "bool" => Some(Self::Bool),
-            "int" => Some(Self::Int),
-            "float" => Some(Self::Float),
-            "vec2" => Some(Self::Vec(2)),
-            "vec3" => Some(Self::Vec(3)),
-            "vec4" => Some(Self::Vec(4)),
-            "bvec2" => Some(Self::BVec(2)),
-            "bvec3" => Some(Self::BVec(3)),
-            "bvec4" => Some(Self::BVec(4)),
-            "ivec2" => Some(Self::IVec(2)),
-            "ivec3" => Some(Self::IVec(3)),
-            "ivec4" => Some(Self::IVec(4)),
-            "mat2" => Some(Self::Mat(2)),
-            "mat3" => Some(Self::Mat(3)),
-            "mat4" => Some(Self::Mat(4)),
-            "sampler2D" => Some(Self::Sampler2D),
-            _ => None,
-        }
+impl CheckedShader {
+    pub(super) fn expressions(&self) -> &[CheckedExpression] {
+        &self.expressions
     }
+}
 
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Void => "void",
-            Self::Bool => "bool",
-            Self::Int => "int",
-            Self::Float => "float",
-            Self::Vec(2) => "vec2",
-            Self::Vec(3) => "vec3",
-            Self::Vec(4) => "vec4",
-            Self::BVec(2) => "bvec2",
-            Self::BVec(3) => "bvec3",
-            Self::BVec(4) => "bvec4",
-            Self::IVec(2) => "ivec2",
-            Self::IVec(3) => "ivec3",
-            Self::IVec(4) => "ivec4",
-            Self::Mat(2) => "mat2",
-            Self::Mat(3) => "mat3",
-            Self::Mat(4) => "mat4",
-            Self::Sampler2D => "sampler2D",
-            _ => "unknown",
-        }
-    }
-
-    fn is_runtime_uniform(self) -> bool {
-        matches!(
-            self,
-            Self::Float | Self::Vec(2) | Self::Vec(3) | Self::Vec(4)
-        )
-    }
-
-    fn is_function_return(self) -> bool {
-        !matches!(self, Self::Sampler2D)
-    }
-
-    fn is_function_parameter(self) -> bool {
-        !matches!(self, Self::Void | Self::Sampler2D)
-    }
-
-    fn is_local_value(self) -> bool {
-        !matches!(self, Self::Void | Self::Sampler2D)
-    }
-
-    fn is_scalar_numeric(self) -> bool {
-        matches!(self, Self::Int | Self::Float)
-    }
-
-    fn is_float_vector(self) -> bool {
-        matches!(self, Self::Vec(_))
-    }
-
-    fn is_numeric(self) -> bool {
-        matches!(self, Self::Int | Self::Float | Self::Vec(_) | Self::Mat(_))
-    }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct CheckedExpression {
+    pub(super) value_type: Option<ShaderType>,
+    pub(super) span: super::syntax::SourceSpan,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -174,6 +108,7 @@ struct SemanticValidator<'module, 'src> {
     module: &'module UsagiShaderModule<'src>,
     globals: HashMap<&'src str, Symbol>,
     functions: HashMap<&'src str, FunctionSignature>,
+    expressions: Vec<CheckedExpression>,
 }
 
 struct DuplicateTextureSampleAnalyzer<'module, 'src> {
@@ -270,6 +205,7 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
             module,
             globals: HashMap::new(),
             functions: HashMap::new(),
+            expressions: Vec::new(),
         };
         validator.collect_globals_and_signatures()?;
         Ok(validator)
@@ -437,7 +373,7 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
         Ok(())
     }
 
-    fn validate(self) -> CompileResult<()> {
+    fn analyze(mut self) -> CompileResult<CheckedShader> {
         for item in &self.module.items {
             match item {
                 ShaderItem::Function(function) => self.validate_function(function)?,
@@ -448,10 +384,12 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
                 ShaderItem::Uniform(_) => {}
             }
         }
-        Ok(())
+        Ok(CheckedShader {
+            expressions: self.expressions,
+        })
     }
 
-    fn validate_function(&self, function: &FunctionDecl<'src>) -> CompileResult<()> {
+    fn validate_function(&mut self, function: &FunctionDecl<'src>) -> CompileResult<()> {
         let return_ty = self
             .functions
             .get(function.name)
@@ -481,7 +419,7 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
     }
 
     fn validate_block(
-        &self,
+        &mut self,
         block: &BlockAst<'src>,
         return_ty: ShaderType,
         symbols: &mut HashMap<&'src str, Symbol>,
@@ -493,7 +431,7 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
     }
 
     fn validate_statement(
-        &self,
+        &mut self,
         statement: &StatementAst<'src>,
         return_ty: ShaderType,
         symbols: &mut HashMap<&'src str, Symbol>,
@@ -528,7 +466,7 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
     }
 
     fn validate_branch(
-        &self,
+        &mut self,
         branch: &BranchAst<'src>,
         return_ty: ShaderType,
         symbols: &mut HashMap<&'src str, Symbol>,
@@ -542,7 +480,7 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
     }
 
     fn validate_return(
-        &self,
+        &mut self,
         stmt: &ReturnStmt<'src>,
         return_ty: ShaderType,
         symbols: &mut HashMap<&'src str, Symbol>,
@@ -577,7 +515,7 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
     }
 
     fn validate_raw_statement(
-        &self,
+        &mut self,
         stmt: &RawStmt<'src>,
         symbols: &mut HashMap<&'src str, Symbol>,
     ) -> CompileResult<()> {
@@ -613,7 +551,7 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
     }
 
     fn validate_expression(
-        &self,
+        &mut self,
         expression: &ExpressionAst<'src>,
         symbols: &mut HashMap<&'src str, Symbol>,
     ) -> CompileResult<()> {
@@ -631,12 +569,16 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
                 ExpressionNode::Call(call) => self.validate_call(call, symbols)?,
             }
         }
-        self.infer_expression_type_checked(expression, symbols)?;
+        let value_type = self.infer_expression_type_checked(expression, symbols)?;
+        self.expressions.push(CheckedExpression {
+            value_type,
+            span: expression.span,
+        });
         Ok(())
     }
 
     fn validate_call(
-        &self,
+        &mut self,
         call: &ExprCall<'src>,
         symbols: &mut HashMap<&'src str, Symbol>,
     ) -> CompileResult<()> {
