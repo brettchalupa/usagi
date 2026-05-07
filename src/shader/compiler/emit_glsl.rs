@@ -127,16 +127,42 @@ fn emit_source(
     target: &GlslTarget,
     out: &mut String,
 ) -> Result<(), String> {
-    let mut rewrite_idx = 0usize;
-    let mut token_idx = 0usize;
+    emit_source_range(
+        tokens,
+        &source.rewrites,
+        target,
+        out,
+        0,
+        tokens.len(),
+        &mut 0,
+    )
+}
 
-    while token_idx < tokens.len() {
-        if let Some(rewrite) = source.rewrites.get(rewrite_idx)
+fn emit_source_range(
+    tokens: &[Token<'_>],
+    rewrites: &[SourceRewrite],
+    target: &GlslTarget,
+    out: &mut String,
+    start: usize,
+    end: usize,
+    rewrite_idx: &mut usize,
+) -> Result<(), String> {
+    let mut token_idx = start;
+
+    while token_idx < end {
+        while rewrites
+            .get(*rewrite_idx)
+            .is_some_and(|rewrite| rewrite.name_idx < token_idx)
+        {
+            *rewrite_idx += 1;
+        }
+
+        if let Some(rewrite) = rewrites.get(*rewrite_idx)
             && rewrite.name_idx == token_idx
         {
-            emit_source_rewrite(tokens, rewrite, target, out);
+            *rewrite_idx += 1;
+            emit_source_rewrite(tokens, rewrites, rewrite, target, out, rewrite_idx)?;
             token_idx = rewrite.close_idx + 1;
-            rewrite_idx += 1;
             continue;
         }
 
@@ -148,16 +174,24 @@ fn emit_source(
 
 fn emit_source_rewrite(
     tokens: &[Token<'_>],
+    rewrites: &[SourceRewrite],
     rewrite: &SourceRewrite,
     target: &GlslTarget,
     out: &mut String,
-) {
+    rewrite_idx: &mut usize,
+) -> Result<(), String> {
     match rewrite.kind {
         IntrinsicKind::Texture => out.push_str(target.texture_function),
     }
-    for token in &tokens[rewrite.name_idx + 1..=rewrite.close_idx] {
-        out.push_str(token.text);
-    }
+    emit_source_range(
+        tokens,
+        rewrites,
+        target,
+        out,
+        rewrite.name_idx + 1,
+        rewrite.close_idx + 1,
+        rewrite_idx,
+    )
 }
 
 fn source_len(tokens: &[Token<'_>]) -> usize {
@@ -193,6 +227,15 @@ mod tests {
         assert!(out.contains("return texture(texture0, uv) * color;"));
         assert!(!out.contains("#define usagi_texture"));
         assert!(out.contains("finalColor = usagi_main(fragTexCoord, fragColor);"));
+    }
+
+    #[test]
+    fn emitter_lowers_nested_texture_intrinsics() {
+        let src = "#usagi shader 1\nvec4 usagi_main(vec2 uv, vec4 color) {\n    return usagi_texture(texture0, usagi_texture(texture0, uv).xy);\n}\n";
+        let out = emit_fragment(src, ShaderProfile::DesktopGlsl330).unwrap();
+
+        assert!(out.contains("return texture(texture0, texture(texture0, uv).xy);"));
+        assert!(!out.contains("usagi_texture"));
     }
 
     #[test]

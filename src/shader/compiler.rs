@@ -27,12 +27,32 @@ pub(crate) fn compile_fragment_with_metadata(
     src: &str,
     profile: ShaderProfile,
 ) -> Result<CompiledFragment, String> {
-    let module = UsagiShaderModule::parse(src)?;
-    check::validate(&module, profile).map_err(|err| err.render(src, module.source_offset))?;
+    compile_fragment_with_report(src, profile).map_err(|err| err.render())
+}
+
+pub(crate) fn compile_fragment_with_report(
+    src: &str,
+    profile: ShaderProfile,
+) -> Result<CompiledFragment, CompileFailure> {
+    let module = UsagiShaderModule::parse_with_diagnostic(src).map_err(|err| {
+        CompileFailure::from_diagnostic(err.error.to_diagnostic(src, err.source_offset))
+    })?;
+    check::validate(&module, profile).map_err(|err| {
+        CompileFailure::from_diagnostic(err.to_diagnostic(src, module.source_offset))
+    })?;
     let ir = ir::lower(&module);
-    let source = emit_glsl::emit(&ir, profile)?;
+    let source = emit_glsl::emit(&ir, profile)
+        .map_err(|message| CompileFailure::from_diagnostic(ShaderDiagnostic::new(message)))?;
     let metadata = ShaderMetadata::from_module(profile, &module);
     Ok(CompiledFragment { source, metadata })
+}
+
+#[cfg(not(target_os = "emscripten"))]
+pub(crate) fn inspect_fragment(src: &str) -> Result<ShaderInspection, CompileFailure> {
+    let module = UsagiShaderModule::parse_with_diagnostic(src).map_err(|err| {
+        CompileFailure::from_diagnostic(err.error.to_diagnostic(src, err.source_offset))
+    })?;
+    Ok(ShaderInspection::from_module(&module))
 }
 
 pub(super) type CompileResult<T> = Result<T, CompileError>;
@@ -87,6 +107,123 @@ pub(crate) struct ShaderUniform {
     pub(crate) declaration_span: SourceSpan,
 }
 
+#[cfg(not(target_os = "emscripten"))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ShaderInspection {
+    pub(crate) symbols: Vec<ShaderSymbol>,
+}
+
+#[cfg(not(target_os = "emscripten"))]
+impl ShaderInspection {
+    fn from_module(module: &UsagiShaderModule<'_>) -> Self {
+        let mut symbols = Vec::new();
+        for item in &module.items {
+            match item {
+                ShaderItem::Uniform(uniform) => {
+                    symbols.extend(uniform.names.iter().map(|name| ShaderSymbol {
+                        kind: ShaderSymbolKind::Uniform,
+                        name: name.name.to_string(),
+                        ty: uniform.ty.to_string(),
+                        name_span: name.span.shifted(module.source_offset),
+                        declaration_span: uniform.span.shifted(module.source_offset),
+                    }));
+                }
+                ShaderItem::Function(function) => {
+                    symbols.push(ShaderSymbol {
+                        kind: ShaderSymbolKind::Function,
+                        name: function.name.to_string(),
+                        ty: function.return_type.to_string(),
+                        name_span: function.name_span.shifted(module.source_offset),
+                        declaration_span: function.span.shifted(module.source_offset),
+                    });
+                }
+                ShaderItem::Raw(_) => {}
+            }
+        }
+        Self { symbols }
+    }
+}
+
+#[cfg(not(target_os = "emscripten"))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ShaderSymbol {
+    pub(crate) kind: ShaderSymbolKind,
+    pub(crate) name: String,
+    pub(crate) ty: String,
+    pub(crate) name_span: SourceSpan,
+    pub(crate) declaration_span: SourceSpan,
+}
+
+#[cfg(not(target_os = "emscripten"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ShaderSymbolKind {
+    Function,
+    Uniform,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CompileFailure {
+    pub(crate) diagnostic: Box<ShaderDiagnostic>,
+}
+
+impl CompileFailure {
+    fn from_diagnostic(diagnostic: ShaderDiagnostic) -> Self {
+        Self {
+            diagnostic: Box::new(diagnostic),
+        }
+    }
+
+    pub(crate) fn render(&self) -> String {
+        self.diagnostic.render()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ShaderDiagnostic {
+    pub(crate) message: String,
+    pub(crate) line: Option<usize>,
+    pub(crate) column: Option<usize>,
+    pub(crate) byte_start: Option<usize>,
+    pub(crate) byte_end: Option<usize>,
+    pub(crate) source_line: Option<String>,
+    pub(crate) marker_len: Option<usize>,
+}
+
+impl ShaderDiagnostic {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            line: None,
+            column: None,
+            byte_start: None,
+            byte_end: None,
+            source_line: None,
+            marker_len: None,
+        }
+    }
+
+    fn render(&self) -> String {
+        let (Some(line), Some(column), Some(source_line), Some(marker_len)) = (
+            self.line,
+            self.column,
+            self.source_line.as_deref(),
+            self.marker_len,
+        ) else {
+            return self.message.clone();
+        };
+
+        format!(
+            "{} at line {}, column {}\n{}\n{}{}",
+            self.message,
+            line,
+            column,
+            source_line,
+            " ".repeat(column.saturating_sub(1)),
+            "^".repeat(marker_len)
+        )
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct CompileError {
     message: String,
@@ -108,30 +245,35 @@ impl CompileError {
         }
     }
 
-    fn render(&self, src: &str, source_offset: usize) -> String {
+    fn to_diagnostic(&self, src: &str, source_offset: usize) -> ShaderDiagnostic {
         let Some(span) = self.span else {
-            return self.message.clone();
+            return ShaderDiagnostic::new(self.message.clone());
         };
 
         let absolute_start = source_offset.saturating_add(span.start).min(src.len());
         let absolute_end = source_offset.saturating_add(span.end).min(src.len());
         let (line, column, line_start, line_end) = syntax::source_location(src, absolute_start);
-        let line_text = src[line_start..line_end].trim_end_matches('\r');
+        let source_line = src[line_start..line_end].trim_end_matches('\r').to_string();
         let marker_len = src[absolute_start..absolute_end]
             .chars()
             .take_while(|ch| *ch != '\n' && *ch != '\r')
             .count()
             .max(1);
 
-        format!(
-            "{} at line {}, column {}\n{}\n{}{}",
-            self.message,
-            line,
-            column,
-            line_text,
-            " ".repeat(column.saturating_sub(1)),
-            "^".repeat(marker_len)
-        )
+        ShaderDiagnostic {
+            message: self.message.clone(),
+            line: Some(line),
+            column: Some(column),
+            byte_start: Some(absolute_start),
+            byte_end: Some(absolute_end),
+            source_line: Some(source_line),
+            marker_len: Some(marker_len),
+        }
+    }
+
+    #[cfg(test)]
+    fn render(&self, src: &str, source_offset: usize) -> String {
+        self.to_diagnostic(src, source_offset).render()
     }
 }
 

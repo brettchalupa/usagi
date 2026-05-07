@@ -82,7 +82,8 @@ until they are added to this contract and compiler validation.
 module          = blank* marker? item*
 marker          = "#usagi shader 1" on the first non-blank line
 item            = uniform_decl | function_decl | raw_top_level_decl
-uniform_decl    = "uniform" ident name ("," name)* ";"
+uniform_decl    = "uniform" uniform_type name ("," name)* ";"
+uniform_type    = "float" | "vec2" | "vec3" | "vec4"
 function_decl   = type name "(" params? ")" block
 type            = "void" | "bool" | "int" | "float"
                 | "vec2" | "vec3" | "vec4"
@@ -122,11 +123,16 @@ non-blank line and is stripped before GLSL emission. Other preprocessor lines
 are preserved but not interpreted by Usagi; they must be target-neutral and must
 compile correctly on every selected profile.
 
+Generic uniforms are limited to `float`, `vec2`, `vec3`, and `vec4` because
+those are the runtime value shapes Usagi can reflect and validate from Lua.
+`texture0` is the only sampler in the generic contract and is bound by the
+engine.
+
 Top-level raw declarations are limited to balanced token sequences that end in a
 top-level semicolon, for example constants or structs that are valid on every
 target profile. Generic shaders must not declare target-specific stage IO,
-outputs, precision directives, or target-specific texture functions. Use Usagi
-entrypoint parameters and intrinsics instead.
+outputs, precision directives, custom samplers, or target-specific texture
+functions. Use Usagi entrypoint parameters and intrinsics instead.
 
 The engine owns these names:
 
@@ -251,7 +257,36 @@ desktop runtime target (currently GLSL 330), reports every compiler diagnostic
 it finds, and exits non-zero if the selected target fails. Use `--target web`
 for the web runtime target (GLSL ES 100), `--target desktop` for desktop, or
 `--target all` for a conformance sweep across ES 100, GLSL 330, and the staged
-GLSL 440 profile.
+GLSL 440 profile. Use `--format json` to emit structured diagnostics for editor
+integrations and language-server tooling.
+
+The JSON report is stable for tooling: paths are project-relative with `/`
+separators, profiles use the same labels as text output, and every failure
+includes a category (`source` or `compiler`), message, optional line/column,
+optional byte span, optional source line, and marker length. Source failures
+such as invalid UTF-8 use the same shape as compiler diagnostics, with source
+location fields set to `null` when no shader span exists.
+
+## Editor Tooling
+
+Run `usagi shaders lsp` to start the native `.usagi.fs` language server over
+stdio. It uses the same parser, validation pass, target profiles, generated
+GLSL emitter, diagnostics, and metadata as the runtime and `shaders check`.
+The server currently supports full-document sync, diagnostics, completions,
+hover docs, signature help for `usagi_texture(...)`, document symbols, go-to
+definition for uniforms/functions, and a custom `usagi/generatedGlsl` request
+for generated GLSL preview.
+
+The default diagnostic target is desktop GLSL 330. Editor clients may pass
+`initializationOptions.target` as `desktop`, `web`, or `all`; generated GLSL
+preview requests may pass `target` as `web`, `desktop`, or `glsl440`.
+
+The repo also includes a dependency-free VS Code extension package at
+`editors/vscode-usagi-shader`. It binds `.usagi.fs` to the language server,
+exposes a target selector, previews generated GLSL, and can run
+`usagi shaders check . --format json` from the workspace terminal. Set
+`usagi.shader.serverPath` in VS Code if the `usagi` executable is not on
+`PATH`.
 
 ## Bundling
 

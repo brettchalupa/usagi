@@ -88,7 +88,7 @@ use clap::{Parser, Subcommand};
 #[cfg(not(target_os = "emscripten"))]
 use export::ExportTarget;
 #[cfg(not(target_os = "emscripten"))]
-use shader::check_cli::ShaderCheckTarget;
+use shader::check_cli::{ShaderCheckFormat, ShaderCheckTarget};
 
 #[cfg(not(target_os = "emscripten"))]
 #[derive(Parser)]
@@ -208,7 +208,12 @@ enum ShadersCmd {
         /// Platform target to compile. Defaults to desktop.
         #[arg(long, value_enum, default_value = "desktop")]
         target: ShaderCheckTarget,
+        /// Output format for editor tooling and humans.
+        #[arg(long, value_enum, default_value = "text")]
+        format: ShaderCheckFormat,
     },
+    /// Run the `.usagi.fs` language server over stdio.
+    Lsp,
 }
 
 fn main() -> ExitCode {
@@ -311,8 +316,11 @@ fn run_templates_cmd(cmd: TemplatesCmd) -> Result<()> {
 #[cfg(not(target_os = "emscripten"))]
 fn run_shaders_cmd(cmd: ShadersCmd) -> Result<()> {
     match cmd {
-        ShadersCmd::Check { path, target } => {
-            shader::check_cli::run(path.as_deref().unwrap_or("."), target)
-        }
+        ShadersCmd::Check {
+            path,
+            target,
+            format,
+        } => shader::check_cli::run(path.as_deref().unwrap_or("."), target, format),
+        ShadersCmd::Lsp => shader::lsp::run(),
     }
 }

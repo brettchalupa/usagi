@@ -18,7 +18,9 @@
 pub(crate) mod check_cli;
 mod compiler;
 #[cfg(not(target_os = "emscripten"))]
-pub(crate) use compiler::compile_fragment_with_metadata as compile_generic_fragment_with_metadata;
+pub(crate) mod lsp;
+#[cfg(not(target_os = "emscripten"))]
+pub(crate) use compiler::compile_fragment_with_report as compile_generic_fragment_with_report;
 
 use crate::vfs::VirtualFs;
 use sola_raylib::prelude::*;

@@ -1,0 +1,108 @@
+{
+  "name": "usagi-shader",
+  "displayName": "Usagi Shader",
+  "description": "Language support for Usagi .usagi.fs shaders.",
+  "version": "0.1.0",
+  "publisher": "usagi",
+  "license": "Unlicense",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:usagi-shader",
+    "onCommand:usagiShader.selectTarget",
+    "onCommand:usagiShader.showGeneratedGlsl",
+    "onCommand:usagiShader.checkProject",
+    "onCommand:usagiShader.restartServer"
+  ],
+  "main": "./extension.js",
+  "scripts": {
+    "check": "node --check extension.js"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "usagi-shader",
+        "aliases": [
+          "Usagi Shader",
+          "usagi-shader"
+        ],
+        "extensions": [
+          ".usagi.fs"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "usagi-shader",
+        "scopeName": "source.usagi-shader",
+        "path": "./syntaxes/usagi-shader.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Usagi Shader",
+      "properties": {
+        "usagi.shader.serverPath": {
+          "type": "string",
+          "default": "usagi",
+          "description": "Path to the Usagi executable used to run `usagi shaders lsp` and `usagi shaders check`."
+        },
+        "usagi.shader.target": {
+          "type": "string",
+          "enum": [
+            "desktop",
+            "web",
+            "all"
+          ],
+          "default": "desktop",
+          "description": "Target profile used for live shader diagnostics."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "usagiShader.selectTarget",
+        "title": "Usagi Shader: Select Target Profile"
+      },
+      {
+        "command": "usagiShader.showGeneratedGlsl",
+        "title": "Usagi Shader: Show Generated GLSL"
+      },
+      {
+        "command": "usagiShader.checkProject",
+        "title": "Usagi Shader: Check Project Shaders"
+      },
+      {
+        "command": "usagiShader.restartServer",
+        "title": "Usagi Shader: Restart Language Server"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "usagiShader.showGeneratedGlsl",
+          "when": "resourceExtname == .fs && editorLangId == usagi-shader",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "usagiShader.selectTarget"
+        },
+        {
+          "command": "usagiShader.showGeneratedGlsl"
+        },
+        {
+          "command": "usagiShader.checkProject"
+        },
+        {
+          "command": "usagiShader.restartServer"
+        }
+      ]
+    }
+  }
+}

@@ -3,6 +3,7 @@
 use super::ShaderProfile;
 use crate::{Error, Result};
 use clap::ValueEnum;
+use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -26,6 +27,14 @@ impl ShaderCheckTarget {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub(crate) enum ShaderCheckFormat {
+    /// Human-readable terminal output.
+    Text,
+    /// Structured JSON for editor integrations and tooling.
+    Json,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct ShaderCheckReport {
     shader_count: usize,
@@ -37,16 +46,109 @@ struct ShaderCheckReport {
 struct ShaderCheckFailure {
     path: PathBuf,
     profile: Option<ShaderProfile>,
-    diagnostic: String,
+    diagnostic: ShaderCheckDiagnostic,
 }
 
-pub(crate) fn run(path_arg: &str, target: ShaderCheckTarget) -> Result<()> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShaderCheckDiagnosticKind {
+    Source,
+    Compiler,
+}
+
+impl ShaderCheckDiagnosticKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Source => "source",
+            Self::Compiler => "compiler",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ShaderCheckDiagnostic {
+    kind: ShaderCheckDiagnosticKind,
+    message: String,
+    line: Option<usize>,
+    column: Option<usize>,
+    byte_start: Option<usize>,
+    byte_end: Option<usize>,
+    source_line: Option<String>,
+    marker_len: Option<usize>,
+}
+
+impl ShaderCheckDiagnostic {
+    fn source(message: impl Into<String>) -> Self {
+        Self {
+            kind: ShaderCheckDiagnosticKind::Source,
+            message: message.into(),
+            line: None,
+            column: None,
+            byte_start: None,
+            byte_end: None,
+            source_line: None,
+            marker_len: None,
+        }
+    }
+
+    fn compiler(diagnostic: &super::compiler::ShaderDiagnostic) -> Self {
+        Self {
+            kind: ShaderCheckDiagnosticKind::Compiler,
+            message: diagnostic.message.clone(),
+            line: diagnostic.line,
+            column: diagnostic.column,
+            byte_start: diagnostic.byte_start,
+            byte_end: diagnostic.byte_end,
+            source_line: diagnostic.source_line.clone(),
+            marker_len: diagnostic.marker_len,
+        }
+    }
+
+    fn render_text(&self) -> String {
+        let (Some(line), Some(column), Some(source_line), Some(marker_len)) = (
+            self.line,
+            self.column,
+            self.source_line.as_deref(),
+            self.marker_len,
+        ) else {
+            return format!("[{}] {}", self.kind.as_str(), self.message);
+        };
+
+        format!(
+            "[{}] {} at line {}, column {}\n{}\n{}{}",
+            self.kind.as_str(),
+            self.message,
+            line,
+            column,
+            source_line,
+            " ".repeat(column.saturating_sub(1)),
+            "^".repeat(marker_len)
+        )
+    }
+}
+
+pub(crate) fn run(
+    path_arg: &str,
+    target: ShaderCheckTarget,
+    format: ShaderCheckFormat,
+) -> Result<()> {
     let script_path = crate::cli::resolve_script_path(path_arg)?;
     let project_root = Path::new(&script_path)
         .parent()
         .unwrap_or_else(|| Path::new("."));
     let profiles = target.profiles();
     let report = check_project(project_root, &profiles)?;
+
+    if format == ShaderCheckFormat::Json {
+        println!("{}", format_json_report(project_root, &profiles, &report)?);
+        if !report.failures.is_empty() {
+            return Err(Error::Cli(format!(
+                "shader check failed: {} error(s) across {} generic shader(s)",
+                report.failures.len(),
+                report.shader_count
+            )));
+        }
+        return Ok(());
+    }
 
     if !report.failures.is_empty() {
         return Err(Error::Cli(format_failure_report(project_root, &report)));
@@ -79,7 +181,7 @@ fn check_project(project_root: &Path, profiles: &[ShaderProfile]) -> Result<Shad
                 failures.push(ShaderCheckFailure {
                     path: path.clone(),
                     profile: None,
-                    diagnostic,
+                    diagnostic: ShaderCheckDiagnostic::source(diagnostic),
                 });
                 continue;
             }
@@ -87,11 +189,11 @@ fn check_project(project_root: &Path, profiles: &[ShaderProfile]) -> Result<Shad
 
         for profile in profiles {
             compile_count += 1;
-            if let Err(diagnostic) = super::compile_generic_fragment_with_metadata(&src, *profile) {
+            if let Err(failure) = super::compile_generic_fragment_with_report(&src, *profile) {
                 failures.push(ShaderCheckFailure {
                     path: path.clone(),
                     profile: Some(*profile),
-                    diagnostic,
+                    diagnostic: ShaderCheckDiagnostic::compiler(failure.diagnostic.as_ref()),
                 });
             }
         }
@@ -135,8 +237,8 @@ fn collect_generic_shader_files(project_root: &Path) -> Result<Vec<PathBuf>> {
 }
 
 fn read_shader_source(path: &Path) -> std::result::Result<String, String> {
-    let bytes = fs::read(path).map_err(|e| format!("[source] reading file: {e}"))?;
-    String::from_utf8(bytes).map_err(|e| format!("[source] file is not valid utf-8: {e}"))
+    let bytes = fs::read(path).map_err(|e| format!("reading file: {e}"))?;
+    String::from_utf8(bytes).map_err(|e| format!("file is not valid utf-8: {e}"))
 }
 
 fn format_failure_report(project_root: &Path, report: &ShaderCheckReport) -> String {
@@ -155,9 +257,48 @@ fn format_failure_report(project_root: &Path, report: &ShaderCheckReport) -> Str
             out.push(']');
         }
         out.push('\n');
-        out.push_str(failure.diagnostic.trim_end());
+        out.push_str(failure.diagnostic.render_text().trim_end());
     }
     out
+}
+
+fn format_json_report(
+    project_root: &Path,
+    profiles: &[ShaderProfile],
+    report: &ShaderCheckReport,
+) -> Result<String> {
+    let failures: Vec<_> = report
+        .failures
+        .iter()
+        .map(|failure| {
+            let diagnostic = &failure.diagnostic;
+            json!({
+                "path": json_shader_path(project_root, &failure.path),
+                "profile": failure.profile.map(|profile| profile.label()),
+                "kind": diagnostic.kind.as_str(),
+                "message": diagnostic.message.as_str(),
+                "line": diagnostic.line,
+                "column": diagnostic.column,
+                "byte_start": diagnostic.byte_start,
+                "byte_end": diagnostic.byte_end,
+                "source_line": diagnostic.source_line.as_deref(),
+                "marker_len": diagnostic.marker_len,
+            })
+        })
+        .collect();
+
+    serde_json::to_string_pretty(&json!({
+        "ok": report.failures.is_empty(),
+        "target_profiles": profiles
+            .iter()
+            .map(|profile| profile.label())
+            .collect::<Vec<_>>(),
+        "shader_count": report.shader_count,
+        "compile_count": report.compile_count,
+        "failure_count": report.failures.len(),
+        "failures": failures,
+    }))
+    .map_err(|e| Error::Cli(format!("serializing shader check JSON: {e}")))
 }
 
 fn display_shader_path(project_root: &Path, shader_path: &Path) -> String {
@@ -166,6 +307,16 @@ fn display_shader_path(project_root: &Path, shader_path: &Path) -> String {
         .unwrap_or(shader_path)
         .display()
         .to_string()
+}
+
+fn json_shader_path(project_root: &Path, shader_path: &Path) -> String {
+    shader_path
+        .strip_prefix(project_root)
+        .unwrap_or(shader_path)
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 #[cfg(test)]
@@ -264,5 +415,71 @@ mod tests {
         assert!(message.contains("bad.usagi.fs [GLSL 330]"));
         assert!(message.contains("bad.usagi.fs [GLSL 440]"));
         assert!(message.contains("generic shaders must use usagi_texture"));
+    }
+
+    #[test]
+    fn json_report_exposes_structured_compiler_diagnostics() {
+        let dir = project();
+        fs::write(
+            dir.path().join("shaders/bad.usagi.fs"),
+            "vec4 usagi_main(vec2 uv, vec4 color) { return texture(texture0, uv); }\n",
+        )
+        .unwrap();
+
+        let profiles = ShaderCheckTarget::Desktop.profiles();
+        let report = check_project(dir.path(), &profiles).unwrap();
+        let json = format_json_report(dir.path(), &profiles, &report).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["ok"], false);
+        assert_eq!(value["shader_count"], 1);
+        assert_eq!(value["compile_count"], 1);
+        assert_eq!(value["failure_count"], 1);
+        assert_eq!(value["target_profiles"][0], "GLSL 330");
+        assert_eq!(value["failures"][0]["path"], "shaders/bad.usagi.fs");
+        assert_eq!(value["failures"][0]["profile"], "GLSL 330");
+        assert_eq!(value["failures"][0]["kind"], "compiler");
+        assert!(
+            value["failures"][0]["message"]
+                .as_str()
+                .unwrap()
+                .contains("usagi_texture")
+        );
+        assert_eq!(value["failures"][0]["line"], 1);
+        assert_eq!(value["failures"][0]["column"], 47);
+        assert!(
+            value["failures"][0]["source_line"]
+                .as_str()
+                .unwrap()
+                .contains("return texture")
+        );
+        assert_eq!(value["failures"][0]["marker_len"], 7);
+    }
+
+    #[test]
+    fn json_report_exposes_structured_source_diagnostics() {
+        let dir = project();
+        fs::write(dir.path().join("shaders/bad.usagi.fs"), [0xff]).unwrap();
+
+        let profiles = ShaderCheckTarget::Desktop.profiles();
+        let report = check_project(dir.path(), &profiles).unwrap();
+        let json = format_json_report(dir.path(), &profiles, &report).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["ok"], false);
+        assert_eq!(value["shader_count"], 1);
+        assert_eq!(value["compile_count"], 0);
+        assert_eq!(value["failure_count"], 1);
+        assert_eq!(value["failures"][0]["path"], "shaders/bad.usagi.fs");
+        assert_eq!(value["failures"][0]["profile"], serde_json::Value::Null);
+        assert_eq!(value["failures"][0]["kind"], "source");
+        assert!(
+            value["failures"][0]["message"]
+                .as_str()
+                .unwrap()
+                .contains("not valid utf-8")
+        );
+        assert_eq!(value["failures"][0]["line"], serde_json::Value::Null);
+        assert_eq!(value["failures"][0]["source_line"], serde_json::Value::Null);
     }
 }

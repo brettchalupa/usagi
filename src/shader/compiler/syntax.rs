@@ -10,9 +10,17 @@ pub(super) struct UsagiShaderModule<'src> {
 }
 
 impl<'src> UsagiShaderModule<'src> {
+    #[cfg(test)]
     pub(super) fn parse(src: &'src str) -> Result<Self, String> {
+        Self::parse_with_diagnostic(src).map_err(|err| err.error.render(src, err.source_offset))
+    }
+
+    pub(super) fn parse_with_diagnostic(src: &'src str) -> Result<Self, ParseFailure> {
         let (body, source_offset) = shader_body(src);
-        let mut module = Self::parse_body(body).map_err(|err| err.render(src, source_offset))?;
+        let mut module = Self::parse_body(body).map_err(|error| ParseFailure {
+            error,
+            source_offset,
+        })?;
         module.source_offset = source_offset;
         Ok(module)
     }
@@ -33,6 +41,12 @@ impl<'src> UsagiShaderModule<'src> {
             source_offset: 0,
         })
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ParseFailure {
+    pub(super) error: CompileError,
+    pub(super) source_offset: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -396,8 +410,11 @@ fn reject_version_directive(tokens: &[Token<'_>]) -> CompileResult<()> {
 }
 
 fn reject_reserved_identifiers(tokens: &[Token<'_>]) -> CompileResult<()> {
-    for token in tokens {
+    for (idx, token) in tokens.iter().enumerate() {
         if token.kind != TokenKind::Ident {
+            continue;
+        }
+        if previous_code_token_text(tokens, idx) == Some(".") {
             continue;
         }
         match token.text {
@@ -423,6 +440,14 @@ fn reject_reserved_identifiers(tokens: &[Token<'_>]) -> CompileResult<()> {
         }
     }
     Ok(())
+}
+
+fn previous_code_token_text<'src>(tokens: &[Token<'src>], idx: usize) -> Option<&'src str> {
+    tokens[..idx]
+        .iter()
+        .rev()
+        .find(|token| is_code_token(token))
+        .map(|token| token.text)
 }
 
 fn parse_items<'src>(tokens: &[Token<'src>]) -> CompileResult<Vec<ShaderItem<'src>>> {
@@ -1526,6 +1551,13 @@ mod tests {
     #[test]
     fn parser_ignores_comment_mentions_of_reserved_words() {
         let src = "// fragColor finalColor texture()\nvec4 usagi_main(vec2 uv, vec4 color) { return usagi_texture(texture0, uv); }\n";
+
+        assert!(UsagiShaderModule::parse(src).is_ok());
+    }
+
+    #[test]
+    fn parser_allows_member_access_matching_reserved_engine_names() {
+        let src = "vec4 usagi_main(vec2 uv, vec4 color) { return material.fragColor; }\n";
 
         assert!(UsagiShaderModule::parse(src).is_ok());
     }

@@ -1,0 +1,105 @@
+{
+  "scopeName": "source.usagi-shader",
+  "name": "Usagi Shader",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#preprocessor"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#intrinsics"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#strings"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.usagi-shader",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.usagi-shader",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "preprocessor": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.usagi-shader",
+          "match": "^\\s*#.*$"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.usagi-shader",
+          "match": "\\b(if|else|return|discard)\\b"
+        },
+        {
+          "name": "storage.modifier.usagi-shader",
+          "match": "\\b(uniform|const)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.usagi-shader",
+          "match": "\\b(void|bool|int|float|vec[234]|bvec[234]|ivec[234]|mat[234]|sampler2D)\\b"
+        }
+      ]
+    },
+    "intrinsics": {
+      "patterns": [
+        {
+          "name": "support.function.usagi-shader",
+          "match": "\\b(usagi_texture|usagi_main)\\b"
+        },
+        {
+          "name": "support.variable.usagi-shader",
+          "match": "\\b(texture0|fragTexCoord|fragColor|finalColor|gl_FragColor)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.usagi-shader",
+          "match": "\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.usagi-shader",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.usagi-shader",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
