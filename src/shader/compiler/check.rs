@@ -146,6 +146,18 @@ impl ShaderType {
     fn is_local_value(self) -> bool {
         !matches!(self, Self::Void | Self::Sampler2D)
     }
+
+    fn is_scalar_numeric(self) -> bool {
+        matches!(self, Self::Int | Self::Float)
+    }
+
+    fn is_float_vector(self) -> bool {
+        matches!(self, Self::Vec(_))
+    }
+
+    fn is_numeric(self) -> bool {
+        matches!(self, Self::Int | Self::Float | Self::Vec(_) | Self::Mat(_))
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -619,6 +631,7 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
                 ExpressionNode::Call(call) => self.validate_call(call, symbols)?,
             }
         }
+        self.infer_expression_type_checked(expression, symbols)?;
         Ok(())
     }
 
@@ -713,7 +726,7 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
         {
             let init_nodes = &nodes[eq_pos + 1..];
             if !init_nodes.is_empty() {
-                initializer_ty = self.infer_node_sequence_type(init_nodes, symbols);
+                initializer_ty = self.infer_node_sequence_type_checked(init_nodes, symbols)?;
                 initializer_span = Some(expression_nodes_span(init_nodes, &self.module.tokens));
             }
         }
@@ -733,69 +746,233 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
         expression: &ExpressionAst<'src>,
         symbols: &HashMap<&'src str, Symbol>,
     ) -> Option<ShaderType> {
+        self.infer_expression_type_checked(expression, symbols)
+            .ok()
+            .flatten()
+    }
+
+    fn infer_expression_type_checked(
+        &self,
+        expression: &ExpressionAst<'src>,
+        symbols: &HashMap<&'src str, Symbol>,
+    ) -> CompileResult<Option<ShaderType>> {
         let nodes: Vec<_> = expression
             .nodes
             .iter()
             .filter(|node| self.is_code_expression_node(node))
             .collect();
-        self.infer_node_sequence_type(&nodes, symbols)
+        self.infer_node_sequence_type_checked(&nodes, symbols)
     }
 
-    fn infer_node_sequence_type(
+    fn infer_node_sequence_type_checked(
         &self,
         nodes: &[&ExpressionNode<'src>],
         symbols: &HashMap<&'src str, Symbol>,
-    ) -> Option<ShaderType> {
+    ) -> CompileResult<Option<ShaderType>> {
+        let nodes = strip_outer_parentheses(self, nodes)?;
+        if contains_assignment_operator(self, nodes) {
+            return Ok(None);
+        }
+
         match nodes {
-            [single] => self.infer_single_node_type(single, symbols),
+            [] => Ok(None),
+            [single] => self.infer_single_node_type_checked(single, symbols),
             [base, dot, swizzle] if self.node_text(dot) == Some(".") => {
-                let base_ty = self.infer_single_node_type(base, symbols)?;
-                let swizzle = self.node_text(swizzle)?;
-                infer_swizzle_type(base_ty, swizzle)
+                let Some(base_ty) = self.infer_single_node_type_checked(base, symbols)? else {
+                    return Ok(None);
+                };
+                let Some(swizzle) = self.node_text(swizzle) else {
+                    return Ok(None);
+                };
+                Ok(infer_swizzle_type(base_ty, swizzle))
             }
-            _ => None,
+            _ => self.infer_binary_expression_type(nodes, symbols),
         }
     }
 
-    fn infer_single_node_type(
+    fn infer_binary_expression_type(
+        &self,
+        nodes: &[&ExpressionNode<'src>],
+        symbols: &HashMap<&'src str, Symbol>,
+    ) -> CompileResult<Option<ShaderType>> {
+        let Some((ty, next)) = self.parse_binary_type(nodes, symbols, 0, 0)? else {
+            return Ok(None);
+        };
+        if next == nodes.len() {
+            Ok(Some(ty))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn parse_binary_type(
+        &self,
+        nodes: &[&ExpressionNode<'src>],
+        symbols: &HashMap<&'src str, Symbol>,
+        start: usize,
+        min_precedence: u8,
+    ) -> CompileResult<Option<(ShaderType, usize)>> {
+        let Some((mut lhs, mut next)) = self.read_operand_type(nodes, start, symbols)? else {
+            return Ok(None);
+        };
+
+        while let Some(op) = read_operator(self, nodes, next) {
+            if op.precedence < min_precedence {
+                break;
+            }
+
+            let Some((rhs, rhs_next)) =
+                self.parse_binary_type(nodes, symbols, op.end_idx, op.precedence + 1)?
+            else {
+                return Ok(None);
+            };
+
+            let Some(result_ty) = infer_binary_operator_type(lhs, op.text, rhs) else {
+                return Err(CompileError::at(
+                    format!(
+                        "operator '{}' cannot combine {} and {}",
+                        op.text,
+                        lhs.as_str(),
+                        rhs.as_str()
+                    ),
+                    op.span,
+                ));
+            };
+            lhs = result_ty;
+            next = rhs_next;
+        }
+
+        Ok(Some((lhs, next)))
+    }
+
+    fn read_operand_type(
+        &self,
+        nodes: &[&ExpressionNode<'src>],
+        start: usize,
+        symbols: &HashMap<&'src str, Symbol>,
+    ) -> CompileResult<Option<(ShaderType, usize)>> {
+        let mut idx = start;
+        let mut unary_sign = None;
+        let mut logical_not = false;
+
+        while let Some(text) = self.node_text_at(nodes, idx) {
+            match text {
+                "+" | "-" if unary_sign.is_none() => {
+                    unary_sign = Some((text, self.node_span(nodes[idx])));
+                    idx += 1;
+                }
+                "!" if !logical_not => {
+                    logical_not = true;
+                    idx += 1;
+                }
+                _ => break,
+            }
+        }
+
+        let Some((mut ty, mut next)) = self.read_primary_type(nodes, idx, symbols)? else {
+            return Ok(None);
+        };
+
+        if let Some((op, span)) = unary_sign
+            && !ty.is_numeric()
+        {
+            return Err(CompileError::at(
+                format!(
+                    "unary '{}' requires a numeric operand; found {}",
+                    op,
+                    ty.as_str()
+                ),
+                span,
+            ));
+        }
+        if logical_not {
+            if ty != ShaderType::Bool {
+                return Err(CompileError::at(
+                    format!("unary '!' requires bool; found {}", ty.as_str()),
+                    self.node_span(nodes[start]),
+                ));
+            }
+            ty = ShaderType::Bool;
+        }
+
+        while self.node_text_at(nodes, next) == Some(".") {
+            let Some(swizzle) = self.node_text_at(nodes, next + 1) else {
+                return Ok(None);
+            };
+            let Some(swizzle_ty) = infer_swizzle_type(ty, swizzle) else {
+                return Ok(None);
+            };
+            ty = swizzle_ty;
+            next += 2;
+        }
+
+        Ok(Some((ty, next)))
+    }
+
+    fn read_primary_type(
+        &self,
+        nodes: &[&ExpressionNode<'src>],
+        start: usize,
+        symbols: &HashMap<&'src str, Symbol>,
+    ) -> CompileResult<Option<(ShaderType, usize)>> {
+        if self.node_text_at(nodes, start) == Some("(") {
+            let close = matching_node_paren(self, nodes, start)?;
+            let Some(ty) =
+                self.infer_node_sequence_type_checked(&nodes[start + 1..close], symbols)?
+            else {
+                return Ok(None);
+            };
+            return Ok(Some((ty, close + 1)));
+        }
+
+        let Some(node) = nodes.get(start) else {
+            return Ok(None);
+        };
+        let Some(ty) = self.infer_single_node_type_checked(node, symbols)? else {
+            return Ok(None);
+        };
+        Ok(Some((ty, start + 1)))
+    }
+
+    fn infer_single_node_type_checked(
         &self,
         node: &ExpressionNode<'src>,
         symbols: &HashMap<&'src str, Symbol>,
-    ) -> Option<ShaderType> {
+    ) -> CompileResult<Option<ShaderType>> {
         match node {
             ExpressionNode::Token(idx) => {
                 let token = &self.module.tokens[*idx];
-                match token.kind {
+                Ok(match token.kind {
                     TokenKind::Number => Some(number_type(token.text)),
                     TokenKind::Ident => match token.text {
                         "true" | "false" => Some(ShaderType::Bool),
                         name => symbols.get(name).map(|symbol| symbol.ty),
                     },
                     _ => None,
-                }
+                })
             }
-            ExpressionNode::Call(call) => self.infer_call_type(call, symbols),
+            ExpressionNode::Call(call) => self.infer_call_type_checked(call, symbols),
         }
     }
 
-    fn infer_call_type(
+    fn infer_call_type_checked(
         &self,
         call: &ExprCall<'src>,
         symbols: &HashMap<&'src str, Symbol>,
-    ) -> Option<ShaderType> {
+    ) -> CompileResult<Option<ShaderType>> {
         match call.kind {
-            ExprCallKind::Intrinsic(IntrinsicKind::Texture) => Some(ShaderType::Vec(4)),
+            ExprCallKind::Intrinsic(IntrinsicKind::Texture) => Ok(Some(ShaderType::Vec(4))),
             ExprCallKind::Generic => {
                 if let Some(constructor_ty) = ShaderType::parse(call.name)
                     && constructor_ty != ShaderType::Void
                     && constructor_ty != ShaderType::Sampler2D
                 {
-                    return Some(constructor_ty);
+                    return Ok(Some(constructor_ty));
                 }
                 if let Some(signature) = self.functions.get(call.name) {
-                    return Some(signature.return_ty);
+                    return Ok(Some(signature.return_ty));
                 }
-                match call.name {
+                Ok(match call.name {
                     "dot" | "length" | "distance" => Some(ShaderType::Float),
                     "abs" | "floor" | "fract" | "sin" | "cos" | "tan" | "exp" | "pow" | "sqrt"
                     | "normalize" | "min" | "max" | "clamp" | "mix" | "step" | "smoothstep" => call
@@ -803,7 +980,7 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
                         .first()
                         .and_then(|arg| self.infer_expression_type(arg, symbols)),
                     _ => None,
-                }
+                })
             }
         }
     }
@@ -827,6 +1004,10 @@ impl<'module, 'src> SemanticValidator<'module, 'src> {
             ExpressionNode::Token(idx) => self.module.tokens[*idx].span,
             ExpressionNode::Call(call) => call.span,
         }
+    }
+
+    fn node_text_at(&self, nodes: &[&ExpressionNode<'src>], idx: usize) -> Option<&'src str> {
+        nodes.get(idx).and_then(|node| self.node_text(node))
     }
 }
 
@@ -925,6 +1106,191 @@ fn branch_always_returns(branch: &BranchAst<'_>) -> bool {
     match branch {
         BranchAst::Block(block) => block_always_returns(block),
         BranchAst::Statement(statement) => statement_always_returns(statement),
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct BinaryOperator {
+    text: &'static str,
+    span: super::syntax::SourceSpan,
+    precedence: u8,
+    end_idx: usize,
+}
+
+fn strip_outer_parentheses<'a, 'src>(
+    checker: &SemanticValidator<'_, 'src>,
+    mut nodes: &'a [&ExpressionNode<'src>],
+) -> CompileResult<&'a [&'a ExpressionNode<'src>]> {
+    while nodes.len() >= 2
+        && checker.node_text_at(nodes, 0) == Some("(")
+        && checker.node_text_at(nodes, nodes.len() - 1) == Some(")")
+    {
+        if matching_node_paren(checker, nodes, 0)? != nodes.len() - 1 {
+            break;
+        }
+        nodes = &nodes[1..nodes.len() - 1];
+    }
+    Ok(nodes)
+}
+
+fn contains_assignment_operator<'src>(
+    checker: &SemanticValidator<'_, 'src>,
+    nodes: &[&ExpressionNode<'src>],
+) -> bool {
+    for idx in 0..nodes.len() {
+        let Some(text) = checker.node_text_at(nodes, idx) else {
+            continue;
+        };
+        let prev = idx
+            .checked_sub(1)
+            .and_then(|prev_idx| checker.node_text_at(nodes, prev_idx));
+        let next = checker.node_text_at(nodes, idx + 1);
+
+        if text == "=" {
+            if next == Some("=") || matches!(prev, Some("<" | ">" | "!" | "=")) {
+                continue;
+            }
+            return true;
+        }
+
+        if matches!(text, "+" | "-" | "*" | "/" | "%") && next == Some("=") {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn matching_node_paren<'src>(
+    checker: &SemanticValidator<'_, 'src>,
+    nodes: &[&ExpressionNode<'src>],
+    open_idx: usize,
+) -> CompileResult<usize> {
+    let mut depth = 0usize;
+    for idx in open_idx..nodes.len() {
+        match checker.node_text_at(nodes, idx) {
+            Some("(") => depth += 1,
+            Some(")") => {
+                depth = depth.checked_sub(1).ok_or_else(|| {
+                    CompileError::at("unmatched ')' in expression", checker.node_span(nodes[idx]))
+                })?;
+                if depth == 0 {
+                    return Ok(idx);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Err(CompileError::at(
+        "unterminated parenthesized expression",
+        checker.node_span(nodes[open_idx]),
+    ))
+}
+
+fn read_operator<'src>(
+    checker: &SemanticValidator<'_, 'src>,
+    nodes: &[&ExpressionNode<'src>],
+    idx: usize,
+) -> Option<BinaryOperator> {
+    let text = checker.node_text_at(nodes, idx)?;
+    let next = checker.node_text_at(nodes, idx + 1);
+    let (text, width) = match (text, next) {
+        ("|", Some("|")) => ("||", 2),
+        ("&", Some("&")) => ("&&", 2),
+        ("=", Some("=")) => ("==", 2),
+        ("!", Some("=")) => ("!=", 2),
+        ("<", Some("=")) => ("<=", 2),
+        (">", Some("=")) => (">=", 2),
+        ("+", _) => ("+", 1),
+        ("-", _) => ("-", 1),
+        ("*", _) => ("*", 1),
+        ("/", _) => ("/", 1),
+        ("<", _) => ("<", 1),
+        (">", _) => (">", 1),
+        _ => return None,
+    };
+
+    Some(BinaryOperator {
+        text,
+        span: checker.node_span(nodes[idx]),
+        precedence: operator_precedence(text),
+        end_idx: idx + width,
+    })
+}
+
+fn operator_precedence(op: &str) -> u8 {
+    match op {
+        "||" => 1,
+        "&&" => 2,
+        "==" | "!=" => 3,
+        "<" | "<=" | ">" | ">=" => 4,
+        "+" | "-" => 5,
+        "*" | "/" => 6,
+        _ => 0,
+    }
+}
+
+fn infer_binary_operator_type(lhs: ShaderType, op: &str, rhs: ShaderType) -> Option<ShaderType> {
+    match op {
+        "+" | "-" | "*" | "/" => infer_arithmetic_binary_type(lhs, op, rhs),
+        "<" | "<=" | ">" | ">=" if lhs.is_scalar_numeric() && rhs.is_scalar_numeric() => {
+            Some(ShaderType::Bool)
+        }
+        "==" | "!=" if lhs == rhs || (lhs.is_scalar_numeric() && rhs.is_scalar_numeric()) => {
+            Some(ShaderType::Bool)
+        }
+        "&&" | "||" if lhs == ShaderType::Bool && rhs == ShaderType::Bool => Some(ShaderType::Bool),
+        _ => None,
+    }
+}
+
+fn infer_arithmetic_binary_type(lhs: ShaderType, op: &str, rhs: ShaderType) -> Option<ShaderType> {
+    if !lhs.is_numeric() || !rhs.is_numeric() {
+        return None;
+    }
+
+    if lhs == rhs {
+        return infer_same_type_arithmetic(lhs, op);
+    }
+
+    match (lhs, rhs) {
+        (ShaderType::Int, ShaderType::Float) | (ShaderType::Float, ShaderType::Int) => {
+            Some(ShaderType::Float)
+        }
+        (scalar, ShaderType::Vec(size)) if scalar.is_scalar_numeric() && rhs.is_float_vector() => {
+            Some(ShaderType::Vec(size))
+        }
+        (ShaderType::Vec(size), scalar) if lhs.is_float_vector() && scalar.is_scalar_numeric() => {
+            Some(ShaderType::Vec(size))
+        }
+        (ShaderType::Mat(size), scalar)
+            if matches!(op, "*" | "/") && scalar.is_scalar_numeric() =>
+        {
+            Some(ShaderType::Mat(size))
+        }
+        (scalar, ShaderType::Mat(size)) if op == "*" && scalar.is_scalar_numeric() => {
+            Some(ShaderType::Mat(size))
+        }
+        (ShaderType::Mat(size), ShaderType::Vec(vec_size)) if op == "*" && size == vec_size => {
+            Some(ShaderType::Vec(size))
+        }
+        (ShaderType::Vec(vec_size), ShaderType::Mat(size)) if op == "*" && size == vec_size => {
+            Some(ShaderType::Vec(vec_size))
+        }
+        _ => None,
+    }
+}
+
+fn infer_same_type_arithmetic(ty: ShaderType, op: &str) -> Option<ShaderType> {
+    match ty {
+        ShaderType::Int | ShaderType::Float | ShaderType::Vec(_)
+            if matches!(op, "+" | "-" | "*" | "/") =>
+        {
+            Some(ty)
+        }
+        ShaderType::Mat(_) if matches!(op, "+" | "-" | "*") => Some(ty),
+        _ => None,
     }
 }
 
@@ -1176,5 +1542,56 @@ mod tests {
 
         assert!(err.contains("initializer type mismatch for 'bad'"));
         assert!(err.contains("expected vec4, found vec2"));
+    }
+
+    #[test]
+    fn semantic_validation_accepts_scalar_vector_arithmetic_chains() {
+        validate_fragment(
+            "vec4 usagi_main(vec2 uv, vec4 color) {\n    vec2 adjusted = uv * 2.0 - 1.0;\n    return color * 0.5 + vec4(adjusted, 0.0, 1.0);\n}\n",
+            ShaderProfile::DesktopGlsl330,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn semantic_validation_rejects_binary_vector_size_mismatch() {
+        let err = validate_fragment(
+            "vec4 usagi_main(vec2 uv, vec4 color) {\n    vec3 bad = uv + color.rgb;\n    return color;\n}\n",
+            ShaderProfile::DesktopGlsl330,
+        )
+        .unwrap_err();
+
+        assert!(err.contains("operator '+' cannot combine vec2 and vec3"));
+        assert!(err.contains("line 2, column 19"));
+    }
+
+    #[test]
+    fn semantic_validation_rejects_non_bool_binary_if_condition() {
+        let err = validate_fragment(
+            "vec4 usagi_main(vec2 uv, vec4 color) {\n    if (uv + 0.5) return color;\n    return color;\n}\n",
+            ShaderProfile::DesktopGlsl330,
+        )
+        .unwrap_err();
+
+        assert!(err.contains("if condition must be bool; found vec2"));
+        assert!(err.contains("line 2, column 9"));
+    }
+
+    #[test]
+    fn semantic_validation_accepts_logical_comparison_chains() {
+        validate_fragment(
+            "vec4 usagi_main(vec2 uv, vec4 color) {\n    if (uv.x < 0.0 || uv.x > 1.0) return color;\n    return color;\n}\n",
+            ShaderProfile::DesktopGlsl330,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn semantic_validation_keeps_assignment_operators_raw() {
+        validate_fragment(
+            "vec4 usagi_main(vec2 uv, vec4 color) {\n    vec3 col = color.rgb;\n    col *= 0.5;\n    col.r = color.r;\n    return vec4(col, color.a);\n}\n",
+            ShaderProfile::DesktopGlsl330,
+        )
+        .unwrap();
     }
 }

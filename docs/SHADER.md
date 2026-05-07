@@ -129,6 +129,11 @@ fold is finite and does not involve identifiers, uniforms, function calls, or
 division by zero. It also prunes statements after syntactically guaranteed
 returns while preserving generated line offsets for diagnostics.
 
+The semantic checker infers known expression types for symbols, constructors,
+swizzles, calls, and binary operator chains. Invalid scalar/vector arithmetic,
+non-bool branch conditions, and incompatible comparison/logical operands are
+reported as Usagi compiler diagnostics before generated GLSL reaches the driver.
+
 Generic uniforms are limited to `float`, `vec2`, `vec3`, and `vec4` because
 those are the runtime value shapes Usagi can reflect and validate from Lua.
 `texture0` is the only sampler in the generic contract and is bound by the
@@ -229,8 +234,8 @@ so generic shader behavior has one ownership boundary:
   calls.
 - `compiler/emit_glsl.rs`: owns GLSL target capability records and emission for
   GLSL ES 100, GLSL 330, and GLSL 440.
-- `compiler/check.rs`: owns compiler validation. It starts with target capability checks
-  and should grow into semantic validation and type checking.
+- `compiler/check.rs`: owns compiler validation, target capability checks,
+  semantic validation, expression type checking, and performance warnings.
 - `compiler/ir.rs`: owns the checked backend-neutral compiler boundary used by GLSL
   emitters and later HLSL, MSL, or SPIR-V emitters.
 
