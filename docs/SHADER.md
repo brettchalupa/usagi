@@ -123,10 +123,11 @@ non-blank line and is stripped before GLSL emission. Other preprocessor lines
 are preserved but not interpreted by Usagi; they must be target-neutral and must
 compile correctly on every selected profile.
 
-The compiler performs conservative target-neutral optimization before emission.
-The first optimization folds exact numeric literal binary expressions, such as
-`1.0 + 2.0`, when the fold is finite and does not involve identifiers,
-uniforms, function calls, or division by zero.
+The compiler performs conservative target-neutral optimization before emission:
+it folds exact numeric literal binary expressions, such as `1.0 + 2.0`, when the
+fold is finite and does not involve identifiers, uniforms, function calls, or
+division by zero. It also prunes statements after syntactically guaranteed
+returns while preserving generated line offsets for diagnostics.
 
 Generic uniforms are limited to `float`, `vec2`, `vec3`, and `vec4` because
 those are the runtime value shapes Usagi can reflect and validate from Lua.
