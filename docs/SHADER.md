@@ -307,7 +307,10 @@ given directory.
 Use `--format json` to inspect generated GLSL with source-map metadata. Each
 source-map row records a generated GLSL line, whether the line was emitted by
 Usagi or came from the user source, and the original `.usagi.fs` line when one
-exists.
+exists. JSON output always writes to stdout and reports compiler failures as
+`ok: false` with `failure_count` plus one `failures[]` entry per failed target
+profile. Each failure includes the profile label and the structured compiler
+diagnostic. Successful profiles, if any, remain in `outputs[]`.
 
 Run `usagi shaders inspect path/to/shader.usagi.fs` to reflect metadata without
 launching the game. It compiles the selected target, prints generated-source

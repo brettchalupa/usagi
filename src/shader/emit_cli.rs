@@ -25,6 +25,18 @@ struct EmittedShader {
     warnings: Vec<super::compiler::ShaderDiagnostic>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ShaderEmitFailure {
+    profile: ShaderProfile,
+    diagnostic: super::compiler::ShaderDiagnostic,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ShaderEmitReport {
+    outputs: Vec<EmittedShader>,
+    failures: Vec<ShaderEmitFailure>,
+}
+
 pub(crate) fn run(
     path_arg: &str,
     target: ShaderProfileTarget,
@@ -33,7 +45,6 @@ pub(crate) fn run(
 ) -> Result<()> {
     let input_path = Path::new(path_arg);
     let src = read_shader_source(input_path)?;
-    let emitted = emit_source(&src, target.profiles())?;
 
     if format == ShaderEmitFormat::Json {
         if output.is_some() {
@@ -41,9 +52,18 @@ pub(crate) fn run(
                 "shader emit --format json writes to stdout; omit --output".into(),
             ));
         }
-        println!("{}", format_json_stdout(input_path, &emitted)?);
+        let report = emit_source_report(&src, target.profiles());
+        println!("{}", format_json_stdout(input_path, &report)?);
+        if !report.failures.is_empty() {
+            return Err(Error::Cli(format!(
+                "shader emit failed: {} target profile(s) failed",
+                report.failures.len()
+            )));
+        }
         return Ok(());
     }
+
+    let emitted = emit_source(&src, target.profiles())?;
 
     if let Some(output) = output {
         write_emitted(input_path, Path::new(output), target, &emitted)?;
@@ -87,8 +107,31 @@ fn emit_source(src: &str, profiles: Vec<ShaderProfile>) -> Result<Vec<EmittedSha
     Ok(emitted)
 }
 
-fn format_json_stdout(input_path: &Path, emitted: &[EmittedShader]) -> Result<String> {
-    let outputs: Vec<_> = emitted
+fn emit_source_report(src: &str, profiles: Vec<ShaderProfile>) -> ShaderEmitReport {
+    let mut outputs = Vec::with_capacity(profiles.len());
+    let mut failures = Vec::new();
+
+    for profile in profiles {
+        match super::compile_generic_fragment_with_report(src, profile) {
+            Ok(compiled) => outputs.push(EmittedShader {
+                profile,
+                source: compiled.source,
+                source_map: compiled.metadata.source_map,
+                warnings: compiled.metadata.warnings,
+            }),
+            Err(failure) => failures.push(ShaderEmitFailure {
+                profile,
+                diagnostic: *failure.diagnostic,
+            }),
+        }
+    }
+
+    ShaderEmitReport { outputs, failures }
+}
+
+fn format_json_stdout(input_path: &Path, report: &ShaderEmitReport) -> Result<String> {
+    let outputs: Vec<_> = report
+        .outputs
         .iter()
         .map(|shader| {
             json!({
@@ -105,10 +148,22 @@ fn format_json_stdout(input_path: &Path, emitted: &[EmittedShader]) -> Result<St
             })
         })
         .collect();
+    let failures: Vec<_> = report
+        .failures
+        .iter()
+        .map(|failure| {
+            json!({
+                "profile": failure.profile.label(),
+                "diagnostic": diagnostic_json(&failure.diagnostic),
+            })
+        })
+        .collect();
 
     serde_json::to_string_pretty(&json!({
-        "ok": true,
+        "ok": report.failures.is_empty(),
         "path": input_path.display().to_string(),
+        "failure_count": report.failures.len(),
+        "failures": failures,
         "outputs": outputs,
     }))
     .map_err(|e| Error::Cli(format!("serializing shader emit JSON: {e}")))
@@ -331,11 +386,13 @@ mod tests {
 
     #[test]
     fn json_output_includes_generated_source_map() {
-        let emitted = emit_source(VALID_SHADER, ShaderProfileTarget::Desktop.profiles()).unwrap();
-        let json = format_json_stdout(Path::new("shaders/crt.usagi.fs"), &emitted).unwrap();
+        let report = emit_source_report(VALID_SHADER, ShaderProfileTarget::Desktop.profiles());
+        let json = format_json_stdout(Path::new("shaders/crt.usagi.fs"), &report).unwrap();
         let value: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         assert_eq!(value["ok"], true);
+        assert_eq!(value["failure_count"], 0);
+        assert_eq!(value["failures"], serde_json::json!([]));
         assert_eq!(value["outputs"][0]["profile"], "GLSL 330");
         assert!(
             value["outputs"][0]["source"]
@@ -363,8 +420,8 @@ mod tests {
             "    return a + b;\n",
             "}\n",
         );
-        let emitted = emit_source(shader, ShaderProfileTarget::Desktop.profiles()).unwrap();
-        let json = format_json_stdout(Path::new("shaders/warn.usagi.fs"), &emitted).unwrap();
+        let report = emit_source_report(shader, ShaderProfileTarget::Desktop.profiles());
+        let json = format_json_stdout(Path::new("shaders/warn.usagi.fs"), &report).unwrap();
         let value: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         assert_eq!(value["outputs"][0]["warnings"][0]["line"], 3);
@@ -374,5 +431,28 @@ mod tests {
                 .unwrap()
                 .contains("duplicate usagi_texture")
         );
+    }
+
+    #[test]
+    fn json_output_reports_compiler_failures_for_each_target() {
+        let shader = "vec4 usagi_main(vec2 uv, vec4 color) { return texture(texture0, uv); }\n";
+        let report = emit_source_report(shader, ShaderProfileTarget::All.profiles());
+        let json = format_json_stdout(Path::new("shaders/bad.usagi.fs"), &report).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["ok"], false);
+        assert_eq!(value["outputs"], serde_json::json!([]));
+        assert_eq!(value["failure_count"], 3);
+        assert_eq!(value["failures"][0]["profile"], "GLSL ES 100");
+        assert_eq!(value["failures"][1]["profile"], "GLSL 330");
+        assert_eq!(value["failures"][2]["profile"], "GLSL 440");
+        assert!(
+            value["failures"][0]["diagnostic"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("generic shaders must use usagi_texture")
+        );
+        assert!(value["failures"][0]["diagnostic"]["line"].is_number());
+        assert!(value["failures"][0]["diagnostic"]["byte_start"].is_number());
     }
 }
