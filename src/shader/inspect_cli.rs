@@ -25,6 +25,18 @@ struct ShaderInspectReport {
     generated_lines: usize,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ShaderInspectFailure {
+    profile: ShaderProfile,
+    diagnostic: super::compiler::ShaderDiagnostic,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ShaderInspectJsonReport {
+    profiles: Vec<ShaderInspectReport>,
+    failures: Vec<ShaderInspectFailure>,
+}
+
 pub(crate) fn run(
     path_arg: &str,
     target: ShaderProfileTarget,
@@ -33,32 +45,27 @@ pub(crate) fn run(
     let input_path = Path::new(path_arg);
     let src = read_shader_source(input_path)?;
 
+    if format == ShaderInspectFormat::Json {
+        let report = inspect_source_json_report(&src, target.profiles());
+        println!("{}", format_json_report(input_path, &src, &report)?);
+        if !report.failures.is_empty() {
+            return Err(Error::Cli(format!(
+                "shader inspect failed: {} target profile(s) failed",
+                report.failures.len()
+            )));
+        }
+        return Ok(());
+    }
+
     match inspect_source(&src, target.profiles()) {
         Ok(reports) => {
-            if format == ShaderInspectFormat::Json {
-                println!("{}", format_json_report(input_path, &src, &reports)?);
-            } else {
-                println!("{}", format_text_report(input_path, &src, &reports));
-            }
+            println!("{}", format_text_report(input_path, &src, &reports));
             Ok(())
         }
-        Err(failure) => {
-            if format == ShaderInspectFormat::Json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&json!({
-                        "ok": false,
-                        "path": input_path.display().to_string(),
-                        "diagnostic": diagnostic_json(failure.diagnostic.as_ref()),
-                    }))
-                    .map_err(|e| Error::Cli(format!("serializing shader inspect JSON: {e}")))?
-                );
-            }
-            Err(Error::Cli(format!(
-                "shader inspect failed\n{}",
-                failure.render()
-            )))
-        }
+        Err(failure) => Err(Error::Cli(format!(
+            "shader inspect failed\n{}",
+            failure.render()
+        ))),
     }
 }
 
@@ -84,6 +91,31 @@ fn inspect_source(
         });
     }
     Ok(reports)
+}
+
+fn inspect_source_json_report(src: &str, profiles: Vec<ShaderProfile>) -> ShaderInspectJsonReport {
+    let mut reports = Vec::with_capacity(profiles.len());
+    let mut failures = Vec::new();
+
+    for profile in profiles {
+        match super::compile_generic_fragment_with_report(src, profile) {
+            Ok(compiled) => reports.push(ShaderInspectReport {
+                profile,
+                generated_bytes: compiled.source.len(),
+                generated_lines: compiled.metadata.source_map.lines.len(),
+                metadata: compiled.metadata,
+            }),
+            Err(failure) => failures.push(ShaderInspectFailure {
+                profile,
+                diagnostic: *failure.diagnostic,
+            }),
+        }
+    }
+
+    ShaderInspectJsonReport {
+        profiles: reports,
+        failures,
+    }
 }
 
 fn format_text_report(input_path: &Path, src: &str, reports: &[ShaderInspectReport]) -> String {
@@ -135,9 +167,10 @@ fn format_text_report(input_path: &Path, src: &str, reports: &[ShaderInspectRepo
 fn format_json_report(
     input_path: &Path,
     src: &str,
-    reports: &[ShaderInspectReport],
+    report: &ShaderInspectJsonReport,
 ) -> Result<String> {
-    let profiles = reports
+    let profiles = report
+        .profiles
         .iter()
         .map(|report| {
             let generated_range = report.metadata.source_map.generated_source_line_range();
@@ -157,10 +190,22 @@ fn format_json_report(
             })
         })
         .collect::<Vec<_>>();
+    let failures = report
+        .failures
+        .iter()
+        .map(|failure| {
+            json!({
+                "profile": failure.profile.label(),
+                "diagnostic": diagnostic_json(&failure.diagnostic),
+            })
+        })
+        .collect::<Vec<_>>();
 
     serde_json::to_string_pretty(&json!({
-        "ok": true,
+        "ok": report.failures.is_empty(),
         "path": input_path.display().to_string(),
+        "failure_count": report.failures.len(),
+        "failures": failures,
         "profiles": profiles,
     }))
     .map_err(|e| Error::Cli(format!("serializing shader inspect JSON: {e}")))
@@ -254,12 +299,14 @@ mod tests {
 
     #[test]
     fn inspect_json_includes_uniform_spans_and_generated_ranges() {
-        let reports = inspect_source(VALID_SHADER, ShaderProfileTarget::Web.profiles()).unwrap();
+        let report = inspect_source_json_report(VALID_SHADER, ShaderProfileTarget::Web.profiles());
         let json =
-            format_json_report(Path::new("shaders/crt.usagi.fs"), VALID_SHADER, &reports).unwrap();
+            format_json_report(Path::new("shaders/crt.usagi.fs"), VALID_SHADER, &report).unwrap();
         let value: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         assert_eq!(value["ok"], true);
+        assert_eq!(value["failure_count"], 0);
+        assert_eq!(value["failures"], serde_json::json!([]));
         assert_eq!(value["profiles"][0]["profile"], "GLSL ES 100");
         assert_eq!(value["profiles"][0]["uniforms"][0]["name"], "u_time");
         assert_eq!(value["profiles"][0]["uniforms"][0]["type"], "float");
@@ -288,9 +335,9 @@ mod tests {
             "}\n",
         );
         let reports = inspect_source(shader, ShaderProfileTarget::Desktop.profiles()).unwrap();
+        let report = inspect_source_json_report(shader, ShaderProfileTarget::Desktop.profiles());
         let text = format_text_report(Path::new("shaders/warn.usagi.fs"), shader, &reports);
-        let json =
-            format_json_report(Path::new("shaders/warn.usagi.fs"), shader, &reports).unwrap();
+        let json = format_json_report(Path::new("shaders/warn.usagi.fs"), shader, &report).unwrap();
         let value: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         assert!(text.contains("warnings:"));
@@ -351,5 +398,28 @@ mod tests {
         assert!(value["column"].is_number());
         assert!(value["byte_start"].is_number());
         assert!(value["byte_end"].is_number());
+    }
+
+    #[test]
+    fn inspect_json_reports_compiler_failures_for_each_target() {
+        let shader = "vec4 usagi_main(vec2 uv, vec4 color) { return texture(texture0, uv); }\n";
+        let report = inspect_source_json_report(shader, ShaderProfileTarget::All.profiles());
+        let json = format_json_report(Path::new("shaders/bad.usagi.fs"), shader, &report).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["ok"], false);
+        assert_eq!(value["profiles"], serde_json::json!([]));
+        assert_eq!(value["failure_count"], 3);
+        assert_eq!(value["failures"][0]["profile"], "GLSL ES 100");
+        assert_eq!(value["failures"][1]["profile"], "GLSL 330");
+        assert_eq!(value["failures"][2]["profile"], "GLSL 440");
+        assert!(
+            value["failures"][0]["diagnostic"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("generic shaders must use usagi_texture")
+        );
+        assert!(value["failures"][0]["diagnostic"]["line"].is_number());
+        assert!(value["failures"][0]["diagnostic"]["byte_start"].is_number());
     }
 }

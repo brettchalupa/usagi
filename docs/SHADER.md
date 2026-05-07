@@ -317,7 +317,9 @@ launching the game. It compiles the selected target, prints generated-source
 size/ranges, and lists each reflected uniform with declaration location. Use
 `--format json` for tooling-friendly metadata, including uniform declaration,
 name, and type spans. `--target web`, `--target desktop`, `--target glsl440`,
-and `--target all` use the same target selectors as `shaders emit`.
+and `--target all` use the same target selectors as `shaders emit`. JSON output
+uses the same `ok`, `failure_count`, and `failures[]` failure contract as
+`shaders emit --format json`, with successful profile metadata in `profiles[]`.
 
 ## Editor Tooling
 
