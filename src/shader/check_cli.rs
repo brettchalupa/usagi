@@ -552,6 +552,53 @@ mod tests {
     }
 
     #[test]
+    fn json_report_exposes_unsupported_structured_statement_diagnostics() {
+        let dir = project();
+        fs::write(
+            dir.path().join("shaders/loop.usagi.fs"),
+            concat!(
+                "vec4 usagi_main(vec2 uv, vec4 color) {\n",
+                "    for (int i = 0; i < 2; i = i + 1) color *= 0.5;\n",
+                "    return color;\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+
+        let profiles = ShaderCheckTarget::Desktop.profiles();
+        let report = check_project(dir.path(), &profiles).unwrap();
+        let text = format_failure_report(dir.path(), &report);
+        let json = format_json_report(dir.path(), &profiles, &report).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(report.shader_count, 1);
+        assert_eq!(report.compile_count, 1);
+        assert_eq!(report.failures.len(), 1);
+        assert!(text.contains("loop.usagi.fs [GLSL 330]"));
+        assert!(text.contains("generic shaders do not support 'for' statements"));
+        assert_eq!(value["ok"], false);
+        assert_eq!(value["failure_count"], 1);
+        assert_eq!(value["failures"][0]["path"], "shaders/loop.usagi.fs");
+        assert_eq!(value["failures"][0]["profile"], "GLSL 330");
+        assert_eq!(value["failures"][0]["kind"], "compiler");
+        assert!(
+            value["failures"][0]["message"]
+                .as_str()
+                .unwrap()
+                .contains("'for' statements")
+        );
+        assert_eq!(value["failures"][0]["line"], 2);
+        assert_eq!(value["failures"][0]["column"], 5);
+        assert!(
+            value["failures"][0]["source_line"]
+                .as_str()
+                .unwrap()
+                .contains("for (int i")
+        );
+        assert_eq!(value["failures"][0]["marker_len"], 3);
+    }
+
+    #[test]
     fn json_report_exposes_structured_source_diagnostics() {
         let dir = project();
         fs::write(dir.path().join("shaders/bad.usagi.fs"), [0xff]).unwrap();
