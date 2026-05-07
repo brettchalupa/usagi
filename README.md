@@ -53,9 +53,9 @@ change in the future or be configurable.
   can be loaded
 - **Small API**: you can't do everything with Usagi, but there's enough to make
   simple 2D games
-- **Default Sprit Size**: 16px by 16px - using `gfx.spr` uses the index based on
-  this sized sprite; you can draw larger sprites with `gfx.sspr`; override with
-  `_config()`
+- **Default Sprite Size**: 16px by 16px - using `gfx.spr` uses the index based
+  on this sized sprite; you can draw larger sprites with `gfx.sspr`; override
+  with `_config()`
 - **3 Action Buttons**: Embrace modernity with 3 different action buttons!
 - **Pico-8 Colors**: the color palette for drawing are the same as Pico-8 (but
   with constants for easy reference)
@@ -149,10 +149,10 @@ stock Lua's `require`. Optional assets live alongside:
 ```
 my_game/
   main.lua        -- required: your game's entry point
+  sprites.png     -- optional: 16×16 sprite sheet (PNG with alpha)
   enemies.lua     -- optional: require "enemies"
   world/
     tiles.lua    -- optional: require "world.tiles"
-  sprites.png    -- optional: 16×16 sprite sheet (PNG with alpha)
   sfx/           -- optional: .wav files, file stems become sfx names
     jump.wav
     coin.wav
