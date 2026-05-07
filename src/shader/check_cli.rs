@@ -147,6 +147,19 @@ impl ShaderCheckDiagnostic {
             "^".repeat(marker_len)
         )
     }
+
+    fn as_tool_diagnostic(&self) -> super::tool_json::ToolDiagnostic<'_> {
+        super::tool_json::ToolDiagnostic {
+            kind: Some(self.kind.as_str()),
+            message: &self.message,
+            line: self.line,
+            column: self.column,
+            byte_start: self.byte_start,
+            byte_end: self.byte_end,
+            source_line: self.source_line.as_deref(),
+            marker_len: self.marker_len,
+        }
+    }
 }
 
 pub(crate) fn run(
@@ -337,38 +350,31 @@ fn format_json_report(
         .failures
         .iter()
         .map(|failure| {
-            let diagnostic = &failure.diagnostic;
-            json!({
-                "path": json_shader_path(project_root, &failure.path),
-                "profile": failure.profile.map(|profile| profile.label()),
-                "kind": diagnostic.kind.as_str(),
-                "message": diagnostic.message.as_str(),
-                "line": diagnostic.line,
-                "column": diagnostic.column,
-                "byte_start": diagnostic.byte_start,
-                "byte_end": diagnostic.byte_end,
-                "source_line": diagnostic.source_line.as_deref(),
-                "marker_len": diagnostic.marker_len,
-            })
+            let mut fields =
+                super::tool_json::diagnostic_fields(failure.diagnostic.as_tool_diagnostic());
+            fields.insert(
+                "path".to_string(),
+                json!(json_shader_path(project_root, &failure.path)),
+            );
+            fields.insert(
+                "profile".to_string(),
+                json!(failure.profile.map(|profile| profile.label())),
+            );
+            serde_json::Value::Object(fields)
         })
         .collect();
     let warnings: Vec<_> = report
         .warnings
         .iter()
         .map(|warning| {
-            let diagnostic = &warning.diagnostic;
-            json!({
-                "path": json_shader_path(project_root, &warning.path),
-                "profile": warning.profile.label(),
-                "kind": diagnostic.kind.as_str(),
-                "message": diagnostic.message.as_str(),
-                "line": diagnostic.line,
-                "column": diagnostic.column,
-                "byte_start": diagnostic.byte_start,
-                "byte_end": diagnostic.byte_end,
-                "source_line": diagnostic.source_line.as_deref(),
-                "marker_len": diagnostic.marker_len,
-            })
+            let mut fields =
+                super::tool_json::diagnostic_fields(warning.diagnostic.as_tool_diagnostic());
+            fields.insert(
+                "path".to_string(),
+                json!(json_shader_path(project_root, &warning.path)),
+            );
+            fields.insert("profile".to_string(), json!(warning.profile.label()));
+            serde_json::Value::Object(fields)
         })
         .collect();
 

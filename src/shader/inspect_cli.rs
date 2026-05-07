@@ -186,7 +186,7 @@ fn format_json_report(
                 "uniforms": report.metadata.uniforms.iter().map(|uniform| {
                     uniform_json(src, uniform)
                 }).collect::<Vec<_>>(),
-                "warnings": report.metadata.warnings.iter().map(diagnostic_json).collect::<Vec<_>>(),
+                "warnings": report.metadata.warnings.iter().map(super::tool_json::compiler_diagnostic_json).collect::<Vec<_>>(),
             })
         })
         .collect::<Vec<_>>();
@@ -194,10 +194,7 @@ fn format_json_report(
         .failures
         .iter()
         .map(|failure| {
-            json!({
-                "profile": failure.profile.label(),
-                "diagnostic": diagnostic_json(&failure.diagnostic),
-            })
+            super::tool_json::profile_compiler_failure_json(failure.profile, &failure.diagnostic)
         })
         .collect::<Vec<_>>();
 
@@ -218,18 +215,6 @@ fn uniform_json(src: &str, uniform: &ShaderUniform) -> serde_json::Value {
         "declaration": span_json(src, uniform.declaration_span.start, uniform.declaration_span.end),
         "name_span": span_json(src, uniform.name_span.start, uniform.name_span.end),
         "type_span": span_json(src, uniform.ty_span.start, uniform.ty_span.end),
-    })
-}
-
-fn diagnostic_json(diagnostic: &super::compiler::ShaderDiagnostic) -> serde_json::Value {
-    json!({
-        "message": &diagnostic.message,
-        "line": diagnostic.line,
-        "column": diagnostic.column,
-        "byte_start": diagnostic.byte_start,
-        "byte_end": diagnostic.byte_end,
-        "source_line": &diagnostic.source_line,
-        "marker_len": diagnostic.marker_len,
     })
 }
 
@@ -386,7 +371,7 @@ mod tests {
             ShaderProfileTarget::Desktop.profiles(),
         )
         .unwrap_err();
-        let value = diagnostic_json(failure.diagnostic.as_ref());
+        let value = crate::shader::tool_json::compiler_diagnostic_json(failure.diagnostic.as_ref());
 
         assert!(
             value["message"]

@@ -144,7 +144,7 @@ fn format_json_stdout(input_path: &Path, report: &ShaderEmitReport) -> Result<St
                         "kind": line.kind.as_str(),
                     })
                 }).collect::<Vec<_>>(),
-                "warnings": shader.warnings.iter().map(diagnostic_json).collect::<Vec<_>>(),
+                "warnings": shader.warnings.iter().map(super::tool_json::compiler_diagnostic_json).collect::<Vec<_>>(),
             })
         })
         .collect();
@@ -152,10 +152,7 @@ fn format_json_stdout(input_path: &Path, report: &ShaderEmitReport) -> Result<St
         .failures
         .iter()
         .map(|failure| {
-            json!({
-                "profile": failure.profile.label(),
-                "diagnostic": diagnostic_json(&failure.diagnostic),
-            })
+            super::tool_json::profile_compiler_failure_json(failure.profile, &failure.diagnostic)
         })
         .collect();
 
@@ -167,18 +164,6 @@ fn format_json_stdout(input_path: &Path, report: &ShaderEmitReport) -> Result<St
         "outputs": outputs,
     }))
     .map_err(|e| Error::Cli(format!("serializing shader emit JSON: {e}")))
-}
-
-fn diagnostic_json(diagnostic: &super::compiler::ShaderDiagnostic) -> serde_json::Value {
-    json!({
-        "message": &diagnostic.message,
-        "line": diagnostic.line,
-        "column": diagnostic.column,
-        "byte_start": diagnostic.byte_start,
-        "byte_end": diagnostic.byte_end,
-        "source_line": &diagnostic.source_line,
-        "marker_len": diagnostic.marker_len,
-    })
 }
 
 fn format_stdout(emitted: &[EmittedShader]) -> String {
