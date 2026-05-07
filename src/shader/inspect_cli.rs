@@ -301,7 +301,7 @@ mod tests {
         );
         assert_eq!(
             value["profiles"][0]["generated"]["source_line_range"]["first"],
-            9
+            10
         );
         assert_eq!(
             value["profiles"][0]["generated"]["usagi_line_range"]["first"],

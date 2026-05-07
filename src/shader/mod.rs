@@ -881,7 +881,7 @@ mod tests {
         );
         assert_eq!(
             compiled.metadata.source_map.generated_source_line_range(),
-            Some((8, 13))
+            Some((9, 14))
         );
         assert_eq!(
             compiled.metadata.source_map.original_source_line_range(),
@@ -944,7 +944,7 @@ mod tests {
         let vfs = crate::vfs::BundleBacked::new(bundle);
         let fragment = read_fragment_source_for_test(&vfs, "crt").unwrap();
         let driver_log = driver_log::RaylibShaderLog::from_entries(vec![(
-            "SHADER: [ID 7] Compile error: 0(8) : error C0000",
+            "SHADER: [ID 7] Compile error: 0(3) : error C0000",
             driver_log::RaylibLogLevel::Warning,
         )]);
         let message = gl_driver_failure_message("crt", &fragment, &driver_log);
@@ -955,7 +955,7 @@ mod tests {
         assert!(message.contains("shaders/crt.usagi.fs:3-5"));
         assert!(message.contains("usagi shaders emit --format json"));
         assert!(message.contains("[driver-log] WARNING: SHADER: [ID 7] Compile error"));
-        assert!(message.contains("generated line 8 -> shaders/crt.usagi.fs:3"));
+        assert!(message.contains("source line 3 -> shaders/crt.usagi.fs:3"));
     }
 
     #[test]

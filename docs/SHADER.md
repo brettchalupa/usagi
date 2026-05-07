@@ -49,12 +49,12 @@ desktop and web shader files. Native GLSL files are an advanced escape hatch for
 engine or target-specific experiments, not the normal way to ship a
 cross-platform shader.
 
-Generic shaders must not include `#version` or declare `texture0`,
+Generic shaders must not include GLSL preprocessor directives or declare `texture0`,
 `fragTexCoord`, `fragColor`, `finalColor`, `gl_FragColor`, or `main`. Usagi
-provides those. They also should not declare target-specific stage-interface
+provides those. They also must not declare target-specific stage-interface
 or precision qualifiers such as `in`, `out`, `varying`, `layout`, or
-`precision`; the compiler validates those against the selected target before
-the GL driver sees the generated source. Define exactly one entrypoint:
+`precision`; the compiler rejects those before the GL driver sees the generated
+source. Define exactly one entrypoint:
 
 ```glsl
 #usagi shader 1
@@ -117,11 +117,10 @@ listed here, such as `for`, `while`, `do`, and `switch`, are not part of the
 generic contract yet.
 
 The compiler preserves comments, whitespace, and raw GLSL tokens when emitting
-target GLSL. `#version` is always rejected because Usagi owns the emitted target
-version. The optional `#usagi shader 1` marker may appear only on the first
-non-blank line and is stripped before GLSL emission. Other preprocessor lines
-are preserved but not interpreted by Usagi; they must be target-neutral and must
-compile correctly on every selected profile.
+target GLSL. GLSL preprocessor lines are rejected because Usagi owns emitted
+versions, profile setup, target precision, and source-line remapping. The
+optional `#usagi shader 1` marker may appear only on the first non-blank line
+and is stripped before GLSL emission.
 
 The compiler performs conservative target-neutral optimization before emission:
 it folds exact numeric literal binary expressions, such as `1.0 + 2.0`, when the
@@ -268,9 +267,9 @@ print to the terminal with a category: `[compiler]` for generic `.usagi.fs`
 validation and generation failures, `[source]` for missing or unreadable shader
 files, and `[gl-driver]` for native OpenGL/WebGL compile or link failures.
 Generic shader GL-driver failures include captured raylib driver log lines,
-remapped generated GLSL line references, and the generated GLSL line range that
-maps back to `.usagi.fs` source lines so driver logs can be read against the
-user-authored file. Reload failures keep the previous shader live.
+remapped generated GLSL line references, and a generated `#line` directive so
+driver-reported body lines line up with `.usagi.fs` source lines. Reload
+failures keep the previous shader live.
 
 Set `USAGI_SHADER_DUMP_DIR=path` before running `usagi dev` or `usagi run` to
 dump each loaded generic shader's generated GLSL and metadata JSON. Dump files

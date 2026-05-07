@@ -20,16 +20,28 @@ impl TargetEmitter {
         let module = ir.module();
         let target = target(self.profile);
         let header = target.header();
+        let line_directive = format!("#line {}\n", module.source_start_line);
         let footer = target.footer(module.entrypoint_name);
         let mut body = String::with_capacity(source_len(&module.tokens));
         emit_source(&module.tokens, ir.source(), target, &mut body)?;
         let mut out = String::with_capacity(
-            header.len() + body.len() + footer.len() + module.items.len() * 2,
+            header.len()
+                + line_directive.len()
+                + body.len()
+                + footer.len()
+                + module.items.len() * 2,
         );
         out.push_str(&header);
+        out.push_str(&line_directive);
         out.push_str(&body);
         out.push_str(&footer);
-        let source_map = build_source_map(&header, &body, &footer, module.source_start_line);
+        let source_map = build_source_map(
+            &header,
+            &line_directive,
+            &body,
+            &footer,
+            module.source_start_line,
+        );
         Ok(GlslEmission {
             source: out,
             source_map,
@@ -54,10 +66,6 @@ pub(super) struct GlslTarget {
     output_declaration: Option<&'static str>,
     fragment_output: &'static str,
     texture_function: &'static str,
-    pub(super) supports_desktop_interface_qualifiers: bool,
-    pub(super) supports_es_varying_qualifier: bool,
-    pub(super) supports_layout_qualifier: bool,
-    pub(super) supports_precision_directive: bool,
 }
 
 impl GlslTarget {
@@ -98,10 +106,6 @@ const GLSL_ES_100: GlslTarget = GlslTarget {
     output_declaration: None,
     fragment_output: "gl_FragColor",
     texture_function: "texture2D",
-    supports_desktop_interface_qualifiers: false,
-    supports_es_varying_qualifier: true,
-    supports_layout_qualifier: false,
-    supports_precision_directive: true,
 };
 
 const GLSL_330: GlslTarget = GlslTarget {
@@ -112,10 +116,6 @@ const GLSL_330: GlslTarget = GlslTarget {
     output_declaration: Some("out vec4 finalColor;"),
     fragment_output: "finalColor",
     texture_function: "texture",
-    supports_desktop_interface_qualifiers: true,
-    supports_es_varying_qualifier: false,
-    supports_layout_qualifier: false,
-    supports_precision_directive: false,
 };
 
 const GLSL_440: GlslTarget = GlslTarget {
@@ -126,10 +126,6 @@ const GLSL_440: GlslTarget = GlslTarget {
     output_declaration: Some("layout(location = 0) out vec4 finalColor;"),
     fragment_output: "finalColor",
     texture_function: "texture",
-    supports_desktop_interface_qualifiers: true,
-    supports_es_varying_qualifier: false,
-    supports_layout_qualifier: true,
-    supports_precision_directive: false,
 };
 
 fn emit_source(
@@ -210,6 +206,7 @@ fn source_len(tokens: &[Token<'_>]) -> usize {
 
 fn build_source_map(
     header: &str,
+    line_directive: &str,
     body: &str,
     footer: &str,
     source_start_line: usize,
@@ -218,6 +215,12 @@ fn build_source_map(
     append_generated_lines(
         &mut source_map,
         header,
+        ShaderSourceMapLineKind::Generated,
+        None,
+    );
+    append_generated_lines(
+        &mut source_map,
+        line_directive,
         ShaderSourceMapLineKind::Generated,
         None,
     );
@@ -341,6 +344,7 @@ mod tests {
                 "varying vec2 fragTexCoord;\n",
                 "varying vec4 fragColor;\n",
                 "uniform sampler2D texture0;\n\n",
+                "#line 3\n",
                 "uniform float u_time;\n",
                 "vec4 usagi_main(vec2 uv, vec4 color) {\n",
                 "    return texture2D(texture0, uv) * color * u_time;\n",
@@ -365,6 +369,7 @@ mod tests {
                 "in vec4 fragColor;\n",
                 "uniform sampler2D texture0;\n",
                 "out vec4 finalColor;\n\n",
+                "#line 3\n",
                 "uniform float u_time;\n",
                 "vec4 usagi_main(vec2 uv, vec4 color) {\n",
                 "    return texture(texture0, uv) * color * u_time;\n",
@@ -389,6 +394,7 @@ mod tests {
                 "in vec4 fragColor;\n",
                 "uniform sampler2D texture0;\n",
                 "layout(location = 0) out vec4 finalColor;\n\n",
+                "#line 3\n",
                 "uniform float u_time;\n",
                 "vec4 usagi_main(vec2 uv, vec4 color) {\n",
                 "    return texture(texture0, uv) * color * u_time;\n",
@@ -419,11 +425,15 @@ mod tests {
         );
         assert_eq!(
             emission.source_map.generated_source_line_range(),
-            Some((8, 11))
+            Some((9, 12))
         );
         assert_eq!(
             emission.source_map.original_source_line_range(),
             Some((3, 6))
+        );
+        assert!(
+            emission.source.lines().any(|line| line == "#line 3"),
+            "expected generated GLSL to reset driver diagnostics to the original Usagi source line"
         );
     }
 

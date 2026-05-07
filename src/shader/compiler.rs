@@ -424,7 +424,7 @@ mod tests {
             compiled
                 .metadata
                 .source_map
-                .original_line_for_generated_line(8),
+                .original_line_for_generated_line(9),
             Some(3)
         );
         assert_eq!(compiled.metadata.uniforms[0].ty, "float");

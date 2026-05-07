@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-use super::emit_glsl::{self, GlslTarget};
 use super::ir::IrType as ShaderType;
 use super::syntax::{
     BlockAst, BranchAst, ExprCall, ExprCallKind, ExpressionAst, ExpressionNode, FunctionDecl,
@@ -19,51 +18,42 @@ pub(super) fn validate(
 
 pub(super) fn analyze(
     module: &UsagiShaderModule<'_>,
-    profile: ShaderProfile,
+    _profile: ShaderProfile,
 ) -> CompileResult<CheckedShader> {
-    validate_target_tokens(&module.tokens, emit_glsl::target(profile))?;
+    validate_portable_tokens(&module.tokens)?;
     SemanticValidator::new(module)?.analyze()
 }
 
-fn validate_target_tokens(tokens: &[Token<'_>], target: &GlslTarget) -> CompileResult<()> {
+fn validate_portable_tokens(tokens: &[Token<'_>]) -> CompileResult<()> {
     for token in tokens {
         if !is_code_token(token) {
             continue;
         }
         match token.text {
-            "in" | "out" if !target.supports_desktop_interface_qualifiers => {
+            "in" | "out" => {
                 return Err(CompileError::at(
                     format!(
-                        "{} generic shaders do not support desktop interface qualifier '{}'",
-                        target.name, token.text
+                        "generic shaders do not support GLSL interface qualifier '{}'; use usagi_main parameters",
+                        token.text
                     ),
                     token.span,
                 ));
             }
-            "varying" if !target.supports_es_varying_qualifier => {
+            "varying" => {
                 return Err(CompileError::at(
-                    format!(
-                        "{} generic shaders do not support GLSL ES interface qualifier 'varying'",
-                        target.name
-                    ),
+                    "generic shaders do not support GLSL ES interface qualifier 'varying'; use usagi_main parameters",
                     token.span,
                 ));
             }
-            "layout" if !target.supports_layout_qualifier => {
+            "layout" => {
                 return Err(CompileError::at(
-                    format!(
-                        "{} generic shaders do not support layout qualifiers",
-                        target.name
-                    ),
+                    "generic shaders do not support layout qualifiers; Usagi owns target output layout",
                     token.span,
                 ));
             }
-            "precision" if !target.supports_precision_directive => {
+            "precision" => {
                 return Err(CompileError::at(
-                    format!(
-                        "{} generic shaders do not support precision declarations",
-                        target.name
-                    ),
+                    "generic shaders do not support precision declarations; Usagi emits target precision",
                     token.span,
                 ));
             }
@@ -1182,53 +1172,49 @@ mod tests {
     }
 
     #[test]
-    fn target_validation_rejects_desktop_interface_qualifier_for_es_100() {
+    fn target_validation_rejects_desktop_interface_qualifier_for_all_profiles() {
         let err = validate_fragment(
             "out vec4 customColor;\nvec4 usagi_main(vec2 uv, vec4 color) { return color; }\n",
-            ShaderProfile::WebGlslEs100,
-        )
-        .unwrap_err();
-
-        assert!(err.contains("GLSL ES 100"));
-        assert!(err.contains("desktop interface qualifier 'out'"));
-        assert!(err.contains("line 1, column 1"));
-    }
-
-    #[test]
-    fn target_validation_rejects_es_varying_qualifier_for_desktop() {
-        let err = validate_fragment(
-            "varying vec2 customUv;\nvec4 usagi_main(vec2 uv, vec4 color) { return color; }\n",
             ShaderProfile::DesktopGlsl330,
         )
         .unwrap_err();
 
-        assert!(err.contains("GLSL 330"));
+        assert!(err.contains("GLSL interface qualifier 'out'"));
+        assert!(err.contains("line 1, column 1"));
+    }
+
+    #[test]
+    fn target_validation_rejects_es_varying_qualifier_for_all_profiles() {
+        let err = validate_fragment(
+            "varying vec2 customUv;\nvec4 usagi_main(vec2 uv, vec4 color) { return color; }\n",
+            ShaderProfile::WebGlslEs100,
+        )
+        .unwrap_err();
+
         assert!(err.contains("varying"));
         assert!(err.contains("line 1, column 1"));
     }
 
     #[test]
-    fn target_validation_rejects_layout_qualifier_for_330() {
+    fn target_validation_rejects_layout_qualifier_for_all_profiles() {
         let err = validate_fragment(
             "layout(location = 0) out vec4 customColor;\nvec4 usagi_main(vec2 uv, vec4 color) { return color; }\n",
-            ShaderProfile::DesktopGlsl330,
+            ShaderProfile::DesktopGlsl440,
         )
         .unwrap_err();
 
-        assert!(err.contains("GLSL 330"));
         assert!(err.contains("layout qualifiers"));
         assert!(err.contains("line 1, column 1"));
     }
 
     #[test]
-    fn target_validation_rejects_precision_declaration_for_desktop() {
+    fn target_validation_rejects_precision_declaration_for_all_profiles() {
         let err = validate_fragment(
             "precision mediump float;\nvec4 usagi_main(vec2 uv, vec4 color) { return color; }\n",
-            ShaderProfile::DesktopGlsl440,
+            ShaderProfile::WebGlslEs100,
         )
         .unwrap_err();
 
-        assert!(err.contains("GLSL 440"));
         assert!(err.contains("precision declarations"));
         assert!(err.contains("line 1, column 1"));
     }

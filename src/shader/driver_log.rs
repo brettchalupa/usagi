@@ -203,12 +203,19 @@ fn remap_driver_log_line(
     let mappings = generated_line_refs(message)
         .into_iter()
         .filter_map(|generated_line| {
-            metadata
+            if let Some(source_line) = metadata
                 .source_map
                 .original_line_for_generated_line(generated_line)
-                .map(|source_line| {
-                    format!("generated line {generated_line} -> {shader_key}:{source_line}")
-                })
+            {
+                return Some(format!(
+                    "generated line {generated_line} -> {shader_key}:{source_line}"
+                ));
+            }
+            metadata
+                .source_map
+                .original_source_line_range()
+                .filter(|(first, last)| (*first..=*last).contains(&generated_line))
+                .map(|_| format!("source line {generated_line} -> {shader_key}:{generated_line}"))
         })
         .collect::<Vec<_>>();
 
@@ -343,6 +350,17 @@ mod tests {
         );
 
         assert!(line.contains("generated line 9 -> shaders/crt.usagi.fs:4"));
+    }
+
+    #[test]
+    fn remap_driver_log_line_accepts_line_directive_source_line() {
+        let line = remap_driver_log_line(
+            "ERROR: 0:4: 'missing' : undeclared identifier",
+            "shaders/crt.usagi.fs",
+            Some(&metadata()),
+        );
+
+        assert!(line.contains("source line 4 -> shaders/crt.usagi.fs:4"));
     }
 
     #[test]

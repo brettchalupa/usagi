@@ -30,6 +30,7 @@ impl<'src> UsagiShaderModule<'src> {
     fn parse_body(body: &'src str) -> CompileResult<Self> {
         let tokens = lex(body)?;
         reject_version_directive(&tokens)?;
+        reject_preprocessor_lines(&tokens)?;
         reject_reserved_identifiers(&tokens)?;
         let items = parse_items(&tokens)?;
         validate_items(&items)?;
@@ -459,6 +460,19 @@ fn reject_version_directive(tokens: &[Token<'_>]) -> CompileResult<()> {
     Ok(())
 }
 
+fn reject_preprocessor_lines(tokens: &[Token<'_>]) -> CompileResult<()> {
+    if let Some(token) = tokens
+        .iter()
+        .find(|token| token.kind == TokenKind::PreprocessorLine)
+    {
+        return Err(CompileError::at(
+            "generic shaders do not support GLSL preprocessor directives; use native .fs fallbacks for target-specific GLSL",
+            token.span,
+        ));
+    }
+    Ok(())
+}
+
 fn reject_reserved_identifiers(tokens: &[Token<'_>]) -> CompileResult<()> {
     for (idx, token) in tokens.iter().enumerate() {
         if token.kind != TokenKind::Ident {
@@ -570,7 +584,12 @@ fn parse_uniform<'src>(
             }
             _ => match token.text {
                 "," => expect_name = true,
-                "[" => expect_name = false,
+                "[" => {
+                    return Err(CompileError::at(
+                        "generic shader uniform arrays are not supported; declare separate float/vec uniforms for Lua writes",
+                        token.span,
+                    ));
+                }
                 "]" => {}
                 name if expect_name && token.kind == TokenKind::Ident => {
                     names.push(UniformName {
@@ -1529,6 +1548,28 @@ mod tests {
         .unwrap_err();
 
         assert!(err.contains("texture0"));
+    }
+
+    #[test]
+    fn parser_rejects_preprocessor_lines_after_usagi_marker() {
+        let err = UsagiShaderModule::parse(
+            "#usagi shader 1\n#extension GL_OES_standard_derivatives : enable\nvec4 usagi_main(vec2 uv, vec4 color) { return color; }\n",
+        )
+        .unwrap_err();
+
+        assert!(err.contains("preprocessor directives"));
+        assert!(err.contains("line 2, column 1"));
+    }
+
+    #[test]
+    fn parser_rejects_uniform_arrays() {
+        let err = UsagiShaderModule::parse(
+            "uniform float u_kernel[9];\nvec4 usagi_main(vec2 uv, vec4 color) { return color; }\n",
+        )
+        .unwrap_err();
+
+        assert!(err.contains("uniform arrays are not supported"));
+        assert!(err.contains("line 1, column 23"));
     }
 
     #[test]

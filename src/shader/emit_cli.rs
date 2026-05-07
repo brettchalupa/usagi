@@ -296,7 +296,7 @@ mod tests {
         assert!(emitted[0].source.contains("#version 100"));
         assert!(emitted[0].source.contains("texture2D(texture0, uv)"));
         assert_eq!(
-            emitted[0].source_map.original_line_for_generated_line(9),
+            emitted[0].source_map.original_line_for_generated_line(10),
             Some(3)
         );
     }
