@@ -43,9 +43,18 @@ GLSL `#version 330`; web uses GLSL ES `#version 100` (WebGL 1 / GLES 2). The
 compiler has a GLSL 440 emitter profile staged for future desktop backend
 selection.
 
+The portability contract is strict: a valid generic Usagi shader should compile
+through the selected platform target without the author maintaining separate
+desktop and web shader files. Native GLSL files are an advanced escape hatch for
+engine or target-specific experiments, not the normal way to ship a
+cross-platform shader.
+
 Generic shaders must not include `#version` or declare `texture0`,
 `fragTexCoord`, `fragColor`, `finalColor`, `gl_FragColor`, or `main`. Usagi
-provides those. Define exactly one entrypoint:
+provides those. They also should not declare target-specific stage-interface
+or precision qualifiers such as `in`, `out`, `varying`, `layout`, or
+`precision`; the compiler validates those against the selected target before
+the GL driver sees the generated source. Define exactly one entrypoint:
 
 ```glsl
 #usagi shader 1
@@ -62,8 +71,9 @@ stays target-neutral.
 
 ## Shader Language Contract
 
-A `.usagi.fs` file is a fragment-only, GLSL-like source file. The stable grammar
-is intentionally small:
+A `.usagi.fs` file is a fragment-only, GLSL-like source file. The current
+baseline accepts this minimum grammar while the full compiler/AST work is being
+completed:
 
 ```text
 module       = marker? item*
@@ -75,11 +85,14 @@ params       = type name ("," type name)*
 entrypoint   = "vec4 usagi_main(vec2 uv, vec4 color)"
 ```
 
-Function bodies use GLSL expressions and statements that are valid for all
-active generic targets. The compiler preserves comments and whitespace, rejects
-`#version`, and treats other preprocessor lines as target-neutral advanced use:
-they pass through today, but they are not interpreted by Usagi and must compile
-on every target you intend to ship.
+Function bodies use GLSL expressions and statements that are valid for the
+selected Usagi platform targets. The compiler preserves comments and whitespace,
+rejects `#version`, and treats other preprocessor lines as target-neutral
+advanced use: they pass through today, but they are not interpreted by Usagi and
+must compile on every target you intend to ship. The premium-grade target is a
+fully parsed language contract where every accepted construct either lowers for
+the selected targets or fails with a deterministic compiler diagnostic before
+the GL driver runs.
 
 The engine owns these names:
 
@@ -110,6 +123,30 @@ baseline. Changes to the generic compiler must keep them compiling for every
 supported generic profile unless the shader language version is intentionally
 changed.
 
+## Compiler Module Layout
+
+Shader-specific runtime, CLI, and compiler code should stay under `src/shader/`
+so generic shader behavior has one ownership boundary:
+
+- `mod.rs`: owns runtime shader loading, native fallback selection, live reload,
+  uniform replay, and integration with the render path.
+- `check_cli.rs`: owns `usagi shaders check`, project shader discovery, and
+  offline conformance reporting.
+- `compiler.rs`: owns the compile entrypoint, result metadata, and the
+  high-level parse, validate, and emit pipeline.
+- `compiler/syntax.rs`: should own source spans, tokens, lexing, parsing, and the parsed
+  source tree for declarations, functions, statements, expressions, and calls.
+- `compiler/emit_glsl.rs`: should own GLSL target capability records and emission for
+  GLSL ES 100, GLSL 330, and GLSL 440.
+- `compiler/check.rs`: owns compiler validation. It starts with target capability checks
+  and should grow into semantic validation and type checking.
+- `compiler/ir.rs`: owns the checked backend-neutral compiler boundary used by GLSL
+  emitters and later HLSL, MSL, or SPIR-V emitters.
+
+Avoid naming the first parser split `ast.rs` while it still preserves source
+tokens and rewrite spans. `syntax.rs` is more accurate until a fully checked
+AST/ABT boundary exists.
+
 ## Native GLSL Fallbacks
 
 Native GLSL files remain supported as an escape hatch:
@@ -127,8 +164,21 @@ loaded directly through raylib, so they own their target-specific GLSL syntax.
 ## Live Reload
 
 Saving the active shader's `.usagi.fs`, `.fs`, or `.vs` file rebuilds it
-in-place. Cached uniforms are replayed onto the new shader. Compile errors
-print to the terminal and keep the previous shader live.
+in-place. Cached uniforms are replayed onto the new shader. Errors print to the
+terminal with a category: `[compiler]` for generic `.usagi.fs` validation and
+generation failures, `[source]` for missing or unreadable shader files, and
+`[gl-driver]` for native OpenGL/WebGL compile or link failures. Reload failures
+keep the previous shader live.
+
+## Offline Checks
+
+Run `usagi shaders check path/to/project` to compile every direct
+`shaders/*.usagi.fs` file without opening a window. By default it checks the
+desktop runtime target (currently GLSL 330), reports every compiler diagnostic
+it finds, and exits non-zero if the selected target fails. Use `--target web`
+for the web runtime target (GLSL ES 100), `--target desktop` for desktop, or
+`--target all` for a conformance sweep across ES 100, GLSL 330, and the staged
+GLSL 440 profile.
 
 ## Bundling
 

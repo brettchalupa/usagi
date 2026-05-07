@@ -14,7 +14,11 @@
 //! available) so that GPU resource creation and uniform writes happen
 //! on the render thread.
 
+#[cfg(not(target_os = "emscripten"))]
+pub(crate) mod check_cli;
 mod compiler;
+#[cfg(not(target_os = "emscripten"))]
+pub(crate) use compiler::compile_fragment_with_metadata as compile_generic_fragment_with_metadata;
 
 use crate::vfs::VirtualFs;
 use sola_raylib::prelude::*;
@@ -97,7 +101,10 @@ impl ShaderManager {
     ) {
         if let Some(req) = self.pending_shader.take() {
             match req {
-                Some(name) => self.load(rl, thread, vfs, &name),
+                Some(name) if !self.is_same_active_shader(&name) => {
+                    self.load(rl, thread, vfs, &name, LoadPolicy::Request);
+                }
+                Some(_) => {}
                 None => self.active = None,
             }
         }
@@ -152,7 +159,9 @@ impl ShaderManager {
         }
         let name = active.name.clone();
         let cached = active.last_uniforms.clone();
-        self.load(rl, thread, vfs, &name);
+        if self.load(rl, thread, vfs, &name, LoadPolicy::Reload) != LoadOutcome::Loaded {
+            return false;
+        }
         if let Some(active) = self.active.as_mut() {
             let mut replayed = HashMap::with_capacity(cached.len());
             for (uname, value) in &cached {
@@ -181,6 +190,12 @@ impl ShaderManager {
         true
     }
 
+    fn is_same_active_shader(&self, name: &str) -> bool {
+        self.active
+            .as_ref()
+            .is_some_and(|active| active.name == name)
+    }
+
     /// Returns the currently-bound shader, if any. Used by the blit
     /// path to wrap the RT draw in `begin_shader_mode`.
     pub fn active_shader_mut(&mut self) -> Option<&mut Shader> {
@@ -198,13 +213,13 @@ impl ShaderManager {
         thread: &RaylibThread,
         vfs: &dyn VirtualFs,
         name: &str,
-    ) {
+        policy: LoadPolicy,
+    ) -> LoadOutcome {
         let fragment = match read_fragment_source(vfs, name) {
             Ok(src) => src,
             Err(e) => {
-                crate::msg::err!("shader '{name}': {e}");
-                self.active = None;
-                return;
+                crate::msg::err!("{}", e.render(name));
+                return self.source_load_failed(policy);
             }
         };
         let vs_pair = read_with_fallback(vfs, name, "vs");
@@ -212,9 +227,19 @@ impl ShaderManager {
             Some((_, bytes)) => match std::str::from_utf8(bytes) {
                 Ok(s) => Some(s.to_string()),
                 Err(e) => {
-                    crate::msg::err!("shader '{name}': vertex source not valid utf-8: {e}");
-                    self.active = None;
-                    return;
+                    let key = vs_pair
+                        .as_ref()
+                        .map(|(key, _)| key.clone())
+                        .unwrap_or_else(|| format!("shaders/{name}.vs"));
+                    crate::msg::err!(
+                        "{}",
+                        ShaderSourceError::InvalidUtf8 {
+                            key,
+                            detail: format!("vertex source not valid utf-8: {e}"),
+                        }
+                        .render(name)
+                    );
+                    return self.source_load_failed(policy);
                 }
             },
             None => None,
@@ -222,11 +247,14 @@ impl ShaderManager {
 
         let shader = rl.load_shader_from_memory(thread, vs_src.as_deref(), Some(&fragment.source));
         if !shader.is_shader_valid() {
-            crate::msg::err!("shader '{name}': compile/link failed (see GL log above)");
+            crate::msg::err!(
+                "shader '{name}' [gl-driver]: compile/link failed for {} (see GL log above)",
+                fragment.key
+            );
             // Drop the bad shader and keep whatever was active before
             // unset. Returning early here means `active` isn't
             // overwritten with a broken handle.
-            return;
+            return LoadOutcome::FailedKeepPrevious;
         }
 
         let fs_mtime = file_mtime(vfs, &fragment.key);
@@ -249,13 +277,61 @@ impl ShaderManager {
             uniform_types,
             reported_uniform_type_errors: HashSet::new(),
         });
+        LoadOutcome::Loaded
+    }
+
+    fn source_load_failed(&mut self, policy: LoadPolicy) -> LoadOutcome {
+        match policy {
+            LoadPolicy::Request => {
+                self.active = None;
+                LoadOutcome::FailedCleared
+            }
+            LoadPolicy::Reload => LoadOutcome::FailedKeepPrevious,
+        }
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LoadPolicy {
+    Request,
+    Reload,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LoadOutcome {
+    Loaded,
+    FailedKeepPrevious,
+    FailedCleared,
+}
+
+#[derive(Debug)]
 struct FragmentSource {
     key: String,
     source: String,
     metadata: Option<compiler::ShaderMetadata>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ShaderSourceError {
+    Missing { message: String },
+    InvalidUtf8 { key: String, detail: String },
+    Compiler { key: String, diagnostic: String },
+}
+
+impl ShaderSourceError {
+    fn render(&self, shader_name: &str) -> String {
+        match self {
+            Self::Missing { message } => {
+                format!("shader '{shader_name}' [source]: {message}")
+            }
+            Self::InvalidUtf8 { key, detail } => {
+                format!("shader '{shader_name}' [source]: {key}: {detail}")
+            }
+            Self::Compiler { key, diagnostic } => {
+                format!("shader '{shader_name}' [compiler]: {key}\n{diagnostic}")
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -265,7 +341,7 @@ enum ShaderBuildTarget {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ShaderProfile {
+pub(crate) enum ShaderProfile {
     DesktopGlsl330,
     #[allow(
         dead_code,
@@ -276,21 +352,47 @@ enum ShaderProfile {
 }
 
 impl ShaderProfile {
+    #[cfg(not(target_os = "emscripten"))]
+    pub(crate) const ALL: [Self; 3] = [
+        Self::WebGlslEs100,
+        Self::DesktopGlsl330,
+        Self::DesktopGlsl440,
+    ];
+
     fn for_build_target(target: ShaderBuildTarget) -> Self {
         match target {
             ShaderBuildTarget::Desktop => Self::DesktopGlsl330,
             ShaderBuildTarget::Web => Self::WebGlslEs100,
         }
     }
+
+    #[cfg(not(target_os = "emscripten"))]
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::DesktopGlsl330 => "GLSL 330",
+            Self::DesktopGlsl440 => "GLSL 440",
+            Self::WebGlslEs100 => "GLSL ES 100",
+        }
+    }
 }
 
-fn read_fragment_source(vfs: &dyn VirtualFs, name: &str) -> Result<FragmentSource, String> {
+fn read_fragment_source(
+    vfs: &dyn VirtualFs,
+    name: &str,
+) -> Result<FragmentSource, ShaderSourceError> {
     let generic_key = generic_fragment_key(name);
     if let Some(bytes) = vfs.read_file(&generic_key) {
-        let src = std::str::from_utf8(&bytes)
-            .map_err(|e| format!("{generic_key}: source not valid utf-8: {e}"))?;
-        let compiled = generate_generic_fragment_with_metadata(src, target_profile())
-            .map_err(|e| format!("{generic_key}: {e}"))?;
+        let src = std::str::from_utf8(&bytes).map_err(|e| ShaderSourceError::InvalidUtf8 {
+            key: generic_key.clone(),
+            detail: format!("source not valid utf-8: {e}"),
+        })?;
+        let compiled =
+            generate_generic_fragment_with_metadata(src, target_profile()).map_err(|e| {
+                ShaderSourceError::Compiler {
+                    key: generic_key.clone(),
+                    diagnostic: e,
+                }
+            })?;
         return Ok(FragmentSource {
             key: generic_key,
             source: compiled.source,
@@ -299,12 +401,16 @@ fn read_fragment_source(vfs: &dyn VirtualFs, name: &str) -> Result<FragmentSourc
     }
 
     let Some((key, bytes)) = read_with_fallback(vfs, name, "fs") else {
-        return Err(format!(
-            "no shaders/{name}.usagi.fs, shaders/{name}.fs, or shaders/{name}_es.fs found"
-        ));
+        return Err(ShaderSourceError::Missing {
+            message: format!(
+                "no shaders/{name}.usagi.fs, shaders/{name}.fs, or shaders/{name}_es.fs found"
+            ),
+        });
     };
-    let src = std::str::from_utf8(&bytes)
-        .map_err(|e| format!("{key}: fragment source not valid utf-8: {e}"))?;
+    let src = std::str::from_utf8(&bytes).map_err(|e| ShaderSourceError::InvalidUtf8 {
+        key: key.clone(),
+        detail: format!("fragment source not valid utf-8: {e}"),
+    })?;
     Ok(FragmentSource {
         key,
         source: src.to_string(),
@@ -506,33 +612,51 @@ mod tests {
     }
 
     #[test]
-    fn generic_fragment_generates_desktop_shader() {
-        let src = "#usagi shader 1\n\nvec4 usagi_main(vec2 uv, vec4 color) {\n    return usagi_texture(texture0, uv) * color;\n}\n";
-        let out = generate_generic_fragment(src, ShaderProfile::DesktopGlsl330).unwrap();
+    fn generic_fragment_errors_are_reported_as_compiler_errors() {
+        let mut bundle = crate::bundle::Bundle::new();
+        bundle.insert("main.lua", Vec::new());
+        bundle.insert(
+            "shaders/bad.usagi.fs",
+            b"vec4 usagi_main(vec2 uv, vec4 color) { return texture(texture0, uv); }\n".to_vec(),
+        );
+        let vfs = crate::vfs::BundleBacked::new(bundle);
 
-        assert!(out.contains("#version 330"));
-        assert!(out.contains("in vec2 fragTexCoord;"));
-        assert!(out.contains("out vec4 finalColor;"));
-        assert!(out.contains("return texture(texture0, uv) * color;"));
-        assert!(out.contains("finalColor = usagi_main(fragTexCoord, fragColor);"));
-        assert!(!out.contains("#usagi shader 1"));
-        assert!(!out.contains("#define usagi_texture"));
+        let err = read_fragment_source(&vfs, "bad").unwrap_err();
+        let message = err.render("bad");
+
+        assert!(message.contains("shader 'bad' [compiler]: shaders/bad.usagi.fs"));
+        assert!(message.contains("generic shaders must use usagi_texture"));
+        assert!(message.contains("line 1, column"));
     }
 
     #[test]
-    fn generic_fragment_generates_web_shader() {
-        let src = "vec4 usagi_main(vec2 uv, vec4 color) {\n    return usagi_texture(texture0, uv) * color;\n}\n";
-        let out = generate_generic_fragment(src, ShaderProfile::WebGlslEs100).unwrap();
+    fn missing_fragment_errors_are_reported_as_source_errors() {
+        let bundle = crate::bundle::Bundle::new();
+        let vfs = crate::vfs::BundleBacked::new(bundle);
 
-        assert!(out.contains("#version 100"));
-        assert!(out.contains("precision mediump float;"));
-        assert!(out.contains("varying vec2 fragTexCoord;"));
-        assert!(out.contains("return texture2D(texture0, uv) * color;"));
-        assert!(out.contains("gl_FragColor = usagi_main(fragTexCoord, fragColor);"));
+        let err = read_fragment_source(&vfs, "missing").unwrap_err();
+        let message = err.render("missing");
+
+        assert!(message.contains("shader 'missing' [source]:"));
+        assert!(message.contains("no shaders/missing.usagi.fs"));
     }
 
     #[test]
-    fn generic_fragment_metadata_records_profile_and_uniforms() {
+    fn invalid_fragment_utf8_errors_are_reported_as_source_errors() {
+        let mut bundle = crate::bundle::Bundle::new();
+        bundle.insert("main.lua", Vec::new());
+        bundle.insert("shaders/bad.usagi.fs", vec![0xff]);
+        let vfs = crate::vfs::BundleBacked::new(bundle);
+
+        let err = read_fragment_source(&vfs, "bad").unwrap_err();
+        let message = err.render("bad");
+
+        assert!(message.contains("shader 'bad' [source]: shaders/bad.usagi.fs"));
+        assert!(message.contains("source not valid utf-8"));
+    }
+
+    #[test]
+    fn generic_fragment_metadata_feeds_uniform_type_map() {
         let src = concat!(
             "#usagi shader 1\n\n",
             "uniform float u_time;\n",
@@ -544,27 +668,6 @@ mod tests {
         );
         let compiled =
             generate_generic_fragment_with_metadata(src, ShaderProfile::DesktopGlsl330).unwrap();
-
-        assert!(compiled.source.contains("#version 330"));
-        assert_eq!(compiled.metadata.profile, ShaderProfile::DesktopGlsl330);
-        assert_eq!(compiled.metadata.uniforms.len(), 3);
-        assert_eq!(compiled.metadata.uniforms[0].ty, "float");
-        assert_eq!(compiled.metadata.uniforms[0].name, "u_time");
-        assert_eq!(compiled.metadata.uniforms[1].ty, "vec2");
-        assert_eq!(compiled.metadata.uniforms[1].name, "u_resolution");
-        assert_eq!(compiled.metadata.uniforms[2].ty, "vec2");
-        assert_eq!(compiled.metadata.uniforms[2].name, "u_origin");
-        for uniform in &compiled.metadata.uniforms {
-            assert_eq!(
-                &src[uniform.name_span.start..uniform.name_span.end],
-                uniform.name
-            );
-            assert_eq!(&src[uniform.ty_span.start..uniform.ty_span.end], uniform.ty);
-            assert!(
-                src[uniform.declaration_span.start..uniform.declaration_span.end]
-                    .starts_with("uniform ")
-            );
-        }
 
         let uniform_types = shader_uniform_type_map(&compiled.metadata);
         assert_eq!(
@@ -607,31 +710,120 @@ mod tests {
     }
 
     #[test]
-    fn generic_fragment_rejects_version_directive() {
-        let err = generate_generic_fragment(
-            "#version 330\nvec4 usagi_main(vec2 uv, vec4 color) { return color; }\n",
-            ShaderProfile::DesktopGlsl330,
-        )
-        .unwrap_err();
+    fn vertex_source_errors_render_as_source_errors() {
+        let message = ShaderSourceError::InvalidUtf8 {
+            key: "shaders/crt.vs".to_string(),
+            detail: "vertex source not valid utf-8: bad byte".to_string(),
+        }
+        .render("crt");
 
-        assert!(err.contains("must not declare #version"));
+        assert!(message.contains("shader 'crt' [source]: shaders/crt.vs"));
+        assert!(message.contains("vertex source not valid utf-8"));
     }
 
-    #[test]
-    fn generic_fragment_rejects_missing_entrypoint() {
-        let err = generate_generic_fragment(
-            "vec4 tint(vec4 color) { return color; }\n",
-            target_profile(),
-        )
-        .unwrap_err();
+    #[cfg(not(target_os = "emscripten"))]
+    const VALID_RUNTIME_SHADER: &str = concat!(
+        "#usagi shader 1\n\n",
+        "vec4 usagi_main(vec2 uv, vec4 color) {\n",
+        "    return usagi_texture(texture0, uv) * color;\n",
+        "}\n",
+    );
 
-        assert!(err.contains("usagi_main"));
+    #[cfg(not(target_os = "emscripten"))]
+    const INVALID_RUNTIME_SHADER: &str =
+        "vec4 usagi_main(vec2 uv, vec4 color) { return texture(texture0, uv); }\n";
+
+    #[cfg(not(target_os = "emscripten"))]
+    fn shader_runtime_project(shader_src: &str) -> (tempfile::TempDir, crate::vfs::FsBacked) {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("main.lua"), "-- shader runtime test").unwrap();
+        std::fs::create_dir(dir.path().join("shaders")).unwrap();
+        std::fs::write(dir.path().join("shaders/crt.usagi.fs"), shader_src).unwrap();
+        let vfs = crate::vfs::FsBacked::from_script_path(&dir.path().join("main.lua"));
+        (dir, vfs)
+    }
+
+    #[cfg(not(target_os = "emscripten"))]
+    fn shader_runtime_context(title: &str) -> (RaylibHandle, RaylibThread) {
+        sola_raylib::init()
+            .size(32, 32)
+            .title(title)
+            .log_level(TraceLogLevel::LOG_WARNING)
+            .build()
+    }
+
+    #[cfg(not(target_os = "emscripten"))]
+    fn shader_runtime_test_guard() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+        LOCK.get_or_init(|| std::sync::Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    #[cfg(not(target_os = "emscripten"))]
+    #[test]
+    #[ignore = "requires a desktop OpenGL context; run with `cargo test shader_runtime -- --ignored`"]
+    fn shader_runtime_reload_compiler_error_keeps_previous_shader() {
+        let _guard = shader_runtime_test_guard();
+        let (_dir, vfs) = shader_runtime_project(VALID_RUNTIME_SHADER);
+        let (mut rl, thread) =
+            shader_runtime_context("usagi shader reload failure preservation test");
+        let mut manager = ShaderManager::new();
+
+        assert_eq!(
+            manager.load(&mut rl, &thread, &vfs, "crt", LoadPolicy::Request),
+            LoadOutcome::Loaded
+        );
+        std::fs::write(
+            _dir.path().join("shaders/crt.usagi.fs"),
+            INVALID_RUNTIME_SHADER,
+        )
+        .unwrap();
+        manager.active.as_mut().unwrap().fs_mtime = Some(std::time::SystemTime::UNIX_EPOCH);
+
+        assert!(!manager.reload_if_changed(&mut rl, &thread, &vfs));
+        let active = manager
+            .active
+            .as_ref()
+            .expect("reload failure must keep previous shader active");
+        assert_eq!(active.name, "crt");
+        assert_eq!(active.fs_key, "shaders/crt.usagi.fs");
+    }
+
+    #[cfg(not(target_os = "emscripten"))]
+    #[test]
+    #[ignore = "requires a desktop OpenGL context; run with `cargo test shader_runtime -- --ignored`"]
+    fn shader_runtime_same_name_request_is_idempotent() {
+        let _guard = shader_runtime_test_guard();
+        let (_dir, vfs) = shader_runtime_project(VALID_RUNTIME_SHADER);
+        let (mut rl, thread) = shader_runtime_context("usagi shader same-name request test");
+        let mut manager = ShaderManager::new();
+
+        assert_eq!(
+            manager.load(&mut rl, &thread, &vfs, "crt", LoadPolicy::Request),
+            LoadOutcome::Loaded
+        );
+        std::fs::write(
+            _dir.path().join("shaders/crt.usagi.fs"),
+            INVALID_RUNTIME_SHADER,
+        )
+        .unwrap();
+
+        manager.request_set(Some("crt".to_string()));
+        manager.apply_pending(&mut rl, &thread, &vfs);
+
+        let active = manager
+            .active
+            .as_ref()
+            .expect("same-name request must not recompile and clear the active shader");
+        assert_eq!(active.name, "crt");
     }
 
     #[cfg(not(target_os = "emscripten"))]
     #[test]
     #[ignore = "requires a desktop OpenGL context; run with `cargo test shader_runtime -- --ignored`"]
     fn shader_runtime_examples_compile_and_gameboy_pixels_match() {
+        let _guard = shader_runtime_test_guard();
         let (mut rl, thread) = sola_raylib::init()
             .size(32, 32)
             .title("usagi shader runtime test")
@@ -640,19 +832,19 @@ mod tests {
         for (name, src) in [
             (
                 "crt",
-                include_str!("../examples/shader/shaders/crt.usagi.fs"),
+                include_str!("../../examples/shader/shaders/crt.usagi.fs"),
             ),
             (
                 "gameboy",
-                include_str!("../examples/shader/shaders/gameboy.usagi.fs"),
+                include_str!("../../examples/shader/shaders/gameboy.usagi.fs"),
             ),
             (
                 "notetris",
-                include_str!("../examples/notetris/shaders/notetris.usagi.fs"),
+                include_str!("../../examples/notetris/shaders/notetris.usagi.fs"),
             ),
             (
                 "playdate_palette",
-                include_str!("../examples/playdate/shaders/playdate_palette.usagi.fs"),
+                include_str!("../../examples/playdate/shaders/playdate_palette.usagi.fs"),
             ),
         ] {
             let generated = generate_generic_fragment(src, ShaderProfile::DesktopGlsl330)
@@ -664,7 +856,7 @@ mod tests {
             );
         }
 
-        let gameboy_src = include_str!("../examples/shader/shaders/gameboy.usagi.fs");
+        let gameboy_src = include_str!("../../examples/shader/shaders/gameboy.usagi.fs");
         let generated = generate_generic_fragment(gameboy_src, ShaderProfile::DesktopGlsl330)
             .expect("gameboy shader generation failed");
         let mut shader = rl.load_shader_from_memory(&thread, None, Some(&generated));

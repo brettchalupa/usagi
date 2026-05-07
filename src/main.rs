@@ -87,6 +87,8 @@ use vfs::{BundleBacked, FsBacked};
 use clap::{Parser, Subcommand};
 #[cfg(not(target_os = "emscripten"))]
 use export::ExportTarget;
+#[cfg(not(target_os = "emscripten"))]
+use shader::check_cli::ShaderCheckTarget;
 
 #[cfg(not(target_os = "emscripten"))]
 #[derive(Parser)]
@@ -127,6 +129,11 @@ enum Command {
     Templates {
         #[command(subcommand)]
         cmd: TemplatesCmd,
+    },
+    /// Compile generic shaders without launching the game.
+    Shaders {
+        #[command(subcommand)]
+        cmd: ShadersCmd,
     },
     /// Export a game as shippable artifacts (zips per platform + `.usagi`
     /// bundle). Defaults to the current directory.
@@ -191,6 +198,19 @@ enum TemplatesCmd {
     Clear,
 }
 
+#[cfg(not(target_os = "emscripten"))]
+#[derive(Subcommand)]
+enum ShadersCmd {
+    /// Compile every `shaders/*.usagi.fs` for the selected runtime target.
+    Check {
+        /// Path to a .lua file or a directory with main.lua. Defaults to ".".
+        path: Option<String>,
+        /// Platform target to compile. Defaults to desktop.
+        #[arg(long, value_enum, default_value = "desktop")]
+        target: ShaderCheckTarget,
+    },
+}
+
 fn main() -> ExitCode {
     // Web build: there is no CLI, no fused-exe trick, no export mode. The
     // JS shell preloads the bundle at `/game.usagi` in the wasm virtual FS
@@ -215,6 +235,7 @@ fn main() -> ExitCode {
             Command::Init { path } => init::run(path.as_deref().unwrap_or(".")),
             Command::Tools { path } => tools::run(Some(path.as_deref().unwrap_or("."))),
             Command::Templates { cmd } => run_templates_cmd(cmd),
+            Command::Shaders { cmd } => run_shaders_cmd(cmd),
             Command::Export {
                 path,
                 output,
@@ -284,5 +305,14 @@ fn run_templates_cmd(cmd: TemplatesCmd) -> Result<()> {
     match cmd {
         TemplatesCmd::List => templates::list_cache(&root),
         TemplatesCmd::Clear => templates::clear_cache(&root),
+    }
+}
+
+#[cfg(not(target_os = "emscripten"))]
+fn run_shaders_cmd(cmd: ShadersCmd) -> Result<()> {
+    match cmd {
+        ShadersCmd::Check { path, target } => {
+            shader::check_cli::run(path.as_deref().unwrap_or("."), target)
+        }
     }
 }
