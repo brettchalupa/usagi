@@ -243,14 +243,17 @@ loaded directly through raylib, so they own their target-specific GLSL syntax.
 ## Live Reload
 
 Saving the active shader's `.usagi.fs`, `.fs`, or `.vs` file rebuilds it
-in-place. Cached uniforms are replayed onto the new shader. Errors print to the
-terminal with a category: `[compiler]` for generic `.usagi.fs` validation and
-generation failures, `[source]` for missing or unreadable shader files, and
-`[gl-driver]` for native OpenGL/WebGL compile or link failures. Generic shader
-GL-driver failures include captured raylib driver log lines, remapped generated
-GLSL line references, and the generated GLSL line range that maps back to
-`.usagi.fs` source lines so driver logs can be read against the user-authored
-file. Reload failures keep the previous shader live.
+in-place. Cached uniforms are replayed onto the new shader. Generic shader
+compiler output is cached by exact source/profile hash during the process, so
+switching back to unchanged `.usagi.fs` source reuses parsed, validated, emitted
+GLSL and reflection metadata before creating the new GL shader object. Errors
+print to the terminal with a category: `[compiler]` for generic `.usagi.fs`
+validation and generation failures, `[source]` for missing or unreadable shader
+files, and `[gl-driver]` for native OpenGL/WebGL compile or link failures.
+Generic shader GL-driver failures include captured raylib driver log lines,
+remapped generated GLSL line references, and the generated GLSL line range that
+maps back to `.usagi.fs` source lines so driver logs can be read against the
+user-authored file. Reload failures keep the previous shader live.
 
 ## Offline Checks
 

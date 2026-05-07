@@ -31,8 +31,11 @@ pub(crate) use compiler::compile_fragment_with_report as compile_generic_fragmen
 
 use crate::vfs::VirtualFs;
 use sola_raylib::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map::DefaultHasher};
+use std::hash::{Hash, Hasher};
 use std::time::SystemTime;
+
+const GENERIC_SHADER_COMPILER_CACHE_LIMIT: usize = 64;
 
 /// One uniform value. Covers the types the Lua bridge can express
 /// from a number or a small numeric table.
@@ -86,6 +89,7 @@ pub struct ShaderManager {
     pending_shader: Option<Option<String>>,
     pending_uniforms: Vec<(String, ShaderValue)>,
     active: Option<Active>,
+    generic_compiler_cache: GenericShaderCompilerCache,
 }
 
 impl ShaderManager {
@@ -224,7 +228,7 @@ impl ShaderManager {
         name: &str,
         policy: LoadPolicy,
     ) -> LoadOutcome {
-        let fragment = match read_fragment_source(vfs, name) {
+        let fragment = match read_fragment_source(vfs, name, &mut self.generic_compiler_cache) {
             Ok(src) => src,
             Err(e) => {
                 crate::msg::err!("{}", e.render(name));
@@ -319,6 +323,106 @@ enum LoadOutcome {
     FailedCleared,
 }
 
+#[derive(Default)]
+struct GenericShaderCompilerCache {
+    entries: HashMap<GenericShaderCompilerCacheKey, Vec<GenericShaderCompilerCacheEntry>>,
+    len: usize,
+    clock: u64,
+}
+
+impl GenericShaderCompilerCache {
+    fn compile(
+        &mut self,
+        src: &str,
+        profile: ShaderProfile,
+    ) -> Result<compiler::CompiledFragment, String> {
+        let key = GenericShaderCompilerCacheKey::new(src, profile);
+        let clock = self.next_clock();
+
+        if let Some(bucket) = self.entries.get_mut(&key)
+            && let Some(entry) = bucket.iter_mut().find(|entry| entry.source == src)
+        {
+            entry.last_used = clock;
+            return Ok(entry.compiled.clone());
+        }
+
+        let compiled = generate_generic_fragment_with_metadata(src, profile)?;
+        if self.len >= GENERIC_SHADER_COMPILER_CACHE_LIMIT {
+            self.evict_lru();
+        }
+        self.entries
+            .entry(key)
+            .or_default()
+            .push(GenericShaderCompilerCacheEntry {
+                source: src.to_string(),
+                compiled: compiled.clone(),
+                last_used: clock,
+            });
+        self.len += 1;
+        Ok(compiled)
+    }
+
+    fn next_clock(&mut self) -> u64 {
+        self.clock = self.clock.wrapping_add(1);
+        self.clock
+    }
+
+    fn evict_lru(&mut self) {
+        let mut victim = None;
+        for (key, bucket) in &self.entries {
+            for (index, entry) in bucket.iter().enumerate() {
+                if victim.is_none_or(|(_, _, last_used)| entry.last_used < last_used) {
+                    victim = Some((*key, index, entry.last_used));
+                }
+            }
+        }
+
+        let Some((key, index, _)) = victim else {
+            return;
+        };
+        let remove_bucket = {
+            let bucket = self
+                .entries
+                .get_mut(&key)
+                .expect("cache victim key must exist");
+            bucket.swap_remove(index);
+            bucket.is_empty()
+        };
+        if remove_bucket {
+            self.entries.remove(&key);
+        }
+        self.len = self.len.saturating_sub(1);
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct GenericShaderCompilerCacheKey {
+    profile: ShaderProfile,
+    source_hash: u64,
+    source_len: usize,
+}
+
+impl GenericShaderCompilerCacheKey {
+    fn new(src: &str, profile: ShaderProfile) -> Self {
+        Self {
+            profile,
+            source_hash: source_hash(src),
+            source_len: src.len(),
+        }
+    }
+}
+
+struct GenericShaderCompilerCacheEntry {
+    source: String,
+    compiled: compiler::CompiledFragment,
+    last_used: u64,
+}
+
 #[derive(Debug)]
 struct FragmentSource {
     key: String,
@@ -355,7 +459,7 @@ enum ShaderBuildTarget {
     Web,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum ShaderProfile {
     DesktopGlsl330,
     #[allow(
@@ -393,6 +497,7 @@ impl ShaderProfile {
 fn read_fragment_source(
     vfs: &dyn VirtualFs,
     name: &str,
+    cache: &mut GenericShaderCompilerCache,
 ) -> Result<FragmentSource, ShaderSourceError> {
     let generic_key = generic_fragment_key(name);
     if let Some(bytes) = vfs.read_file(&generic_key) {
@@ -401,12 +506,12 @@ fn read_fragment_source(
             detail: format!("source not valid utf-8: {e}"),
         })?;
         let compiled =
-            generate_generic_fragment_with_metadata(src, target_profile()).map_err(|e| {
-                ShaderSourceError::Compiler {
+            cache
+                .compile(src, target_profile())
+                .map_err(|e| ShaderSourceError::Compiler {
                     key: generic_key.clone(),
                     diagnostic: e,
-                }
-            })?;
+                })?;
         return Ok(FragmentSource {
             key: generic_key,
             source: compiled.source,
@@ -437,6 +542,12 @@ fn generate_generic_fragment_with_metadata(
     profile: ShaderProfile,
 ) -> Result<compiler::CompiledFragment, String> {
     compiler::compile_fragment_with_metadata(src, profile)
+}
+
+fn source_hash(src: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    src.hash(&mut hasher);
+    hasher.finish()
 }
 
 fn shader_uniform_accepts_value(uniform_ty: &str, value: ShaderValue) -> bool {
@@ -565,6 +676,18 @@ mod tests {
         generate_generic_fragment_with_metadata(src, profile).map(|compiled| compiled.source)
     }
 
+    fn read_fragment_source_for_test(
+        vfs: &dyn VirtualFs,
+        name: &str,
+    ) -> Result<FragmentSource, ShaderSourceError> {
+        let mut cache = GenericShaderCompilerCache::default();
+        read_fragment_source(vfs, name, &mut cache)
+    }
+
+    fn valid_generic_shader_with_value(value: &str) -> String {
+        format!("vec4 usagi_main(vec2 uv, vec4 color) {{ return vec4({value}, 1.0); }}\n")
+    }
+
     #[test]
     fn primary_then_alt_keys_pair_by_platform() {
         let p = primary_key("crt", "fs");
@@ -649,7 +772,7 @@ mod tests {
         );
         let vfs = crate::vfs::BundleBacked::new(bundle);
 
-        let fragment = read_fragment_source(&vfs, "crt").unwrap();
+        let fragment = read_fragment_source_for_test(&vfs, "crt").unwrap();
 
         assert_eq!(fragment.key, "shaders/crt.usagi.fs");
         assert!(fragment.source.contains("return vec4(0.1, 0.2, 0.3, 1.0);"));
@@ -669,7 +792,7 @@ mod tests {
         );
         let vfs = crate::vfs::BundleBacked::new(bundle);
 
-        let err = read_fragment_source(&vfs, "bad").unwrap_err();
+        let err = read_fragment_source_for_test(&vfs, "bad").unwrap_err();
         let message = err.render("bad");
 
         assert!(message.contains("shader 'bad' [compiler]: shaders/bad.usagi.fs"));
@@ -682,7 +805,7 @@ mod tests {
         let bundle = crate::bundle::Bundle::new();
         let vfs = crate::vfs::BundleBacked::new(bundle);
 
-        let err = read_fragment_source(&vfs, "missing").unwrap_err();
+        let err = read_fragment_source_for_test(&vfs, "missing").unwrap_err();
         let message = err.render("missing");
 
         assert!(message.contains("shader 'missing' [source]:"));
@@ -696,7 +819,7 @@ mod tests {
         bundle.insert("shaders/bad.usagi.fs", vec![0xff]);
         let vfs = crate::vfs::BundleBacked::new(bundle);
 
-        let err = read_fragment_source(&vfs, "bad").unwrap_err();
+        let err = read_fragment_source_for_test(&vfs, "bad").unwrap_err();
         let message = err.render("bad");
 
         assert!(message.contains("shader 'bad' [source]: shaders/bad.usagi.fs"));
@@ -737,6 +860,49 @@ mod tests {
     }
 
     #[test]
+    fn generic_compiler_cache_reuses_exact_source_and_profile() {
+        let mut cache = GenericShaderCompilerCache::default();
+        let src = valid_generic_shader_with_value("0.1, 0.2, 0.3");
+
+        let first = cache
+            .compile(&src, ShaderProfile::DesktopGlsl330)
+            .expect("first compile");
+        let second = cache
+            .compile(&src, ShaderProfile::DesktopGlsl330)
+            .expect("second compile");
+
+        assert_eq!(cache.len(), 1);
+        assert_eq!(first.source, second.source);
+        assert_eq!(first.metadata, second.metadata);
+    }
+
+    #[test]
+    fn generic_compiler_cache_separates_profiles_and_source_contents() {
+        let mut cache = GenericShaderCompilerCache::default();
+        let a = valid_generic_shader_with_value("0.1, 0.2, 0.3");
+        let b = valid_generic_shader_with_value("0.3, 0.2, 0.1");
+
+        cache.compile(&a, ShaderProfile::DesktopGlsl330).unwrap();
+        cache.compile(&a, ShaderProfile::WebGlslEs100).unwrap();
+        cache.compile(&b, ShaderProfile::DesktopGlsl330).unwrap();
+
+        assert_eq!(cache.len(), 3);
+    }
+
+    #[test]
+    fn generic_compiler_cache_is_bounded() {
+        let mut cache = GenericShaderCompilerCache::default();
+
+        for index in 0..(GENERIC_SHADER_COMPILER_CACHE_LIMIT + 4) {
+            let src =
+                valid_generic_shader_with_value(&format!("{:.1}, 0.0, 0.0", index as f32 / 10.0));
+            cache.compile(&src, ShaderProfile::DesktopGlsl330).unwrap();
+        }
+
+        assert_eq!(cache.len(), GENERIC_SHADER_COMPILER_CACHE_LIMIT);
+    }
+
+    #[test]
     fn generic_gl_driver_failure_message_includes_source_map_hint() {
         let mut bundle = crate::bundle::Bundle::new();
         bundle.insert("main.lua", Vec::new());
@@ -746,7 +912,7 @@ mod tests {
                 .to_vec(),
         );
         let vfs = crate::vfs::BundleBacked::new(bundle);
-        let fragment = read_fragment_source(&vfs, "crt").unwrap();
+        let fragment = read_fragment_source_for_test(&vfs, "crt").unwrap();
         let driver_log = driver_log::RaylibShaderLog::from_entries(vec![(
             "SHADER: [ID 7] Compile error: 0(8) : error C0000",
             driver_log::RaylibLogLevel::Warning,
@@ -853,7 +1019,7 @@ mod tests {
         let _guard = shader_runtime_test_guard();
         let (_dir, vfs) = shader_runtime_project(DRIVER_INVALID_RUNTIME_SHADER);
         let (mut rl, thread) = shader_runtime_context("usagi shader driver log remap test");
-        let fragment = read_fragment_source(&vfs, "crt")
+        let fragment = read_fragment_source_for_test(&vfs, "crt")
             .expect("fixture must pass Usagi compiler before GL driver compile");
         let (shader, driver_log) = driver_log::load_shader_from_memory_with_log(
             &mut rl,
