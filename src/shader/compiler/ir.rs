@@ -1,5 +1,8 @@
 use super::opt;
-use super::syntax::{ShaderItem, ShaderSource, SourceSpan, UsagiShaderModule};
+use super::syntax::{
+    ExprCall, ExprCallKind, ExpressionAst, ExpressionNode, IntrinsicKind, ShaderItem, ShaderSource,
+    SourceSpan, Token, UsagiShaderModule, is_code_token,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum IrType {
@@ -103,7 +106,7 @@ pub(super) struct ShaderIr<'module, 'src> {
     source: ShaderSource,
     uniforms: Vec<IrUniform<'src>>,
     functions: Vec<IrFunction<'src>>,
-    expressions: Vec<IrExpression>,
+    expressions: Vec<IrExpression<'src>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -137,9 +140,83 @@ pub(super) struct IrFunctionParam<'src> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct IrExpression {
+pub(super) struct IrExpression<'src> {
     pub(super) value_type: Option<IrType>,
     pub(super) span: SourceSpan,
+    nodes: Vec<IrExpressionNode<'src>>,
+}
+
+impl IrExpression<'_> {
+    pub(super) fn is_well_formed(&self) -> bool {
+        self.span.start <= self.span.end
+            && self
+                .value_type
+                .is_none_or(|value_type| !value_type.as_str().is_empty())
+            && self.nodes.iter().all(IrExpressionNode::is_well_formed)
+    }
+
+    #[cfg(test)]
+    fn nodes(&self) -> &[IrExpressionNode<'_>] {
+        &self.nodes
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum IrExpressionNode<'src> {
+    Token(IrToken<'src>),
+    Call(IrCall<'src>),
+}
+
+impl IrExpressionNode<'_> {
+    fn is_well_formed(&self) -> bool {
+        match self {
+            Self::Token(token) => token.is_well_formed(),
+            Self::Call(call) => call.is_well_formed(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct IrToken<'src> {
+    text: &'src str,
+    span: SourceSpan,
+    is_code: bool,
+}
+
+impl IrToken<'_> {
+    fn is_well_formed(&self) -> bool {
+        self.span.start <= self.span.end && (!self.is_code || !self.text.trim().is_empty())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct IrCall<'src> {
+    kind: IrCallKind,
+    name: &'src str,
+    name_span: SourceSpan,
+    span: SourceSpan,
+    args: Vec<IrExpression<'src>>,
+}
+
+impl IrCall<'_> {
+    fn is_well_formed(&self) -> bool {
+        self.name_span.start <= self.name_span.end
+            && self.span.start <= self.span.end
+            && self.span.start <= self.name_span.start
+            && self.name_span.end <= self.span.end
+            && !self.name.is_empty()
+            && match self.kind {
+                IrCallKind::Generic => true,
+                IrCallKind::TextureIntrinsic => self.name == "usagi_texture",
+            }
+            && self.args.iter().all(IrExpression::is_well_formed)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum IrCallKind {
+    Generic,
+    TextureIntrinsic,
 }
 
 pub(super) fn lower<'module, 'src>(
@@ -172,7 +249,7 @@ impl<'module, 'src> ShaderIr<'module, 'src> {
         &self.functions
     }
 
-    pub(super) fn expressions(&self) -> &[IrExpression] {
+    pub(super) fn expressions(&self) -> &[IrExpression<'src>] {
         &self.expressions
     }
 }
@@ -236,21 +313,144 @@ fn lower_functions<'src>(module: &UsagiShaderModule<'src>) -> Vec<IrFunction<'sr
         .collect()
 }
 
-fn lower_expressions(
-    module: &UsagiShaderModule<'_>,
+fn lower_expressions<'src>(
+    module: &UsagiShaderModule<'src>,
     checked: Option<&super::check::CheckedShader>,
-) -> Vec<IrExpression> {
+) -> Vec<IrExpression<'src>> {
     let Some(checked) = checked else {
         return Vec::new();
     };
+    let mut expressions = Vec::with_capacity(checked.expressions().len());
+    for item in &module.items {
+        match item {
+            ShaderItem::Function(function) => collect_block_expressions(
+                &function.body.statements,
+                module,
+                checked,
+                &mut expressions,
+            ),
+            ShaderItem::Raw(raw) => {
+                expressions.push(lower_expression(&raw.expression, module, checked));
+            }
+            ShaderItem::Uniform(_) => {}
+        }
+    }
+    expressions
+}
+
+fn collect_block_expressions<'src>(
+    statements: &[super::syntax::StatementAst<'src>],
+    module: &UsagiShaderModule<'src>,
+    checked: &super::check::CheckedShader,
+    out: &mut Vec<IrExpression<'src>>,
+) {
+    for statement in statements {
+        match statement {
+            super::syntax::StatementAst::Return(stmt) => {
+                if let Some(expression) = &stmt.expression {
+                    out.push(lower_expression(expression, module, checked));
+                }
+            }
+            super::syntax::StatementAst::If(stmt) => {
+                out.push(lower_expression(&stmt.condition, module, checked));
+                collect_branch_expressions(&stmt.then_branch, module, checked, out);
+                if let Some(branch) = &stmt.else_branch {
+                    collect_branch_expressions(branch, module, checked, out);
+                }
+            }
+            super::syntax::StatementAst::Block(block) => {
+                collect_block_expressions(&block.statements, module, checked, out);
+            }
+            super::syntax::StatementAst::Raw(stmt) => {
+                out.push(lower_expression(&stmt.expression, module, checked));
+            }
+        }
+    }
+}
+
+fn collect_branch_expressions<'src>(
+    branch: &super::syntax::BranchAst<'src>,
+    module: &UsagiShaderModule<'src>,
+    checked: &super::check::CheckedShader,
+    out: &mut Vec<IrExpression<'src>>,
+) {
+    match branch {
+        super::syntax::BranchAst::Block(block) => {
+            collect_block_expressions(&block.statements, module, checked, out);
+        }
+        super::syntax::BranchAst::Statement(statement) => {
+            collect_block_expressions(std::slice::from_ref(statement), module, checked, out);
+        }
+    }
+}
+
+fn lower_expression<'src>(
+    expression: &ExpressionAst<'src>,
+    module: &UsagiShaderModule<'src>,
+    checked: &super::check::CheckedShader,
+) -> IrExpression<'src> {
+    IrExpression {
+        value_type: checked_type_for_span(checked, expression.span),
+        span: expression.span.shifted(module.source_offset),
+        nodes: expression
+            .nodes
+            .iter()
+            .map(|node| lower_expression_node(node, module, checked))
+            .collect(),
+    }
+}
+
+fn lower_expression_node<'src>(
+    node: &ExpressionNode<'src>,
+    module: &UsagiShaderModule<'src>,
+    checked: &super::check::CheckedShader,
+) -> IrExpressionNode<'src> {
+    match node {
+        ExpressionNode::Token(idx) => IrExpressionNode::Token(lower_token(&module.tokens[*idx])),
+        ExpressionNode::Call(call) => IrExpressionNode::Call(lower_call(call, module, checked)),
+    }
+}
+
+fn lower_token<'src>(token: &Token<'src>) -> IrToken<'src> {
+    IrToken {
+        text: token.text,
+        span: token.span,
+        is_code: is_code_token(token),
+    }
+}
+
+fn lower_call<'src>(
+    call: &ExprCall<'src>,
+    module: &UsagiShaderModule<'src>,
+    checked: &super::check::CheckedShader,
+) -> IrCall<'src> {
+    IrCall {
+        kind: match call.kind {
+            ExprCallKind::Generic => IrCallKind::Generic,
+            ExprCallKind::Intrinsic(IntrinsicKind::Texture) => IrCallKind::TextureIntrinsic,
+        },
+        name: call.name,
+        name_span: module.tokens[call.name_idx]
+            .span
+            .shifted(module.source_offset),
+        span: call.span.shifted(module.source_offset),
+        args: call
+            .args
+            .iter()
+            .map(|arg| lower_expression(arg, module, checked))
+            .collect(),
+    }
+}
+
+fn checked_type_for_span(
+    checked: &super::check::CheckedShader,
+    span: SourceSpan,
+) -> Option<IrType> {
     checked
         .expressions()
         .iter()
-        .map(|expression| IrExpression {
-            value_type: expression.value_type,
-            span: expression.span.shifted(module.source_offset),
-        })
-        .collect()
+        .find(|expression| expression.span == span)
+        .and_then(|expression| expression.value_type)
 }
 
 #[cfg(test)]
@@ -328,9 +528,20 @@ mod tests {
             expression.value_type == Some(IrType::Bool)
                 && &src[expression.span.start..expression.span.end] == "uv.x > 0.5"
         }));
-        assert!(ir.expressions().iter().any(|expression| {
-            expression.value_type == Some(IrType::Vec(4))
-                && &src[expression.span.start..expression.span.end] == "vec4(uv, 0.0, 1.0)"
-        }));
+        let constructor = ir
+            .expressions()
+            .iter()
+            .find(|expression| {
+                expression.value_type == Some(IrType::Vec(4))
+                    && &src[expression.span.start..expression.span.end] == "vec4(uv, 0.0, 1.0)"
+            })
+            .unwrap();
+        let IrExpressionNode::Call(call) = &constructor.nodes()[0] else {
+            panic!("expected constructor call IR node");
+        };
+        assert_eq!(call.kind, IrCallKind::Generic);
+        assert_eq!(call.name, "vec4");
+        assert_eq!(call.args.len(), 3);
+        assert_eq!(call.args[0].value_type, Some(IrType::Vec(2)));
     }
 }

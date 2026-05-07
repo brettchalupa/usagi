@@ -87,12 +87,11 @@ impl ShaderMetadata {
         source_map: ShaderSourceMap,
         warnings: Vec<ShaderDiagnostic>,
     ) -> Self {
-        debug_assert!(ir.expressions().iter().all(|expression| {
-            expression.span.start <= expression.span.end
-                && expression
-                    .value_type
-                    .is_none_or(|value_type| !value_type.as_str().is_empty())
-        }));
+        debug_assert!(
+            ir.expressions()
+                .iter()
+                .all(|expression| expression.is_well_formed())
+        );
         let uniforms = ir
             .uniforms()
             .iter()
