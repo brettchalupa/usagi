@@ -138,15 +138,7 @@ fn emit_source(
     target: &GlslTarget,
     out: &mut String,
 ) -> Result<(), String> {
-    emit_source_range(
-        tokens,
-        &source.rewrites,
-        target,
-        out,
-        0,
-        tokens.len(),
-        &mut 0,
-    )
+    emit_source_range(tokens, &source.rewrites, target, out, 0, tokens.len())
 }
 
 fn emit_source_range(
@@ -156,23 +148,26 @@ fn emit_source_range(
     out: &mut String,
     start: usize,
     end: usize,
-    rewrite_idx: &mut usize,
 ) -> Result<(), String> {
     let mut token_idx = start;
+    let mut rewrite_idx = rewrites
+        .iter()
+        .position(|rewrite| rewrite.start_idx >= start)
+        .unwrap_or(rewrites.len());
 
     while token_idx < end {
         while rewrites
-            .get(*rewrite_idx)
+            .get(rewrite_idx)
             .is_some_and(|rewrite| rewrite.start_idx < token_idx)
         {
-            *rewrite_idx += 1;
+            rewrite_idx += 1;
         }
 
-        if let Some(rewrite) = rewrites.get(*rewrite_idx)
+        if let Some(rewrite) = rewrites.get(rewrite_idx)
             && rewrite.start_idx == token_idx
         {
-            *rewrite_idx += 1;
-            emit_source_rewrite(tokens, rewrites, rewrite, target, out, rewrite_idx)?;
+            rewrite_idx += 1;
+            emit_source_rewrite(tokens, rewrites, rewrite, target, out)?;
             token_idx = rewrite.end_idx;
             continue;
         }
@@ -189,7 +184,6 @@ fn emit_source_rewrite(
     rewrite: &SourceRewrite,
     target: &GlslTarget,
     out: &mut String,
-    rewrite_idx: &mut usize,
 ) -> Result<(), String> {
     match &rewrite.kind {
         SourceRewriteKind::Intrinsic(IntrinsicKind::Texture) => {
@@ -201,7 +195,6 @@ fn emit_source_rewrite(
                 out,
                 rewrite.start_idx + 1,
                 rewrite.end_idx,
-                rewrite_idx,
             )
         }
         SourceRewriteKind::Replacement(replacement) => {
@@ -298,10 +291,20 @@ mod tests {
 
     #[test]
     fn emitter_lowers_nested_texture_intrinsics() {
-        let src = "#usagi shader 1\nvec4 usagi_main(vec2 uv, vec4 color) {\n    return usagi_texture(texture0, usagi_texture(texture0, uv).xy);\n}\n";
+        let src = concat!(
+            "#usagi shader 1\n",
+            "vec4 usagi_main(vec2 uv, vec4 color) {\n",
+            "    vec4 inner = usagi_texture(texture0, uv);\n",
+            "    return usagi_texture(texture0, uv + usagi_texture(texture0, uv).xy * 0.01) + ",
+            "usagi_texture(texture0, uv + vec2(0.2 + 0.3)) + inner * color;\n",
+            "}\n",
+        );
         let out = emit_fragment(src, ShaderProfile::DesktopGlsl330).unwrap();
 
-        assert!(out.contains("return texture(texture0, texture(texture0, uv).xy);"));
+        assert!(out.contains(
+            "return texture(texture0, uv + texture(texture0, uv).xy * 0.01) + texture(texture0, uv + vec2(0.5)) + inner * color;"
+        ));
+        assert_eq!(out.matches("texture(texture0").count(), 4);
         assert!(!out.contains("usagi_texture"));
     }
 

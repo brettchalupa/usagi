@@ -1608,7 +1608,12 @@ mod tests {
 
     #[test]
     fn parser_allows_member_access_matching_reserved_engine_names() {
-        let src = "vec4 usagi_main(vec2 uv, vec4 color) { return material.fragColor; }\n";
+        let src = concat!(
+            "vec4 usagi_main(vec2 uv, vec4 color) {\n",
+            "    return material.fragTexCoord.xxyy + material.fragColor + ",
+            "material.finalColor + material.gl_FragColor;\n",
+            "}\n",
+        );
 
         assert!(UsagiShaderModule::parse(src).is_ok());
     }
