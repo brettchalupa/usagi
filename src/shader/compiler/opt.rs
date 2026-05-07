@@ -5,38 +5,35 @@
 //! guaranteed return. Anything involving symbols, calls, or uncertain numeric
 //! syntax is left for the GLSL driver.
 
-use super::syntax::{
-    BlockAst, BranchAst, ShaderItem, ShaderSource, SourceRewrite, SourceSpan, StatementAst, Token,
-    UsagiShaderModule,
-};
+use super::ir::{IrBlock, IrBranch, IrFunction, IrStatement, IrStatementKind};
+use super::syntax::{ShaderSource, SourceRewrite, SourceSpan, Token, UsagiShaderModule};
 
 pub(super) fn optimized_source(
     module: &UsagiShaderModule<'_>,
+    functions: &[IrFunction<'_>],
     mut rewrites: Vec<SourceRewrite>,
 ) -> ShaderSource {
-    DeadCodePruner::new(module).collect(&mut rewrites);
+    DeadCodePruner::new(module, functions).collect(&mut rewrites);
     module.source.with_additional_rewrites(rewrites)
 }
 
-struct DeadCodePruner<'module, 'src> {
+struct DeadCodePruner<'module, 'ir, 'src> {
     module: &'module UsagiShaderModule<'src>,
+    functions: &'ir [IrFunction<'src>],
 }
 
-impl<'module, 'src> DeadCodePruner<'module, 'src> {
-    fn new(module: &'module UsagiShaderModule<'src>) -> Self {
-        Self { module }
+impl<'module, 'ir, 'src> DeadCodePruner<'module, 'ir, 'src> {
+    fn new(module: &'module UsagiShaderModule<'src>, functions: &'ir [IrFunction<'src>]) -> Self {
+        Self { module, functions }
     }
 
     fn collect(&self, out: &mut Vec<SourceRewrite>) {
-        for item in &self.module.items {
-            match item {
-                ShaderItem::Function(function) => self.collect_block(&function.body, out),
-                ShaderItem::Raw(_) | ShaderItem::Uniform(_) => {}
-            }
+        for function in self.functions {
+            self.collect_block(&function.body, out);
         }
     }
 
-    fn collect_block(&self, block: &BlockAst<'src>, out: &mut Vec<SourceRewrite>) {
+    fn collect_block(&self, block: &IrBlock, out: &mut Vec<SourceRewrite>) {
         let mut reached_terminal = false;
         for statement in &block.statements {
             if reached_terminal {
@@ -53,82 +50,74 @@ impl<'module, 'src> DeadCodePruner<'module, 'src> {
         }
     }
 
-    fn collect_statement(&self, statement: &StatementAst<'src>, out: &mut Vec<SourceRewrite>) {
-        match statement {
-            StatementAst::If(stmt) => {
-                self.collect_branch(&stmt.then_branch, out);
-                if let Some(branch) = &stmt.else_branch {
+    fn collect_statement(&self, statement: &IrStatement, out: &mut Vec<SourceRewrite>) {
+        match &statement.kind {
+            IrStatementKind::If {
+                then_branch,
+                else_branch,
+            } => {
+                self.collect_branch(then_branch, out);
+                if let Some(branch) = else_branch {
                     self.collect_branch(branch, out);
                 }
             }
-            StatementAst::Block(block) => self.collect_block(block, out),
-            StatementAst::Return(_) | StatementAst::Raw(_) => {}
+            IrStatementKind::Block(block) => self.collect_block(block, out),
+            IrStatementKind::Return | IrStatementKind::Raw => {}
         }
     }
 
-    fn collect_branch(&self, branch: &BranchAst<'src>, out: &mut Vec<SourceRewrite>) {
+    fn collect_branch(&self, branch: &IrBranch, out: &mut Vec<SourceRewrite>) {
         match branch {
-            BranchAst::Block(block) => self.collect_block(block, out),
-            BranchAst::Statement(statement) => self.collect_statement(statement, out),
+            IrBranch::Block(block) => self.collect_block(block, out),
+            IrBranch::Statement(statement) => self.collect_statement(statement, out),
         }
     }
 
-    fn prune_statement(&self, statement: &StatementAst<'src>) -> Option<SourceRewrite> {
-        let span = statement_span(statement);
-        let (start_idx, end_idx) = token_range_for_span(&self.module.tokens, span)?;
-        let replacement = line_preserving_blank(&self.module.tokens[start_idx..end_idx]);
+    fn prune_statement(&self, statement: &IrStatement) -> Option<SourceRewrite> {
+        let replacement =
+            line_preserving_blank(&self.module.tokens[statement.start_idx..statement.end_idx]);
         Some(SourceRewrite::replacement(
-            start_idx,
-            end_idx,
-            span,
+            statement.start_idx,
+            statement.end_idx,
+            relative_span(statement.span, self.module.source_offset),
             replacement,
         ))
     }
 }
 
-fn statement_always_returns(statement: &StatementAst<'_>) -> bool {
-    match statement {
-        StatementAst::Return(_) => true,
-        StatementAst::If(stmt) => {
-            let Some(else_branch) = &stmt.else_branch else {
+fn statement_always_returns(statement: &IrStatement) -> bool {
+    match &statement.kind {
+        IrStatementKind::Return => true,
+        IrStatementKind::If {
+            then_branch,
+            else_branch,
+        } => {
+            let Some(else_branch) = else_branch else {
                 return false;
             };
-            branch_always_returns(&stmt.then_branch) && branch_always_returns(else_branch)
+            branch_always_returns(then_branch) && branch_always_returns(else_branch)
         }
-        StatementAst::Block(block) => block_always_returns(block),
-        StatementAst::Raw(_) => false,
+        IrStatementKind::Block(block) => block_always_returns(block),
+        IrStatementKind::Raw => false,
     }
 }
 
-fn block_always_returns(block: &BlockAst<'_>) -> bool {
+fn block_always_returns(block: &IrBlock) -> bool {
     block.statements.iter().any(statement_always_returns)
 }
 
-fn branch_always_returns(branch: &BranchAst<'_>) -> bool {
+fn branch_always_returns(branch: &IrBranch) -> bool {
     match branch {
-        BranchAst::Block(block) => block_always_returns(block),
-        BranchAst::Statement(statement) => statement_always_returns(statement),
+        IrBranch::Block(block) => block_always_returns(block),
+        IrBranch::Statement(statement) => statement_always_returns(statement),
     }
 }
 
-fn statement_span(statement: &StatementAst<'_>) -> SourceSpan {
-    match statement {
-        StatementAst::Return(stmt) => stmt.span,
-        StatementAst::If(stmt) => stmt.span,
-        StatementAst::Block(block) => block.span,
-        StatementAst::Raw(stmt) => stmt.span,
+fn relative_span(span: SourceSpan, source_offset: usize) -> SourceSpan {
+    SourceSpan {
+        start: span.start.saturating_sub(source_offset),
+        end: span.end.saturating_sub(source_offset),
     }
-}
-
-fn token_range_for_span(tokens: &[Token<'_>], span: SourceSpan) -> Option<(usize, usize)> {
-    let start_idx = tokens
-        .iter()
-        .position(|token| token.span.end > span.start)?;
-    let end_idx = tokens
-        .iter()
-        .rposition(|token| token.span.start < span.end)?
-        + 1;
-    (start_idx < end_idx).then_some((start_idx, end_idx))
 }
 
 fn line_preserving_blank(tokens: &[Token<'_>]) -> String {

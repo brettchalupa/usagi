@@ -1,8 +1,9 @@
 use super::CompileWarning;
 use super::opt;
 use super::syntax::{
-    ExprCall, ExprCallKind, ExpressionAst, ExpressionNode, IntrinsicKind, ShaderItem, ShaderSource,
-    SourceRewrite, SourceSpan, Token, TokenKind, UsagiShaderModule, is_code_token,
+    BlockAst, BranchAst, ExprCall, ExprCallKind, ExpressionAst, ExpressionNode, IntrinsicKind,
+    ShaderItem, ShaderSource, SourceRewrite, SourceSpan, StatementAst, Token, TokenKind,
+    UsagiShaderModule, is_code_token,
 };
 use std::collections::HashMap;
 
@@ -129,6 +130,7 @@ pub(super) struct IrFunction<'src> {
     pub(super) name_span: SourceSpan,
     pub(super) declaration_span: SourceSpan,
     pub(super) params: Vec<IrFunctionParam<'src>>,
+    pub(super) body: IrBlock,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -139,6 +141,37 @@ pub(super) struct IrFunctionParam<'src> {
     pub(super) ty_span: SourceSpan,
     pub(super) name_span: SourceSpan,
     pub(super) declaration_span: SourceSpan,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct IrBlock {
+    pub(super) statements: Vec<IrStatement>,
+    pub(super) span: SourceSpan,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct IrStatement {
+    pub(super) kind: IrStatementKind,
+    pub(super) span: SourceSpan,
+    pub(super) start_idx: usize,
+    pub(super) end_idx: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum IrStatementKind {
+    Return,
+    If {
+        then_branch: IrBranch,
+        else_branch: Option<IrBranch>,
+    },
+    Block(IrBlock),
+    Raw,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum IrBranch {
+    Block(IrBlock),
+    Statement(Box<IrStatement>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -265,12 +298,13 @@ pub(super) fn lower<'module, 'src>(
     checked: Option<&super::check::CheckedShader>,
 ) -> ShaderIr<'module, 'src> {
     let expressions = lower_expressions(module, checked);
+    let functions = lower_functions(module);
     let constant_rewrites = collect_constant_fold_rewrites(&expressions, module.source_offset);
     ShaderIr {
         module,
-        source: opt::optimized_source(module, constant_rewrites),
+        source: opt::optimized_source(module, &functions, constant_rewrites),
         uniforms: lower_uniforms(module),
-        functions: lower_functions(module),
+        functions,
         expressions,
     }
 }
@@ -598,9 +632,73 @@ fn lower_functions<'src>(module: &UsagiShaderModule<'src>) -> Vec<IrFunction<'sr
                         declaration_span: param.span.shifted(module.source_offset),
                     })
                     .collect(),
+                body: lower_block(&function.body, module),
             })
         })
         .collect()
+}
+
+fn lower_block(block: &BlockAst<'_>, module: &UsagiShaderModule<'_>) -> IrBlock {
+    IrBlock {
+        statements: block
+            .statements
+            .iter()
+            .map(|statement| lower_statement(statement, module))
+            .collect(),
+        span: block.span.shifted(module.source_offset),
+    }
+}
+
+fn lower_statement(statement: &StatementAst<'_>, module: &UsagiShaderModule<'_>) -> IrStatement {
+    let span = statement_span(statement);
+    let (start_idx, end_idx) = token_range_for_span(&module.tokens, span)
+        .expect("statement spans are produced from parser tokens");
+    IrStatement {
+        kind: match statement {
+            StatementAst::Return(_) => IrStatementKind::Return,
+            StatementAst::If(stmt) => IrStatementKind::If {
+                then_branch: lower_branch(&stmt.then_branch, module),
+                else_branch: stmt
+                    .else_branch
+                    .as_ref()
+                    .map(|branch| lower_branch(branch, module)),
+            },
+            StatementAst::Block(block) => IrStatementKind::Block(lower_block(block, module)),
+            StatementAst::Raw(_) => IrStatementKind::Raw,
+        },
+        span: span.shifted(module.source_offset),
+        start_idx,
+        end_idx,
+    }
+}
+
+fn lower_branch(branch: &BranchAst<'_>, module: &UsagiShaderModule<'_>) -> IrBranch {
+    match branch {
+        BranchAst::Block(block) => IrBranch::Block(lower_block(block, module)),
+        BranchAst::Statement(statement) => {
+            IrBranch::Statement(Box::new(lower_statement(statement, module)))
+        }
+    }
+}
+
+fn statement_span(statement: &StatementAst<'_>) -> SourceSpan {
+    match statement {
+        StatementAst::Return(stmt) => stmt.span,
+        StatementAst::If(stmt) => stmt.span,
+        StatementAst::Block(block) => block.span,
+        StatementAst::Raw(stmt) => stmt.span,
+    }
+}
+
+fn token_range_for_span(tokens: &[Token<'_>], span: SourceSpan) -> Option<(usize, usize)> {
+    let start_idx = tokens
+        .iter()
+        .position(|token| token.span.end > span.start)?;
+    let end_idx = tokens
+        .iter()
+        .rposition(|token| token.span.start < span.end)?
+        + 1;
+    (start_idx < end_idx).then_some((start_idx, end_idx))
 }
 
 fn lower_expressions<'src>(
@@ -798,6 +896,16 @@ mod tests {
         assert_eq!(ir.functions()[0].params[0].value_type, Some(IrType::Vec(2)));
         assert_eq!(ir.functions()[0].params[0].name, "uv");
         assert_eq!(ir.functions()[1].name, "usagi_main");
+        assert_eq!(ir.functions()[1].body.statements.len(), 1);
+        assert!(matches!(
+            ir.functions()[1].body.statements[0].kind,
+            IrStatementKind::Return
+        ));
+        assert_eq!(
+            &src[ir.functions()[1].body.statements[0].span.start
+                ..ir.functions()[1].body.statements[0].span.end],
+            "return vec4(0.2 + 0.3, color.g, color.b, color.a);"
+        );
         assert!(ir.source().rewrites.iter().any(|rewrite| matches!(
             rewrite.kind,
             super::super::syntax::SourceRewriteKind::Replacement(_)
