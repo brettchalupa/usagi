@@ -229,17 +229,56 @@ impl ShaderSource {
     fn from_items(items: &[ShaderItem<'_>]) -> Self {
         let mut rewrites = Vec::new();
         collect_source_rewrites_from_items(items, &mut rewrites);
-        rewrites.sort_by_key(|rewrite| rewrite.name_idx);
+        sort_source_rewrites(&mut rewrites);
+        Self { rewrites }
+    }
+
+    pub(super) fn with_additional_rewrites(&self, additional: Vec<SourceRewrite>) -> Self {
+        let mut rewrites = Vec::with_capacity(self.rewrites.len() + additional.len());
+        rewrites.extend(self.rewrites.iter().cloned());
+        rewrites.extend(additional);
+        sort_source_rewrites(&mut rewrites);
         Self { rewrites }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct SourceRewrite {
-    pub(super) kind: IntrinsicKind,
-    pub(super) name_idx: usize,
-    pub(super) close_idx: usize,
+    pub(super) kind: SourceRewriteKind,
+    pub(super) start_idx: usize,
+    pub(super) end_idx: usize,
     pub(super) span: SourceSpan,
+}
+
+impl SourceRewrite {
+    pub(super) fn intrinsic_call(kind: IntrinsicKind, name_idx: usize, close_idx: usize) -> Self {
+        Self {
+            kind: SourceRewriteKind::Intrinsic(kind),
+            start_idx: name_idx,
+            end_idx: close_idx + 1,
+            span: SourceSpan::new(0, 0),
+        }
+    }
+
+    pub(super) fn replacement(
+        start_idx: usize,
+        end_idx: usize,
+        span: SourceSpan,
+        replacement: String,
+    ) -> Self {
+        Self {
+            kind: SourceRewriteKind::Replacement(replacement),
+            start_idx,
+            end_idx,
+            span,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum SourceRewriteKind {
+    Intrinsic(IntrinsicKind),
+    Replacement(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1075,17 +1114,18 @@ fn collect_source_rewrites_from_expression(
             continue;
         };
         if let ExprCallKind::Intrinsic(kind) = call.kind {
-            out.push(SourceRewrite {
-                kind,
-                name_idx: call.name_idx,
-                close_idx: call.close_idx,
-                span: call.span,
-            });
+            let mut rewrite = SourceRewrite::intrinsic_call(kind, call.name_idx, call.close_idx);
+            rewrite.span = call.span;
+            out.push(rewrite);
         }
         for arg in &call.args {
             collect_source_rewrites_from_expression(arg, out);
         }
     }
+}
+
+fn sort_source_rewrites(rewrites: &mut [SourceRewrite]) {
+    rewrites.sort_by_key(|rewrite| (rewrite.start_idx, rewrite.end_idx));
 }
 
 fn validate_items(items: &[ShaderItem<'_>]) -> CompileResult<()> {
@@ -1417,7 +1457,7 @@ mod tests {
             "usagi_texture(texture0, clamp(uv, 0.0, 1.0))"
         );
         assert_eq!(module.source.rewrites.len(), 1);
-        assert_eq!(module.source.rewrites[0].name_idx, call.name_idx);
+        assert_eq!(module.source.rewrites[0].start_idx, call.name_idx);
     }
 
     #[test]

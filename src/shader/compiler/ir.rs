@@ -1,4 +1,5 @@
-use super::syntax::UsagiShaderModule;
+use super::opt;
+use super::syntax::{ShaderSource, UsagiShaderModule};
 
 /// Initial backend-neutral compiler boundary.
 ///
@@ -7,16 +8,24 @@ use super::syntax::UsagiShaderModule;
 /// future non-GLSL backends consume.
 pub(super) struct ShaderIr<'module, 'src> {
     module: &'module UsagiShaderModule<'src>,
+    source: ShaderSource,
 }
 
 pub(super) fn lower<'module, 'src>(
     module: &'module UsagiShaderModule<'src>,
 ) -> ShaderIr<'module, 'src> {
-    ShaderIr { module }
+    ShaderIr {
+        module,
+        source: opt::optimized_source(module),
+    }
 }
 
 impl<'module, 'src> ShaderIr<'module, 'src> {
     pub(super) fn module(&self) -> &'module UsagiShaderModule<'src> {
         self.module
+    }
+
+    pub(super) fn source(&self) -> &ShaderSource {
+        &self.source
     }
 }

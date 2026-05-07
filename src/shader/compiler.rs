@@ -18,6 +18,7 @@
 mod check;
 mod emit_glsl;
 mod ir;
+mod opt;
 mod syntax;
 
 use self::syntax::{ShaderItem, SourceSpan, UsagiShaderModule};

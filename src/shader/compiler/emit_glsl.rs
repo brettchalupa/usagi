@@ -1,5 +1,5 @@
 use super::ir::ShaderIr;
-use super::syntax::{IntrinsicKind, ShaderSource, SourceRewrite, Token};
+use super::syntax::{IntrinsicKind, ShaderSource, SourceRewrite, SourceRewriteKind, Token};
 use super::{ShaderProfile, ShaderSourceMap, ShaderSourceMapLine, ShaderSourceMapLineKind};
 
 pub(super) fn emit(ir: &ShaderIr<'_, '_>, profile: ShaderProfile) -> Result<GlslEmission, String> {
@@ -22,7 +22,7 @@ impl TargetEmitter {
         let header = target.header();
         let footer = target.footer(module.entrypoint_name);
         let mut body = String::with_capacity(source_len(&module.tokens));
-        emit_source(&module.tokens, &module.source, target, &mut body)?;
+        emit_source(&module.tokens, ir.source(), target, &mut body)?;
         let mut out = String::with_capacity(
             header.len() + body.len() + footer.len() + module.items.len() * 2,
         );
@@ -163,17 +163,17 @@ fn emit_source_range(
     while token_idx < end {
         while rewrites
             .get(*rewrite_idx)
-            .is_some_and(|rewrite| rewrite.name_idx < token_idx)
+            .is_some_and(|rewrite| rewrite.start_idx < token_idx)
         {
             *rewrite_idx += 1;
         }
 
         if let Some(rewrite) = rewrites.get(*rewrite_idx)
-            && rewrite.name_idx == token_idx
+            && rewrite.start_idx == token_idx
         {
             *rewrite_idx += 1;
             emit_source_rewrite(tokens, rewrites, rewrite, target, out, rewrite_idx)?;
-            token_idx = rewrite.close_idx + 1;
+            token_idx = rewrite.end_idx;
             continue;
         }
 
@@ -191,18 +191,24 @@ fn emit_source_rewrite(
     out: &mut String,
     rewrite_idx: &mut usize,
 ) -> Result<(), String> {
-    match rewrite.kind {
-        IntrinsicKind::Texture => out.push_str(target.texture_function),
+    match &rewrite.kind {
+        SourceRewriteKind::Intrinsic(IntrinsicKind::Texture) => {
+            out.push_str(target.texture_function);
+            emit_source_range(
+                tokens,
+                rewrites,
+                target,
+                out,
+                rewrite.start_idx + 1,
+                rewrite.end_idx,
+                rewrite_idx,
+            )
+        }
+        SourceRewriteKind::Replacement(replacement) => {
+            out.push_str(replacement);
+            Ok(())
+        }
     }
-    emit_source_range(
-        tokens,
-        rewrites,
-        target,
-        out,
-        rewrite.name_idx + 1,
-        rewrite.close_idx + 1,
-        rewrite_idx,
-    )
 }
 
 fn source_len(tokens: &[Token<'_>]) -> usize {
