@@ -90,7 +90,11 @@ use export::ExportTarget;
 #[cfg(not(target_os = "emscripten"))]
 use shader::check_cli::{ShaderCheckFormat, ShaderCheckTarget};
 #[cfg(not(target_os = "emscripten"))]
-use shader::emit_cli::{ShaderEmitFormat, ShaderEmitTarget};
+use shader::emit_cli::ShaderEmitFormat;
+#[cfg(not(target_os = "emscripten"))]
+use shader::inspect_cli::ShaderInspectFormat;
+#[cfg(not(target_os = "emscripten"))]
+use shader::profile_cli::ShaderProfileTarget;
 
 #[cfg(not(target_os = "emscripten"))]
 #[derive(Parser)]
@@ -220,13 +224,24 @@ enum ShadersCmd {
         path: String,
         /// Target profile to emit. Defaults to desktop.
         #[arg(long, value_enum, default_value = "desktop")]
-        target: ShaderEmitTarget,
+        target: ShaderProfileTarget,
         /// Output format. Use json to include generated-line source maps.
         #[arg(long, value_enum, default_value = "source")]
         format: ShaderEmitFormat,
         /// Output file for one target, or output directory for `--target all`.
         #[arg(short, long)]
         output: Option<String>,
+    },
+    /// Inspect reflected shader metadata without launching the game.
+    Inspect {
+        /// Path to a generic `.usagi.fs` shader source.
+        path: String,
+        /// Target profile to inspect. Defaults to desktop.
+        #[arg(long, value_enum, default_value = "desktop")]
+        target: ShaderProfileTarget,
+        /// Output format for editor tooling and humans.
+        #[arg(long, value_enum, default_value = "text")]
+        format: ShaderInspectFormat,
     },
     /// Run the `.usagi.fs` language server over stdio.
     Lsp,
@@ -343,6 +358,11 @@ fn run_shaders_cmd(cmd: ShadersCmd) -> Result<()> {
             format,
             output,
         } => shader::emit_cli::run(&path, target, format, output.as_deref()),
+        ShadersCmd::Inspect {
+            path,
+            target,
+            format,
+        } => shader::inspect_cli::run(&path, target, format),
         ShadersCmd::Lsp => shader::lsp::run(),
     }
 }

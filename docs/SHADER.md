@@ -283,6 +283,13 @@ source-map row records a generated GLSL line, whether the line was emitted by
 Usagi or came from the user source, and the original `.usagi.fs` line when one
 exists.
 
+Run `usagi shaders inspect path/to/shader.usagi.fs` to reflect metadata without
+launching the game. It compiles the selected target, prints generated-source
+size/ranges, and lists each reflected uniform with declaration location. Use
+`--format json` for tooling-friendly metadata, including uniform declaration,
+name, and type spans. `--target web`, `--target desktop`, `--target glsl440`,
+and `--target all` use the same target selectors as `shaders emit`.
+
 ## Editor Tooling
 
 Run `usagi shaders lsp` to start the native `.usagi.fs` language server over

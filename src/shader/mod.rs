@@ -21,7 +21,11 @@ mod driver_log;
 #[cfg(not(target_os = "emscripten"))]
 pub(crate) mod emit_cli;
 #[cfg(not(target_os = "emscripten"))]
+pub(crate) mod inspect_cli;
+#[cfg(not(target_os = "emscripten"))]
 pub(crate) mod lsp;
+#[cfg(not(target_os = "emscripten"))]
+pub(crate) mod profile_cli;
 #[cfg(not(target_os = "emscripten"))]
 pub(crate) use compiler::compile_fragment_with_report as compile_generic_fragment_with_report;
 

@@ -1,6 +1,7 @@
 //! Offline generated GLSL emission for the native CLI.
 
 use super::ShaderProfile;
+use super::profile_cli::ShaderProfileTarget;
 use crate::{Error, Result};
 use clap::ValueEnum;
 use serde_json::json;
@@ -9,39 +10,11 @@ use std::io::{self, Write};
 use std::path::Path;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
-pub(crate) enum ShaderEmitTarget {
-    /// Emit the desktop runtime target.
-    Desktop,
-    /// Emit the web runtime target.
-    Web,
-    /// Emit the staged desktop GLSL 440 target.
-    #[value(name = "glsl440")]
-    Glsl440,
-    /// Emit every supported generic shader profile.
-    All,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub(crate) enum ShaderEmitFormat {
     /// Emit raw GLSL source.
     Source,
     /// Emit generated GLSL plus source-map metadata as JSON.
     Json,
-}
-
-impl ShaderEmitTarget {
-    fn profiles(self) -> Vec<ShaderProfile> {
-        match self {
-            Self::Desktop => vec![ShaderProfile::DesktopGlsl330],
-            Self::Web => vec![ShaderProfile::WebGlslEs100],
-            Self::Glsl440 => vec![ShaderProfile::DesktopGlsl440],
-            Self::All => ShaderProfile::ALL.to_vec(),
-        }
-    }
-
-    fn is_all(self) -> bool {
-        self == Self::All
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -53,7 +26,7 @@ struct EmittedShader {
 
 pub(crate) fn run(
     path_arg: &str,
-    target: ShaderEmitTarget,
+    target: ShaderProfileTarget,
     format: ShaderEmitFormat,
     output: Option<&str>,
 ) -> Result<()> {
@@ -160,7 +133,7 @@ fn format_stdout(emitted: &[EmittedShader]) -> String {
 fn write_emitted(
     input_path: &Path,
     output_path: &Path,
-    target: ShaderEmitTarget,
+    target: ShaderProfileTarget,
     emitted: &[EmittedShader],
 ) -> Result<()> {
     if target.is_all() {
@@ -246,19 +219,19 @@ mod tests {
     #[test]
     fn emit_targets_map_to_profiles() {
         assert_eq!(
-            ShaderEmitTarget::Desktop.profiles(),
+            ShaderProfileTarget::Desktop.profiles(),
             vec![ShaderProfile::DesktopGlsl330]
         );
         assert_eq!(
-            ShaderEmitTarget::Web.profiles(),
+            ShaderProfileTarget::Web.profiles(),
             vec![ShaderProfile::WebGlslEs100]
         );
         assert_eq!(
-            ShaderEmitTarget::Glsl440.profiles(),
+            ShaderProfileTarget::Glsl440.profiles(),
             vec![ShaderProfile::DesktopGlsl440]
         );
         assert_eq!(
-            ShaderEmitTarget::All.profiles(),
+            ShaderProfileTarget::All.profiles(),
             vec![
                 ShaderProfile::WebGlslEs100,
                 ShaderProfile::DesktopGlsl330,
@@ -269,7 +242,7 @@ mod tests {
 
     #[test]
     fn emits_selected_profile_source() {
-        let emitted = emit_source(VALID_SHADER, ShaderEmitTarget::Web.profiles()).unwrap();
+        let emitted = emit_source(VALID_SHADER, ShaderProfileTarget::Web.profiles()).unwrap();
 
         assert_eq!(emitted.len(), 1);
         assert_eq!(emitted[0].profile, ShaderProfile::WebGlslEs100);
@@ -283,7 +256,7 @@ mod tests {
 
     #[test]
     fn formats_all_profiles_with_headers() {
-        let emitted = emit_source(VALID_SHADER, ShaderEmitTarget::All.profiles()).unwrap();
+        let emitted = emit_source(VALID_SHADER, ShaderProfileTarget::All.profiles()).unwrap();
         let output = format_stdout(&emitted);
 
         assert!(output.contains("// ===== GLSL ES 100 ====="));
@@ -314,10 +287,10 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let input = dir.path().join("crt.usagi.fs");
         fs::write(&input, VALID_SHADER).unwrap();
-        let emitted = emit_source(VALID_SHADER, ShaderEmitTarget::All.profiles()).unwrap();
+        let emitted = emit_source(VALID_SHADER, ShaderProfileTarget::All.profiles()).unwrap();
         let output_dir = dir.path().join("generated");
 
-        write_emitted(&input, &output_dir, ShaderEmitTarget::All, &emitted).unwrap();
+        write_emitted(&input, &output_dir, ShaderProfileTarget::All, &emitted).unwrap();
 
         assert!(
             fs::read_to_string(output_dir.join("crt.es100.fs"))
@@ -340,7 +313,7 @@ mod tests {
     fn invalid_shader_reports_profile_and_diagnostic() {
         let err = emit_source(
             "vec4 usagi_main(vec2 uv, vec4 color) { return texture(texture0, uv); }\n",
-            ShaderEmitTarget::Desktop.profiles(),
+            ShaderProfileTarget::Desktop.profiles(),
         )
         .unwrap_err()
         .to_string();
@@ -351,7 +324,7 @@ mod tests {
 
     #[test]
     fn json_output_includes_generated_source_map() {
-        let emitted = emit_source(VALID_SHADER, ShaderEmitTarget::Desktop.profiles()).unwrap();
+        let emitted = emit_source(VALID_SHADER, ShaderProfileTarget::Desktop.profiles()).unwrap();
         let json = format_json_stdout(Path::new("shaders/crt.usagi.fs"), &emitted).unwrap();
         let value: serde_json::Value = serde_json::from_str(&json).unwrap();
 
