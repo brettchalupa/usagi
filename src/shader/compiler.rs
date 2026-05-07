@@ -21,7 +21,7 @@ mod ir;
 mod opt;
 mod syntax;
 
-use self::syntax::{ShaderItem, SourceSpan, UsagiShaderModule};
+use self::syntax::{SourceSpan, UsagiShaderModule};
 use super::ShaderProfile;
 
 pub(crate) fn compile_fragment_with_metadata(
@@ -48,7 +48,7 @@ pub(crate) fn compile_fragment_with_report(
     let ir = ir::lower(&module);
     let emission = emit_glsl::emit(&ir, profile)
         .map_err(|message| CompileFailure::from_diagnostic(ShaderDiagnostic::new(message)))?;
-    let metadata = ShaderMetadata::from_module(profile, &module, emission.source_map, warnings);
+    let metadata = ShaderMetadata::from_ir(profile, &ir, emission.source_map, warnings);
     Ok(CompiledFragment {
         source: emission.source,
         metadata,
@@ -60,7 +60,8 @@ pub(crate) fn inspect_fragment(src: &str) -> Result<ShaderInspection, CompileFai
     let module = UsagiShaderModule::parse_with_diagnostic(src).map_err(|err| {
         CompileFailure::from_diagnostic(err.error.to_diagnostic(src, err.source_offset))
     })?;
-    Ok(ShaderInspection::from_module(&module))
+    let ir = ir::lower(&module);
+    Ok(ShaderInspection::from_ir(&ir))
 }
 
 pub(super) type CompileResult<T> = Result<T, CompileError>;
@@ -80,34 +81,23 @@ pub(crate) struct ShaderMetadata {
 }
 
 impl ShaderMetadata {
-    fn from_module(
+    fn from_ir(
         profile: ShaderProfile,
-        module: &UsagiShaderModule<'_>,
+        ir: &ir::ShaderIr<'_, '_>,
         source_map: ShaderSourceMap,
         warnings: Vec<ShaderDiagnostic>,
     ) -> Self {
-        let uniform_count = module
-            .items
+        let uniforms = ir
+            .uniforms()
             .iter()
-            .filter_map(|item| match item {
-                ShaderItem::Uniform(uniform) => Some(uniform.names.len()),
-                ShaderItem::Function(_) | ShaderItem::Raw(_) => None,
-            })
-            .sum();
-        let mut uniforms = Vec::with_capacity(uniform_count);
-
-        for item in &module.items {
-            let ShaderItem::Uniform(uniform) = item else {
-                continue;
-            };
-            uniforms.extend(uniform.names.iter().map(|name| ShaderUniform {
+            .map(|uniform| ShaderUniform {
                 ty: uniform.ty.to_string(),
-                name: name.name.to_string(),
-                ty_span: uniform.ty_span.shifted(module.source_offset),
-                name_span: name.span.shifted(module.source_offset),
-                declaration_span: uniform.span.shifted(module.source_offset),
-            }));
-        }
+                name: uniform.name.to_string(),
+                ty_span: uniform.ty_span,
+                name_span: uniform.name_span,
+                declaration_span: uniform.declaration_span,
+            })
+            .collect();
 
         Self {
             profile,
@@ -201,31 +191,22 @@ pub(crate) struct ShaderInspection {
 
 #[cfg(not(target_os = "emscripten"))]
 impl ShaderInspection {
-    fn from_module(module: &UsagiShaderModule<'_>) -> Self {
-        let mut symbols = Vec::new();
-        for item in &module.items {
-            match item {
-                ShaderItem::Uniform(uniform) => {
-                    symbols.extend(uniform.names.iter().map(|name| ShaderSymbol {
-                        kind: ShaderSymbolKind::Uniform,
-                        name: name.name.to_string(),
-                        ty: uniform.ty.to_string(),
-                        name_span: name.span.shifted(module.source_offset),
-                        declaration_span: uniform.span.shifted(module.source_offset),
-                    }));
-                }
-                ShaderItem::Function(function) => {
-                    symbols.push(ShaderSymbol {
-                        kind: ShaderSymbolKind::Function,
-                        name: function.name.to_string(),
-                        ty: function.return_type.to_string(),
-                        name_span: function.name_span.shifted(module.source_offset),
-                        declaration_span: function.span.shifted(module.source_offset),
-                    });
-                }
-                ShaderItem::Raw(_) => {}
-            }
-        }
+    fn from_ir(ir: &ir::ShaderIr<'_, '_>) -> Self {
+        let mut symbols = Vec::with_capacity(ir.uniforms().len() + ir.functions().len());
+        symbols.extend(ir.uniforms().iter().map(|uniform| ShaderSymbol {
+            kind: ShaderSymbolKind::Uniform,
+            name: uniform.name.to_string(),
+            ty: uniform.ty.to_string(),
+            name_span: uniform.name_span,
+            declaration_span: uniform.declaration_span,
+        }));
+        symbols.extend(ir.functions().iter().map(|function| ShaderSymbol {
+            kind: ShaderSymbolKind::Function,
+            name: function.name.to_string(),
+            ty: function.return_type.to_string(),
+            name_span: function.name_span,
+            declaration_span: function.declaration_span,
+        }));
         Self { symbols }
     }
 }
