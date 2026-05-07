@@ -71,28 +71,62 @@ stays target-neutral.
 
 ## Shader Language Contract
 
-A `.usagi.fs` file is a fragment-only, GLSL-like source file. The current
-baseline accepts this minimum grammar while the full compiler/AST work is being
-completed:
+A `.usagi.fs` file is a fragment-only, GLSL-like source file. The official
+contract is intentionally smaller than full GLSL: every construct listed here
+must either lower for the selected target profile or fail with a deterministic
+Usagi compiler diagnostic before the GL driver runs. Constructs not listed here
+are outside the generic portability contract and belong in native fallback files
+until they are added to this contract and compiler validation.
 
 ```text
-module       = marker? item*
-marker       = "#usagi shader 1" on the first non-blank line
-item         = uniform_decl | function_decl | raw_top_level_decl
-uniform_decl = "uniform" type name ("," name)* ";"
-function_decl = type name "(" params? ")" block
-params       = type name ("," type name)*
-entrypoint   = "vec4 usagi_main(vec2 uv, vec4 color)"
+module          = blank* marker? item*
+marker          = "#usagi shader 1" on the first non-blank line
+item            = uniform_decl | function_decl | raw_top_level_decl
+uniform_decl    = "uniform" ident name ("," name)* ";"
+function_decl   = type name "(" params? ")" block
+type            = "void" | "bool" | "int" | "float"
+                | "vec2" | "vec3" | "vec4"
+                | "bvec2" | "bvec3" | "bvec4"
+                | "ivec2" | "ivec3" | "ivec4"
+                | "mat2" | "mat3" | "mat4"
+params          = ident name ("," ident name)*
+block           = "{" statement* "}"
+statement       = return_stmt | if_stmt | block | raw_stmt
+return_stmt     = "return" expression? ";"
+if_stmt         = "if" "(" expression ")" branch ("else" branch)?
+branch          = block | statement
+raw_stmt        = expression ";"
+raw_top_level_decl = balanced tokens ending with a top-level ";"
+expression      = balanced GLSL token sequence with parsed function calls
+entrypoint      = "vec4 usagi_main(vec2 uv, vec4 color)"
 ```
 
-Function bodies use GLSL expressions and statements that are valid for the
-selected Usagi platform targets. The compiler preserves comments and whitespace,
-rejects `#version`, and treats other preprocessor lines as target-neutral
-advanced use: they pass through today, but they are not interpreted by Usagi and
-must compile on every target you intend to ship. The premium-grade target is a
-fully parsed language contract where every accepted construct either lowers for
-the selected targets or fails with a deterministic compiler diagnostic before
-the GL driver runs.
+The entrypoint must appear exactly once. User helper functions may use any
+listed return type, but the public entrypoint signature is fixed because Usagi
+generates the target-specific `main()` wrapper.
+
+Function bodies support `return`, `if` / `else`, nested blocks, and raw
+semicolon-terminated GLSL statements such as local declarations, assignments,
+constructor calls, arithmetic expressions, `discard;`, and helper-function
+calls. Expressions may use scalar, vector, matrix, swizzle, constructor, and
+operator syntax that exists in the common GLSL ES 100 / GLSL 330 / GLSL 440
+fragment-shader subset. Calls are parsed so Usagi intrinsics and target-specific
+texture calls can be validated before emission. Structured statements not
+listed here, such as `for`, `while`, `do`, and `switch`, are not part of the
+generic contract yet.
+
+The compiler preserves comments, whitespace, and raw GLSL tokens when emitting
+target GLSL. `#version` is always rejected because Usagi owns the emitted target
+version. The optional `#usagi shader 1` marker may appear only on the first
+non-blank line and is stripped before GLSL emission. Other preprocessor lines
+are preserved but not interpreted by Usagi; they must be target-neutral and must
+compile correctly on every selected profile.
+
+Top-level raw declarations are limited to balanced token sequences that end in a
+top-level semicolon, for example constants or structs that are valid on every
+target profile. Generic shaders must not declare target-specific stage IO,
+outputs, precision directives, or target-specific texture functions. Use Usagi
+entrypoint parameters and intrinsics instead.
 
 The engine owns these names:
 
@@ -103,19 +137,57 @@ The engine owns these names:
 - `gl_FragColor`: generated GLSL ES fragment output.
 - `main`: generated wrapper that calls `usagi_main(...)`.
 
-The `usagi_` prefix is reserved for shader intrinsics. The first supported
-intrinsic is `vec4 usagi_texture(sampler2D sampler, vec2 uv)`. It lowers to
-`texture(sampler, uv)` on GLSL 330 / staged GLSL 440, and to
-`texture2D(sampler, uv)` on GLSL ES 100.
+The `usagi_` prefix is reserved for shader intrinsics. The supported intrinsic
+set is currently:
+
+```text
+vec4 usagi_texture(sampler2D sampler, vec2 uv)
+```
+
+`usagi_texture(...)` lowers to `texture(sampler, uv)` on GLSL 330 / staged GLSL
+440, and to `texture2D(sampler, uv)` on GLSL ES 100. Direct `texture(...)` and
+`texture2D(...)` calls are rejected in generic sources because they are
+target-specific.
 
 ## Generic Target Guarantees
 
-- GLSL ES 100: emits `#version 100`, `precision mediump float;`, `varying`
-  inputs, `uniform sampler2D texture0`, `texture2D(...)`, and `gl_FragColor`.
-- GLSL 330: emits `#version 330`, `in` inputs, `uniform sampler2D texture0`,
-  `texture(...)`, and `out vec4 finalColor`.
-- GLSL 440: emitter is staged for future runtime selection and emits
-  `#version 440 core` plus `layout(location = 0) out vec4 finalColor`.
+Generic `.usagi.fs` portability means the same source compiles for each selected
+target profile. The compiler generates the stage interface, texture sampler,
+output variable, and wrapper function for the target:
+
+| Profile | Runtime selection | Version | Inputs | Output | Texture intrinsic | Precision |
+| --- | --- | --- | --- | --- | --- | --- |
+| GLSL ES 100 | Web / WebGL 1 | `#version 100` | `varying vec2 fragTexCoord`, `varying vec4 fragColor` | `gl_FragColor` | `texture2D(...)` | emits `precision mediump float;` |
+| GLSL 330 | Current desktop default | `#version 330` | `in vec2 fragTexCoord`, `in vec4 fragColor` | `out vec4 finalColor` | `texture(...)` | no precision directive |
+| GLSL 440 | Staged desktop profile | `#version 440 core` | `in vec2 fragTexCoord`, `in vec4 fragColor` | `layout(location = 0) out vec4 finalColor` | `texture(...)` | no precision directive |
+
+The portable feature baseline is the intersection of GLSL ES 100, GLSL 330, and
+GLSL 440 fragment-shader behavior:
+
+- `float`, `int`, `bool`, `vec*`, `ivec*`, `bvec*`, and `mat2` / `mat3` /
+  `mat4` helper-function return types.
+- Uniform declarations, including reflected `float`, `vec2`, `vec3`, and
+  `vec4` uniforms for Lua-side value-shape validation.
+- Common scalar/vector/matrix constructors, operators, swizzles, math
+  functions, comparisons, and branches that are valid in all selected profiles.
+- `usagi_texture(texture0, uv)` for sampling the game render target.
+- Common fragment built-ins available in every selected target profile.
+
+The following source constructs are target-specific and are rejected by at least
+one profile before GL compile:
+
+- `#version`; Usagi always emits the selected target version.
+- `texture(...)` and `texture2D(...)`; use `usagi_texture(...)`.
+- `in`, `out`, `varying`, `layout`, and `precision` declarations in generic
+  shader source; Usagi emits the correct form for the target.
+- Declarations of `texture0`, `fragTexCoord`, `fragColor`, `finalColor`,
+  `gl_FragColor`, or `main`; Usagi owns those bindings.
+
+GLSL 440 is available through the offline compiler profile today, but the
+runtime still selects GLSL 330 for desktop until the active backend/context can
+prove GLSL 440 support. Native fallback files may still target a specific GLSL
+version directly, but they are outside the generic compiler and reflection
+contract.
 
 Compatibility gate: the bundled generic shaders in `examples/shader`,
 `examples/notetris`, and `examples/playdate` are the backwards-compatibility
@@ -134,9 +206,10 @@ so generic shader behavior has one ownership boundary:
   offline conformance reporting.
 - `compiler.rs`: owns the compile entrypoint, result metadata, and the
   high-level parse, validate, and emit pipeline.
-- `compiler/syntax.rs`: should own source spans, tokens, lexing, parsing, and the parsed
-  source tree for declarations, functions, statements, expressions, and calls.
-- `compiler/emit_glsl.rs`: should own GLSL target capability records and emission for
+- `compiler/syntax.rs`: owns source spans, tokens, lexing, parsing, and the
+  parsed source tree for declarations, functions, statements, expressions, and
+  calls.
+- `compiler/emit_glsl.rs`: owns GLSL target capability records and emission for
   GLSL ES 100, GLSL 330, and GLSL 440.
 - `compiler/check.rs`: owns compiler validation. It starts with target capability checks
   and should grow into semantic validation and type checking.
