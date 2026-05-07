@@ -1,8 +1,10 @@
+use super::CompileWarning;
 use super::opt;
 use super::syntax::{
     ExprCall, ExprCallKind, ExpressionAst, ExpressionNode, IntrinsicKind, ShaderItem, ShaderSource,
     SourceSpan, Token, UsagiShaderModule, is_code_token,
 };
+use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum IrType {
@@ -159,6 +161,18 @@ impl IrExpression<'_> {
     fn nodes(&self) -> &[IrExpressionNode<'_>] {
         &self.nodes
     }
+
+    fn normalized_key(&self) -> String {
+        let mut out = String::new();
+        self.write_normalized_key(&mut out);
+        out
+    }
+
+    fn write_normalized_key(&self, out: &mut String) {
+        for node in &self.nodes {
+            node.write_normalized_key(out);
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -174,6 +188,13 @@ impl IrExpressionNode<'_> {
             Self::Call(call) => call.is_well_formed(),
         }
     }
+
+    fn write_normalized_key(&self, out: &mut String) {
+        match self {
+            Self::Token(token) => token.write_normalized_key(out),
+            Self::Call(call) => call.write_normalized_key(out),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -186,6 +207,12 @@ struct IrToken<'src> {
 impl IrToken<'_> {
     fn is_well_formed(&self) -> bool {
         self.span.start <= self.span.end && (!self.is_code || !self.text.trim().is_empty())
+    }
+
+    fn write_normalized_key(&self, out: &mut String) {
+        if self.is_code {
+            out.push_str(self.text);
+        }
     }
 }
 
@@ -210,6 +237,18 @@ impl IrCall<'_> {
                 IrCallKind::TextureIntrinsic => self.name == "usagi_texture",
             }
             && self.args.iter().all(IrExpression::is_well_formed)
+    }
+
+    fn write_normalized_key(&self, out: &mut String) {
+        out.push_str(self.name);
+        out.push('(');
+        for (idx, arg) in self.args.iter().enumerate() {
+            if idx > 0 {
+                out.push(',');
+            }
+            arg.write_normalized_key(out);
+        }
+        out.push(')');
     }
 }
 
@@ -251,6 +290,71 @@ impl<'module, 'src> ShaderIr<'module, 'src> {
 
     pub(super) fn expressions(&self) -> &[IrExpression<'src>] {
         &self.expressions
+    }
+
+    pub(super) fn duplicate_texture_sample_warnings(&self) -> Vec<CompileWarning> {
+        DuplicateTextureSampleAnalyzer::new(self).collect()
+    }
+}
+
+struct DuplicateTextureSampleAnalyzer<'ir, 'module, 'src> {
+    ir: &'ir ShaderIr<'module, 'src>,
+    seen: HashMap<String, SourceSpan>,
+    warnings: Vec<CompileWarning>,
+}
+
+impl<'ir, 'module, 'src> DuplicateTextureSampleAnalyzer<'ir, 'module, 'src> {
+    fn new(ir: &'ir ShaderIr<'module, 'src>) -> Self {
+        Self {
+            ir,
+            seen: HashMap::new(),
+            warnings: Vec::new(),
+        }
+    }
+
+    fn collect(mut self) -> Vec<CompileWarning> {
+        for expression in self.ir.expressions() {
+            self.visit_expression(expression);
+        }
+        self.warnings
+    }
+
+    fn visit_expression(&mut self, expression: &IrExpression<'src>) {
+        for node in &expression.nodes {
+            let IrExpressionNode::Call(call) = node else {
+                continue;
+            };
+            if call.kind == IrCallKind::TextureIntrinsic {
+                self.record_texture_sample(call);
+            }
+            for arg in &call.args {
+                self.visit_expression(arg);
+            }
+        }
+    }
+
+    fn record_texture_sample(&mut self, call: &IrCall<'src>) {
+        let Some(uv) = call.args.get(1) else {
+            return;
+        };
+        let key = uv.normalized_key();
+        if self.seen.contains_key(&key) {
+            self.warnings.push(CompileWarning::at(
+                format!(
+                    "duplicate usagi_texture(texture0, {key}) sample; reuse the first sample when possible"
+                ),
+                self.relative_span(call.span),
+            ));
+            return;
+        }
+        self.seen.insert(key, self.relative_span(call.span));
+    }
+
+    fn relative_span(&self, span: SourceSpan) -> SourceSpan {
+        SourceSpan {
+            start: span.start.saturating_sub(self.ir.module.source_offset),
+            end: span.end.saturating_sub(self.ir.module.source_offset),
+        }
     }
 }
 

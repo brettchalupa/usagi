@@ -41,11 +41,12 @@ pub(crate) fn compile_fragment_with_report(
     let checked = check::analyze(&module, profile).map_err(|err| {
         CompileFailure::from_diagnostic(err.to_diagnostic(src, module.source_offset))
     })?;
-    let warnings = check::warnings(&module)
+    let ir = ir::lower(&module, Some(&checked));
+    let warnings = ir
+        .duplicate_texture_sample_warnings()
         .into_iter()
         .map(|warning| warning.to_diagnostic(src, module.source_offset))
         .collect();
-    let ir = ir::lower(&module, Some(&checked));
     let emission = emit_glsl::emit(&ir, profile)
         .map_err(|message| CompileFailure::from_diagnostic(ShaderDiagnostic::new(message)))?;
     let metadata = ShaderMetadata::from_ir(profile, &ir, emission.source_map, warnings);
