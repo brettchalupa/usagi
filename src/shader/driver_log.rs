@@ -295,6 +295,7 @@ mod tests {
         ShaderMetadata {
             profile: ShaderProfile::DesktopGlsl330,
             uniforms: Vec::new(),
+            warnings: Vec::new(),
             source_map: ShaderSourceMap {
                 lines: vec![
                     ShaderSourceMapLine {

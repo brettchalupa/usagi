@@ -275,6 +275,7 @@ impl ShaderManager {
             return LoadOutcome::FailedKeepPrevious;
         }
         driver_log.forward();
+        report_shader_compiler_warnings(name, &fragment);
 
         let fs_mtime = file_mtime(vfs, &fragment.key);
         let vs_key = vs_pair.as_ref().map(|(k, _)| k.clone());
@@ -575,6 +576,19 @@ fn shader_uniform_type_map(metadata: &compiler::ShaderMetadata) -> HashMap<Strin
         uniforms.insert(uniform.name.clone(), uniform.ty.clone());
     }
     uniforms
+}
+
+fn report_shader_compiler_warnings(shader_name: &str, fragment: &FragmentSource) {
+    let Some(metadata) = fragment.metadata.as_ref() else {
+        return;
+    };
+    for warning in &metadata.warnings {
+        crate::msg::warn!(
+            "shader '{shader_name}' [compiler-warning]: {}\n{}",
+            fragment.key,
+            warning.render()
+        );
+    }
 }
 
 fn gl_driver_failure_message(

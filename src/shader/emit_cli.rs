@@ -22,6 +22,7 @@ struct EmittedShader {
     profile: ShaderProfile,
     source: String,
     source_map: super::compiler::ShaderSourceMap,
+    warnings: Vec<super::compiler::ShaderDiagnostic>,
 }
 
 pub(crate) fn run(
@@ -72,6 +73,7 @@ fn emit_source(src: &str, profiles: Vec<ShaderProfile>) -> Result<Vec<EmittedSha
                 profile,
                 source: compiled.source,
                 source_map: compiled.metadata.source_map,
+                warnings: compiled.metadata.warnings,
             }),
             Err(failure) => {
                 return Err(Error::Cli(format!(
@@ -99,6 +101,7 @@ fn format_json_stdout(input_path: &Path, emitted: &[EmittedShader]) -> Result<St
                         "kind": line.kind.as_str(),
                     })
                 }).collect::<Vec<_>>(),
+                "warnings": shader.warnings.iter().map(diagnostic_json).collect::<Vec<_>>(),
             })
         })
         .collect();
@@ -109,6 +112,18 @@ fn format_json_stdout(input_path: &Path, emitted: &[EmittedShader]) -> Result<St
         "outputs": outputs,
     }))
     .map_err(|e| Error::Cli(format!("serializing shader emit JSON: {e}")))
+}
+
+fn diagnostic_json(diagnostic: &super::compiler::ShaderDiagnostic) -> serde_json::Value {
+    json!({
+        "message": &diagnostic.message,
+        "line": diagnostic.line,
+        "column": diagnostic.column,
+        "byte_start": diagnostic.byte_start,
+        "byte_end": diagnostic.byte_end,
+        "source_line": &diagnostic.source_line,
+        "marker_len": diagnostic.marker_len,
+    })
 }
 
 fn format_stdout(emitted: &[EmittedShader]) -> String {
@@ -337,12 +352,35 @@ mod tests {
                 .contains("#version 330")
         );
         assert_eq!(value["outputs"][0]["source_map"][0]["kind"], "generated");
+        assert_eq!(value["outputs"][0]["warnings"], serde_json::json!([]));
         assert!(
             value["outputs"][0]["source_map"]
                 .as_array()
                 .unwrap()
                 .iter()
                 .any(|line| line["source_line"] == 4)
+        );
+    }
+
+    #[test]
+    fn json_output_includes_compiler_warnings() {
+        let shader = concat!(
+            "vec4 usagi_main(vec2 uv, vec4 color) {\n",
+            "    vec4 a = usagi_texture(texture0, uv);\n",
+            "    vec4 b = usagi_texture(texture0, uv);\n",
+            "    return a + b;\n",
+            "}\n",
+        );
+        let emitted = emit_source(shader, ShaderProfileTarget::Desktop.profiles()).unwrap();
+        let json = format_json_stdout(Path::new("shaders/warn.usagi.fs"), &emitted).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["outputs"][0]["warnings"][0]["line"], 3);
+        assert!(
+            value["outputs"][0]["warnings"][0]["message"]
+                .as_str()
+                .unwrap()
+                .contains("duplicate usagi_texture")
         );
     }
 }

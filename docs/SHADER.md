@@ -128,6 +128,12 @@ those are the runtime value shapes Usagi can reflect and validate from Lua.
 `texture0` is the only sampler in the generic contract and is bound by the
 engine.
 
+The compiler also emits non-fatal warnings in shader metadata. The first
+performance warning detects repeated `usagi_texture(texture0, same_uv)` samples
+and asks you to reuse the first sampled `vec4` when possible. Runtime shader
+load, `shaders check`, `shaders emit --format json`, `shaders inspect`, and the
+language server all surface these warnings.
+
 Top-level raw declarations are limited to balanced token sequences that end in a
 top-level semicolon, for example constants or structs that are valid on every
 target profile. Generic shaders must not declare target-specific stage IO,

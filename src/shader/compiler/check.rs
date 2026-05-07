@@ -6,7 +6,7 @@ use super::syntax::{
     IntrinsicKind, RawItem, RawStmt, ReturnStmt, ShaderItem, StatementAst, Token, TokenKind,
     UniformDecl, UsagiShaderModule, is_code_token,
 };
-use super::{CompileError, CompileResult, ShaderProfile};
+use super::{CompileError, CompileResult, CompileWarning, ShaderProfile};
 
 pub(super) fn validate(
     module: &UsagiShaderModule<'_>,
@@ -14,6 +14,10 @@ pub(super) fn validate(
 ) -> CompileResult<()> {
     validate_target_tokens(&module.tokens, emit_glsl::target(profile))?;
     SemanticValidator::new(module)?.validate()
+}
+
+pub(super) fn warnings(module: &UsagiShaderModule<'_>) -> Vec<CompileWarning> {
+    DuplicateTextureSampleAnalyzer::new(module).collect()
 }
 
 fn validate_target_tokens(tokens: &[Token<'_>], target: &GlslTarget) -> CompileResult<()> {
@@ -158,6 +162,94 @@ struct SemanticValidator<'module, 'src> {
     module: &'module UsagiShaderModule<'src>,
     globals: HashMap<&'src str, Symbol>,
     functions: HashMap<&'src str, FunctionSignature>,
+}
+
+struct DuplicateTextureSampleAnalyzer<'module, 'src> {
+    module: &'module UsagiShaderModule<'src>,
+    seen: HashMap<String, ExprCall<'src>>,
+    warnings: Vec<CompileWarning>,
+}
+
+impl<'module, 'src> DuplicateTextureSampleAnalyzer<'module, 'src> {
+    fn new(module: &'module UsagiShaderModule<'src>) -> Self {
+        Self {
+            module,
+            seen: HashMap::new(),
+            warnings: Vec::new(),
+        }
+    }
+
+    fn collect(mut self) -> Vec<CompileWarning> {
+        for item in &self.module.items {
+            match item {
+                ShaderItem::Function(function) => self.visit_block(&function.body),
+                ShaderItem::Raw(raw) => self.visit_expression(&raw.expression),
+                ShaderItem::Uniform(_) => {}
+            }
+        }
+        self.warnings
+    }
+
+    fn visit_block(&mut self, block: &BlockAst<'src>) {
+        for statement in &block.statements {
+            self.visit_statement(statement);
+        }
+    }
+
+    fn visit_statement(&mut self, statement: &StatementAst<'src>) {
+        match statement {
+            StatementAst::Return(stmt) => {
+                if let Some(expression) = &stmt.expression {
+                    self.visit_expression(expression);
+                }
+            }
+            StatementAst::If(stmt) => {
+                self.visit_expression(&stmt.condition);
+                self.visit_branch(&stmt.then_branch);
+                if let Some(branch) = &stmt.else_branch {
+                    self.visit_branch(branch);
+                }
+            }
+            StatementAst::Block(block) => self.visit_block(block),
+            StatementAst::Raw(stmt) => self.visit_expression(&stmt.expression),
+        }
+    }
+
+    fn visit_branch(&mut self, branch: &BranchAst<'src>) {
+        match branch {
+            BranchAst::Block(block) => self.visit_block(block),
+            BranchAst::Statement(statement) => self.visit_statement(statement),
+        }
+    }
+
+    fn visit_expression(&mut self, expression: &ExpressionAst<'src>) {
+        for node in &expression.nodes {
+            let ExpressionNode::Call(call) = node else {
+                continue;
+            };
+
+            if call.kind == ExprCallKind::Intrinsic(IntrinsicKind::Texture) {
+                self.record_texture_sample(call);
+            }
+            for arg in &call.args {
+                self.visit_expression(arg);
+            }
+        }
+    }
+
+    fn record_texture_sample(&mut self, call: &ExprCall<'src>) {
+        let key = normalized_expression_key(self.module, &call.args[1]);
+        if self.seen.contains_key(&key) {
+            self.warnings.push(CompileWarning::at(
+                format!(
+                    "duplicate usagi_texture(texture0, {key}) sample; reuse the first sample when possible"
+                ),
+                call.span,
+            ));
+            return;
+        }
+        self.seen.insert(key, call.clone());
+    }
 }
 
 impl<'module, 'src> SemanticValidator<'module, 'src> {
@@ -746,6 +838,43 @@ struct Declaration<'src> {
     name_span: super::syntax::SourceSpan,
     initializer_ty: Option<ShaderType>,
     initializer_span: Option<super::syntax::SourceSpan>,
+}
+
+fn normalized_expression_key(
+    module: &UsagiShaderModule<'_>,
+    expression: &ExpressionAst<'_>,
+) -> String {
+    let mut out = String::new();
+    write_normalized_expression_key(module, expression, &mut out);
+    out
+}
+
+fn write_normalized_expression_key(
+    module: &UsagiShaderModule<'_>,
+    expression: &ExpressionAst<'_>,
+    out: &mut String,
+) {
+    for node in &expression.nodes {
+        match node {
+            ExpressionNode::Token(idx) => {
+                let token = &module.tokens[*idx];
+                if is_code_token(token) {
+                    out.push_str(token.text);
+                }
+            }
+            ExpressionNode::Call(call) => {
+                out.push_str(call.name);
+                out.push('(');
+                for (idx, arg) in call.args.iter().enumerate() {
+                    if idx > 0 {
+                        out.push(',');
+                    }
+                    write_normalized_expression_key(module, arg, out);
+                }
+                out.push(')');
+            }
+        }
+    }
 }
 
 fn validate_user_binding_name(name: &str, span: super::syntax::SourceSpan) -> CompileResult<()> {

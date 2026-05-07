@@ -280,6 +280,9 @@ impl ShaderLanguageServer {
                         "range": range_for_span(text, uniform.declaration_span.start, uniform.declaration_span.end),
                     })
                 }).collect::<Vec<_>>(),
+                "warnings": compiled.metadata.warnings.iter().map(|warning| {
+                    lsp_warning(text, profile, warning)
+                }).collect::<Vec<_>>(),
             }),
             Err(failure) => json!({
                 "ok": false,
@@ -347,15 +350,24 @@ fn diagnostics_for_text(text: &str, target: LspTarget) -> Vec<Value> {
         )];
     }
 
-    target
-        .profiles()
-        .into_iter()
-        .filter_map(|profile| {
-            super::compile_generic_fragment_with_report(text, profile)
-                .err()
-                .map(|failure| lsp_diagnostic(text, profile, failure.diagnostic.as_ref()))
-        })
-        .collect()
+    let mut diagnostics = Vec::new();
+    for profile in target.profiles() {
+        match super::compile_generic_fragment_with_report(text, profile) {
+            Ok(compiled) => {
+                diagnostics.extend(
+                    compiled
+                        .metadata
+                        .warnings
+                        .iter()
+                        .map(|warning| lsp_warning(text, profile, warning)),
+                );
+            }
+            Err(failure) => {
+                diagnostics.push(lsp_diagnostic(text, profile, failure.diagnostic.as_ref()));
+            }
+        }
+    }
+    diagnostics
 }
 
 fn lsp_diagnostic(text: &str, profile: ShaderProfile, diagnostic: &ShaderDiagnostic) -> Value {
@@ -370,6 +382,24 @@ fn lsp_diagnostic(text: &str, profile: ShaderProfile, diagnostic: &ShaderDiagnos
     json!({
         "range": range,
         "severity": 1,
+        "code": profile.label(),
+        "source": DIAGNOSTIC_SOURCE,
+        "message": format!("[{}] {}", profile.label(), diagnostic.message),
+    })
+}
+
+fn lsp_warning(text: &str, profile: ShaderProfile, diagnostic: &ShaderDiagnostic) -> Value {
+    let range = match (diagnostic.byte_start, diagnostic.byte_end) {
+        (Some(start), Some(end)) => range_for_span(text, start, end),
+        _ => json!({
+            "start": { "line": 0, "character": 0 },
+            "end": { "line": 0, "character": 1 },
+        }),
+    };
+
+    json!({
+        "range": range,
+        "severity": 2,
         "code": profile.label(),
         "source": DIAGNOSTIC_SOURCE,
         "message": format!("[{}] {}", profile.label(), diagnostic.message),
@@ -872,6 +902,37 @@ mod tests {
                 .unwrap()
                 .iter()
                 .any(|line| line["sourceLine"] == 4)
+        );
+        assert_eq!(responses[0]["result"]["warnings"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn did_open_publishes_compiler_warnings() {
+        let mut server = ShaderLanguageServer::new();
+        let responses = server.handle_message(notification(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {
+                    "uri": URI,
+                    "text": concat!(
+                        "vec4 usagi_main(vec2 uv, vec4 color) {\n",
+                        "    vec4 a = usagi_texture(texture0, uv);\n",
+                        "    vec4 b = usagi_texture(texture0, uv);\n",
+                        "    return a + b;\n",
+                        "}\n",
+                    ),
+                }
+            }),
+        ));
+
+        assert_eq!(responses.len(), 1);
+        let diagnostic = &responses[0]["params"]["diagnostics"][0];
+        assert_eq!(diagnostic["severity"], 2);
+        assert!(
+            diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("duplicate usagi_texture")
         );
     }
 

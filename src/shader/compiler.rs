@@ -40,10 +40,14 @@ pub(crate) fn compile_fragment_with_report(
     check::validate(&module, profile).map_err(|err| {
         CompileFailure::from_diagnostic(err.to_diagnostic(src, module.source_offset))
     })?;
+    let warnings = check::warnings(&module)
+        .into_iter()
+        .map(|warning| warning.to_diagnostic(src, module.source_offset))
+        .collect();
     let ir = ir::lower(&module);
     let emission = emit_glsl::emit(&ir, profile)
         .map_err(|message| CompileFailure::from_diagnostic(ShaderDiagnostic::new(message)))?;
-    let metadata = ShaderMetadata::from_module(profile, &module, emission.source_map);
+    let metadata = ShaderMetadata::from_module(profile, &module, emission.source_map, warnings);
     Ok(CompiledFragment {
         source: emission.source,
         metadata,
@@ -70,6 +74,7 @@ pub(crate) struct CompiledFragment {
 pub(crate) struct ShaderMetadata {
     pub(crate) profile: ShaderProfile,
     pub(crate) uniforms: Vec<ShaderUniform>,
+    pub(crate) warnings: Vec<ShaderDiagnostic>,
     pub(crate) source_map: ShaderSourceMap,
 }
 
@@ -78,6 +83,7 @@ impl ShaderMetadata {
         profile: ShaderProfile,
         module: &UsagiShaderModule<'_>,
         source_map: ShaderSourceMap,
+        warnings: Vec<ShaderDiagnostic>,
     ) -> Self {
         let uniform_count = module
             .items
@@ -105,6 +111,7 @@ impl ShaderMetadata {
         Self {
             profile,
             uniforms,
+            warnings,
             source_map,
         }
     }
@@ -280,7 +287,7 @@ impl ShaderDiagnostic {
         }
     }
 
-    fn render(&self) -> String {
+    pub(crate) fn render(&self) -> String {
         let (Some(line), Some(column), Some(source_line), Some(marker_len)) = (
             self.line,
             self.column,
@@ -324,34 +331,62 @@ impl CompileError {
     }
 
     fn to_diagnostic(&self, src: &str, source_offset: usize) -> ShaderDiagnostic {
-        let Some(span) = self.span else {
-            return ShaderDiagnostic::new(self.message.clone());
-        };
-
-        let absolute_start = source_offset.saturating_add(span.start).min(src.len());
-        let absolute_end = source_offset.saturating_add(span.end).min(src.len());
-        let (line, column, line_start, line_end) = syntax::source_location(src, absolute_start);
-        let source_line = src[line_start..line_end].trim_end_matches('\r').to_string();
-        let marker_len = src[absolute_start..absolute_end]
-            .chars()
-            .take_while(|ch| *ch != '\n' && *ch != '\r')
-            .count()
-            .max(1);
-
-        ShaderDiagnostic {
-            message: self.message.clone(),
-            line: Some(line),
-            column: Some(column),
-            byte_start: Some(absolute_start),
-            byte_end: Some(absolute_end),
-            source_line: Some(source_line),
-            marker_len: Some(marker_len),
-        }
+        diagnostic_from_parts(&self.message, self.span, src, source_offset)
     }
 
     #[cfg(test)]
     fn render(&self, src: &str, source_offset: usize) -> String {
         self.to_diagnostic(src, source_offset).render()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct CompileWarning {
+    message: String,
+    span: Option<SourceSpan>,
+}
+
+impl CompileWarning {
+    pub(super) fn at(message: impl Into<String>, span: SourceSpan) -> Self {
+        Self {
+            message: message.into(),
+            span: Some(span),
+        }
+    }
+
+    fn to_diagnostic(&self, src: &str, source_offset: usize) -> ShaderDiagnostic {
+        diagnostic_from_parts(&self.message, self.span, src, source_offset)
+    }
+}
+
+fn diagnostic_from_parts(
+    message: &str,
+    span: Option<SourceSpan>,
+    src: &str,
+    source_offset: usize,
+) -> ShaderDiagnostic {
+    let Some(span) = span else {
+        return ShaderDiagnostic::new(message.to_string());
+    };
+
+    let absolute_start = source_offset.saturating_add(span.start).min(src.len());
+    let absolute_end = source_offset.saturating_add(span.end).min(src.len());
+    let (line, column, line_start, line_end) = syntax::source_location(src, absolute_start);
+    let source_line = src[line_start..line_end].trim_end_matches('\r').to_string();
+    let marker_len = src[absolute_start..absolute_end]
+        .chars()
+        .take_while(|ch| *ch != '\n' && *ch != '\r')
+        .count()
+        .max(1);
+
+    ShaderDiagnostic {
+        message: message.to_string(),
+        line: Some(line),
+        column: Some(column),
+        byte_start: Some(absolute_start),
+        byte_end: Some(absolute_end),
+        source_line: Some(source_line),
+        marker_len: Some(marker_len),
     }
 }
 
@@ -396,6 +431,7 @@ mod tests {
 
         assert_eq!(compiled.metadata.profile, ShaderProfile::DesktopGlsl330);
         assert_eq!(compiled.metadata.uniforms.len(), 3);
+        assert!(compiled.metadata.warnings.is_empty());
         assert_eq!(
             compiled
                 .metadata
@@ -420,5 +456,30 @@ mod tests {
                     .starts_with("uniform ")
             );
         }
+    }
+
+    #[test]
+    fn compiler_metadata_records_duplicate_texture_sample_warnings() {
+        let src = concat!(
+            "#usagi shader 1\n\n",
+            "vec4 usagi_main(vec2 uv, vec4 color) {\n",
+            "    vec4 a = usagi_texture(texture0, uv);\n",
+            "    vec4 b = usagi_texture(texture0, uv);\n",
+            "    return a + b;\n",
+            "}\n",
+        );
+
+        let compiled = compile_fragment_with_metadata(src, ShaderProfile::DesktopGlsl330).unwrap();
+
+        assert_eq!(compiled.metadata.warnings.len(), 1);
+        let warning = &compiled.metadata.warnings[0];
+        assert!(warning.message.contains("duplicate usagi_texture"));
+        assert!(warning.message.contains("reuse the first sample"));
+        assert_eq!(warning.line, Some(5));
+        assert_eq!(warning.column, Some(14));
+        assert_eq!(
+            warning.source_line.as_deref(),
+            Some("    vec4 b = usagi_texture(texture0, uv);")
+        );
     }
 }

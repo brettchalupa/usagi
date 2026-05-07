@@ -103,6 +103,18 @@ fn format_text_report(input_path: &Path, src: &str, reports: &[ShaderInspectRepo
         if let Some((first, last)) = report.metadata.source_map.original_source_line_range() {
             out.push_str(&format!("  usagi source lines: {}-{}\n", first, last));
         }
+        if report.metadata.warnings.is_empty() {
+            out.push_str("  warnings: none\n");
+        } else {
+            out.push_str("  warnings:\n");
+            for warning in &report.metadata.warnings {
+                let location = match (warning.line, warning.column) {
+                    (Some(line), Some(column)) => format!("line {line}, column {column}"),
+                    _ => "unknown location".to_string(),
+                };
+                out.push_str(&format!("    {} at {}\n", warning.message, location));
+            }
+        }
         if report.metadata.uniforms.is_empty() {
             out.push_str("  uniforms: none\n");
             continue;
@@ -141,6 +153,7 @@ fn format_json_report(
                 "uniforms": report.metadata.uniforms.iter().map(|uniform| {
                     uniform_json(src, uniform)
                 }).collect::<Vec<_>>(),
+                "warnings": report.metadata.warnings.iter().map(diagnostic_json).collect::<Vec<_>>(),
             })
         })
         .collect::<Vec<_>>();
@@ -262,6 +275,33 @@ mod tests {
             value["profiles"][0]["generated"]["usagi_line_range"]["first"],
             3
         );
+        assert_eq!(value["profiles"][0]["warnings"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn inspect_json_and_text_include_compiler_warnings() {
+        let shader = concat!(
+            "vec4 usagi_main(vec2 uv, vec4 color) {\n",
+            "    vec4 a = usagi_texture(texture0, uv);\n",
+            "    vec4 b = usagi_texture(texture0, uv);\n",
+            "    return a + b;\n",
+            "}\n",
+        );
+        let reports = inspect_source(shader, ShaderProfileTarget::Desktop.profiles()).unwrap();
+        let text = format_text_report(Path::new("shaders/warn.usagi.fs"), shader, &reports);
+        let json =
+            format_json_report(Path::new("shaders/warn.usagi.fs"), shader, &reports).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert!(text.contains("warnings:"));
+        assert!(text.contains("duplicate usagi_texture"));
+        assert_eq!(value["profiles"][0]["warnings"][0]["line"], 3);
+        assert!(
+            value["profiles"][0]["warnings"][0]["message"]
+                .as_str()
+                .unwrap()
+                .contains("reuse the first sample")
+        );
     }
 
     #[test]
@@ -276,6 +316,7 @@ mod tests {
 
         assert!(output.contains("shader inspect: shaders/plain.usagi.fs"));
         assert!(output.contains("GLSL 330"));
+        assert!(output.contains("warnings: none"));
         assert!(output.contains("uniforms: none"));
     }
 

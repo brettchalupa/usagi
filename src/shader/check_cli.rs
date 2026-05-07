@@ -40,6 +40,7 @@ struct ShaderCheckReport {
     shader_count: usize,
     compile_count: usize,
     failures: Vec<ShaderCheckFailure>,
+    warnings: Vec<ShaderCheckWarning>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -49,10 +50,18 @@ struct ShaderCheckFailure {
     diagnostic: ShaderCheckDiagnostic,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct ShaderCheckWarning {
+    path: PathBuf,
+    profile: ShaderProfile,
+    diagnostic: ShaderCheckDiagnostic,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ShaderCheckDiagnosticKind {
     Source,
     Compiler,
+    CompilerWarning,
 }
 
 impl ShaderCheckDiagnosticKind {
@@ -60,6 +69,7 @@ impl ShaderCheckDiagnosticKind {
         match self {
             Self::Source => "source",
             Self::Compiler => "compiler",
+            Self::CompilerWarning => "compiler-warning",
         }
     }
 }
@@ -93,6 +103,19 @@ impl ShaderCheckDiagnostic {
     fn compiler(diagnostic: &super::compiler::ShaderDiagnostic) -> Self {
         Self {
             kind: ShaderCheckDiagnosticKind::Compiler,
+            message: diagnostic.message.clone(),
+            line: diagnostic.line,
+            column: diagnostic.column,
+            byte_start: diagnostic.byte_start,
+            byte_end: diagnostic.byte_end,
+            source_line: diagnostic.source_line.clone(),
+            marker_len: diagnostic.marker_len,
+        }
+    }
+
+    fn compiler_warning(diagnostic: &super::compiler::ShaderDiagnostic) -> Self {
+        Self {
+            kind: ShaderCheckDiagnosticKind::CompilerWarning,
             message: diagnostic.message.clone(),
             line: diagnostic.line,
             column: diagnostic.column,
@@ -154,6 +177,10 @@ pub(crate) fn run(
         return Err(Error::Cli(format_failure_report(project_root, &report)));
     }
 
+    if !report.warnings.is_empty() {
+        crate::msg::warn!("{}", format_warning_report(project_root, &report));
+    }
+
     if report.shader_count == 0 {
         crate::msg::info!(
             "shader check passed: no generic shaders found in {}",
@@ -172,6 +199,7 @@ pub(crate) fn run(
 fn check_project(project_root: &Path, profiles: &[ShaderProfile]) -> Result<ShaderCheckReport> {
     let shaders = collect_generic_shader_files(project_root)?;
     let mut failures = Vec::new();
+    let mut warnings = Vec::new();
     let mut compile_count = 0usize;
 
     for path in &shaders {
@@ -189,12 +217,23 @@ fn check_project(project_root: &Path, profiles: &[ShaderProfile]) -> Result<Shad
 
         for profile in profiles {
             compile_count += 1;
-            if let Err(failure) = super::compile_generic_fragment_with_report(&src, *profile) {
-                failures.push(ShaderCheckFailure {
-                    path: path.clone(),
-                    profile: Some(*profile),
-                    diagnostic: ShaderCheckDiagnostic::compiler(failure.diagnostic.as_ref()),
-                });
+            match super::compile_generic_fragment_with_report(&src, *profile) {
+                Ok(compiled) => {
+                    warnings.extend(compiled.metadata.warnings.iter().map(|warning| {
+                        ShaderCheckWarning {
+                            path: path.clone(),
+                            profile: *profile,
+                            diagnostic: ShaderCheckDiagnostic::compiler_warning(warning),
+                        }
+                    }));
+                }
+                Err(failure) => {
+                    failures.push(ShaderCheckFailure {
+                        path: path.clone(),
+                        profile: Some(*profile),
+                        diagnostic: ShaderCheckDiagnostic::compiler(failure.diagnostic.as_ref()),
+                    });
+                }
             }
         }
     }
@@ -203,6 +242,7 @@ fn check_project(project_root: &Path, profiles: &[ShaderProfile]) -> Result<Shad
         shader_count: shaders.len(),
         compile_count,
         failures,
+        warnings,
     })
 }
 
@@ -259,6 +299,32 @@ fn format_failure_report(project_root: &Path, report: &ShaderCheckReport) -> Str
         out.push('\n');
         out.push_str(failure.diagnostic.render_text().trim_end());
     }
+    if !report.warnings.is_empty() {
+        out.push_str("\n\nWarnings:\n");
+        out.push_str(format_warning_lines(project_root, report).trim_end());
+    }
+    out
+}
+
+fn format_warning_report(project_root: &Path, report: &ShaderCheckReport) -> String {
+    format!(
+        "shader check warning: {} warning(s) across {} generic shader(s)\n{}",
+        report.warnings.len(),
+        report.shader_count,
+        format_warning_lines(project_root, report).trim_end()
+    )
+}
+
+fn format_warning_lines(project_root: &Path, report: &ShaderCheckReport) -> String {
+    let mut out = String::new();
+    for warning in &report.warnings {
+        out.push_str(&display_shader_path(project_root, &warning.path));
+        out.push_str(" [");
+        out.push_str(warning.profile.label());
+        out.push_str("]\n");
+        out.push_str(warning.diagnostic.render_text().trim_end());
+        out.push_str("\n\n");
+    }
     out
 }
 
@@ -286,6 +352,25 @@ fn format_json_report(
             })
         })
         .collect();
+    let warnings: Vec<_> = report
+        .warnings
+        .iter()
+        .map(|warning| {
+            let diagnostic = &warning.diagnostic;
+            json!({
+                "path": json_shader_path(project_root, &warning.path),
+                "profile": warning.profile.label(),
+                "kind": diagnostic.kind.as_str(),
+                "message": diagnostic.message.as_str(),
+                "line": diagnostic.line,
+                "column": diagnostic.column,
+                "byte_start": diagnostic.byte_start,
+                "byte_end": diagnostic.byte_end,
+                "source_line": diagnostic.source_line.as_deref(),
+                "marker_len": diagnostic.marker_len,
+            })
+        })
+        .collect();
 
     serde_json::to_string_pretty(&json!({
         "ok": report.failures.is_empty(),
@@ -295,6 +380,8 @@ fn format_json_report(
             .collect::<Vec<_>>(),
         "shader_count": report.shader_count,
         "compile_count": report.compile_count,
+        "warning_count": report.warnings.len(),
+        "warnings": warnings,
         "failure_count": report.failures.len(),
         "failures": failures,
     }))
@@ -392,6 +479,7 @@ mod tests {
         assert_eq!(report.shader_count, 1);
         assert_eq!(report.compile_count, 1);
         assert!(report.failures.is_empty());
+        assert!(report.warnings.is_empty());
     }
 
     #[test]
@@ -435,6 +523,7 @@ mod tests {
         assert_eq!(value["shader_count"], 1);
         assert_eq!(value["compile_count"], 1);
         assert_eq!(value["failure_count"], 1);
+        assert_eq!(value["warning_count"], 0);
         assert_eq!(value["target_profiles"][0], "GLSL 330");
         assert_eq!(value["failures"][0]["path"], "shaders/bad.usagi.fs");
         assert_eq!(value["failures"][0]["profile"], "GLSL 330");
@@ -470,6 +559,7 @@ mod tests {
         assert_eq!(value["shader_count"], 1);
         assert_eq!(value["compile_count"], 0);
         assert_eq!(value["failure_count"], 1);
+        assert_eq!(value["warning_count"], 0);
         assert_eq!(value["failures"][0]["path"], "shaders/bad.usagi.fs");
         assert_eq!(value["failures"][0]["profile"], serde_json::Value::Null);
         assert_eq!(value["failures"][0]["kind"], "source");
@@ -481,5 +571,39 @@ mod tests {
         );
         assert_eq!(value["failures"][0]["line"], serde_json::Value::Null);
         assert_eq!(value["failures"][0]["source_line"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn json_report_exposes_structured_compiler_warnings() {
+        let dir = project();
+        fs::write(
+            dir.path().join("shaders/warn.usagi.fs"),
+            concat!(
+                "vec4 usagi_main(vec2 uv, vec4 color) {\n",
+                "    vec4 a = usagi_texture(texture0, uv);\n",
+                "    vec4 b = usagi_texture(texture0, uv);\n",
+                "    return a + b;\n",
+                "}\n",
+            ),
+        )
+        .unwrap();
+
+        let profiles = ShaderCheckTarget::Desktop.profiles();
+        let report = check_project(dir.path(), &profiles).unwrap();
+        let text = format_warning_report(dir.path(), &report);
+        let json = format_json_report(dir.path(), &profiles, &report).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert!(report.failures.is_empty());
+        assert_eq!(report.warnings.len(), 1);
+        assert!(text.contains("warn.usagi.fs [GLSL 330]"));
+        assert!(text.contains("duplicate usagi_texture"));
+        assert_eq!(value["ok"], true);
+        assert_eq!(value["warning_count"], 1);
+        assert_eq!(value["warnings"][0]["path"], "shaders/warn.usagi.fs");
+        assert_eq!(value["warnings"][0]["profile"], "GLSL 330");
+        assert_eq!(value["warnings"][0]["kind"], "compiler-warning");
+        assert_eq!(value["warnings"][0]["line"], 3);
+        assert_eq!(value["warnings"][0]["column"], 14);
     }
 }
