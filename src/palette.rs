@@ -61,6 +61,13 @@ pub fn color(c: impl Into<i32>) -> Color {
     }
 }
 
+pub fn index_for_rgb(r: u8, g: u8, b: u8) -> Option<i32> {
+    (0..=15).find(|&idx| {
+        let c = color(idx);
+        (c.r, c.g, c.b) == (r, g, b)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,6 +101,19 @@ mod tests {
         for i in 0..=15 {
             assert_eq!(color(i).a, 255, "index {i} should be fully opaque");
         }
+    }
+
+    #[test]
+    fn exact_rgb_maps_back_to_palette_index() {
+        for i in 0..=15 {
+            let c = color(i);
+            assert_eq!(index_for_rgb(c.r, c.g, c.b), Some(i));
+        }
+    }
+
+    #[test]
+    fn non_palette_rgb_returns_none() {
+        assert_eq!(index_for_rgb(1, 2, 3), None);
     }
 
     #[test]

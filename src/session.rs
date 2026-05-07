@@ -15,7 +15,7 @@ use crate::assets::{
 use crate::capture::{Recorder, save_screenshot};
 use crate::effect::Effects;
 use crate::input;
-use crate::palette::color;
+use crate::palette::{color, index_for_rgb};
 use crate::pause::{PauseAction, PauseMenu};
 use crate::render::{draw_error_overlay, draw_render_target, game_view_transform};
 use crate::shader::ShaderManager;
@@ -29,6 +29,120 @@ use std::time::SystemTime;
 /// Argument tuple for `gfx.sspr_ex`: `(sx, sy, sw, sh, dx, dy, dw, dh,
 /// flip_x, flip_y)`. Aliased so the closure signature stays readable.
 type SsprExArgs = (f32, f32, f32, f32, f32, f32, f32, f32, bool, bool);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ScreenPixel {
+    r: u8,
+    g: u8,
+    b: u8,
+    palette_index: Option<i32>,
+}
+
+#[derive(Default)]
+struct PixelSnapshot {
+    width: usize,
+    height: usize,
+    pixels: Vec<Color>,
+}
+
+impl PixelSnapshot {
+    fn update_from_render_target(&mut self, rt: &RenderTexture2D) -> Result<(), String> {
+        let image = rt
+            .texture()
+            .load_image()
+            .map_err(|e| format!("read RT pixels: {e}"))?;
+        let pixels = image.get_image_data();
+        let width = rt.texture().width as usize;
+        let height = rt.texture().height as usize;
+        let expected = width.saturating_mul(height);
+        if pixels.len() != expected {
+            return Err(format!(
+                "unexpected RT pixel count: got {}, expected {expected}",
+                pixels.len()
+            ));
+        }
+
+        self.width = width;
+        self.height = height;
+        self.pixels.clear();
+        self.pixels.resize(expected, Color::BLANK);
+        for y in 0..height {
+            let flipped = height - 1 - y;
+            let src_off = flipped * width;
+            let dst_off = y * width;
+            self.pixels[dst_off..dst_off + width]
+                .copy_from_slice(&pixels[src_off..src_off + width]);
+        }
+        Ok(())
+    }
+
+    fn sample(&self, x: f32, y: f32) -> Option<ScreenPixel> {
+        let x = x.round() as i32;
+        let y = y.round() as i32;
+        if x < 0 || y < 0 {
+            return None;
+        }
+        let x = x as usize;
+        let y = y as usize;
+        if x >= self.width || y >= self.height {
+            return None;
+        }
+        let p = self.pixels[y * self.width + x];
+        Some(ScreenPixel {
+            r: p.r,
+            g: p.g,
+            b: p.b,
+            palette_index: index_for_rgb(p.r, p.g, p.b),
+        })
+    }
+
+    #[cfg(test)]
+    fn from_top_left_pixels(width: usize, height: usize, pixels: Vec<Color>) -> Self {
+        assert_eq!(pixels.len(), width * height);
+        Self {
+            width,
+            height,
+            pixels,
+        }
+    }
+}
+
+#[derive(Default)]
+struct PixelReadback {
+    enabled: std::cell::Cell<bool>,
+    snapshot: std::cell::RefCell<PixelSnapshot>,
+}
+
+impl PixelReadback {
+    fn sample(&self, x: f32, y: f32) -> Option<ScreenPixel> {
+        self.enabled.set(true);
+        self.snapshot.borrow().sample(x, y)
+    }
+
+    fn refresh_if_enabled(&self, rt: &RenderTexture2D) {
+        if !self.enabled.get() {
+            return;
+        }
+        if let Err(e) = self.snapshot.borrow_mut().update_from_render_target(rt) {
+            crate::msg::err!("gfx.px: {e}");
+        }
+    }
+}
+
+fn screen_pixel_to_lua(lua: &Lua, pixel: ScreenPixel) -> LuaResult<LuaValue> {
+    let table = lua.create_table()?;
+    table.raw_set(1, pixel.r)?;
+    table.raw_set(2, pixel.g)?;
+    table.raw_set(3, pixel.b)?;
+    table.set("r", pixel.r)?;
+    table.set("g", pixel.g)?;
+    table.set("b", pixel.b)?;
+    if let Some(idx) = pixel.palette_index {
+        table.raw_set(4, idx)?;
+        table.set("palette_index", idx)?;
+    }
+    Ok(LuaValue::Table(table))
+}
 
 /// Installs `usagi.measure_text(text)` once at session creation. The
 /// closure captures a `&'static Font` so it's not tied to a per-frame
@@ -383,6 +497,11 @@ struct Session {
     /// than letterbox black. Defaults to 0 (black) so a game that
     /// never calls `gfx.clear` gets the prior behavior.
     last_clear: std::cell::Cell<i32>,
+    /// Lazy CPU-side copy of the last completed game render target.
+    /// `gfx.px` and `gfx.palette` read from this without stalling the
+    /// GPU per call; the copy is refreshed once per frame after user
+    /// code first asks for pixel data.
+    pixel_readback: Rc<PixelReadback>,
 
     /// Engine-level pause overlay. While `pause.open` is true, `_update`
     /// and `_draw` are skipped and the RT renders a black "PAUSED"
@@ -665,6 +784,7 @@ impl Session {
             elapsed: 0.0,
             effects,
             last_clear: std::cell::Cell::new(0),
+            pixel_readback: Rc::new(PixelReadback::default()),
             pause: PauseMenu::new(),
             input_bridge,
             gamepad_probe: input::GamepadProbe::new(),
@@ -778,6 +898,7 @@ impl Session {
             }
             self.run_draw(dt, fps);
         }
+        self.pixel_readback.refresh_if_enabled(&self.rt);
 
         self.shader
             .borrow_mut()
@@ -1102,6 +1223,7 @@ impl Session {
             last_error,
             show_fps,
             last_clear,
+            pixel_readback,
             ..
         } = self;
         let mut d_rt = rl.begin_texture_mode(thread, rt);
@@ -1110,6 +1232,8 @@ impl Session {
             let sprites_ref = sprites.texture();
             let font_ref: &Font = font;
             let sfx_ref: &SfxLibrary<'static> = sfx;
+            let pixel_readback_for_px = Rc::clone(pixel_readback);
+            let pixel_readback_for_palette = Rc::clone(pixel_readback);
             record_err(
                 last_error,
                 "_draw",
@@ -1194,6 +1318,17 @@ impl Session {
                             color(c),
                         );
                         Ok(())
+                    })?;
+                    let px = scope.create_function(move |lua, (x, y): (f32, f32)| {
+                        match pixel_readback_for_px.sample(x, y) {
+                            Some(pixel) => screen_pixel_to_lua(lua, pixel),
+                            None => Ok(LuaValue::Nil),
+                        }
+                    })?;
+                    let palette = scope.create_function(move |_, (x, y): (f32, f32)| {
+                        Ok(pixel_readback_for_palette
+                            .sample(x, y)
+                            .and_then(|pixel| pixel.palette_index))
                     })?;
                     // Resolves a 1-based sprite index into a (col, row,
                     // cell) tuple on the loaded sheet, or None for
@@ -1380,6 +1515,11 @@ impl Session {
                     gfx_tbl.set(
                         "pixel",
                         wrap(lua, pixel, "gfx.pixel", &["number", "number", "number"])?,
+                    )?;
+                    gfx_tbl.set("px", wrap(lua, px, "gfx.px", &["number", "number"])?)?;
+                    gfx_tbl.set(
+                        "palette",
+                        wrap(lua, palette, "gfx.palette", &["number", "number"])?,
                     )?;
                     gfx_tbl.set(
                         "spr",
@@ -1599,6 +1739,121 @@ fn run_emscripten(session: Box<Session>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pixel_snapshot_samples_rgb_and_exact_palette_index() {
+        let snapshot = PixelSnapshot::from_top_left_pixels(
+            2,
+            2,
+            vec![color(0), color(7), Color::new(1, 2, 3, 255), color(15)],
+        );
+
+        assert_eq!(
+            snapshot.sample(1.0, 0.0),
+            Some(ScreenPixel {
+                r: 255,
+                g: 241,
+                b: 232,
+                palette_index: Some(7),
+            })
+        );
+        assert_eq!(
+            snapshot.sample(0.0, 1.0),
+            Some(ScreenPixel {
+                r: 1,
+                g: 2,
+                b: 3,
+                palette_index: None,
+            })
+        );
+        assert_eq!(snapshot.sample(-1.0, 0.0), None);
+        assert_eq!(snapshot.sample(2.0, 0.0), None);
+    }
+
+    #[test]
+    #[ignore = "requires a desktop OpenGL context; run with `cargo test pixel_snapshot_reads_render_target_in_game_coordinates -- --ignored`"]
+    fn pixel_snapshot_reads_render_target_in_game_coordinates() {
+        let (mut rl, thread) = sola_raylib::init()
+            .size(16, 16)
+            .title("usagi pixel readback test")
+            .log_level(TraceLogLevel::LOG_WARNING)
+            .build();
+        let mut rt = rl.load_render_texture(&thread, 2, 2).unwrap();
+        {
+            let mut d = rl.begin_texture_mode(&thread, &mut rt);
+            d.clear_background(color(0));
+            d.draw_pixel(1, 0, color(7));
+            d.draw_pixel(0, 1, Color::new(1, 2, 3, 255));
+        }
+
+        let mut snapshot = PixelSnapshot::default();
+        snapshot.update_from_render_target(&rt).unwrap();
+
+        assert_eq!(
+            snapshot.sample(1.0, 0.0),
+            Some(ScreenPixel {
+                r: 255,
+                g: 241,
+                b: 232,
+                palette_index: Some(7),
+            })
+        );
+        assert_eq!(
+            snapshot.sample(0.0, 1.0),
+            Some(ScreenPixel {
+                r: 1,
+                g: 2,
+                b: 3,
+                palette_index: None,
+            })
+        );
+    }
+
+    #[test]
+    #[ignore = "requires a desktop OpenGL context; run with `cargo test gfx_pixel_readback_reads_previous_completed_frame -- --ignored`"]
+    fn gfx_pixel_readback_reads_previous_completed_frame() {
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("main.lua");
+        std::fs::write(
+            &script,
+            r#"
+State = { frame = 0 }
+
+function _config()
+  return { name = "pixel-readback", game_width = 2, game_height = 2 }
+end
+
+function _draw(_dt)
+  State.frame = State.frame + 1
+  if State.frame == 1 then
+    gfx.clear(gfx.COLOR_BLACK)
+    gfx.pixel(1, 0, gfx.COLOR_WHITE)
+    State.first_read_nil = gfx.px(1, 0) == nil
+  elseif State.frame == 2 then
+    local p = gfx.px(1, 0)
+    State.pixel_ok = p ~= nil
+      and p[1] == 255 and p[2] == 241 and p[3] == 232
+      and p.r == 255 and p.g == 241 and p.b == 232
+      and p[4] == gfx.COLOR_WHITE
+      and p.palette_index == gfx.COLOR_WHITE
+    State.palette_ok = gfx.palette(1, 0) == gfx.COLOR_WHITE
+    gfx.clear(gfx.COLOR_BLACK)
+  end
+end
+"#,
+        )
+        .unwrap();
+        let vfs: Rc<dyn VirtualFs> = Rc::new(crate::vfs::FsBacked::from_script_path(&script));
+        let mut session = Session::new(vfs, false).unwrap();
+
+        assert!(session.frame());
+        assert!(session.frame());
+
+        let state: LuaTable = session.lua.globals().get("State").unwrap();
+        assert!(state.get::<bool>("first_read_nil").unwrap());
+        assert!(state.get::<bool>("pixel_ok").unwrap());
+        assert!(state.get::<bool>("palette_ok").unwrap());
+    }
 
     #[test]
     fn config_returns_title_field() {

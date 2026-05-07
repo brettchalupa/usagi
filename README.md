@@ -231,6 +231,8 @@ gfx.circ(x, y, r, color)
 gfx.circ_fill(x, y, r, color)
 gfx.line(x1, y1, x2, y2, color)
 gfx.pixel(x, y, color)
+gfx.px(x, y)
+gfx.palette(x, y)
 gfx.spr(index, x, y)
 gfx.spr_ex(index, x, y, flip_x, flip_y)
 gfx.sspr(sx, sy, sw, sh, dx, dy)
@@ -440,6 +442,12 @@ palette indices 0-15; use the named constants.
 - `gfx.circ_fill(x, y, r, color)` — filled circle centered at `(x, y)`.
 - `gfx.line(x1, y1, x2, y2, color)` — line from `(x1, y1)` to `(x2, y2)`.
 - `gfx.pixel(x, y, color)` — set a single pixel.
+- `gfx.px(x, y)` — read the last completed game-screen pixel before
+  post-process shaders. Returns `{r, g, b, palette_index=...}` plus array slots
+  `1..4`, or `nil` when outside the game screen.
+- `gfx.palette(x, y)` — read the exact Pico-8 palette index at a game-screen
+  pixel before post-process shaders. Returns `nil` when outside the screen or
+  when the color is not an exact palette color.
 - `gfx.text(text, x, y, color)` — bundled monogram font (5×7 pixel font, 16 px
   line height; see Credits below). To measure text dimensions, use
   `usagi.measure_text` — it lives on `usagi` rather than `gfx` because

@@ -22,6 +22,16 @@
 ---@field COLOR_PEACH        integer  15
 gfx = {}
 
+---@class Usagi.Pixel
+---@field [1] integer  red channel, 0-255
+---@field [2] integer  green channel, 0-255
+---@field [3] integer  blue channel, 0-255
+---@field [4] integer|nil  exact gfx.COLOR_* palette index, when present
+---@field r integer  red channel, 0-255
+---@field g integer  green channel, 0-255
+---@field b integer  blue channel, 0-255
+---@field palette_index integer|nil  exact gfx.COLOR_* palette index, when present
+
 ---Clears the screen to the given color.
 ---@param color integer  a gfx.COLOR_* constant
 function gfx.clear(color) end
@@ -78,6 +88,21 @@ function gfx.line(x1, y1, x2, y2, color) end
 ---@param y     number  y in game-space pixels
 ---@param color integer  a gfx.COLOR_* constant
 function gfx.pixel(x, y, color) end
+
+---Reads the last completed game-screen pixel at (x, y), before post-process
+---shaders. Returns nil when the coordinate is outside the game screen.
+---@param x number  x in game-space pixels
+---@param y number  y in game-space pixels
+---@return Usagi.Pixel|nil
+function gfx.px(x, y) end
+
+---Reads the exact palette index at (x, y), before post-process shaders.
+---Returns nil when the coordinate is outside the game screen or the color is
+---not an exact Pico-8 palette color.
+---@param x number  x in game-space pixels
+---@param y number  y in game-space pixels
+---@return integer|nil
+function gfx.palette(x, y) end
 
 ---Draws a 16×16 sprite from the loaded sheet at (x, y). The sheet is
 ---`sprites.png` next to the game's main .lua; indices run left-to-right,

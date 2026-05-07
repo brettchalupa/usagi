@@ -569,6 +569,25 @@ mod tests {
                 "pixel",
                 scope.create_function(|_, _a: (f32, f32, i32)| Ok(()))?,
             )?;
+            gfx.set(
+                "px",
+                scope.create_function(|lua, _a: (f32, f32)| {
+                    let t = lua.create_table()?;
+                    t.raw_set(1, 255)?;
+                    t.raw_set(2, 241)?;
+                    t.raw_set(3, 232)?;
+                    t.raw_set(4, 7)?;
+                    t.set("r", 255)?;
+                    t.set("g", 241)?;
+                    t.set("b", 232)?;
+                    t.set("palette_index", 7)?;
+                    Ok(t)
+                })?,
+            )?;
+            gfx.set(
+                "palette",
+                scope.create_function(|_, _a: (f32, f32)| Ok(Some(7i32)))?,
+            )?;
 
             let input: LuaTable = lua.globals().get("input")?;
             input.set("pressed", scope.create_function(|_, _k: u32| Ok(false))?)?;
@@ -629,6 +648,11 @@ mod tests {
                 gfx.sspr(0, 0, 16, 16, 10, 10)
                 gfx.sspr_ex(0, 0, 16, 16, 10, 10, 32, 32, true, false)
                 gfx.pixel(5, 5, gfx.COLOR_WHITE)
+                local p = gfx.px(5, 5)
+                assert(p[1] == 255 and p[2] == 241 and p[3] == 232)
+                assert(p.r == 255 and p.g == 241 and p.b == 232)
+                assert(p[4] == gfx.COLOR_WHITE and p.palette_index == gfx.COLOR_WHITE)
+                assert(gfx.palette(5, 5) == gfx.COLOR_WHITE)
                 local mw, mh = usagi.measure_text("hello")
                 assert(type(mw) == "number" and type(mh) == "number")
                 assert(type(usagi.elapsed) == "number")
