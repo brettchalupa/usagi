@@ -18,7 +18,9 @@ serde_json = "1"
 # Used for SHA-256 verification of downloaded templates against published
 # sidecars and game_id hash fallback.
 sha2 = "0.11"
-sola-raylib = { version = "6.0" }
+# Pinned to upstream main until a crates.io release includes
+# https://github.com/brettchalupa/sola-raylib/pull/48.
+sola-raylib = { git = "https://github.com/brettchalupa/sola-raylib.git", rev = "a4a7c18382d6c6e2e06cf767d35a749c33895c60" }
 
 # Export-only deps. The wasm runtime never reaches `usagi export`
 # (there's no CLI on web), and `ureq`'s rustls dep transitively pulls in
@@ -57,11 +59,6 @@ gif = "0.13"
 # dance on Windows (you can't overwrite a running .exe) and the simple
 # atomic rename on Unix.
 self-replace = "1"
-
-[patch.crates-io]
-# Windows emscripten build fix pending upstream:
-# https://github.com/brettchalupa/sola-raylib/pull/48
-sola-raylib-sys = { git = "https://github.com/codedevmk/sola-raylib.git", rev = "ca31f316e4cc7d7bd79d2aa27171c20a60a42115", package = "sola-raylib-sys" }
 
 # Smaller binaries on all targets. Cargo automatically uses panic=unwind
 # for the test profile so `cargo test` is unaffected. Note this does NOT

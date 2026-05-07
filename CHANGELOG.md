@@ -9,9 +9,15 @@ Features:
 
 - Generic post-process shaders. `gfx.shader_set("name")` now prefers
   `shaders/<name>.usagi.fs`, a single cross-platform shader source that Usagi
-  wraps for desktop GLSL 330 or web GLSL ES 100 at load time. Native
+  compiles into desktop GLSL 330 or web GLSL ES 100 at load time. The compiler
+  validates the `usagi_main` entrypoint, rejects target-owned bindings, lowers
+  `usagi_texture(...)` into the correct texture sampling call, and includes a
+  staged GLSL 440 emitter profile for future desktop backend selection. Native
   `<name>.fs` / `<name>_es.fs` files still work as the advanced fallback.
   Shader-powered examples now use one generic shader per effect.
+- Native screenshots and GIF recordings now bake in the active post-process
+  shader. Screenshots preserve full shader RGB; GIF frames use an adaptive
+  palette when shader output is captured.
 
 ## v0.6.1 - May 6, 2026
 

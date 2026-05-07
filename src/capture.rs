@@ -3,12 +3,12 @@
 //! single bucket to gitignore and players have one place to find their
 //! shareable artifacts.
 //!
-//! GIF pipeline: each frame while recording, read the game render
-//! target's pixel data back from the GPU, map each pixel to the
-//! palette index via a fixed lookup, and stream a `gif::Frame`
-//! straight to disk through `gif::Encoder`. Memory stays bounded
-//! regardless of recording length because the encoder owns a
-//! `BufWriter<File>` and writes LZW blocks as it goes.
+//! GIF pipeline: each frame while recording, read the capture render
+//! target's pixel data back from the GPU and stream a `gif::Frame`
+//! straight to disk through `gif::Encoder`. Plain game frames use the
+//! fixed Pico palette. Shader-baked frames use a per-frame adaptive
+//! palette so post-process colors survive GIF export instead of being
+//! crushed back into the base 16 colors.
 //!
 //! Screenshot pipeline: same RT readback, but one-shot. Flip
 //! vertically (RTs are stored bottom-up under OpenGL), upscale 2x via
@@ -38,6 +38,12 @@ const FRAME_DELAY_CS: u16 = 2;
 /// Nearest-neighbor upscale applied to every recorded frame. 2x reads
 /// well when sharing.
 const RECORDING_SCALE: u16 = 2;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecordingColorMode {
+    PicoPalette,
+    AdaptivePalette,
+}
 
 /// Resolved RGB triples for the 16 palette entries, in palette-index
 /// order. Built once and reused for every captured frame.
@@ -203,7 +209,7 @@ impl Recorder {
     /// dropped: a single bad frame shouldn't tear the session down,
     /// but losing the recording mid-flight to a disk-full error
     /// matters less than the user's game continuing to run.
-    pub fn capture(&mut self, rt: &RenderTexture2D) {
+    pub fn capture(&mut self, rt: &RenderTexture2D, color_mode: RecordingColorMode) {
         let Recorder::Recording(state) = self else {
             return;
         };
@@ -240,26 +246,53 @@ impl Recorder {
             );
             return;
         }
-        let mut indexed = vec![0u8; out_w * out_h];
-        for sy in 0..src_h {
-            let flipped = src_h - 1 - sy;
-            let src_off = flipped * src_w;
-            for sx in 0..src_w {
-                let p = pixels[src_off + sx];
-                let idx = palette_index.lookup(p.r, p.g, p.b);
-                let dy0 = sy * scale;
-                let dx0 = sx * scale;
-                for dy in 0..scale {
-                    let row_off = (dy0 + dy) * out_w;
-                    for dx in 0..scale {
-                        indexed[row_off + dx0 + dx] = idx;
-                    }
-                }
-            }
-        }
         let gif_w = (*game_w).saturating_mul(RECORDING_SCALE);
         let gif_h = (*game_h).saturating_mul(RECORDING_SCALE);
-        let mut frame = gif::Frame::from_indexed_pixels(gif_w, gif_h, indexed, None);
+        let mut frame = match color_mode {
+            RecordingColorMode::PicoPalette => {
+                let mut indexed = vec![0u8; out_w * out_h];
+                for sy in 0..src_h {
+                    let flipped = src_h - 1 - sy;
+                    let src_off = flipped * src_w;
+                    for sx in 0..src_w {
+                        let p = pixels[src_off + sx];
+                        let idx = palette_index.lookup(p.r, p.g, p.b);
+                        let dy0 = sy * scale;
+                        let dx0 = sx * scale;
+                        for dy in 0..scale {
+                            let row_off = (dy0 + dy) * out_w;
+                            for dx in 0..scale {
+                                indexed[row_off + dx0 + dx] = idx;
+                            }
+                        }
+                    }
+                }
+                gif::Frame::from_indexed_pixels(gif_w, gif_h, indexed, None)
+            }
+            RecordingColorMode::AdaptivePalette => {
+                let mut rgba = vec![0u8; out_w * out_h * 4];
+                for sy in 0..src_h {
+                    let flipped = src_h - 1 - sy;
+                    let src_off = flipped * src_w;
+                    for sx in 0..src_w {
+                        let p = pixels[src_off + sx];
+                        let dy0 = sy * scale;
+                        let dx0 = sx * scale;
+                        for dy in 0..scale {
+                            let row_off = (dy0 + dy) * out_w;
+                            for dx in 0..scale {
+                                let off = (row_off + dx0 + dx) * 4;
+                                rgba[off] = p.r;
+                                rgba[off + 1] = p.g;
+                                rgba[off + 2] = p.b;
+                                rgba[off + 3] = p.a;
+                            }
+                        }
+                    }
+                }
+                gif::Frame::from_rgba_speed(gif_w, gif_h, &mut rgba, 10)
+            }
+        };
         frame.delay = FRAME_DELAY_CS;
         if let Err(e) = encoder.write_frame(&frame) {
             crate::msg::err!("recorder: write_frame failed: {e}");

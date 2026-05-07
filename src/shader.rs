@@ -14,6 +14,8 @@
 //! available) so that GPU resource creation and uniform writes happen
 //! on the render thread.
 
+mod compiler;
+
 use crate::vfs::VirtualFs;
 use sola_raylib::prelude::*;
 use std::collections::HashMap;
@@ -144,6 +146,11 @@ impl ShaderManager {
         self.active.as_mut().map(|a| &mut a.shader)
     }
 
+    #[cfg(not(target_os = "emscripten"))]
+    pub fn is_active(&self) -> bool {
+        self.active.is_some()
+    }
+
     fn load(
         &mut self,
         rl: &mut RaylibHandle,
@@ -205,6 +212,11 @@ enum ShaderBuildTarget {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ShaderProfile {
     DesktopGlsl330,
+    #[allow(
+        dead_code,
+        reason = "forward-compatible emitter target; runtime selection currently uses GLSL 330 for desktop"
+    )]
+    DesktopGlsl440,
     WebGlslEs100,
 }
 
@@ -238,52 +250,7 @@ fn read_fragment_source(vfs: &dyn VirtualFs, name: &str) -> Result<(String, Stri
 }
 
 fn generate_generic_fragment(src: &str, profile: ShaderProfile) -> Result<String, String> {
-    let body = strip_usagi_shader_directive(src).trim_start_matches('\n');
-    if body.contains("#version") {
-        return Err("generic shaders must not declare #version".to_string());
-    }
-    if !body.contains("usagi_main") {
-        return Err("generic shaders must define vec4 usagi_main(vec2 uv, vec4 color)".to_string());
-    }
-
-    let header = match profile {
-        ShaderProfile::DesktopGlsl330 => {
-            "#version 330\n\nin vec2 fragTexCoord;\nin vec4 fragColor;\nuniform sampler2D texture0;\nout vec4 finalColor;\n#define usagi_texture(texture_name, uv) texture(texture_name, uv)\n\n"
-        }
-        ShaderProfile::WebGlslEs100 => {
-            "#version 100\n\nprecision mediump float;\n\nvarying vec2 fragTexCoord;\nvarying vec4 fragColor;\nuniform sampler2D texture0;\n#define usagi_texture(texture_name, uv) texture2D(texture_name, uv)\n\n"
-        }
-    };
-    let footer = match profile {
-        ShaderProfile::DesktopGlsl330 => {
-            "\n\nvoid main() {\n    finalColor = usagi_main(fragTexCoord, fragColor);\n}\n"
-        }
-        ShaderProfile::WebGlslEs100 => {
-            "\n\nvoid main() {\n    gl_FragColor = usagi_main(fragTexCoord, fragColor);\n}\n"
-        }
-    };
-
-    let mut out = String::with_capacity(header.len() + body.len() + footer.len());
-    out.push_str(header);
-    out.push_str(body);
-    out.push_str(footer);
-    Ok(out)
-}
-
-fn strip_usagi_shader_directive(src: &str) -> &str {
-    let mut start = 0;
-    for line in src.split_inclusive('\n') {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            start += line.len();
-            continue;
-        }
-        if trimmed == "#usagi shader 1" {
-            return &src[start + line.len()..];
-        }
-        return &src[start..];
-    }
-    &src[start..]
+    compiler::compile_fragment(src, profile)
 }
 
 /// Reads `shaders/<name>.<ext>` with the platform-preferred filename
@@ -446,9 +413,10 @@ mod tests {
         assert!(out.contains("#version 330"));
         assert!(out.contains("in vec2 fragTexCoord;"));
         assert!(out.contains("out vec4 finalColor;"));
-        assert!(out.contains("#define usagi_texture(texture_name, uv) texture(texture_name, uv)"));
+        assert!(out.contains("return texture(texture0, uv) * color;"));
         assert!(out.contains("finalColor = usagi_main(fragTexCoord, fragColor);"));
         assert!(!out.contains("#usagi shader 1"));
+        assert!(!out.contains("#define usagi_texture"));
     }
 
     #[test]
@@ -459,9 +427,7 @@ mod tests {
         assert!(out.contains("#version 100"));
         assert!(out.contains("precision mediump float;"));
         assert!(out.contains("varying vec2 fragTexCoord;"));
-        assert!(
-            out.contains("#define usagi_texture(texture_name, uv) texture2D(texture_name, uv)")
-        );
+        assert!(out.contains("return texture2D(texture0, uv) * color;"));
         assert!(out.contains("gl_FragColor = usagi_main(fragTexCoord, fragColor);"));
     }
 
@@ -537,6 +503,10 @@ mod tests {
         let mut target = rl
             .load_render_texture(&thread, W, H)
             .expect("target render texture");
+        let test_res = crate::config::Resolution {
+            w: W as f32,
+            h: H as f32,
+        };
 
         {
             let mut d = rl.begin_texture_mode(&thread, &mut source);
@@ -551,24 +521,7 @@ mod tests {
             let mut d = rl.begin_texture_mode(&thread, &mut target);
             d.clear_background(Color::BLACK);
             let mut s = d.begin_shader_mode(&mut shader);
-            s.draw_texture_pro(
-                source.texture(),
-                Rectangle {
-                    x: 0.0,
-                    y: 0.0,
-                    width: W as f32,
-                    height: -(H as f32),
-                },
-                Rectangle {
-                    x: 0.0,
-                    y: 0.0,
-                    width: W as f32,
-                    height: H as f32,
-                },
-                Vector2::new(0.0, 0.0),
-                0.0,
-                Color::WHITE,
-            );
+            crate::render::draw_render_target_native(&mut s, &mut source, test_res);
         }
 
         let image = target.texture().load_image().expect("target readback");
@@ -586,6 +539,25 @@ mod tests {
             let got = pixels[y * W as usize + x];
             assert_color_near(got, want, 5, "gameboy palette stripe");
         }
+
+        let captures = tempfile::tempdir().unwrap();
+        let png =
+            crate::capture::save_screenshot(&target, captures.path(), "shader", test_res).unwrap();
+        assert!(std::fs::metadata(&png).unwrap().len() > 0);
+
+        let mut recorder = crate::capture::Recorder::new();
+        assert!(
+            recorder
+                .toggle(captures.path(), "shader", test_res)
+                .unwrap()
+                .is_none()
+        );
+        recorder.capture(&target, crate::capture::RecordingColorMode::AdaptivePalette);
+        let gif = recorder
+            .toggle(captures.path(), "shader", test_res)
+            .unwrap()
+            .expect("stopping recording should return saved gif path");
+        assert!(std::fs::metadata(&gif).unwrap().len() > 0);
     }
 
     #[cfg(not(target_os = "emscripten"))]

@@ -12,11 +12,13 @@ use crate::assets::{
     MusicLibrary, SfxLibrary, SpriteSheet, clear_user_modules, install_require, load_script,
 };
 #[cfg(not(target_os = "emscripten"))]
-use crate::capture::{Recorder, save_screenshot};
+use crate::capture::{Recorder, RecordingColorMode, save_screenshot};
 use crate::effect::Effects;
 use crate::input;
 use crate::palette::color;
 use crate::pause::{PauseAction, PauseMenu};
+#[cfg(not(target_os = "emscripten"))]
+use crate::render::draw_render_target_native;
 use crate::render::{draw_error_overlay, draw_render_target, game_view_transform};
 use crate::shader::ShaderManager;
 use crate::vfs::VirtualFs;
@@ -332,6 +334,8 @@ fn read_config(lua: &Lua, last_error: &mut Option<String>) -> Config {
 struct Session {
     // GPU resources: dropped first, while the GL context is still alive.
     rt: RenderTexture2D,
+    #[cfg(not(target_os = "emscripten"))]
+    capture_rt: RenderTexture2D,
     sprites: SpriteSheet,
     /// Owns the active post-process `Shader` (a GPU resource) so its
     /// `Drop` (UnloadShader) runs while the GL context is still alive.
@@ -560,6 +564,10 @@ impl Session {
         let rt: RenderTexture2D = rl
             .load_render_texture(&thread, res.w as u32, res.h as u32)
             .unwrap();
+        #[cfg(not(target_os = "emscripten"))]
+        let capture_rt: RenderTexture2D = rl
+            .load_render_texture(&thread, res.w as u32, res.h as u32)
+            .unwrap();
 
         // Mirror the resolved dims into the Lua side immediately so
         // `_init` reads the correct `usagi.GAME_W` / `GAME_H`. The api
@@ -650,6 +658,8 @@ impl Session {
 
         Ok(Self {
             rt,
+            #[cfg(not(target_os = "emscripten"))]
+            capture_rt,
             sprites,
             font,
             lua,
@@ -785,7 +795,7 @@ impl Session {
 
         #[cfg(not(target_os = "emscripten"))]
         if self.recorder.is_recording() {
-            self.recorder.capture(&self.rt);
+            self.capture_recording_frame();
         }
 
         self.blit_and_overlay(screen_w, screen_h);
@@ -978,14 +988,7 @@ impl Session {
             let f_down = self.rl.is_key_down(KeyboardKey::KEY_F);
             let cmd_f = (f_pressed && mod_held) || (mod_just_pressed && f_down);
             let take_shot = self.rl.is_key_pressed(KeyboardKey::KEY_F8) || cmd_f;
-            if take_shot
-                && let Err(e) = save_screenshot(
-                    &self.rt,
-                    &self.captures_dir,
-                    &self.capture_prefix,
-                    self.config.resolution,
-                )
-            {
+            if take_shot && let Err(e) = self.save_current_screenshot() {
                 crate::msg::err!("screenshot failed: {e}");
             }
         }
@@ -1442,6 +1445,54 @@ impl Session {
                 0.0,
                 Color::GREEN,
             );
+        }
+    }
+
+    #[cfg(not(target_os = "emscripten"))]
+    fn capture_recording_frame(&mut self) {
+        if self.shader.borrow().is_active() {
+            self.render_shader_capture_target();
+            self.recorder
+                .capture(&self.capture_rt, RecordingColorMode::AdaptivePalette);
+        } else {
+            self.recorder
+                .capture(&self.rt, RecordingColorMode::PicoPalette);
+        }
+    }
+
+    #[cfg(not(target_os = "emscripten"))]
+    fn save_current_screenshot(&mut self) -> std::io::Result<std::path::PathBuf> {
+        if self.shader.borrow().is_active() {
+            self.render_shader_capture_target();
+            save_screenshot(
+                &self.capture_rt,
+                &self.captures_dir,
+                &self.capture_prefix,
+                self.config.resolution,
+            )
+        } else {
+            save_screenshot(
+                &self.rt,
+                &self.captures_dir,
+                &self.capture_prefix,
+                self.config.resolution,
+            )
+        }
+    }
+
+    #[cfg(not(target_os = "emscripten"))]
+    fn render_shader_capture_target(&mut self) {
+        let res = self.config.resolution;
+        let mut d = self
+            .rl
+            .begin_texture_mode(&self.thread, &mut self.capture_rt);
+        d.clear_background(Color::BLACK);
+        let mut sm = self.shader.borrow_mut();
+        if let Some(shader) = sm.active_shader_mut() {
+            let mut s = d.begin_shader_mode(shader);
+            draw_render_target_native(&mut s, &mut self.rt, res);
+        } else {
+            draw_render_target_native(&mut d, &mut self.rt, res);
         }
     }
 

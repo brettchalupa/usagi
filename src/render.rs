@@ -78,6 +78,35 @@ pub fn draw_render_target<D: RaylibDraw>(
     );
 }
 
+/// Draws the game RT into another game-sized RT without window
+/// letterboxing. Native captures use this to bake the active shader
+/// into a clean game-resolution source before PNG/GIF readback.
+#[cfg(not(target_os = "emscripten"))]
+pub fn draw_render_target_native<D: RaylibDraw>(
+    d: &mut D,
+    rt: &mut RenderTexture2D,
+    res: Resolution,
+) {
+    d.draw_texture_pro(
+        rt.texture(),
+        Rectangle {
+            x: 0.0,
+            y: 0.0,
+            width: res.w,
+            height: -res.h,
+        },
+        Rectangle {
+            x: 0.0,
+            y: 0.0,
+            width: res.w,
+            height: res.h,
+        },
+        Vector2::zero(),
+        0.,
+        Color::WHITE,
+    );
+}
+
 /// Greedy word-wrap to `max_w` pixels using `measure`. Tokens longer
 /// than `max_w` (Lua error chunk paths) are hard-broken per char so
 /// nothing renders past the edge. Empty input lines pass through as

@@ -5,6 +5,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const zlib = require("node:zlib");
 
 function usage() {
   console.error(
@@ -149,6 +150,117 @@ function countConsole(events, needle) {
   return events.consoleMessages.filter((msg) => msg.text.includes(needle)).length;
 }
 
+function paethPredictor(left, up, upLeft) {
+  const p = left + up - upLeft;
+  const pa = Math.abs(p - left);
+  const pb = Math.abs(p - up);
+  const pc = Math.abs(p - upLeft);
+  if (pa <= pb && pa <= pc) return left;
+  if (pb <= pc) return up;
+  return upLeft;
+}
+
+function decodePng(filePath) {
+  const png = fs.readFileSync(filePath);
+  if (png.toString("ascii", 1, 4) !== "PNG") {
+    throw new Error(`${filePath}: not a PNG file`);
+  }
+
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = 0;
+  const idat = [];
+
+  while (offset < png.length) {
+    const len = png.readUInt32BE(offset);
+    const type = png.toString("ascii", offset + 4, offset + 8);
+    const data = png.subarray(offset + 8, offset + 8 + len);
+    offset += 12 + len;
+
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      bitDepth = data[8];
+      colorType = data[9];
+    } else if (type === "IDAT") {
+      idat.push(data);
+    } else if (type === "IEND") {
+      break;
+    }
+  }
+
+  if (bitDepth !== 8 || ![2, 6].includes(colorType)) {
+    throw new Error(`${filePath}: unsupported PNG format bitDepth=${bitDepth} colorType=${colorType}`);
+  }
+
+  const channels = colorType === 6 ? 4 : 3;
+  const stride = width * channels;
+  const inflated = zlib.inflateSync(Buffer.concat(idat));
+  const pixels = Buffer.alloc(width * height * channels);
+  let src = 0;
+  let dst = 0;
+  let prev = Buffer.alloc(stride);
+
+  for (let y = 0; y < height; y += 1) {
+    const filter = inflated[src++];
+    const row = Buffer.from(inflated.subarray(src, src + stride));
+    src += stride;
+
+    for (let x = 0; x < stride; x += 1) {
+      const left = x >= channels ? row[x - channels] : 0;
+      const up = prev[x] || 0;
+      const upLeft = x >= channels ? prev[x - channels] || 0 : 0;
+      let add = 0;
+      if (filter === 1) add = left;
+      else if (filter === 2) add = up;
+      else if (filter === 3) add = Math.floor((left + up) / 2);
+      else if (filter === 4) add = paethPredictor(left, up, upLeft);
+      else if (filter !== 0) throw new Error(`${filePath}: unsupported PNG filter ${filter}`);
+      row[x] = (row[x] + add) & 0xff;
+    }
+
+    row.copy(pixels, dst);
+    dst += stride;
+    prev = row;
+  }
+
+  return { width, height, channels, pixels };
+}
+
+function readPngStats(filePath) {
+  const image = decodePng(filePath);
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let nonBlack = 0;
+  let samples = 0;
+  const stride = 8;
+  for (let y = 0; y < image.height; y += stride) {
+    for (let x = 0; x < image.width; x += stride) {
+      const off = (y * image.width + x) * image.channels;
+      const pr = image.pixels[off];
+      const pg = image.pixels[off + 1];
+      const pb = image.pixels[off + 2];
+      r += pr;
+      g += pg;
+      b += pb;
+      if (pr > 8 || pg > 8 || pb > 8) nonBlack += 1;
+      samples += 1;
+    }
+  }
+  return {
+    width: image.width,
+    height: image.height,
+    avgR: r / samples,
+    avgG: g / samples,
+    avgB: b / samples,
+    nonBlackRatio: nonBlack / samples,
+    samples,
+  };
+}
+
 function ignoredLogError(entry) {
   return entry.url.endsWith("/favicon.ico") && entry.text.includes("404");
 }
@@ -180,6 +292,31 @@ function assertSmoke(report) {
     failures.push(
       `expected at least 3 shader program loads, saw ${report.programLoadCount}`,
     );
+  }
+  if (!report.canvasStats.crt || !report.canvasStats.gameboy) {
+    failures.push("could not sample rendered canvas pixels");
+  } else {
+    const crt = report.canvasStats.crt;
+    const gameboy = report.canvasStats.gameboy;
+    const delta =
+      Math.abs(crt.avgR - gameboy.avgR) +
+      Math.abs(crt.avgG - gameboy.avgG) +
+      Math.abs(crt.avgB - gameboy.avgB);
+    if (crt.nonBlackRatio < 0.2 || gameboy.nonBlackRatio < 0.2) {
+      failures.push(
+        `rendered frame looked mostly blank: crt=${crt.nonBlackRatio}, gameboy=${gameboy.nonBlackRatio}`,
+      );
+    }
+    if (delta < 20) {
+      failures.push(
+        `CRT and Game Boy frames were too similar: color delta ${delta.toFixed(2)}`,
+      );
+    }
+    if (!(gameboy.avgG > gameboy.avgR * 1.15 && gameboy.avgG > gameboy.avgB * 1.15)) {
+      failures.push(
+        `Game Boy frame was not green-dominant: avg rgb ${gameboy.avgR.toFixed(1)}, ${gameboy.avgG.toFixed(1)}, ${gameboy.avgB.toFixed(1)}`,
+      );
+    }
   }
   if (report.exceptions.length > 0) {
     failures.push(`runtime exceptions: ${report.exceptions.join(" | ")}`);
@@ -269,6 +406,7 @@ async function run() {
     await sleep(1000);
     const crtScreenshot = path.join(args.outDir, "crt.png");
     await capture(client, crtScreenshot);
+    const crtStats = readPngStats(crtScreenshot);
 
     const beforeGameboyPrograms = countConsole(events, "Program shader loaded successfully");
     await client.send("Runtime.evaluate", {
@@ -289,6 +427,7 @@ async function run() {
     await sleep(1000);
     const gameboyScreenshot = path.join(args.outDir, "gameboy.png");
     await capture(client, gameboyScreenshot);
+    const gameboyStats = readPngStats(gameboyScreenshot);
 
     const pageState = await client.send("Runtime.evaluate", {
       expression:
@@ -306,6 +445,10 @@ async function run() {
         "Fragment shader compiled successfully",
       ),
       programLoadCount: countConsole(events, "Program shader loaded successfully"),
+      canvasStats: {
+        crt: crtStats,
+        gameboy: gameboyStats,
+      },
       consoleMessages: events.consoleMessages,
       logEntries: events.logEntries,
       exceptions: events.exceptions,

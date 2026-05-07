@@ -764,8 +764,8 @@ Post-process GLSL fragment shaders run as the final pass when the game's render
 target is blitted to the window. Use them for CRT effects, palette swaps,
 vignettes, color grading, and so on.
 
-**Status:** experimental. The API surface and dual-file convention may change.
-Captures have a known limitation (see below).
+**Status:** experimental. The API surface and shader file format may change.
+Native captures bake the active shader into saved screenshots and GIF frames.
 
 API:
 
@@ -787,12 +787,15 @@ end
 ```
 
 **Cross-platform shader files.** The recommended path is one generic Usagi
-shader at `shaders/<name>.usagi.fs`. Usagi wraps it for the active target:
-desktop uses GLSL `#version 330`; web uses GLSL ES `#version 100` (WebGL 1 /
-GLES 2).
+shader at `shaders/<name>.usagi.fs`. Usagi parses that source, validates the
+engine-owned bindings, lowers Usagi intrinsics, and emits target GLSL. Desktop
+currently uses GLSL `#version 330`; web uses GLSL ES `#version 100` (WebGL 1 /
+GLES 2). The compiler has a GLSL 440 emitter profile staged for future desktop
+backend selection.
 
 Generic shaders must not include `#version` or declare `texture0`,
-`fragTexCoord`, `fragColor`, or output variables. Usagi provides those. Define:
+`fragTexCoord`, `fragColor`, `finalColor`, `gl_FragColor`, or `main`. Usagi
+provides those. Define exactly one entrypoint:
 
 ```glsl
 #usagi shader 1
@@ -803,8 +806,9 @@ vec4 usagi_main(vec2 uv, vec4 color) {
 }
 ```
 
-Use `usagi_texture(texture0, uv)` for texture reads so Usagi can emit
-`texture(...)` on desktop and `texture2D(...)` on web.
+Use `usagi_texture(texture0, uv)` for texture reads. The compiler rejects direct
+`texture(...)` / `texture2D(...)` calls in generic shader sources so one file
+stays target-neutral.
 
 Native GLSL files remain supported as an escape hatch:
 
@@ -815,10 +819,10 @@ Native GLSL files remain supported as an escape hatch:
 
 Usagi first looks for `<name>.usagi.fs`. If it is missing, web prefers `_es.fs`
 and falls back to `.fs`; desktop is the reverse. If only one native file is
-shipped, every platform that loads it runs that one. The `fragTexCoord`,
-`fragColor`, and `texture0` inputs are provided by raylib on both native
-targets. See `examples/shader/`, `examples/notetris/`, and `examples/playdate/`
-for generic shader examples.
+shipped, every platform that loads it runs that one. Native fallback files are
+loaded directly through raylib, so they own their target-specific GLSL syntax.
+See `examples/shader/`, `examples/notetris/`, and `examples/playdate/` for
+generic shader examples.
 
 **Live reload.** Saving the active shader's `.usagi.fs`, `.fs`, or `.vs` file
 rebuilds it in-place. Cached uniforms are replayed onto the new shader. Compile
@@ -828,13 +832,13 @@ errors print to the terminal and keep the previous shader live.
 `.fs`, and `.vs` in the bundle, so shaders work the same in `usagi dev`,
 `usagi run`, `.usagi` files, and fused exes on every platform.
 
-**Captures don't include the shader.** F8 / Cmd+F screenshots and F9 / Cmd+G GIF
-recording read the unshaded game render target, so post-process effects show up
-on screen but not in the saved file. Tradeoff: the shader runs at window
-resolution (CRT scanlines look smooth, not blocky) and captures stay at the
-game's 320x180 grid for clean shareable artifacts. If you need the shader baked
-into a capture, use your OS's screen recorder or screenshot tool against the
-game window.
+**Captures.** F8 / Cmd+F screenshots and F9 / Cmd+G GIF recording include the
+active shader. The on-screen pass still runs at window resolution, while native
+captures render the same post-process into a game-sized capture target before
+the usual 2x export. PNG captures preserve full shader RGB. GIF captures use the
+fixed Pico palette for unshaded frames and an adaptive per-frame palette when a
+shader is baked in. Window-only overlays such as the Lua error banner and REC
+indicator stay out of saved files.
 
 Shaders resources:
 
