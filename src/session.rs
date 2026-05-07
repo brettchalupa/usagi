@@ -400,6 +400,10 @@ struct Session {
     /// any of the Nintendo / PlayStation substrings gets the Xbox
     /// fallback layout.
     gamepad_probe: input::GamepadProbe,
+    /// Per-frame snapshot of analog-stick axis values, consumed by
+    /// `action_pressed` / `action_released` so menus can be navigated
+    /// with the stick (edge-detected, just like the d-pad).
+    axis_edges: input::AxisEdgeTracker,
     /// In-game GIF recorder, toggled with F9 / Cmd+G. Native-only:
     /// emscripten has no real filesystem to write to.
     #[cfg(not(target_os = "emscripten"))]
@@ -581,6 +585,7 @@ impl Session {
             .map_err(|e| crate::Error::Cli(format!("registering usagi.measure_text: {e}")))?;
 
         let input_bridge = InputBridge::new();
+        let mut axis_edges = input::AxisEdgeTracker::new();
         // Seed the snapshot once so `_init` reads real values (mouse
         // position over the live window, etc.) instead of zeroed defaults.
         input_bridge.state.set(input::InputState::sample(
@@ -588,9 +593,15 @@ impl Session {
             res,
             config.pixel_perfect,
             &keymap,
+            &axis_edges,
             input::InputSource::default(),
             None,
         ));
+        // Roll forward axis state so frame 1's `action_pressed` compares
+        // against frame 0's stick position rather than zeros (otherwise a
+        // stick already past the deadzone at boot would fire a spurious
+        // press on frame 1).
+        axis_edges.snapshot(&rl);
         register_input_api(&lua, &input_bridge)
             .map_err(|e| crate::Error::Cli(format!("registering input.* API: {e}")))?;
 
@@ -668,6 +679,7 @@ impl Session {
             pause: PauseMenu::new(),
             input_bridge,
             gamepad_probe: input::GamepadProbe::new(),
+            axis_edges,
             #[cfg(not(target_os = "emscripten"))]
             recorder: Recorder::new(),
             // Captures (gifs + screenshots) land in `<cwd>/captures/`.
@@ -712,9 +724,13 @@ impl Session {
         self.handle_global_shortcuts();
 
         let dt = self.rl.get_frame_time();
-        let pause_action = self
-            .pause
-            .update(&mut self.rl, &self.settings, &self.keymap, dt);
+        let pause_action = self.pause.update(
+            &mut self.rl,
+            &self.settings,
+            &self.keymap,
+            &self.axis_edges,
+            dt,
+        );
         if let Some(action) = pause_action {
             self.apply_pause_action(action);
         }
@@ -736,9 +752,13 @@ impl Session {
             self.config.resolution,
             self.config.pixel_perfect,
             &self.keymap,
+            &self.axis_edges,
             prior_state.last_source(),
             prior_state.last_pad(),
         ));
+        // Snapshot after this frame's `action_pressed` reads, so next
+        // frame compares the live stick against this frame's value.
+        self.axis_edges.snapshot(&self.rl);
 
         // Apply any cursor-visibility toggle that user Lua requested
         // last frame (or during `_init`). Done here while `&mut rl` is

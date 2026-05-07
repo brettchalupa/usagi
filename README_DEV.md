@@ -498,8 +498,9 @@ Nintendo's "A confirms, B cancels" convention. Triggers (L/R) and BTN3 are
 unchanged. The swap is automatic via `GetGamepadName`; from your game's
 perspective `input.pressed(input.BTN1)` still means "primary action."
 
-`input.pressed` is edge-detected on keyboard and gamepad buttons but not on
-analog sticks; track stick state in Lua if you need that.
+`input.pressed` and `input.released` are edge-detected across keyboard, gamepad
+buttons, and analog sticks. Tilting the stick past the deadzone fires a single
+press the frame it crosses; releasing fires the frame it falls back inside.
 
 #### Control glyphs (source-aware)
 
