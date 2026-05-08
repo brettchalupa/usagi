@@ -100,6 +100,17 @@ function util.wrap(v, lo, hi)
   return ((v - lo) % span) + lo
 end
 
+-- Remaps the value `v` from the range [start_a, end_a] into the
+-- range [start_b, end_b]
+-- Useful for converting between different value ranges, like
+-- From [-1; 1] to [0; 1] or from [0; 1] to [0; 255]
+-- Example: `util.remap(128, 0,256, 0,100)` will return 50,
+-- becuase 128 is exactly at half of the range 0 - 256 and the
+-- half of the second gange (0 - 100) is 50
+function util.remap(v, start_a, end_a, start_b, end_b)
+  return (v - start_a) / (end_a - start_a) * (end_b - start_b) + start_b
+end
+
 -- Normalizes the {x, y} vector to unit length. Returns a *new* table;
 -- input is unchanged. A zero vector returns {x = 0, y = 0} rather
 -- than dividing by zero.
