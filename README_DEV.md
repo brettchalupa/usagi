@@ -631,7 +631,8 @@ instead of a confusing nil-arithmetic explosion deep inside the helper.
   values outside `[0, 1]` extrapolate.
 - `util.wrap(v, lo, hi)` — wraps `v` into `[lo, hi)`. Cycle-safe for negatives.
 - `util.flash(t, hz)` — boolean from time, toggles `hz` times per second.
-- `util.remap(v, start_a, end_a, start_b, end_b)` — Converts the value `v` from the range [`start_a`; `end_a`] into the range [`start_b`; `end_b`]
+- `util.remap(v, start_a, end_a, start_b, end_b)` — Converts the value `v` from
+  the range [`start_a`; `end_a`] into the range [`start_b`; `end_b`]
 
 **Vectors:**
 

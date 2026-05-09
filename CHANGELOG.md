@@ -10,6 +10,8 @@ Fixes:
 - `input.pressed` and `input.released` now edge-detect the analog stick the same
   way they do the d-pad, so menus (including the engine pause menu) can be
   navigated with the left stick.
+- Closing and opening the menu swallows input so that it doesn't accidentally
+  trigger presses. See [#130](https://github.com/brettchalupa/usagi/issues/130)
 
 ## v0.6.1 - May 6, 2026
 

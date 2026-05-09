@@ -1029,6 +1029,72 @@ impl InputState {
     }
 }
 
+/// Suppresses inputs that the player was holding while the pause menu
+/// was open or as it closed, so the BTN1/BTN2 press that exits the
+/// menu (or any input held during it) doesn't leak into `_update`
+/// once the game resumes. Each suppressed input clears the moment
+/// raylib reports its source up, so a quick re-press registers
+/// normally.
+#[derive(Default, Copy, Clone)]
+pub struct InputSwallow {
+    actions: u32,
+    keys: u128,
+    mouse_left: bool,
+    mouse_right: bool,
+}
+
+impl InputSwallow {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Refreshes the mask from the just-sampled state. `capture=true`
+    /// (pause is open or just closed) replaces the mask with the
+    /// current down set; `capture=false` drains, keeping only bits
+    /// whose source is still down.
+    pub fn update(&mut self, sampled: &InputState, capture: bool) {
+        let actions = sampled.actions_down;
+        let keys = sampled.keys_held;
+        let ml = sampled.mouse_left_down;
+        let mr = sampled.mouse_right_down;
+        if capture {
+            self.actions = actions;
+            self.keys = keys;
+            self.mouse_left = ml;
+            self.mouse_right = mr;
+        } else {
+            self.actions &= actions;
+            self.keys &= keys;
+            self.mouse_left &= ml;
+            self.mouse_right &= mr;
+        }
+    }
+
+    /// Zeros the masked actions/keys/buttons in `state` so user Lua
+    /// doesn't see them. Released bits are masked too: the game never
+    /// saw the corresponding press, so it shouldn't see the release.
+    pub fn apply(&self, state: &mut InputState) {
+        let inv_actions = !self.actions;
+        state.actions_down &= inv_actions;
+        state.actions_pressed &= inv_actions;
+        state.actions_released &= inv_actions;
+        let inv_keys = !self.keys;
+        state.keys_held &= inv_keys;
+        state.keys_pressed &= inv_keys;
+        state.keys_released &= inv_keys;
+        if self.mouse_left {
+            state.mouse_left_down = false;
+            state.mouse_left_pressed = false;
+            state.mouse_left_released = false;
+        }
+        if self.mouse_right {
+            state.mouse_right_down = false;
+            state.mouse_right_pressed = false;
+            state.mouse_right_released = false;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1375,5 +1441,86 @@ mod tests {
         let (sw, sh) = (1920, 1080);
         let res = crate::config::Resolution { w: 480.0, h: 270.0 };
         assert_eq!(screen_to_game(960.0, 540.0, sw, sh, res, false), (240, 135));
+    }
+
+    fn sampled_with(actions_down: u32, keys_held: u128) -> InputState {
+        InputState {
+            actions_down,
+            actions_pressed: actions_down,
+            actions_released: actions_down,
+            keys_held,
+            keys_pressed: keys_held,
+            keys_released: keys_held,
+            ..InputState::default()
+        }
+    }
+
+    /// Pressing BTN1 to close the menu shouldn't leak into `_update`:
+    /// the swallow captures the press, the apply zeros it.
+    #[test]
+    fn input_swallow_captures_held_actions_and_zeros_them() {
+        let btn1_bit = 1u32 << (ACTION_BTN1 - 1);
+        let mut sampled = sampled_with(btn1_bit, 0);
+        let mut swallow = InputSwallow::new();
+        swallow.update(&sampled, true);
+        swallow.apply(&mut sampled);
+        assert!(!sampled.action_down(ACTION_BTN1));
+        assert!(!sampled.action_pressed(ACTION_BTN1));
+        assert!(!sampled.action_released(ACTION_BTN1));
+    }
+
+    /// Once the player releases the swallowed input, the mask drains
+    /// and a fresh press registers as normal.
+    #[test]
+    fn input_swallow_drains_when_source_releases() {
+        let btn1_bit = 1u32 << (ACTION_BTN1 - 1);
+        let sampled = sampled_with(btn1_bit, 0);
+        let mut swallow = InputSwallow::new();
+        swallow.update(&sampled, true);
+        // Frame 2: still holding -> stays masked.
+        let still_held = sampled_with(btn1_bit, 0);
+        swallow.update(&still_held, false);
+        assert_eq!(swallow.actions, btn1_bit);
+        // Frame 3: released -> mask drains.
+        let released = sampled_with(0, 0);
+        swallow.update(&released, false);
+        assert_eq!(swallow.actions, 0);
+        // Frame 4: fresh press passes through.
+        let mut new_press = sampled_with(btn1_bit, 0);
+        swallow.update(&new_press, false);
+        swallow.apply(&mut new_press);
+        assert!(new_press.action_pressed(ACTION_BTN1));
+    }
+
+    /// Inputs the player wasn't holding don't get masked, even when
+    /// the menu is open.
+    #[test]
+    fn input_swallow_only_masks_currently_held_inputs() {
+        let btn1_bit = 1u32 << (ACTION_BTN1 - 1);
+        let left_bit = 1u32 << (ACTION_LEFT - 1);
+        // Player holds BTN1 to close the menu; nothing else is down.
+        let mut close_frame = sampled_with(btn1_bit, 0);
+        let mut swallow = InputSwallow::new();
+        swallow.update(&close_frame, true);
+        swallow.apply(&mut close_frame);
+        // Next frame: BTN1 still held, but they tap LEFT to move.
+        let mut next = sampled_with(btn1_bit | left_bit, 0);
+        swallow.update(&next, false);
+        swallow.apply(&mut next);
+        assert!(!next.action_pressed(ACTION_BTN1));
+        assert!(next.action_pressed(ACTION_LEFT));
+    }
+
+    /// Raw `input.key_*` reads also need masking so a game that polls
+    /// keys directly doesn't see the close key fire.
+    #[test]
+    fn input_swallow_masks_key_table_bits() {
+        let mut sampled = sampled_with(0, 0b101);
+        let mut swallow = InputSwallow::new();
+        swallow.update(&sampled, true);
+        swallow.apply(&mut sampled);
+        assert_eq!(sampled.keys_held, 0);
+        assert_eq!(sampled.keys_pressed, 0);
+        assert_eq!(sampled.keys_released, 0);
     }
 }
