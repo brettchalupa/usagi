@@ -109,7 +109,7 @@ impl PauseMenu {
         axes: &AxisEdgeTracker,
         dt: f32,
     ) -> Option<PauseAction> {
-        let menu_inputs = read_inputs(rl, keymap, axes);
+        let menu_inputs = read_inputs(rl, keymap, axes, self.open);
 
         // Snapshot the held actions so `draw` doesn't need `rl`.
         self.tester_input = snapshot_tester(rl, keymap);
@@ -160,9 +160,10 @@ impl PauseMenu {
             return None;
         }
 
-        // Toggle (Esc/Enter/P/Start) climbs one level: Top closes the
-        // menu, sub-views return to parent. Consistent so the player
-        // never has to learn a per-view rule.
+        // Toggle (Esc/P/Start) climbs one level: Top closes the menu,
+        // sub-views return to parent. Consistent so the player never
+        // has to learn a per-view rule. (Enter only opens; once
+        // inside, it routes to `btn1` instead of climbing.)
         if inputs.toggle {
             return match self.view {
                 View::Top => {
@@ -524,7 +525,7 @@ mod tests {
         step(&mut m, &s, &k, btn1()); // InputMenu -> InputTester (Test selected)
         assert_eq!(m.view, View::InputTester);
         // Inside the tester, BTN1/BTN2 should NOT change view: they
-        // are testable inputs. Only toggle (Esc/Enter/P/Start) exits.
+        // are testable inputs. Only toggle (Esc/P/Start) exits.
         step(&mut m, &s, &k, btn1());
         assert_eq!(m.view, View::InputTester);
         step(&mut m, &s, &k, btn2());

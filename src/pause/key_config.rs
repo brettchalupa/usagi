@@ -1,7 +1,7 @@
 //! Key Config capture flow. Pico-8-style: one action highlighted at
 //! a time, the next supported keypress is captured. Backspace undoes
 //! the previous capture; Delete resets every override and bails out;
-//! Esc/Enter cancels without persisting. Captures stage into a clone
+//! Esc cancels without persisting. Captures stage into a clone
 //! of the current keymap, and only on completion does the menu emit
 //! `PauseAction::SetKeymap` so the session writes once.
 

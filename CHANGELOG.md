@@ -16,6 +16,8 @@ Fixes:
   Nested paths or `usagi dev` worked as expected in v0.6.1 but passing a
   filename within the current directory would break live reload. See
   [#136](https://github.com/brettchalupa/usagi/issues/136)
+- <kbd>Enter</kbd> no longer closes the Pause menu when it's open but instead is
+  used to confirm the selection. It was awkward as a toggle.
 
 ## v0.6.1 - May 6, 2026
 
