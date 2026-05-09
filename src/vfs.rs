@@ -229,10 +229,14 @@ pub struct FsBacked {
 
 impl FsBacked {
     pub fn from_script_path(script_path: &Path) -> Self {
-        let root = script_path
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| PathBuf::from("."));
+        // `Path::parent` of a bare filename like `main.lua` returns
+        // `Some("")`, not `None` — and an empty path can't be
+        // `read_dir`'d, so live-reload's `freshest_lua_mtime` walk
+        // silently failed. Treat empty (and absent) parents as ".".
+        let root = match script_path.parent() {
+            Some(p) if !p.as_os_str().is_empty() => p.to_path_buf(),
+            _ => PathBuf::from("."),
+        };
         let script_filename = script_path
             .file_name()
             .and_then(|n| n.to_str())
@@ -577,6 +581,17 @@ mod tests {
         let vfs = FsBacked::from_script_path(&script);
         assert_eq!(vfs.read_script().as_deref(), Some(b"-- hello".as_slice()));
         assert!(vfs.supports_reload());
+    }
+
+    /// `usagi dev main.lua` (bare filename, no directory component) used
+    /// to silently break live reload because `Path::parent` returns
+    /// `Some("")` for bare names — not `None` — so the empty-path root
+    /// failed every `read_dir` and `freshest_lua_mtime` returned `None`.
+    /// Treat empty parents as "." so the watcher walks the CWD.
+    #[test]
+    fn from_script_path_bare_filename_uses_dot_as_root() {
+        let vfs = FsBacked::from_script_path(Path::new("main.lua"));
+        assert_eq!(vfs.root, PathBuf::from("."));
     }
 
     #[test]
