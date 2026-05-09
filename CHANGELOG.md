@@ -12,6 +12,10 @@ Fixes:
   navigated with the left stick.
 - Closing and opening the menu swallows input so that it doesn't accidentally
   trigger presses. See [#130](https://github.com/brettchalupa/usagi/issues/130)
+- Live reload with `usagi dev main.lua` or `usagi dev game.lua` now works again.
+  Nested paths or `usagi dev` worked as expected in v0.6.1 but passing a
+  filename within the current directory would break live reload. See
+  [#136](https://github.com/brettchalupa/usagi/issues/136)
 
 ## v0.6.1 - May 6, 2026
 
