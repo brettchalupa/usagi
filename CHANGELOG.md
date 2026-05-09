@@ -19,6 +19,7 @@ Fixes:
 - <kbd>Enter</kbd> no longer closes the Pause menu when it's open but instead is
   used to confirm the selection. It was awkward as a toggle.
 - Toggle fullscreen now works on web.
+- "Quit" Pause menu option is not hidden on web since it didn't do anything.
 
 ## v0.6.1 - May 6, 2026
 
