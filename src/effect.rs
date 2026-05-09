@@ -124,6 +124,13 @@ impl Effects {
         }
         self.slow_mo_scale = scale.max(0.0);
     }
+
+    /// Clears every active timer (hitstop, shake, flash, slow_mo). Used
+    /// when the game is reset so a long-running `effect.hitstop(100)`
+    /// doesn't carry across `_init()` and freeze the fresh game.
+    pub fn reset(&mut self) {
+        *self = Self::new();
+    }
 }
 
 impl Default for Effects {
@@ -303,6 +310,25 @@ mod tests {
         e.hitstop(0.0);
         e.screen_shake(0.0, 4.0);
         assert!(!e.frozen());
+        assert_eq!(e.shake_offset(), (0.0, 0.0));
+    }
+
+    /// Regression for BR-2823: `effect.hitstop(100)` followed by Ctrl+R
+    /// used to keep the new game frozen because the reset path didn't
+    /// touch `Effects`. `reset` zeros every timer so the next frame
+    /// runs cleanly.
+    #[test]
+    fn reset_clears_every_active_timer() {
+        let mut e = Effects::new();
+        e.hitstop(100.0);
+        e.screen_shake(5.0, 8.0);
+        e.flash(2.0, 3);
+        e.slow_mo(1.0, 0.25);
+        assert!(e.frozen());
+        e.reset();
+        assert!(!e.frozen());
+        assert_eq!(e.time_scale(), 1.0);
+        assert_eq!(e.flash_overlay(), None);
         assert_eq!(e.shake_offset(), (0.0, 0.0));
     }
 }

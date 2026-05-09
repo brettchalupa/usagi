@@ -607,3 +607,10 @@ function effect.flash(time, color) end
 ---@param time  number  seconds the scale is applied
 ---@param scale number  dt multiplier; 0..1 for slow, >1 for fast
 function effect.slow_mo(time, scale) end
+
+---Cancels every active effect immediately (hitstop, screen_shake,
+---flash, slow_mo). Useful on game-over, scene transitions, or
+---anywhere lingering juice would clash with the new state. Reset and
+---F5 / Ctrl+R already call this internally; this is the manual
+---escape hatch.
+function effect.stop() end

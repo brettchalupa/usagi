@@ -189,10 +189,11 @@ fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
     Ok(())
 }
 
-/// Installs `effect.hitstop` / `screen_shake` / `flash` / `slow_mo` once
-/// at session startup. Closures share an `Rc<RefCell<Effects>>` with
-/// the session so writes from any callback (`_init`, `_update`,
-/// `_draw`) land in the same per-frame state.
+/// Installs `effect.hitstop` / `screen_shake` / `flash` / `slow_mo`
+/// / `stop` once at session startup. Closures share an
+/// `Rc<RefCell<Effects>>` with the session so writes from any
+/// callback (`_init`, `_update`, `_draw`) land in the same per-frame
+/// state.
 fn register_effect_api(lua: &Lua, effects: &Rc<std::cell::RefCell<Effects>>) -> LuaResult<()> {
     let effect = lua.create_table()?;
 
@@ -240,6 +241,13 @@ fn register_effect_api(lua: &Lua, effects: &Rc<std::cell::RefCell<Effects>>) -> 
         "slow_mo",
         wrap(lua, slow_mo, "effect.slow_mo", &["number", "number"])?,
     )?;
+
+    let e = Rc::clone(effects);
+    let stop = lua.create_function(move |_, ()| {
+        e.borrow_mut().reset();
+        Ok(())
+    })?;
+    effect.set("stop", wrap(lua, stop, "effect.stop", &[])?)?;
 
     lua.globals().set("effect", effect)?;
     Ok(())
@@ -910,6 +918,30 @@ impl Session {
         }
     }
 
+    /// Wipes engine-level juice state and re-runs `_init()`. Used by
+    /// the F5 / Ctrl+R / Cmd+R hotkey and the pause-menu Reset Game
+    /// item. Effects are cleared *before* `_init()` so a fresh game
+    /// can call `effect.flash(...)` etc. during init and have those
+    /// stick — and so a long `effect.hitstop(100)` from the previous
+    /// run doesn't freeze the new one (BR-2823).
+    fn reset_game(&mut self) {
+        self.effects.borrow_mut().reset();
+        let Ok(init) = self.lua.globals().get::<LuaFunction>("_init") else {
+            return;
+        };
+        match init.call::<()>(()) {
+            Ok(()) => {
+                crate::msg::info!("reset");
+                self.last_error = None;
+            }
+            Err(e) => {
+                let msg = format!("_init: {}", e);
+                crate::msg::err!("{}", msg);
+                self.last_error = Some(msg);
+            }
+        }
+    }
+
     /// Flips fullscreen state and persists. Native uses raylib's
     /// borderless toggle; web routes through the browser's Fullscreen
     /// API since raylib's desktop fullscreen calls no-op under
@@ -954,18 +986,8 @@ impl Session {
             || self.rl.is_key_down(KeyboardKey::KEY_RIGHT_SUPER);
         let reset = self.rl.is_key_pressed(KeyboardKey::KEY_F5)
             || (self.rl.is_key_pressed(KeyboardKey::KEY_R) && (ctrl_held || super_held));
-        if reset && let Ok(init) = self.lua.globals().get::<LuaFunction>("_init") {
-            match init.call::<()>(()) {
-                Ok(()) => {
-                    crate::msg::info!("reset");
-                    self.last_error = None;
-                }
-                Err(e) => {
-                    let msg = format!("_init: {}", e);
-                    crate::msg::err!("{}", msg);
-                    self.last_error = Some(msg);
-                }
-            }
+        if reset {
+            self.reset_game();
         }
 
         // Shift + Esc quits in dev builds
@@ -1067,19 +1089,7 @@ impl Session {
                 self.toggle_fullscreen();
             }
             PauseAction::ResetGame => {
-                if let Ok(init) = self.lua.globals().get::<LuaFunction>("_init") {
-                    match init.call::<()>(()) {
-                        Ok(()) => {
-                            crate::msg::info!("reset");
-                            self.last_error = None;
-                        }
-                        Err(e) => {
-                            let msg = format!("_init: {}", e);
-                            crate::msg::err!("{}", msg);
-                            self.last_error = Some(msg);
-                        }
-                    }
-                }
+                self.reset_game();
             }
             PauseAction::ClearSave => {
                 #[cfg(not(target_os = "emscripten"))]
