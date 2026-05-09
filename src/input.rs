@@ -25,9 +25,10 @@ pub const ACTION_BTN3: u32 = 7;
 
 // Mouse button IDs. Values match raylib's `MouseButton` enum so we can
 // cast straight through; `setup_api` exposes them as `input.MOUSE_LEFT`
-// / `input.MOUSE_RIGHT` on the Lua side.
+// / `input.MOUSE_RIGHT` / `input.MOUSE_MIDDLE` on the Lua side.
 pub const MOUSE_LEFT: u32 = 0;
 pub const MOUSE_RIGHT: u32 = 1;
+pub const MOUSE_MIDDLE: u32 = 2;
 
 /// Public keyboard names and their raylib `KeyboardKey` values. Single
 /// source of truth: `setup_api` registers each entry as `input.<name>`
@@ -805,6 +806,7 @@ fn mouse_button_from_u32(button: u32) -> Option<MouseButton> {
     match button {
         MOUSE_LEFT => Some(MouseButton::MOUSE_BUTTON_LEFT),
         MOUSE_RIGHT => Some(MouseButton::MOUSE_BUTTON_RIGHT),
+        MOUSE_MIDDLE => Some(MouseButton::MOUSE_BUTTON_MIDDLE),
         _ => None,
     }
 }
@@ -838,10 +840,13 @@ pub struct InputState {
     keys_released: u128,
     mouse_left_down: bool,
     mouse_right_down: bool,
+    mouse_middle_down: bool,
     mouse_left_pressed: bool,
     mouse_right_pressed: bool,
+    mouse_middle_pressed: bool,
     mouse_left_released: bool,
     mouse_right_released: bool,
+    mouse_middle_released: bool,
     mouse_x: i32,
     mouse_y: i32,
     /// Per-action label for the currently-active source's primary
@@ -928,10 +933,13 @@ impl InputState {
             keys_released,
             mouse_left_down: rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT),
             mouse_right_down: rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_RIGHT),
+            mouse_middle_down: rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_MIDDLE),
             mouse_left_pressed: rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT),
             mouse_right_pressed: rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_RIGHT),
+            mouse_middle_pressed: rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_MIDDLE),
             mouse_left_released: rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT),
             mouse_right_released: rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_RIGHT),
+            mouse_middle_released: rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_MIDDLE),
             mouse_x: mx,
             mouse_y: my,
             mapping,
@@ -986,6 +994,7 @@ impl InputState {
         match mouse_button_from_u32(button) {
             Some(MouseButton::MOUSE_BUTTON_LEFT) => self.mouse_left_down,
             Some(MouseButton::MOUSE_BUTTON_RIGHT) => self.mouse_right_down,
+            Some(MouseButton::MOUSE_BUTTON_MIDDLE) => self.mouse_middle_down,
             _ => false,
         }
     }
@@ -994,6 +1003,7 @@ impl InputState {
         match mouse_button_from_u32(button) {
             Some(MouseButton::MOUSE_BUTTON_LEFT) => self.mouse_left_pressed,
             Some(MouseButton::MOUSE_BUTTON_RIGHT) => self.mouse_right_pressed,
+            Some(MouseButton::MOUSE_BUTTON_MIDDLE) => self.mouse_middle_pressed,
             _ => false,
         }
     }
@@ -1002,6 +1012,7 @@ impl InputState {
         match mouse_button_from_u32(button) {
             Some(MouseButton::MOUSE_BUTTON_LEFT) => self.mouse_left_released,
             Some(MouseButton::MOUSE_BUTTON_RIGHT) => self.mouse_right_released,
+            Some(MouseButton::MOUSE_BUTTON_MIDDLE) => self.mouse_middle_released,
             _ => false,
         }
     }
@@ -1041,6 +1052,7 @@ pub struct InputSwallow {
     keys: u128,
     mouse_left: bool,
     mouse_right: bool,
+    mouse_middle: bool,
 }
 
 impl InputSwallow {
@@ -1057,16 +1069,19 @@ impl InputSwallow {
         let keys = sampled.keys_held;
         let ml = sampled.mouse_left_down;
         let mr = sampled.mouse_right_down;
+        let mm = sampled.mouse_middle_down;
         if capture {
             self.actions = actions;
             self.keys = keys;
             self.mouse_left = ml;
             self.mouse_right = mr;
+            self.mouse_middle = mm;
         } else {
             self.actions &= actions;
             self.keys &= keys;
             self.mouse_left &= ml;
             self.mouse_right &= mr;
+            self.mouse_middle &= mm;
         }
     }
 
@@ -1091,6 +1106,11 @@ impl InputSwallow {
             state.mouse_right_down = false;
             state.mouse_right_pressed = false;
             state.mouse_right_released = false;
+        }
+        if self.mouse_middle {
+            state.mouse_middle_down = false;
+            state.mouse_middle_pressed = false;
+            state.mouse_middle_released = false;
         }
     }
 }
@@ -1371,11 +1391,15 @@ mod tests {
     fn mouse_constants_match_raylib_enum() {
         assert_eq!(MOUSE_LEFT, MouseButton::MOUSE_BUTTON_LEFT as u32);
         assert_eq!(MOUSE_RIGHT, MouseButton::MOUSE_BUTTON_RIGHT as u32);
+        assert_eq!(MOUSE_MIDDLE, MouseButton::MOUSE_BUTTON_MIDDLE as u32);
     }
 
     #[test]
     fn unknown_mouse_buttons_map_to_none() {
-        assert!(mouse_button_from_u32(2).is_none());
+        // 0/1/2 are LEFT/RIGHT/MIDDLE. raylib also defines SIDE/EXTRA/
+        // FORWARD/BACK at 3..=6 but Usagi only exposes the three core
+        // buttons; anything past those should miss.
+        assert!(mouse_button_from_u32(3).is_none());
         assert!(mouse_button_from_u32(99).is_none());
     }
 

@@ -5,6 +5,10 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Features:
+
+- `MOUSE_MIDDLE` (a.k.a. scroll wheel click) support for moues input checks.
+
 Fixes:
 
 - `input.pressed` and `input.released` now edge-detect the analog stick the same
