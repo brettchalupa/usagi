@@ -151,20 +151,20 @@ stock Lua's `require`. Optional assets live alongside:
 
 ```
 my_game/
-  main.lua        -- required: your game's entry point
-  sprites.png     -- optional: 16×16 sprite sheet (PNG with alpha)
-  enemies.lua     -- optional: require "enemies"
-  world/
-    tiles.lua    -- optional: require "world.tiles"
-  sfx/           -- optional: .wav files, file stems become sfx names
+  main.lua           -- required: your game's entry point
+  sprites.png        -- optional: 16×16 sprite sheet (PNG with alpha)
+  enemies.lua        -- optional: require "enemies"
+  scenes/
+    main_menu.lua    -- optional: require "scenes.main_menu" - source code can be in folders
+  sfx/               -- optional: .wav files, file stems become sfx names
     jump.wav
     coin.wav
-  music/         -- optional: .ogg/.mp3/.wav/.flac, file stems become track names
+  music/             -- optional: .ogg/.mp3/.wav/.flac, file stems become track names
     overworld.ogg
     boss.ogg
-  shaders/       -- optional: post-process GLSL shaders (advanced; see Shaders)
-    crt.fs       -- desktop GLSL 330
-    crt_es.fs    -- web GLSL ES 100
+  shaders/           -- optional: post-process GLSL shaders (advanced; see Shaders)
+    crt.fs           -- desktop GLSL 330
+    crt_es.fs        -- web GLSL ES 100
 ```
 
 `require "name"` resolves to `name.lua` in the project root, falling back to
