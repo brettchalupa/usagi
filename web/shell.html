@@ -85,6 +85,32 @@
         );
       })();
     </script>
+    <script>
+      // Stop game-input keys from triggering the host page's default
+      // scroll. Without this, Down/Space scroll the surrounding page
+      // when the canvas is embedded in scrollable surroundings (notably
+      // itch.io's wrapper). raylib's emscripten port forwards keydown
+      // through GLFW, which only preventDefaults Backspace/Tab — see
+      // emscripten#16805. Listen on `window`, not the canvas: itch.io's
+      // iframe doesn't reliably hand focus to the canvas, so checking
+      // `document.activeElement === canvas` would silently fail there.
+      // Filtering by `e.code` is enough; none of these keys do anything
+      // useful on the surrounding page anyway.
+      window.addEventListener("keydown", function (e) {
+        switch (e.code) {
+          case "Space":
+          case "ArrowUp":
+          case "ArrowDown":
+          case "ArrowLeft":
+          case "ArrowRight":
+          case "PageUp":
+          case "PageDown":
+          case "Home":
+          case "End":
+            e.preventDefault();
+        }
+      });
+    </script>
     <div id="overlay" role="button" tabindex="0">
       <button id="start" disabled>Loading…</button>
       <div class="sub"></div>

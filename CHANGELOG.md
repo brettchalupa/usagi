@@ -20,6 +20,9 @@ Fixes:
   used to confirm the selection. It was awkward as a toggle.
 - Toggle fullscreen now works on web.
 - "Quit" Pause menu option is not hidden on web since it didn't do anything.
+- Up and down page navigation keyboard keys no longer scroll the page for web
+  builds. Before this up and down, etc. were scroll page, not registering as
+  game input. See [#112](https://github.com/brettchalupa/usagi/issues/112)
 
 ## v0.6.1 - May 6, 2026
 
