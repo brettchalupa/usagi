@@ -5,7 +5,7 @@
 use crate::config::{DEFAULT_SPRITE_SIZE, Resolution};
 use crate::input::{
     ACTION_BTN1, ACTION_BTN2, ACTION_BTN3, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
-    KEY_TABLE, MOUSE_LEFT, MOUSE_RIGHT,
+    KEY_TABLE, MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT,
 };
 use crate::shader::{ShaderManager, ShaderValue};
 use mlua::prelude::*;
@@ -108,6 +108,7 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     input.set("BTN3", ACTION_BTN3)?;
     input.set("MOUSE_LEFT", MOUSE_LEFT)?;
     input.set("MOUSE_RIGHT", MOUSE_RIGHT)?;
+    input.set("MOUSE_MIDDLE", MOUSE_MIDDLE)?;
     // Direct keyboard constants (escape hatch — bypasses keymap and
     // gamepad). See `KEY_TABLE` in `crate::input` for the full list and
     // the rationale for only exposing common keys.
@@ -293,6 +294,7 @@ mod tests {
         assert!(input.get::<u32>("BTN3").is_ok());
         assert!(input.get::<u32>("MOUSE_LEFT").is_ok());
         assert!(input.get::<u32>("MOUSE_RIGHT").is_ok());
+        assert!(input.get::<u32>("MOUSE_MIDDLE").is_ok());
 
         // sfx and music are registered but empty of fields at
         // static-setup time — their per-frame closures live in the

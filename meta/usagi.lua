@@ -182,8 +182,9 @@ function music.stop() end
 ---
 ---Mouse buttons (separate from the action constants above):
 ---
----- MOUSE_LEFT:  left mouse button
----- MOUSE_RIGHT: right mouse button
+---- MOUSE_LEFT:   left mouse button
+---- MOUSE_RIGHT:  right mouse button
+---- MOUSE_MIDDLE: middle mouse button (wheel click)
 ---
 ---Source identifiers for `input.last_source()` and the source-aware
 ---`input.mapping_for`:
@@ -200,6 +201,7 @@ function music.stop() end
 ---@field BTN3             integer
 ---@field MOUSE_LEFT       integer
 ---@field MOUSE_RIGHT      integer
+---@field MOUSE_MIDDLE     integer
 ---@field SOURCE_KEYBOARD  string
 ---@field SOURCE_GAMEPAD   string
 ---@field KEY_A            integer
@@ -322,18 +324,18 @@ function input.last_source() end
 function input.mouse() end
 
 ---Returns true while the given mouse button is held.
----@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT
+---@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT / input.MOUSE_MIDDLE
 ---@return boolean
 function input.mouse_held(button) end
 
 ---Returns true the frame the given mouse button first went down.
----@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT
+---@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT / input.MOUSE_MIDDLE
 ---@return boolean
 function input.mouse_pressed(button) end
 
 ---Returns true the frame the given mouse button first went up
 ---(transitioned from held to released).
----@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT
+---@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT / input.MOUSE_MIDDLE
 ---@return boolean
 function input.mouse_released(button) end
 
