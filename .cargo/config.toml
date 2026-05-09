@@ -27,6 +27,10 @@ rustflags = [
   # time; the source file is no longer needed at runtime. Path is
   # relative to the project root, where cargo is invoked.
   "-C", "link-arg=--js-library=web/usagi_save.js",
+  # Fullscreen toggle on web routes through the browser's Fullscreen
+  # API; raylib's desktop-only `ToggleBorderlessWindowed` is a no-op
+  # on emscripten.
+  "-C", "link-arg=--js-library=web/usagi_fullscreen.js",
 ]
 
 # C/C++ deps must use the same exception ABI rustc uses at link time. See

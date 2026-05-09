@@ -910,17 +910,31 @@ impl Session {
         }
     }
 
+    /// Flips fullscreen state and persists. Native uses raylib's
+    /// borderless toggle; web routes through the browser's Fullscreen
+    /// API since raylib's desktop fullscreen calls no-op under
+    /// emscripten. The browser side requires a user-gesture call
+    /// stack — both call sites (Alt+Enter, pause-menu BTN1) qualify.
+    fn toggle_fullscreen(&mut self) {
+        #[cfg(target_os = "emscripten")]
+        unsafe {
+            usagi_fullscreen_toggle();
+        }
+        #[cfg(not(target_os = "emscripten"))]
+        self.rl.toggle_borderless_windowed();
+        self.settings.fullscreen = !self.settings.fullscreen;
+        if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
+            crate::msg::err!("settings write failed: {e}");
+        }
+    }
+
     fn handle_global_shortcuts(&mut self) {
         // Alt+Enter toggles borderless fullscreen and persists.
         if self.rl.is_key_pressed(KeyboardKey::KEY_ENTER)
             && (self.rl.is_key_down(KeyboardKey::KEY_LEFT_ALT)
                 || self.rl.is_key_down(KeyboardKey::KEY_RIGHT_ALT))
         {
-            self.rl.toggle_borderless_windowed();
-            self.settings.fullscreen = !self.settings.fullscreen;
-            if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
-                crate::msg::err!("settings write failed: {e}");
-            }
+            self.toggle_fullscreen();
         }
 
         // ~ toggles the FPS overlay.
@@ -1050,11 +1064,7 @@ impl Session {
                 }
             }
             PauseAction::ToggleFullscreen => {
-                self.rl.toggle_borderless_windowed();
-                self.settings.fullscreen = !self.settings.fullscreen;
-                if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
-                    crate::msg::err!("settings write failed: {e}");
-                }
+                self.toggle_fullscreen();
             }
             PauseAction::ResetGame => {
                 if let Ok(init) = self.lua.globals().get::<LuaFunction>("_init") {
@@ -1604,6 +1614,11 @@ unsafe extern "C" {
         fps: i32,
         simulate_infinite_loop: i32,
     );
+    /// Defined by `web/usagi_fullscreen.js` and linked via
+    /// `--js-library`. Routes the toggle through the browser's
+    /// Fullscreen API since raylib's desktop fullscreen calls don't
+    /// work on emscripten.
+    fn usagi_fullscreen_toggle();
 }
 
 #[cfg(target_os = "emscripten")]

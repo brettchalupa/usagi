@@ -18,6 +18,7 @@ Fixes:
   [#136](https://github.com/brettchalupa/usagi/issues/136)
 - <kbd>Enter</kbd> no longer closes the Pause menu when it's open but instead is
   used to confirm the selection. It was awkward as a toggle.
+- Toggle fullscreen now works on web.
 
 ## v0.6.1 - May 6, 2026
 

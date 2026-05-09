@@ -87,7 +87,13 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: emscripten
+          # Bump the suffix to discard a poisoned cache. Past failure:
+          # a cached `target/release/build/<crate>/build-script-build`
+          # was linked against glibc 2.39 (newer runner image) and
+          # failed to load on the pinned ubuntu-22.04 (glibc 2.35).
+          # Surfaced only when a config change invalidated the wasm
+          # fingerprint and forced cargo to re-run those host scripts.
+          shared-key: emscripten-v2
 
       - uses: mymindstorm/setup-emsdk@v14
         with:
