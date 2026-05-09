@@ -313,9 +313,7 @@ mod tests {
         assert_eq!(e.shake_offset(), (0.0, 0.0));
     }
 
-    /// Regression for BR-2823: `effect.hitstop(100)` followed by Ctrl+R
-    /// used to keep the new game frozen because the reset path didn't
-    /// touch `Effects`. `reset` zeros every timer so the next frame
+    /// `reset` zeros every timer so the next frame
     /// runs cleanly.
     #[test]
     fn reset_clears_every_active_timer() {

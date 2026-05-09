@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Usagi — itch.io fullscreen mock</title>
+    <style>
+      /* Visual cue that "this is the parent page, not the game".
+      itch.io's actual wrapper is fancier; we only need enough to
+      reproduce the iframe-fullscreen scenario. */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #303030;
+        color: #fff1e8;
+        font-family: system-ui, sans-serif;
+      }
+      body {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 12px;
+        padding: 12px;
+        box-sizing: border-box;
+      }
+      header {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      header .label {
+        opacity: 0.7;
+        margin-right: 4px;
+      }
+      button {
+        background: #ffa300;
+        color: #000;
+        border: 0;
+        padding: 6px 12px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+      button.secondary {
+        background: #5f574f;
+        color: #fff1e8;
+      }
+      .stage {
+        display: grid;
+        place-items: center;
+        background: repeating-linear-gradient(
+          45deg,
+          #1a1a1a,
+          #1a1a1a 12px,
+          #232323 12px,
+          #232323 24px
+        );
+        overflow: hidden;
+      }
+      iframe {
+        border: 0;
+        display: block;
+        background: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="label">iframe size:</span>
+      <button data-size="640x360">640×360</button>
+      <button data-size="800x450">800×450</button>
+      <button data-size="1280x720">1280×720</button>
+      <button data-size="square">square 600×600</button>
+      <button class="secondary" id="fullscreen">Fullscreen iframe</button>
+      <span class="label" style="margin-left: auto">
+        local mock of itch.io's fullscreen button — not for shipping
+      </span>
+    </header>
+    <div class="stage">
+      <iframe id="game" src="./index.html" width="800" height="450"></iframe>
+    </div>
+    <script>
+      // Itch's fullscreen button calls `iframe.requestFullscreen()` on
+      // the iframe element (or its container). The canvas inside the
+      // iframe doesn't get the `:fullscreen` pseudo-class, so the
+      // shell.html CSS has to grow the canvas itself. This mock lets
+      // you reproduce that without uploading to itch.
+      const frame = document.getElementById("game");
+
+      document.querySelectorAll("button[data-size]").forEach((b) => {
+        b.addEventListener("click", () => {
+          const size = b.dataset.size;
+          if (size === "square") {
+            frame.width = 600;
+            frame.height = 600;
+          } else {
+            const [w, h] = size.split("x").map(Number);
+            frame.width = w;
+            frame.height = h;
+          }
+        });
+      });
+
+      document.getElementById("fullscreen").addEventListener("click", () => {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else if (frame.requestFullscreen) {
+          frame.requestFullscreen();
+        }
+      });
+    </script>
+  </body>
+</html>
