@@ -2,8 +2,8 @@
 //! while their actions are held, then lists each action's keyboard
 //! and gamepad bindings. Action buttons here are *not* consumed —
 //! they're the thing being tested — so the only way out is the
-//! universal toggle key (Esc / Enter / P / gamepad Start), which
-//! climbs back to the Input sub-menu.
+//! universal toggle key (Esc / P / gamepad Start), which climbs
+//! back to the Input sub-menu.
 
 use super::PauseAction;
 use super::PauseMenu;

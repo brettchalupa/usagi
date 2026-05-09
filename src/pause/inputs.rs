@@ -18,9 +18,12 @@ use crate::input::{
 use crate::keymap::Keymap;
 use sola_raylib::prelude::*;
 
-/// Per-frame navigation inputs for the menu. `toggle` is the
-/// open/close key (Esc / Enter without Alt / P / gamepad Start) and is
-/// shared across every view to consistently mean "go up one level."
+/// Per-frame navigation inputs for the menu. `toggle` (Esc / P /
+/// gamepad Start) is the open/close key and is shared across every
+/// view to consistently mean "go up one level." Enter is asymmetric:
+/// it opens the menu like a toggle when closed, but inside the menu
+/// it folds into `btn1` so it picks the highlighted option instead
+/// of dismissing.
 #[derive(Default, Clone, Copy)]
 pub(super) struct MenuInputs {
     pub up: bool,
@@ -45,24 +48,31 @@ pub(super) struct KeyConfigInputs {
 /// per-pad family-aware inside `action_pressed`, so this works
 /// correctly when multiple controllers of different families are
 /// connected. Analog stick edge detection comes from `axes`.
+///
+/// `pause_open` routes Enter asymmetrically: when closed, Enter is a
+/// toggle (opens the menu); when open, Enter folds into `btn1`
+/// (selects the highlighted option) so a stray Enter doesn't dismiss
+/// the menu without confirming. Alt+Enter is reserved for fullscreen
+/// in either state.
 pub(super) fn read_inputs(
     rl: &RaylibHandle,
     keymap: &Keymap,
     axes: &AxisEdgeTracker,
+    pause_open: bool,
 ) -> MenuInputs {
-    // Enter alone toggles, but Alt+Enter is reserved for fullscreen.
     let alt_held =
         rl.is_key_down(KeyboardKey::KEY_LEFT_ALT) || rl.is_key_down(KeyboardKey::KEY_RIGHT_ALT);
+    let enter = rl.is_key_pressed(KeyboardKey::KEY_ENTER) && !alt_held;
     let toggle = rl.is_key_pressed(KeyboardKey::KEY_ESCAPE)
         || rl.is_key_pressed(KeyboardKey::KEY_P)
-        || (rl.is_key_pressed(KeyboardKey::KEY_ENTER) && !alt_held)
-        || gamepad_start_pressed(rl);
+        || gamepad_start_pressed(rl)
+        || (enter && !pause_open);
     MenuInputs {
         up: input::action_pressed(rl, keymap, axes, ACTION_UP),
         down: input::action_pressed(rl, keymap, axes, ACTION_DOWN),
         left: input::action_pressed(rl, keymap, axes, ACTION_LEFT),
         right: input::action_pressed(rl, keymap, axes, ACTION_RIGHT),
-        btn1: input::action_pressed(rl, keymap, axes, ACTION_BTN1),
+        btn1: input::action_pressed(rl, keymap, axes, ACTION_BTN1) || (enter && pause_open),
         btn2: input::action_pressed(rl, keymap, axes, ACTION_BTN2),
         toggle,
     }
