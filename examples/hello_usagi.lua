@@ -10,11 +10,7 @@ function _config()
 end
 
 function _init()
-  -- usagi.measure_text returns (width, height) in the bundled font
-  local text_w, text_h = usagi.measure_text(MSG)
   State = {
-    text_w = text_w,
-    text_h = text_h,
     x = 40,
     y = 30,
     vx = 120,
@@ -31,16 +27,16 @@ function _update(dt)
   if State.x < 0 then
     State.x = 0
     State.vx = -State.vx
-  elseif State.x + State.text_w > usagi.GAME_W then
-    State.x = usagi.GAME_W - State.text_w
+  elseif State.x + usagi.SPRITE_SIZE > usagi.GAME_W then
+    State.x = usagi.GAME_W - usagi.SPRITE_SIZE
     State.vx = -State.vx
   end
 
   if State.y < 0 then
     State.y = 0
     State.vy = -State.vy
-  elseif State.y + State.text_h > usagi.GAME_H then
-    State.y = usagi.GAME_H - State.text_h
+  elseif State.y + usagi.SPRITE_SIZE > usagi.GAME_H then
+    State.y = usagi.GAME_H - usagi.SPRITE_SIZE
     State.vy = -State.vy
   end
 
