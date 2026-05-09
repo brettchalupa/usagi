@@ -8,6 +8,7 @@ Doesn't contain updates relating to developing the engine itself.
 Features:
 
 - `MOUSE_MIDDLE` (a.k.a. scroll wheel click) support for moues input checks.
+- `effect.stop()` to end all currently running effects.
 
 Fixes:
 
@@ -27,6 +28,8 @@ Fixes:
 - Up and down page navigation keyboard keys no longer scroll the page for web
   builds. Before this up and down, etc. were scroll page, not registering as
   game input. See [#112](https://github.com/brettchalupa/usagi/issues/112)
+- Effects reset when the game resets. Before they'd keep running, shaking the
+  screen or hitstopping when they shouldn't.
 
 ## v0.6.1 - May 6, 2026
 
