@@ -53,6 +53,9 @@ pub enum PauseAction {
     ResetGame,
     ClearSave,
     SetKeymap(Keymap),
+    /// Native-only. Web hides the menu item (emscripten's main loop
+    /// can't exit), so the variant is never constructed there.
+    #[cfg_attr(target_os = "emscripten", allow(dead_code))]
     Quit,
 }
 

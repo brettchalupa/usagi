@@ -15,7 +15,13 @@ use crate::palette::Pal;
 use crate::settings::Settings;
 use sola_raylib::prelude::*;
 
+// Quit is hidden on web because the emscripten main loop can't
+// actually exit (it's `emscripten_set_main_loop_arg`, driven by the
+// browser), so the item would do nothing if we showed it.
+#[cfg(not(target_os = "emscripten"))]
 pub(super) const TOP_COUNT: usize = 8;
+#[cfg(target_os = "emscripten")]
+pub(super) const TOP_COUNT: usize = 7;
 pub(super) const ITEM_CONTINUE: usize = 0;
 pub(super) const ITEM_MUSIC: usize = 1;
 pub(super) const ITEM_SFX: usize = 2;
@@ -23,6 +29,7 @@ pub(super) const ITEM_FULLSCREEN: usize = 3;
 pub(super) const ITEM_INPUT: usize = 4;
 pub(super) const ITEM_CLEAR: usize = 5;
 pub(super) const ITEM_RESET: usize = 6;
+#[cfg(not(target_os = "emscripten"))]
 pub(super) const ITEM_QUIT: usize = 7;
 
 impl PauseMenu {
@@ -83,6 +90,7 @@ impl PauseMenu {
                     self.open = false;
                     return Some(PauseAction::ResetGame);
                 }
+                #[cfg(not(target_os = "emscripten"))]
                 ITEM_QUIT => return Some(PauseAction::Quit),
                 _ => {}
             }
@@ -103,7 +111,7 @@ impl PauseMenu {
         // circle has somewhere to sit.
         let item_x = 32.0_f32;
 
-        let labels: [String; TOP_COUNT] = [
+        let mut labels: Vec<String> = vec![
             "Continue".to_string(),
             "Music:".to_string(),
             "SFX:".to_string(),
@@ -114,8 +122,13 @@ impl PauseMenu {
             "Input".to_string(),
             "Clear Save Data".to_string(),
             "Reset Game".to_string(),
-            "Quit".to_string(),
         ];
+        // `cfg!` (not `#[cfg]`) keeps `mut` used on every target; the
+        // optimizer drops the dead branch on web.
+        if cfg!(not(target_os = "emscripten")) {
+            labels.push("Quit".to_string());
+        }
+        debug_assert_eq!(labels.len(), TOP_COUNT);
 
         for (i, text) in labels.iter().enumerate() {
             d.draw_text_ex(
