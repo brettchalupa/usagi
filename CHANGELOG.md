@@ -9,7 +9,7 @@ Doesn't contain updates relating to developing the engine itself.
 
 Features:
 
-- `MOUSE_MIDDLE` (a.k.a. scroll wheel click) support for moues input checks.
+- `MOUSE_MIDDLE` (a.k.a. scroll wheel click) support for mouse input checks.
 - `effect.stop()` to end all currently running effects.
 
 Fixes:
@@ -26,7 +26,7 @@ Fixes:
 - <kbd>Enter</kbd> no longer closes the Pause menu when it's open but instead is
   used to confirm the selection. It was awkward as a toggle.
 - Toggle fullscreen now works on web.
-- "Quit" Pause menu option is not hidden on web since it didn't do anything.
+- "Quit" Pause menu option is now hidden on web since it didn't do anything.
 - Up and down page navigation keyboard keys no longer scroll the page for web
   builds. Before this up and down, etc. were scroll page, not registering as
   game input. See [#112](https://github.com/brettchalupa/usagi/issues/112)
