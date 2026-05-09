@@ -540,8 +540,8 @@ gfx.text("Press " .. btn .. " to jump", 10, 10, gfx.COLOR_WHITE)
 - `input.mouse_held(button)` — true while `button` is held.
 - `input.mouse_pressed(button)` — true the frame `button` first went down.
 - `input.mouse_released(button)` — true the frame `button` first went up.
-- `input.MOUSE_LEFT`, `input.MOUSE_RIGHT` — the supported buttons. Wheel
-  scrolling and middle-click aren't exposed yet.
+- `input.MOUSE_LEFT`, `input.MOUSE_RIGHT`, `input.MOUSE_MIDDLE` — the supported
+  buttons. Wheel scrolling and middle-click aren't exposed yet.
 - `input.set_mouse_visible(visible)` — show or hide the OS cursor over the game
   window. Callable from `_init` to hide the cursor before the first frame draws
   (handy for games that render their own cursor sprite).
@@ -757,6 +757,8 @@ effect.slow_mo(1.5, 0.3)                 -- 1.5 s at 30% speed
   `scale`. `scale=0.5` is half-speed, `scale=2.0` is double-speed, `scale=0`
   freezes (use `effect.hitstop` for that intent). The slow_mo timer itself
   counts down at real wall-clock, so the cinematic always ends on schedule.
+- **`effect.stop()`** ends all currently running effects; useful when
+  transitioning between scenes or states in your game.
 
 **Stacking.** Across all four, longer duration wins; for the magnitude
 parameter, the latest call wins. `effect.screen_shake(0.1, 2)` followed by
