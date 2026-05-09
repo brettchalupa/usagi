@@ -276,7 +276,7 @@ input.mouse_released(button)
 input.set_mouse_visible(visible)
 input.mouse_visible()
 
-input.MOUSE_LEFT, input.MOUSE_RIGHT
+input.MOUSE_LEFT, input.MOUSE_RIGHT, input.MOUSE_MIDDLE
 
 -- Input -- keyboard (bypasses the action keymap; prefer actions for game input)
 
@@ -300,6 +300,7 @@ effect.hitstop(time)
 effect.screen_shake(time, intensity)
 effect.flash(time, color)
 effect.slow_mo(time, scale)
+effect.stop()                         -- stop all running effects
 
 -- Util -- math
 
