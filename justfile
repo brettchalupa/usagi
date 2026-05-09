@@ -62,6 +62,7 @@ build-web:
     mkdir -p target/web
     rm -rf target/web/*
     cp web/shell.html target/web/index.html
+    cp web/mock-itch.html target/web/
     cp target/wasm32-unknown-emscripten/debug/usagi.wasm target/web/
     cp target/wasm32-unknown-emscripten/debug/usagi.js target/web/
     cargo run --quiet -- export examples/snake --target bundle -o target/web/game.usagi
@@ -74,6 +75,7 @@ build-web-release:
     mkdir -p target/web
     rm -rf target/web/*
     cp web/shell.html target/web/index.html
+    cp web/mock-itch.html target/web/
     cp target/wasm32-unknown-emscripten/release/usagi.wasm target/web/
     cp target/wasm32-unknown-emscripten/release/usagi.js target/web/
     cargo run --release --quiet -- export examples/snake --target bundle -o target/web/game.usagi

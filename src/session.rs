@@ -922,8 +922,8 @@ impl Session {
     /// the F5 / Ctrl+R / Cmd+R hotkey and the pause-menu Reset Game
     /// item. Effects are cleared *before* `_init()` so a fresh game
     /// can call `effect.flash(...)` etc. during init and have those
-    /// stick — and so a long `effect.hitstop(100)` from the previous
-    /// run doesn't freeze the new one (BR-2823).
+    /// stick. That way a long `effect.hitstop(100)` from the previous
+    /// run doesn't freeze the new one.
     fn reset_game(&mut self) {
         self.effects.borrow_mut().reset();
         let Ok(init) = self.lua.globals().get::<LuaFunction>("_init") else {
