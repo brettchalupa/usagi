@@ -404,6 +404,11 @@ struct Session {
     /// `action_pressed` / `action_released` so menus can be navigated
     /// with the stick (edge-detected, just like the d-pad).
     axis_edges: input::AxisEdgeTracker,
+    /// Mask of inputs the player was holding while the pause menu was
+    /// open or as it closed. Suppressed from the Lua-facing
+    /// `InputState` until each release, so a BTN1/BTN2 press that
+    /// exits the menu doesn't fire in `_update` the same frame.
+    input_swallow: input::InputSwallow,
     /// In-game GIF recorder, toggled with F9 / Cmd+G. Native-only:
     /// emscripten has no real filesystem to write to.
     #[cfg(not(target_os = "emscripten"))]
@@ -680,6 +685,7 @@ impl Session {
             input_bridge,
             gamepad_probe: input::GamepadProbe::new(),
             axis_edges,
+            input_swallow: input::InputSwallow::new(),
             #[cfg(not(target_os = "emscripten"))]
             recorder: Recorder::new(),
             // Captures (gifs + screenshots) land in `<cwd>/captures/`.
@@ -747,7 +753,7 @@ impl Session {
         // and `_draw`. raylib polls input once per frame anyway, so
         // sampling here matches what live calls would return.
         let prior_state = self.input_bridge.state.get();
-        self.input_bridge.state.set(input::InputState::sample(
+        let mut sampled = input::InputState::sample(
             &self.rl,
             self.config.resolution,
             self.config.pixel_perfect,
@@ -755,7 +761,16 @@ impl Session {
             &self.axis_edges,
             prior_state.last_source(),
             prior_state.last_pad(),
-        ));
+        );
+        // Refresh the swallow mask while the menu is up or just
+        // closed; otherwise drain it as the player releases each
+        // suppressed input. Apply before storing so user Lua never
+        // sees a BTN1/BTN2 press that was actually meant for the
+        // pause menu.
+        let capture_swallow = self.pause.open || self.pause.just_closed();
+        self.input_swallow.update(&sampled, capture_swallow);
+        self.input_swallow.apply(&mut sampled);
+        self.input_bridge.state.set(sampled);
         // Snapshot after this frame's `action_pressed` reads, so next
         // frame compares the live stick against this frame's value.
         self.axis_edges.snapshot(&self.rl);
