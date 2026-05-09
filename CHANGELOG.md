@@ -5,6 +5,8 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+## v0.7.0 - May 9, 2026
+
 Features:
 
 - `MOUSE_MIDDLE` (a.k.a. scroll wheel click) support for moues input checks.

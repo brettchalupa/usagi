@@ -28,14 +28,17 @@ Videos:
 [Download the latest Usagi build for your operating
 system.](https://github.com/brettchalupa/usagi/releases/latest)
 
-**Latest Usagi release:** v0.6.1
+**Latest Usagi release:** v0.7.0
 
 You can keep the `usagi` executable in your project folder or install it
 globally on your computer.
 
-Other places to download Usagi:
+Places to download Usagi:
 
+- [GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest)
 - [itch.io](https://brettchalupa.itch.io/usagi)
+
+[View the changelog.](https://github.com/brettchalupa/usagi/blob/main/CHANGELOG.md)
 
 ## Features / Bugs
 
@@ -148,20 +151,20 @@ stock Lua's `require`. Optional assets live alongside:
 
 ```
 my_game/
-  main.lua        -- required: your game's entry point
-  sprites.png     -- optional: 16×16 sprite sheet (PNG with alpha)
-  enemies.lua     -- optional: require "enemies"
-  world/
-    tiles.lua    -- optional: require "world.tiles"
-  sfx/           -- optional: .wav files, file stems become sfx names
+  main.lua           -- required: your game's entry point
+  sprites.png        -- optional: 16×16 sprite sheet (PNG with alpha)
+  enemies.lua        -- optional: require "enemies"
+  scenes/
+    main_menu.lua    -- optional: require "scenes.main_menu" - source code can be in folders
+  sfx/               -- optional: .wav files, file stems become sfx names
     jump.wav
     coin.wav
-  music/         -- optional: .ogg/.mp3/.wav/.flac, file stems become track names
+  music/             -- optional: .ogg/.mp3/.wav/.flac, file stems become track names
     overworld.ogg
     boss.ogg
-  shaders/       -- optional: post-process GLSL shaders (advanced; see Shaders)
-    crt.fs       -- desktop GLSL 330
-    crt_es.fs    -- web GLSL ES 100
+  shaders/           -- optional: post-process GLSL shaders (advanced; see Shaders)
+    crt.fs           -- desktop GLSL 330
+    crt_es.fs        -- web GLSL ES 100
 ```
 
 `require "name"` resolves to `name.lua` in the project root, falling back to
@@ -307,6 +310,7 @@ util.approach(current, target, max_delta)
 util.lerp(a, b, t)
 util.wrap(v, lo, hi)
 util.flash(t, hz)
+util.remap(v, start_a, end_a, start_b, end_b)
 
 -- Util -- vectors
 
@@ -498,8 +502,9 @@ Nintendo's "A confirms, B cancels" convention. Triggers (L/R) and BTN3 are
 unchanged. The swap is automatic via `GetGamepadName`; from your game's
 perspective `input.pressed(input.BTN1)` still means "primary action."
 
-`input.pressed` is edge-detected on keyboard and gamepad buttons but not on
-analog sticks; track stick state in Lua if you need that.
+`input.pressed` and `input.released` are edge-detected across keyboard, gamepad
+buttons, and analog sticks. Tilting the stick past the deadzone fires a single
+press the frame it crosses; releasing fires the frame it falls back inside.
 
 #### Control glyphs (source-aware)
 
@@ -629,6 +634,8 @@ instead of a confusing nil-arithmetic explosion deep inside the helper.
   values outside `[0, 1]` extrapolate.
 - `util.wrap(v, lo, hi)` — wraps `v` into `[lo, hi)`. Cycle-safe for negatives.
 - `util.flash(t, hz)` — boolean from time, toggles `hz` times per second.
+- `util.remap(v, start_a, end_a, start_b, end_b)` — Converts the value `v` from
+  the range [`start_a`; `end_a`] into the range [`start_b`; `end_b`]
 
 **Vectors:**
 
