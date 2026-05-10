@@ -28,7 +28,7 @@ Videos:
 [Download the latest Usagi build for your operating
 system.](https://github.com/brettchalupa/usagi/releases/latest)
 
-**Latest Usagi release:** v0.7.0
+**Latest Usagi release:** v0.7.1
 
 You can keep the `usagi` executable in your project folder or install it
 globally on your computer.
