@@ -15,6 +15,8 @@ Fixes:
 
 - Web games don't crash when loading due to fullscreen error. See
   [#154](https://github.com/brettchalupa/usagi/issues/154)
+- Web games now load with default shell. They no longer display a black screen.
+  Fixes CSS error introduced in v0.7.0.
 
 ## v0.7.0 - May 9, 2026
 

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Usagi — itch.io fullscreen mock</title>
+    <title>Usagi itch.io fullscreen mock</title>
     <style>
       /* Visual cue that "this is the parent page, not the game".
       itch.io's actual wrapper is fancier; we only need enough to
@@ -74,11 +74,16 @@
       <button data-size="square">square 600×600</button>
       <button class="secondary" id="fullscreen">Fullscreen iframe</button>
       <span class="label" style="margin-left: auto">
-        local mock of itch.io's fullscreen button — not for shipping
+        local mock of itch.io's fullscreen button; not for shipping
       </span>
     </header>
     <div class="stage">
-      <iframe id="game" src="./index.html" width="800" height="450"></iframe>
+      <iframe
+        id="game"
+        src="./index.html"
+        width="800"
+        height="450"
+      ></iframe>
     </div>
     <script>
       // Itch's fullscreen button calls `iframe.requestFullscreen()` on
@@ -102,13 +107,15 @@
         });
       });
 
-      document.getElementById("fullscreen").addEventListener("click", () => {
-        if (document.fullscreenElement) {
-          document.exitFullscreen();
-        } else if (frame.requestFullscreen) {
-          frame.requestFullscreen();
-        }
-      });
+      document
+        .getElementById("fullscreen")
+        .addEventListener("click", () => {
+          if (document.fullscreenElement) {
+            document.exitFullscreen();
+          } else if (frame.requestFullscreen) {
+            frame.requestFullscreen();
+          }
+        });
     </script>
   </body>
 </html>
