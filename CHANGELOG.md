@@ -5,6 +5,11 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Fixes:
+
+- Web games don't crash when loading due to fullscreen error. See
+  [#154](https://github.com/brettchalupa/usagi/issues/154)
+
 ## v0.7.0 - May 9, 2026
 
 Features:
