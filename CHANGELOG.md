@@ -5,6 +5,12 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Features:
+
+- Usagi version is logged on game start.
+- Raylib log level is set to warning to reduce noise. Set env var
+  `USAGI_VERBOSE=1` to get full Raylib logs.
+
 Fixes:
 
 - Web games don't crash when loading due to fullscreen error. See
