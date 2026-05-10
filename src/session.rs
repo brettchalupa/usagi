@@ -464,6 +464,12 @@ struct Session {
 
 impl Session {
     fn new(vfs: Rc<dyn VirtualFs>, dev: bool) -> crate::Result<Self> {
+        // Log the engine version once at boot so user-submitted bug
+        // reports (console / terminal) carry the version stamp without
+        // the user having to remember `usagi --version`. Same string
+        // shows on web (browser console) and native (terminal).
+        crate::msg::info!("usagi v{}", env!("CARGO_PKG_VERSION"));
+
         let reload = dev && vfs.supports_reload();
 
         let lua = Lua::new();
@@ -551,6 +557,17 @@ impl Session {
         builder
             .size((res.w * win_scale) as i32, (res.h * win_scale) as i32)
             .title(project_name.display());
+        // raylib defaults to LOG_INFO, which prints a screenful of
+        // GLFW/GL/audio init details every boot. Drop to LOG_WARNING
+        // so real signal (asset load failures, gamepad anomalies, GL
+        // fallbacks) still surfaces but the routine chatter doesn't.
+        // `USAGI_VERBOSE=1` brings the full log back for debugging.
+        let log_level = if std::env::var_os("USAGI_VERBOSE").is_some() {
+            TraceLogLevel::LOG_INFO
+        } else {
+            TraceLogLevel::LOG_WARNING
+        };
+        builder.log_level(log_level);
         #[cfg(not(target_os = "emscripten"))]
         {
             builder.highdpi().resizable();

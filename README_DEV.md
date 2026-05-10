@@ -1091,6 +1091,17 @@ automatically. Override per-build with `--web-shell PATH`.
   points back to an appended bundle. A `.usagi` file is the same bundle bytes
   without the footer; it runs on any platform via `usagi run`.
 
+## Debugging
+
+With live reload, one way you can quickly debug your Usagi game is by `print`ing
+values that change overtime. With the instant feedback, it's surprisingly
+helpful.
+
+Debugging your game's error
+
+Set the env var `USAGI_VERBOSE=1` to get full log output, including Raylib's
+logs.
+
 ## Developing
 
 - `just run` - run hello_usagi example
