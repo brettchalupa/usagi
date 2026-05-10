@@ -5,6 +5,8 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+## v0.7.1 - May 10, 2026
+
 Features:
 
 - Usagi version is logged on game start.

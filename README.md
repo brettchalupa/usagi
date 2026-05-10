@@ -28,7 +28,7 @@ Videos:
 [Download the latest Usagi build for your operating
 system.](https://github.com/brettchalupa/usagi/releases/latest)
 
-**Latest Usagi release:** v0.7.0
+**Latest Usagi release:** v0.7.1
 
 You can keep the `usagi` executable in your project folder or install it
 globally on your computer.
@@ -541,7 +541,7 @@ gfx.text("Press " .. btn .. " to jump", 10, 10, gfx.COLOR_WHITE)
 - `input.mouse_pressed(button)` — true the frame `button` first went down.
 - `input.mouse_released(button)` — true the frame `button` first went up.
 - `input.MOUSE_LEFT`, `input.MOUSE_RIGHT`, `input.MOUSE_MIDDLE` — the supported
-  buttons. Wheel scrolling and middle-click aren't exposed yet.
+  buttons. Wheel scrolling isn't supported yet.
 - `input.set_mouse_visible(visible)` — show or hide the OS cursor over the game
   window. Callable from `_init` to hide the cursor before the first frame draws
   (handy for games that render their own cursor sprite).
@@ -1090,6 +1090,17 @@ automatically. Override per-build with `--web-shell PATH`.
 - The fuse format is simple and additive: a magic footer at the end of the exe
   points back to an appended bundle. A `.usagi` file is the same bundle bytes
   without the footer; it runs on any platform via `usagi run`.
+
+## Debugging
+
+With live reload, one way you can quickly debug your Usagi game is by `print`ing
+values that change overtime. With the instant feedback, it's surprisingly
+helpful.
+
+Debugging your game's error
+
+Set the env var `USAGI_VERBOSE=1` to get full log output, including Raylib's
+logs.
 
 ## Developing
 
