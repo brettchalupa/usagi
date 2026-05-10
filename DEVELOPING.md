@@ -156,6 +156,10 @@ running from the repo root, so you don't need to stage it. Pass
 `--web-shell PATH` (or drop a `shell.html` next to your script) to use a custom
 one.
 
+`just push-web-test EXAMPLE_NAME` can be used to push an example game's web
+build to a private testing project on itch.io to ensure web builds work. Best
+used with `notetris`.
+
 ## CI (`.github/workflows/ci.yml`)
 
 Runs on every push to `main` and every pull request. Three jobs:
@@ -177,7 +181,8 @@ them for spot-checking a PR. For distribution, cut a release.
 2. Run `just examples` to verify everything is working as expected
 3. Test syntax error recovery in a `require` to ensure it works
 4. Test `usagi tools`
-5. Verify web builds work
+5. Verify web builds work with `just push-web-test notetris` and test at
+   [https://brettchalupa.itch.io/usagi-web-test](https://brettchalupa.itch.io/usagi-web-test)
 6. Verify gamepads work
 7. Bump `version` in `Cargo.toml` and run `cargo update -p usagi` to refresh
    `Cargo.lock` before tagging. The tag should match the manifest version
