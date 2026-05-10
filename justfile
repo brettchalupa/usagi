@@ -97,6 +97,34 @@ Serve target/web/ locally on port 3535. Does NOT rebuild; pair with
 serve-web:
     simple-http-server --index --nocache -p ${PORT:=3535} target/web
 
+[doc("""
+Package the current local web runtime + a named example as an
+itch-ready zip at `target/<name>-web.zip`. Use this for pre-release
+testing of the engine itself (verifies the in-development wasm
+against itch's actual iframe wrapper). Example: `just package-web-zip notetris`.
+
+Distinct from `usagi export --target web`: that ships with the
+*released* engine binary; this ships with whatever's in the local
+working tree, which is what you want when validating an RC. The
+mock-itch.html dev harness is intentionally excluded.
+""")]
+package-web-zip name:
+    just build-web-release
+    cargo run --release --quiet -- export examples/{{ name }} --target bundle -o target/web/game.usagi
+    cd target/web && rm -f ../{{ name }}-web.zip && zip -q ../{{ name }}-web.zip index.html usagi.js usagi.wasm game.usagi
+    @echo "[usagi] target/{{ name }}-web.zip"
+
+[doc("""
+Package and push a named example to brettchalupa/usagi-web-test on
+itch via butler. Pair with the release checklist in DEVELOPING.md
+to validate web behavior in the actual itch wrapper before tagging
+an engine release. Requires `butler login` once. Example:
+`just push-web-test notetris`.
+""")]
+push-web-test name:
+    just package-web-zip {{ name }}
+    butler push target/{{ name }}-web.zip brettchalupa/usagi-web-test:html
+
 # Smoke-test a `.usagi` bundle: export it, then run via `usagi run`. Drops the bundle file in the cwd. Example: `just bundle snake`.
 bundle name:
     cargo run --quiet -- export examples/{{ name }} --target bundle
