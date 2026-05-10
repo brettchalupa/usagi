@@ -499,7 +499,23 @@ impl Session {
             config.name.as_deref(),
             project_name_hint.as_deref(),
         );
-        let settings = crate::settings::load(&resolved_game_id);
+        #[allow(unused_mut)]
+        let mut settings = crate::settings::load(&resolved_game_id);
+        // Browsers can't auto-restore fullscreen at startup (requires
+        // a user gesture) and raylib's emscripten
+        // `ToggleBorderlessWindowed` is broken anyway: it calls
+        // `Module.requestFullscreen` via EM_ASM, but that runtime
+        // method isn't in our `EXPORTED_RUNTIME_METHODS` list, so the
+        // EM_ASM throws and aborts the wasm during `callMain` (black
+        // screen, audio still plays from the already-initialized
+        // thread). Force `false` on load so the apply-persisted-
+        // fullscreen branch below never runs on web, and so any stale
+        // `true` left in localStorage by a prior crashing session
+        // gets overwritten on the next settings write.
+        #[cfg(target_os = "emscripten")]
+        {
+            settings.fullscreen = false;
+        }
         let keymap = crate::keymap::load(&resolved_game_id);
         #[cfg(not(target_os = "emscripten"))]
         let capture_prefix = resolved_game_id.short_name().to_string();
