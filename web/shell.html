@@ -35,8 +35,14 @@
       canvas {
         display: block;
         image-rendering: pixelated;
-        width: min(100vw, 100vh * var(--game-aspect, 16 / 9));
-        height: min(100vh, 100vw / var(--game-aspect, 16 / 9));
+        /* `--game-aspect` is a single number (W / H precomputed in
+        JS), not a `W / H` ratio expression. That keeps the CSS
+        unambiguous: `100vw / var(--game-aspect)` evaluates as
+        `100vw / 1.778` rather than `(100vw / W) / H`, which is
+        what would happen if `var()` substituted a ratio expression
+        as raw text. */
+        width: min(100vw, 100vh * var(--game-aspect, 1.778));
+        height: min(100vh, 100vw / var(--game-aspect, 1.778));
       }
       #overlay {
         position: fixed;
@@ -79,18 +85,19 @@
   <body>
     <canvas id="canvas" width="640" height="360"></canvas>
     <script>
-      // Drive the CSS aspect ratio from the canvas backing-store dims so
-      // the layout follows the configured `_config().game_width /
-      // game_height` without a CSS edit. `usagi export --target web`
-      // substitutes the canvas attrs above with the user's resolution at
-      // export time; this script reads them at load.
-      (function () {
+      // `--game-aspect` is a single number, not a `W / H` ratio:
+      // var() substitutes raw text, so a ratio would produce
+      // `(100vw / W) / H` (near-zero, black screen). Re-run after
+      // callMain since raylib's emscripten canvas resize doesn't
+      // fire DOM mutation events.
+      function _usagi_update_aspect() {
         const c = document.getElementById("canvas");
         document.documentElement.style.setProperty(
           "--game-aspect",
-          `${c.width} / ${c.height}`,
+          c.width / c.height,
         );
-      })();
+      }
+      _usagi_update_aspect();
     </script>
     <script>
       // Stop game-input keys from triggering the host page's default
@@ -191,6 +198,10 @@
         } catch (e) {
           console.error("usagi: main() threw", e);
         }
+
+        // raylib resized the canvas backing-store inside callMain;
+        // re-derive --game-aspect from the post-init dims.
+        _usagi_update_aspect();
       }
 
       overlay.addEventListener("click", start);
