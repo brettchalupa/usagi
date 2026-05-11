@@ -235,9 +235,9 @@ gfx.circ_fill(x, y, r, color)
 gfx.line(x1, y1, x2, y2, color)
 gfx.pixel(x, y, color)
 gfx.spr(index, x, y)
-gfx.spr_ex(index, x, y, flip_x, flip_y)
+gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)
 gfx.sspr(sx, sy, sw, sh, dx, dy)
-gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)
+gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha)
 gfx.shader_set(name)
 gfx.shader_uniform(name, value)
 
@@ -452,13 +452,25 @@ palette indices 0-15; use the named constants.
   measurement is a pure utility (no render side-effect) and is callable from any
   callback, including `_init`.
 - `gfx.spr(index, x, y)` — draw the 16×16 sprite at `index` (1 = top-left) from
-  `sprites.png`.
-- `gfx.spr_ex(index, x, y, flip_x, flip_y)` — extended `spr`: requires both flip
-  booleans.
+  `sprites.png`. Native size, no flips, no rotation, no tint, full opacity.
+- `gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)` — extended
+  `spr`. All eight args required:
+  - `flip_x` / `flip_y` (boolean) — mirror left/right or top/bottom.
+  - `rotation` (number) — radians. `0` is no rotation. Use `math.rad(45)` for
+    literal-degree values. Rotation pivots around the **center** of the sprite;
+    `(x, y)` stays the top-left of the unrotated bounding box.
+  - `tint` (palette color) — multiplied over the sprite. `gfx.COLOR_WHITE` is
+    the identity (no recolor). Other colors recolor the sprite (e.g.
+    `gfx.COLOR_RED` for a hit flash). Multiplicative semantics, so this can't
+    produce a full-white silhouette — for that, use a shader or draw a colored
+    rect on top.
+  - `alpha` (number) — opacity in `0..1`. `1.0` is opaque, `0.0` is invisible.
 - `gfx.sspr(sx, sy, sw, sh, dx, dy)` — draw an arbitrary `(sx, sy, sw, sh)`
   rectangle from `sprites.png` at `(dx, dy)` at original size.
-- `gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)` — extended
-  `sspr`: stretches to `(dw, dh)` and flips per the booleans, all required.
+- `gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha)`
+  — extended `sspr`: stretches to `(dw, dh)`, flips per the booleans, then
+  rotates / tints / sets alpha. Same semantics as `spr_ex`. All thirteen args
+  required.
 - `gfx.COLOR_BLACK`, `COLOR_DARK_BLUE`, `COLOR_DARK_PURPLE`, `COLOR_DARK_GREEN`,
   `COLOR_BROWN`, `COLOR_DARK_GRAY`, `COLOR_LIGHT_GRAY`, `COLOR_WHITE`,
   `COLOR_RED`, `COLOR_ORANGE`, `COLOR_YELLOW`, `COLOR_GREEN`, `COLOR_BLUE`,
@@ -469,6 +481,48 @@ The `_ex` variants pack every power-arg into one fixed signature instead of
 trailing optionals. With a single `_ex` per primitive there's exactly one
 decision per draw ("simple or extended?"). If you want shorter call sites, write
 a thin wrapper.
+
+#### Scaling sprites
+
+There's no scale param on `spr` / `spr_ex` as those are fixed at the native
+sprite size. To draw a sprite scaled, use `sspr_ex` with a destination size that
+differs from the source size:
+
+```lua
+-- Draw sprite index 1 (16×16) at 2x scale at (x, y).
+local sz = usagi.SPRITE_SIZE
+gfx.sspr_ex(0, 0, sz, sz, x, y, sz * 2, sz * 2, false, false, 0, gfx.COLOR_WHITE, 1.0)
+```
+
+If you find yourself reaching for variants often, wrap them. These three helpers
+cover most games:
+
+```lua
+-- Scaled draw of a source rect on the sheet. Doesn't go through `spr`
+-- indexing — pick the source rect yourself with the TilePicker.
+function sspr_scaled(sx, sy, sw, sh, dx, dy, scale)
+  gfx.sspr_ex(
+    sx, sy, sw, sh,
+    dx, dy, sw * scale, sh * scale,
+    false, false, 0, gfx.COLOR_WHITE, 1.0
+  )
+end
+
+-- Sprite by 1-based index with rotation around its center, native size.
+function spr_rot(index, x, y, rotation)
+  gfx.spr_ex(index, x, y, false, false, rotation, gfx.COLOR_WHITE, 1.0)
+end
+
+-- Sprite by 1-based index with a tint applied, native size.
+function spr_tinted(index, x, y, tint)
+  gfx.spr_ex(index, x, y, false, false, 0, tint, 1.0)
+end
+```
+
+The engine intentionally doesn't ship these as every game has slightly different
+conventions (whether scale should be integer-only, whether rotation centers
+somewhere other than the middle, whether tinted draws also need alpha), and
+forcing one shape on everyone hurts more than it helps. Copy and adapt.
 
 ### `input`
 

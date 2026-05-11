@@ -5,8 +5,23 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Breaking:
+
+- `gfx.spr_ex` and `gfx.sspr_ex` gained three required trailing params:
+  `rotation` (radians), `tint` (palette color), and `alpha` (`0..1`). Use
+  `0, gfx.COLOR_WHITE, 1.0` for the identity values to preserve the old
+  behavior. The simple `gfx.spr` / `gfx.sspr` signatures are unchanged. See the
+  README's "Scaling sprites" subsection for wrapper recipes if you find the
+  verbose call sites painful.
+
 Features:
 
+- `gfx.spr_ex` / `gfx.sspr_ex` now support rotation, tint, and alpha. Rotation
+  is in radians (use `math.rad(deg)` for literal-degree values) and pivots
+  around the sprite's center. Tint is a palette color multiplied over the sprite
+  (`gfx.COLOR_WHITE` is the identity; other colors recolor for hit flashes
+  etc.). Alpha is `0..1` for fade-in/out. The `examples/spr` demo now exercises
+  all three (spinning bunny, tint-flashing ship via BTN1, pulsing-alpha bullet).
 - New `input.mouse_scroll()` returns the per-frame vertical scroll delta
   (positive up, negative down, `0` when no scroll). Works the same on a mouse
   wheel or a trackpad two-finger swipe. The mouse example now uses it to cycle
@@ -21,6 +36,9 @@ Features:
   highlight box on the sheet plus a readout in the header showing both the `spr`
   index (for single tiles) and the `sspr` source rect. A live preview rect
   tracks the drag.
+- `sprites.png` is now explicitly loaded with POINT (nearest-neighbor) texture
+  filtering, matching the bundled font, so the pixel-art intent is pinned in the
+  engine rather than relying on a default.
 - TilePicker: hold middle mouse and drag, or hold space and drag with the left
   mouse, to pan the sheet. Use the scroll wheel to zoom (anchored on the cursor
   so the pixel under the mouse stays put). The header also shows the sheet pixel

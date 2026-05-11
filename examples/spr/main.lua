@@ -36,6 +36,8 @@ function _init()
       face_left = false,
     },
     sparks = {},
+    -- Seconds remaining on the "got hit" tint flash; BTN1 retriggers it.
+    hit_flash = 0,
   }
 end
 
@@ -70,8 +72,9 @@ function _update(dt)
     State.p.y = State.p.y - State.p.spd * dt
   end
   if input.pressed(input.BTN1) then
-    print("fire!")
+    State.hit_flash = 0.2
   end
+  State.hit_flash = math.max(0, State.hit_flash - dt)
 
   State.p.x = clamp(State.p.x, 0, usagi.GAME_W)
   State.p.y = clamp(State.p.y, 0, usagi.GAME_H)
@@ -93,17 +96,33 @@ end
 function _draw(_dt)
   gfx.clear(gfx.COLOR_BLUE)
 
-  -- gfx.spr / gfx.spr_ex: basic vs extended sprite draw. `spr_ex` takes
-  -- both flip booleans (required) so one art asset covers both facings.
-  gfx.spr(SPR.BUNNY, 20, 20)
-  gfx.spr_ex(SPR.SHIP, State.p.x, State.p.y, State.p.face_left, false)
+  -- gfx.spr is the simple 3-arg form. Use it for static, native-size,
+  -- never-rotated, never-tinted sprites.
   gfx.spr(SPR.BULLET_SM, 20, 40)
-  gfx.spr(SPR.BULLET_LG, 50, 40)
 
-  -- gfx.sspr_ex: extended source-rect draw with flipping
-  gfx.sspr_ex(0, 32, 32, 32, 200, 20, 32, 32, false, false)
-  gfx.sspr_ex(0, 32, 32, 32, 200, 62, 32, 32, true, false)
-  gfx.sspr_ex(0, 32, 32, 32, 240, 62, 32, 32, true, true)
+  -- gfx.spr_ex: full power. Required params: flip_x, flip_y, rotation
+  -- (radians; use math.rad(deg) for literal-degree values), tint
+  -- (gfx.COLOR_WHITE = no recolor), alpha (0..1; 1 = opaque).
+  --
+  -- Spinning bunny: rotation is the elapsed time scaled to ~1 turn/sec.
+  gfx.spr_ex(SPR.BUNNY, 20, 20, false, false, usagi.elapsed * 2, gfx.COLOR_WHITE, 1.0)
+  -- Ship tints red briefly after a BTN1 press to show the tint param.
+  local ship_tint = State.hit_flash > 0 and gfx.COLOR_RED or gfx.COLOR_WHITE
+  gfx.spr_ex(SPR.SHIP, State.p.x, State.p.y, State.p.face_left, false, 0, ship_tint, 1.0)
+  -- Pulsing alpha on the big bullet: sin wave between 0.2 and 1.0.
+  local pulse = 0.6 + 0.4 * math.sin(usagi.elapsed * 4)
+  gfx.spr_ex(SPR.BULLET_LG, 50, 40, false, false, 0, gfx.COLOR_WHITE, pulse)
+
+  -- gfx.sspr_ex: extended source-rect draw with flipping + rotation +
+  -- tint + alpha. The new params trail the legacy ones: same identity
+  -- values mean "draw it normally" — 0 rotation, COLOR_WHITE tint, 1.0
+  -- alpha.
+  gfx.sspr_ex(0, 32, 32, 32, 200, 20, 32, 32, false, false, 0, gfx.COLOR_WHITE, 1.0)
+  gfx.sspr_ex(0, 32, 32, 32, 200, 62, 32, 32, true, false, 0, gfx.COLOR_WHITE, 1.0)
+  gfx.sspr_ex(0, 32, 32, 32, 240, 62, 32, 32, true, true, 0, gfx.COLOR_WHITE, 1.0)
+  -- A rotating + tinted variant to show both at once.
+  gfx.sspr_ex(0, 32, 32, 32, 240, 20, 32, 32, false, false,
+              usagi.elapsed, gfx.COLOR_PINK, 1.0)
 
   -- gfx.sspr is the simple 1:1 form for repeated tile draws.
   gfx.sspr(0, 32, 32, 32, 200, 100)
@@ -115,5 +134,5 @@ function _draw(_dt)
     gfx.pixel(s.x, s.y, s.color)
   end
 
-  gfx.text("LEFT/RIGHT to flip the ship", 4, usagi.GAME_H - 10, gfx.COLOR_WHITE)
+  gfx.text("LEFT/RIGHT to flip ship   BTN1 to flash tint", 4, usagi.GAME_H - 10, gfx.COLOR_WHITE)
 end

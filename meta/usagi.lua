@@ -87,14 +87,18 @@ function gfx.pixel(x, y, color) end
 ---@param y     number   destination top edge in game-space pixels
 function gfx.spr(index, x, y) end
 
----Extended `spr`: draws a 16×16 sprite with required flip flags. Same
----indexing as `gfx.spr`.
----@param index  integer  one-based sprite index (1 = top-left cell)
----@param x      number   destination left edge in game-space pixels
----@param y      number   destination top edge in game-space pixels
----@param flip_x boolean  flip horizontally (mirror left/right) when true
----@param flip_y boolean  flip vertically (mirror top/bottom) when true
-function gfx.spr_ex(index, x, y, flip_x, flip_y) end
+---Extended `spr`: draws a sprite with required flip flags, rotation,
+---tint, and alpha. Rotation pivots around the center of the sprite;
+---(x, y) stays the top-left of the unrotated bounding box.
+---@param index    integer  one-based sprite index (1 = top-left cell)
+---@param x        number   destination left edge in game-space pixels
+---@param y        number   destination top edge in game-space pixels
+---@param flip_x   boolean  flip horizontally (mirror left/right) when true
+---@param flip_y   boolean  flip vertically (mirror top/bottom) when true
+---@param rotation number   rotation in radians; use `math.rad(deg)` for literal-degree values, `0` for none
+---@param tint     integer  palette color to multiply over the sprite; `gfx.COLOR_WHITE` for none
+---@param alpha    number   opacity in `0..1`; `1.0` is opaque
+function gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha) end
 
 ---Draws an arbitrary (sx, sy, sw, sh) rectangle from `sprites.png` at
 ---(dx, dy) at its original size. `s*` args index into the source sheet
@@ -108,20 +112,25 @@ function gfx.spr_ex(index, x, y, flip_x, flip_y) end
 function gfx.sspr(sx, sy, sw, sh, dx, dy) end
 
 ---Extended `sspr`: source rect stretched to (dw, dh) at the destination
----with required flip flags. All ten args required; write a thin
----wrapper if a particular flag combination shows up often in your
----code.
----@param sx     number   source rect left edge on `sprites.png` (pixels)
----@param sy     number   source rect top edge on `sprites.png` (pixels)
----@param sw     number   source rect width in pixels
----@param sh     number   source rect height in pixels
----@param dx     number   destination left edge in game-space pixels
----@param dy     number   destination top edge in game-space pixels
----@param dw     number   destination width in pixels (stretches the source)
----@param dh     number   destination height in pixels (stretches the source)
----@param flip_x boolean  flip horizontally (mirror left/right) when true
----@param flip_y boolean  flip vertically (mirror top/bottom) when true
-function gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y) end
+---with required flip flags, rotation, tint, and alpha. Rotation pivots
+---around the center of the destination rect; (dx, dy) stays the
+---top-left of the unrotated bounding box. All thirteen args required;
+---write a thin wrapper if a particular flag combination shows up often
+---in your code.
+---@param sx       number   source rect left edge on `sprites.png` (pixels)
+---@param sy       number   source rect top edge on `sprites.png` (pixels)
+---@param sw       number   source rect width in pixels
+---@param sh       number   source rect height in pixels
+---@param dx       number   destination left edge in game-space pixels
+---@param dy       number   destination top edge in game-space pixels
+---@param dw       number   destination width in pixels (stretches the source)
+---@param dh       number   destination height in pixels (stretches the source)
+---@param flip_x   boolean  flip horizontally (mirror left/right) when true
+---@param flip_y   boolean  flip vertically (mirror top/bottom) when true
+---@param rotation number   rotation in radians; use `math.rad(deg)` for literal-degree values, `0` for none
+---@param tint     integer  palette color to multiply over the sprite; `gfx.COLOR_WHITE` for none
+---@param alpha    number   opacity in `0..1`; `1.0` is opaque
+function gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha) end
 
 ---Activates a post-process fragment shader. Loads `shaders/<name>.fs`
 ---(and optional `<name>.vs`) and runs it as the final pass when the

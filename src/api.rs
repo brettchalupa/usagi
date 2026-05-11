@@ -565,13 +565,28 @@ mod tests {
             )?;
             gfx.set(
                 "spr_ex",
-                scope.create_function(|_, _a: (i32, f32, f32, bool, bool)| Ok(()))?,
+                scope
+                    .create_function(|_, _a: (i32, f32, f32, bool, bool, f32, i32, f32)| Ok(()))?,
             )?;
             gfx.set(
                 "sspr",
                 scope.create_function(|_, _a: (f32, f32, f32, f32, f32, f32)| Ok(()))?,
             )?;
-            type SsprExArgs = (f32, f32, f32, f32, f32, f32, f32, f32, bool, bool);
+            type SsprExArgs = (
+                f32,
+                f32,
+                f32,
+                f32,
+                f32,
+                f32,
+                f32,
+                f32,
+                bool,
+                bool,
+                f32,
+                i32,
+                f32,
+            );
             gfx.set(
                 "sspr_ex",
                 scope.create_function(|_, _a: SsprExArgs| Ok(()))?,
@@ -637,9 +652,9 @@ mod tests {
                 gfx.line(0, 0, 100, 100, gfx.COLOR_WHITE)
                 gfx.text("hi", 0, 0, gfx.COLOR_WHITE)
                 gfx.spr(1, usagi.GAME_W / 2, usagi.GAME_H / 2)
-                gfx.spr_ex(1, 0, 0, true, true)
+                gfx.spr_ex(1, 0, 0, true, true, math.pi / 2, gfx.COLOR_WHITE, 1.0)
                 gfx.sspr(0, 0, 16, 16, 10, 10)
-                gfx.sspr_ex(0, 0, 16, 16, 10, 10, 32, 32, true, false)
+                gfx.sspr_ex(0, 0, 16, 16, 10, 10, 32, 32, true, false, 0, gfx.COLOR_RED, 0.5)
                 gfx.pixel(5, 5, gfx.COLOR_WHITE)
                 local mw, mh = usagi.measure_text("hello")
                 assert(type(mw) == "number" and type(mh) == "number")
