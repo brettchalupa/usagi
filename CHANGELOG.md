@@ -9,6 +9,8 @@ Fixes:
 
 - `input.mapping_for` now properly returns the key string instead of `"?"` for
   custom mappings.
+- VSync enabled for the engine to fix screen tearing. See
+  [#132](https://github.com/brettchalupa/usagi/issues/132)
 
 ## v0.7.1 - May 10, 2026
 

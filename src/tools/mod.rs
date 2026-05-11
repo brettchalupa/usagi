@@ -79,6 +79,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     let (mut rl, thread) = sola_raylib::init()
         .size(WINDOW_W as i32, WINDOW_H as i32)
         .title("Usagi Tools")
+        .vsync()
         .highdpi()
         .resizable()
         .build();

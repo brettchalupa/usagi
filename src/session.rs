@@ -556,6 +556,7 @@ impl Session {
         let mut builder = sola_raylib::init();
         builder
             .size((res.w * win_scale) as i32, (res.h * win_scale) as i32)
+            .vsync()
             .title(project_name.display());
         // raylib defaults to LOG_INFO, which prints a screenful of
         // GLFW/GL/audio init details every boot. Drop to LOG_WARNING
