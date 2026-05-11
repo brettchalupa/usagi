@@ -273,6 +273,7 @@ input.mouse()
 input.mouse_held(button)
 input.mouse_pressed(button)
 input.mouse_released(button)
+input.mouse_scroll()
 input.set_mouse_visible(visible)
 input.mouse_visible()
 
@@ -540,8 +541,19 @@ gfx.text("Press " .. btn .. " to jump", 10, 10, gfx.COLOR_WHITE)
 - `input.mouse_held(button)` — true while `button` is held.
 - `input.mouse_pressed(button)` — true the frame `button` first went down.
 - `input.mouse_released(button)` — true the frame `button` first went up.
+- `input.mouse_scroll()` — per-frame vertical scroll delta. Returns a number:
+  positive when scrolled up this frame, negative when down, `0` when no scroll.
+  Works the same on a mouse wheel and on a trackpad two-finger swipe. Match on
+  `> 0` / `< 0` rather than `== 1` since trackpads emit fractional values:
+
+  ```lua
+  local s = input.mouse_scroll()
+  if s > 0 then slot = math.max(1, slot - 1) end
+  if s < 0 then slot = math.min(N, slot + 1) end
+  ```
+
 - `input.MOUSE_LEFT`, `input.MOUSE_RIGHT`, `input.MOUSE_MIDDLE` — the supported
-  buttons. Wheel scrolling isn't supported yet.
+  buttons.
 - `input.set_mouse_visible(visible)` — show or hide the OS cursor over the game
   window. Callable from `_init` to hide the cursor before the first frame draws
   (handy for games that render their own cursor sprite).

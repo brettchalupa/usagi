@@ -339,6 +339,13 @@ function input.mouse_pressed(button) end
 ---@return boolean
 function input.mouse_released(button) end
 
+---Per-frame vertical scroll delta. Positive when scrolled up this
+---frame, negative when down, 0 when no scroll. Floats are supported,
+---so trackpad swipes can emit fractional values; match against `> 0`
+---/ `< 0` rather than equality with 1 / -1.
+---@return number
+function input.mouse_scroll() end
+
 ---Returns true while the given keyboard key is held.
 ---
 ---Direct keyboard reads bypass the keymap override and gamepad

@@ -147,6 +147,13 @@ fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
     )?;
 
     let s = Rc::clone(&bridge.state);
+    let mouse_scroll = lua.create_function(move |_, ()| Ok(s.get().mouse_scroll()))?;
+    input.set(
+        "mouse_scroll",
+        wrap(lua, mouse_scroll, "input.mouse_scroll", &[])?,
+    )?;
+
+    let s = Rc::clone(&bridge.state);
     let key_held = lua.create_function(move |_, key: u32| Ok(s.get().key_held(key)))?;
     input.set(
         "key_held",

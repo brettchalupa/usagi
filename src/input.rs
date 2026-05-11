@@ -833,6 +833,10 @@ pub struct InputState {
     mouse_middle_released: bool,
     mouse_x: i32,
     mouse_y: i32,
+    /// Per-frame vertical scroll delta. Positive when scrolled up this
+    /// frame, negative when down, 0 when no scroll. Floats supported
+    /// (trackpads emit fractional per-frame values).
+    mouse_scroll: f32,
     /// Per-action label for the currently-active source's primary
     /// binding. Indexed by `action - 1`. Pre-computed in `sample` so
     /// the `input.mapping_for` Lua closure stays cheap.
@@ -926,6 +930,7 @@ impl InputState {
             mouse_middle_released: rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_MIDDLE),
             mouse_x: mx,
             mouse_y: my,
+            mouse_scroll: rl.get_mouse_wheel_move(),
             mapping,
             last_source,
             last_pad,
@@ -1021,6 +1026,14 @@ impl InputState {
 
     pub fn mouse_position(&self) -> (i32, i32) {
         (self.mouse_x, self.mouse_y)
+    }
+
+    /// Per-frame vertical scroll delta. Positive when scrolled up this
+    /// frame, negative when down, 0 when no scroll. Match against `> 0`
+    /// / `< 0` rather than equality with `1` / `-1` since trackpads can
+    /// emit fractional values.
+    pub fn mouse_scroll(&self) -> f32 {
+        self.mouse_scroll
     }
 }
 
@@ -1486,6 +1499,21 @@ mod tests {
             keys_released: keys_held,
             ..InputState::default()
         }
+    }
+
+    #[test]
+    fn mouse_scroll_returns_sampled_value() {
+        let state = InputState {
+            mouse_scroll: 1.5,
+            ..InputState::default()
+        };
+        assert_eq!(state.mouse_scroll(), 1.5);
+        let state = InputState {
+            mouse_scroll: -2.0,
+            ..InputState::default()
+        };
+        assert_eq!(state.mouse_scroll(), -2.0);
+        assert_eq!(InputState::default().mouse_scroll(), 0.0);
     }
 
     /// Pressing BTN1 to close the menu shouldn't leak into `_update`:

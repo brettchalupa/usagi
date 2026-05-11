@@ -595,6 +595,7 @@ mod tests {
                 "mouse_released",
                 scope.create_function(|_, _b: u32| Ok(false))?,
             )?;
+            input.set("mouse_scroll", scope.create_function(|_, ()| Ok(0.0f32))?)?;
             input.set("key_held", scope.create_function(|_, _k: u32| Ok(false))?)?;
             input.set(
                 "key_pressed",
@@ -653,6 +654,7 @@ mod tests {
                 assert(type(input.mouse_held(input.MOUSE_LEFT)) == "boolean")
                 assert(type(input.mouse_pressed(input.MOUSE_RIGHT)) == "boolean")
                 assert(type(input.mouse_released(input.MOUSE_LEFT)) == "boolean")
+                assert(type(input.mouse_scroll()) == "number")
                 assert(type(input.key_held(input.KEY_F1)) == "boolean")
                 assert(type(input.key_pressed(input.KEY_BACKTICK)) == "boolean")
                 assert(type(input.key_released(input.KEY_SPACE)) == "boolean")
