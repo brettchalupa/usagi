@@ -44,7 +44,7 @@ function tbl.fn(name) end      -- body is empty; only the signature matters
 ```
 
 Types: `nil`, `boolean`, `number`, `integer`, `string`, `table`, `function`, a
-class name (`Usagi.Gfx`), or a union (`integer|string`). Lua 5.4 distinguishes
+class name (`Usagi.Gfx`), or a union (`integer|string`). Lua 5.5 distinguishes
 `integer` from `number` — use `integer` for constants and key codes, `number`
 for coordinates/times.
 

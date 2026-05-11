@@ -7,6 +7,10 @@ Doesn't contain updates relating to developing the engine itself.
 
 Features:
 
+- Upgraded the embedded Lua runtime from 5.4 to 5.5. No game-code changes are
+  expected for typical Usagi scripts; the bundled `.luarc.json` (shipped via
+  `usagi init` / `usagi refresh`) now pins `runtime.version` to `Lua 5.5` so
+  the LSP matches.
 - TilePicker: LMB on a tile copies its `spr` index (existing behavior). RMB
   click-and-drag now selects a tile-aligned rectangle on the sheet and copies
   `sx,sy,sw,sh` ready for `sspr`. The current selection stays visible: a
