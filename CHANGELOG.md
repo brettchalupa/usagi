@@ -5,6 +5,11 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Fixes:
+
+- `input.mapping_for` now properly returns the key string instead of `"?"` for
+  custom mappings.
+
 ## v0.7.1 - May 10, 2026
 
 Features:
