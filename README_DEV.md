@@ -1100,11 +1100,41 @@ automatically. Override per-build with `--web-shell PATH`.
 
 ## Debugging
 
-With live reload, one way you can quickly debug your Usagi game is by `print`ing
-values that change overtime. With the instant feedback, it's surprisingly
-helpful.
+With live reload, the fastest debugging loop is usually `print`. Drop a `print`
+into `_update` or `_draw` with the value you care about, save, and watch it tick
+in the terminal while the game keeps running.
 
-Debugging your game's error
+For tables, stock `print(my_table)` shows something like `table: 0x55a...` which
+isn't useful. Use `usagi.dump(t)` to get a recursive pretty-print of any value:
+
+```lua
+print(usagi.dump(state))
+```
+
+Tables are recursed with sorted keys; arrays render in order; cycles show as
+`<cycle>`; functions / userdata / threads show as placeholders. The result is a
+string, so you can also draw it on screen during dev with `gfx.text`.
+
+Other Lua tools worth knowing:
+
+- `print(debug.traceback())` writes the current call stack to stdout. Useful for
+  "how did we get here?" questions.
+- `assert(cond, msg)` raises an error when `cond` is falsy. A cheap way to guard
+  invariants: `assert(player, "player is nil in _update")`.
+- `error(msg)` raises an error directly. In `usagi dev` it propagates to the
+  in-game error overlay (the red screen with the traceback), so you can stop the
+  world when state is clearly wrong rather than chase a quiet corruption several
+  frames later.
+- `pcall(fn, ...)` calls `fn` and returns `false, msg` instead of unwinding when
+  it errors. Use it around code that might fail (parsing optional data, loading
+  from a fragile source) when the rest of the game should keep running.
+
+A small amount of defensive programming pays off well in Lua. The language is
+dynamic and silent: a typo turns a real value into `nil`, and you find out
+several frames downstream when something unrelated tries to index that nil.
+Asserting your assumptions, especially in `_init` and at function boundaries,
+collapses that distance: the failure points at the real bug instead of at the
+chain reaction it caused.
 
 Set the env var `USAGI_VERBOSE=1` to get full log output, including Raylib's
 logs.

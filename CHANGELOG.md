@@ -17,6 +17,9 @@ Features:
   mouse, to pan the sheet. Use the scroll wheel to zoom (anchored on the cursor
   so the pixel under the mouse stays put). The header also shows the sheet pixel
   coords under the cursor.
+- New `usagi.dump(v)` helper: pretty-prints any Lua value to a string, recursing
+  into tables with sorted keys and cycle detection. Pair with `print` for
+  terminal debugging, or feed into `gfx.text` to draw on screen.
 
 ## v0.7.2 - May 10, 2026
 
