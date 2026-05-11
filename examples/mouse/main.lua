@@ -9,6 +9,8 @@ function _init()
 
   State = {
     sparks = {},
+    -- Index into SPARK_COLORS. Scroll-wheel cycles this.
+    selected = 1,
   }
 end
 
@@ -27,7 +29,7 @@ local function emit_spark(x, y, speed, life)
     vx = math.cos(angle) * speed,
     vy = math.sin(angle) * speed,
     life = life,
-    color = SPARK_COLORS[1 + math.floor(math.random() * #SPARK_COLORS)],
+    color = SPARK_COLORS[State.selected],
   }
 end
 
@@ -57,6 +59,18 @@ function _update(dt)
 
   if input.pressed(input.BTN3) then
     input.set_mouse_visible(not input.mouse_visible())
+  end
+
+  -- Scroll up / down to cycle spark color. Match on > 0 / < 0 rather
+  -- than equality with 1 / -1 since trackpads emit fractional per-frame
+  -- values.
+  local scroll = input.mouse_scroll()
+  if scroll > 0 then
+    State.selected = State.selected - 1
+    if State.selected < 1 then State.selected = #SPARK_COLORS end
+  elseif scroll < 0 then
+    State.selected = State.selected + 1
+    if State.selected > #SPARK_COLORS then State.selected = 1 end
   end
 
   for i = #State.sparks, 1, -1 do
@@ -100,4 +114,19 @@ function _draw(_dt)
   gfx.text("Left click: burst   Right click: clear", 4, 14, gfx.COLOR_LIGHT_GRAY)
   local b3 = input.mapping_for(input.BTN3) or "BTN3"
   gfx.text(b3 .. " toggles OS cursor", 4, 24, gfx.COLOR_LIGHT_GRAY)
+  gfx.text("Scroll: spark color", 4, 34, gfx.COLOR_LIGHT_GRAY)
+
+  -- Swatch row: one filled square per color, white outline around the
+  -- currently-selected one so the wheel feels connected to something.
+  local sw = 8
+  local gap = 2
+  local sx = usagi.GAME_W - (#SPARK_COLORS * (sw + gap)) - 4
+  local sy = 4
+  for i, c in ipairs(SPARK_COLORS) do
+    local x = sx + (i - 1) * (sw + gap)
+    gfx.rect_fill(x, sy, sw, sw, c)
+    if i == State.selected then
+      gfx.rect(x - 1, sy - 1, sw + 2, sw + 2, gfx.COLOR_WHITE)
+    end
+  end
 end
