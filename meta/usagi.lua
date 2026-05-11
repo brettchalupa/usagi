@@ -73,6 +73,34 @@ function gfx.circ_fill(x, y, r, color) end
 ---@param color integer  a gfx.COLOR_* constant
 function gfx.line(x1, y1, x2, y2, color) end
 
+---Extended `rect`: rectangle outline with a thickness param.
+---@param x         number   left edge in game-space pixels
+---@param y         number   top edge in game-space pixels
+---@param w         number   width in pixels
+---@param h         number   height in pixels
+---@param thickness number   stroke thickness in pixels
+---@param color     integer  a gfx.COLOR_* constant
+function gfx.rect_ex(x, y, w, h, thickness, color) end
+
+---Extended `circ`: circle outline with a thickness param. Stroke is
+---centered on the nominal radius so concentric `circ_ex` calls at
+---radii `r`, `r-1`, `r-2`, ... draw flush rings with no gaps.
+---@param x         number   center x in game-space pixels
+---@param y         number   center y in game-space pixels
+---@param r         number   radius in pixels
+---@param thickness number   stroke thickness in pixels
+---@param color     integer  a gfx.COLOR_* constant
+function gfx.circ_ex(x, y, r, thickness, color) end
+
+---Extended `line`: line with a thickness param.
+---@param x1        number   start x in game-space pixels
+---@param y1        number   start y in game-space pixels
+---@param x2        number   end x in game-space pixels
+---@param y2        number   end y in game-space pixels
+---@param thickness number   stroke thickness in pixels
+---@param color     integer  a gfx.COLOR_* constant
+function gfx.line_ex(x1, y1, x2, y2, thickness, color) end
+
 ---Sets a single pixel.
 ---@param x     number  x in game-space pixels
 ---@param y     number  y in game-space pixels

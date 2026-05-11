@@ -230,9 +230,12 @@ gfx.clear(color)
 gfx.text(text, x, y, color)
 gfx.rect(x, y, w, h, color)
 gfx.rect_fill(x, y, w, h, color)
+gfx.rect_ex(x, y, w, h, thickness, color)
 gfx.circ(x, y, r, color)
 gfx.circ_fill(x, y, r, color)
+gfx.circ_ex(x, y, r, thickness, color)
 gfx.line(x1, y1, x2, y2, color)
+gfx.line_ex(x1, y1, x2, y2, thickness, color)
 gfx.pixel(x, y, color)
 gfx.spr(index, x, y)
 gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)
@@ -440,11 +443,22 @@ Draws to the screen. Positions are in game-space pixels (320×180). Colors are
 palette indices 0-15; use the named constants.
 
 - `gfx.clear(color)` — fill the screen.
-- `gfx.rect(x, y, w, h, color)` — rectangle outline.
+- `gfx.rect(x, y, w, h, color)` — 1-pixel rectangle outline.
 - `gfx.rect_fill(x, y, w, h, color)` — filled rectangle.
-- `gfx.circ(x, y, r, color)` — circle outline centered at `(x, y)`.
+- `gfx.rect_ex(x, y, w, h, thickness, color)` — rectangle outline with a custom
+  stroke thickness in pixels.
+- `gfx.circ(x, y, r, color)` — 1-pixel circle outline centered at `(x, y)`.
 - `gfx.circ_fill(x, y, r, color)` — filled circle centered at `(x, y)`.
-- `gfx.line(x1, y1, x2, y2, color)` — line from `(x1, y1)` to `(x2, y2)`.
+- `gfx.circ_ex(x, y, r, thickness, color)` — circle outline with a custom stroke
+  thickness. Stroke is centered on the nominal radius, so stacking three
+  `circ_ex(x, y, r, 1, c)` / `circ_ex(x, y, r-1, 1, c)` /
+  `circ_ex(x, y, r-2, 1, c)` calls produces flush concentric rings with no gaps
+  — fixes the rounding-gap issue you get layering plain `gfx.circ` calls at
+  adjacent radii.
+- `gfx.line(x1, y1, x2, y2, color)` — 1-pixel line from `(x1, y1)` to
+  `(x2, y2)`.
+- `gfx.line_ex(x1, y1, x2, y2, thickness, color)` — line with a custom thickness
+  in pixels.
 - `gfx.pixel(x, y, color)` — set a single pixel.
 - `gfx.text(text, x, y, color)` — bundled monogram font (5×7 pixel font, 16 px
   line height; see Credits below). To measure text dimensions, use

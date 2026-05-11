@@ -106,4 +106,19 @@ function _draw(_dt)
       gfx.circ_fill(s.x, s.y, 1, gfx.COLOR_WHITE)
     end
   end
+
+  -- circ_ex: three concentric thickness-1 rings at adjacent radii.
+  -- Layering plain `gfx.circ` here would leave rasterizer-rounding
+  -- gaps; `circ_ex` draws real rings so the bands sit flush.
+  gfx.text("circ_ex rings", 168, 146, gfx.COLOR_LIGHT_GRAY)
+  gfx.circ_ex(196, 168, 10, 1, gfx.COLOR_WHITE)
+  gfx.circ_ex(196, 168, 8, 1, gfx.COLOR_RED)
+  gfx.circ_ex(196, 168, 6, 1, gfx.COLOR_WHITE)
+
+  -- One thick example of each _ex variant so the thickness param is
+  -- visibly doing something.
+  gfx.text("thick", 260, 146, gfx.COLOR_LIGHT_GRAY)
+  gfx.rect_ex(240, 160, 18, 14, 3, gfx.COLOR_PINK)
+  gfx.circ_ex(280, 168, 7, 3, gfx.COLOR_ORANGE)
+  gfx.line_ex(298, 168, 314, 172, 3, gfx.COLOR_GREEN)
 end

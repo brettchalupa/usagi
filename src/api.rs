@@ -556,6 +556,18 @@ mod tests {
                 scope.create_function(|_, _a: (f32, f32, f32, f32, i32)| Ok(()))?,
             )?;
             gfx.set(
+                "rect_ex",
+                scope.create_function(|_, _a: (f32, f32, f32, f32, f32, i32)| Ok(()))?,
+            )?;
+            gfx.set(
+                "circ_ex",
+                scope.create_function(|_, _a: (f32, f32, f32, f32, i32)| Ok(()))?,
+            )?;
+            gfx.set(
+                "line_ex",
+                scope.create_function(|_, _a: (f32, f32, f32, f32, f32, i32)| Ok(()))?,
+            )?;
+            gfx.set(
                 "text",
                 scope.create_function(|_, _a: (String, f32, f32, i32)| Ok(()))?,
             )?;
@@ -650,6 +662,9 @@ mod tests {
                 gfx.circ(50, 50, 8, gfx.COLOR_GREEN)
                 gfx.circ_fill(60, 60, 4, gfx.COLOR_YELLOW)
                 gfx.line(0, 0, 100, 100, gfx.COLOR_WHITE)
+                gfx.rect_ex(10, 20, 30, 40, 2, gfx.COLOR_RED)
+                gfx.circ_ex(50, 50, 8, 2, gfx.COLOR_GREEN)
+                gfx.line_ex(0, 0, 100, 100, 3, gfx.COLOR_WHITE)
                 gfx.text("hi", 0, 0, gfx.COLOR_WHITE)
                 gfx.spr(1, usagi.GAME_W / 2, usagi.GAME_H / 2)
                 gfx.spr_ex(1, 0, 0, true, true, math.pi / 2, gfx.COLOR_WHITE, 1.0)

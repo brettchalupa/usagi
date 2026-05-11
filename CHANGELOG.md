@@ -16,6 +16,12 @@ Breaking:
 
 Features:
 
+- New `gfx.rect_ex(x, y, w, h, thickness, color)`,
+  `gfx.circ_ex(x, y, r, thickness, color)`, and
+  `gfx.line_ex(x1, y1, x2, y2, thickness, color)` for thick-stroke shape
+  outlines. `circ_ex` strokes are centered on the nominal radius so concentric
+  rings at adjacent radii sit flush instead of leaving rounding gaps. The
+  `examples/shapes` demo now includes a small concentric-rings showcase.
 - `gfx.spr_ex` / `gfx.sspr_ex` now support rotation, tint, and alpha. Rotation
   is in radians (use `math.rad(deg)` for literal-degree values) and pivots
   around the sprite's center. Tint is a palette color multiplied over the sprite
