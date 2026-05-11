@@ -228,6 +228,7 @@ _draw(dt)
 
 gfx.clear(color)
 gfx.text(text, x, y, color)
+gfx.text_ex(text, x, y, scale, rotation, color)
 gfx.rect(x, y, w, h, color)
 gfx.rect_fill(x, y, w, h, color)
 gfx.rect_ex(x, y, w, h, thickness, color)
@@ -465,6 +466,14 @@ palette indices 0-15; use the named constants.
   `usagi.measure_text` — it lives on `usagi` rather than `gfx` because
   measurement is a pure utility (no render side-effect) and is callable from any
   callback, including `_init`.
+- `gfx.text_ex(text, x, y, scale, rotation, color)` — extended `text`:
+  - `scale` (number) — font-size multiplier. **Use integers** (`1`, `2`, `3`)
+    for crisp text — monogram is a bitmap font with POINT filtering, so integer
+    scales preserve the pixel-art look. Fractional values blur.
+  - `rotation` (number) — radians. `0` is no rotation. Use `math.rad(45)` for
+    literal-degree values. Rotation pivots around the **center** of the
+    unrotated bounding box; `(x, y)` stays the top-left when `rotation = 0`.
+    Useful for juice — wiggling subtitles, tilted labels, score popups.
 - `gfx.spr(index, x, y)` — draw the 16×16 sprite at `index` (1 = top-left) from
   `sprites.png`. Native size, no flips, no rotation, no tint, full opacity.
 - `gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)` — extended

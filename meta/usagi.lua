@@ -34,6 +34,19 @@ function gfx.clear(color) end
 ---@param color integer  a gfx.COLOR_* constant
 function gfx.text(text, x, y, color) end
 
+---Extended `text`: scale and rotation. Rotation pivots around the
+---center of the text's unrotated bounding box; (x, y) stays the
+---top-left at `rotation = 0`. Integer scale values render crisp
+---(monogram is a bitmap font with POINT filter); fractional values
+---blur — use integers unless you specifically want a smooth tween.
+---@param text     string   string to render
+---@param x        number   left edge in game-space pixels (unrotated bounding box)
+---@param y        number   top edge in game-space pixels (unrotated bounding box)
+---@param scale    number   font-size multiplier; integer recommended for crisp text
+---@param rotation number   rotation in radians; use `math.rad(deg)` for literal-degree values, `0` for none
+---@param color    integer  a gfx.COLOR_* constant
+function gfx.text_ex(text, x, y, scale, rotation, color) end
+
 
 ---Draws a rectangle outline.
 ---@param x     number  left edge in game-space pixels

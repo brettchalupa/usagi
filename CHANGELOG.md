@@ -16,6 +16,12 @@ Breaking:
 
 Features:
 
+- New `gfx.text_ex(text, x, y, scale, rotation, color)` for scaled and rotated
+  text. Scale is a font-size multiplier (use integers for crisp pixel-art text;
+  fractional values blur). Rotation is in radians (use `math.rad(deg)` for
+  literal degrees) and pivots around the text's center. New `examples/text`
+  shows a big scaled title, a sin-wave wiggling subtitle, and a static tilted
+  label.
 - New `gfx.rect_ex(x, y, w, h, thickness, color)`,
   `gfx.circ_ex(x, y, r, thickness, color)`, and
   `gfx.line_ex(x1, y1, x2, y2, thickness, color)` for thick-stroke shape
