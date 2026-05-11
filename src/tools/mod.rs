@@ -10,7 +10,7 @@ mod tilepicker;
 
 use crate::assets::{MusicLibrary, SfxLibrary, SpriteSheet};
 use crate::palette::{Pal, color};
-use crate::vfs::FsBacked;
+use crate::vfs::{FsBacked, VirtualFs};
 use sola_raylib::prelude::*;
 use std::path::{Path, PathBuf};
 
@@ -75,6 +75,12 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     let sfx_dir_display = project_dir.as_ref().map(|d| d.join("sfx"));
     let music_dir_display = project_dir.as_ref().map(|d| d.join("music"));
     let sprites_path_display = project_dir.as_ref().map(|d| d.join("sprites.png"));
+    // The tools UI keeps the default Pico-8 palette for its chrome
+    // regardless of what the project ships, so that swatches /
+    // tile-picker overlays / panel borders look consistent across
+    // every project. The ColorPalette tool reads `palette.png` itself
+    // (see `color_palette::State::new`) to show the user's custom
+    // palette in its swatches.
 
     let (mut rl, thread) = sola_raylib::init()
         .size(WINDOW_W as i32, WINDOW_H as i32)
@@ -119,9 +125,15 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         jukebox: jukebox::State::new(&sfx.sounds, music_lib.track_names()),
         tilepicker: tilepicker::State::new(project_config.sprite_size),
         save_inspector: save_inspector::State::new(project_path),
-        color_palette: color_palette::State::new(),
+        color_palette: color_palette::State::new(
+            vfs.as_ref().map(|v| v as &dyn crate::vfs::VirtualFs),
+        ),
         toast: None,
     };
+
+    // Track palette.png mtime so the ColorPalette tool hot-reloads
+    // when the user edits / drops in / removes the file mid-session.
+    let mut palette_mtime = vfs.as_ref().and_then(|v| v.palette_mtime());
 
     while !rl.window_should_close() {
         let dt = rl.get_frame_time();
@@ -154,6 +166,15 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
             && sheet.reload_if_changed(&mut rl, &thread, v)
         {
             crate::msg::info!("tools reloaded sprites.png");
+        }
+
+        if let Some(v) = vfs.as_ref() {
+            let cur = v.palette_mtime();
+            if cur != palette_mtime {
+                palette_mtime = cur;
+                state.color_palette.reload(Some(v));
+                crate::msg::info!("tools reloaded palette.png");
+            }
         }
 
         // Global tab shortcuts. Applied before per-tool input so switching

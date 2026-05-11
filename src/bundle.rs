@@ -144,6 +144,11 @@ impl Bundle {
             bundle.insert("sprites.png", std::fs::read(&sprites)?);
         }
 
+        let palette = root.join("palette.png");
+        if palette.is_file() {
+            bundle.insert("palette.png", std::fs::read(&palette)?);
+        }
+
         let sfx_dir = root.join("sfx");
         if sfx_dir.is_dir() {
             for entry in std::fs::read_dir(&sfx_dir)?.flatten() {

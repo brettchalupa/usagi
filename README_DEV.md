@@ -153,6 +153,7 @@ stock Lua's `require`. Optional assets live alongside:
 my_game/
   main.lua           -- required: your game's entry point
   sprites.png        -- optional: 16×16 sprite sheet (PNG with alpha)
+  palette.png        -- optional: custom palette (1px tall, one color per pixel)
   enemies.lua        -- optional: require "enemies"
   scenes/
     main_menu.lua    -- optional: require "scenes.main_menu" - source code can be in folders
@@ -500,13 +501,69 @@ palette indices 0-15; use the named constants.
 - `gfx.COLOR_BLACK`, `COLOR_DARK_BLUE`, `COLOR_DARK_PURPLE`, `COLOR_DARK_GREEN`,
   `COLOR_BROWN`, `COLOR_DARK_GRAY`, `COLOR_LIGHT_GRAY`, `COLOR_WHITE`,
   `COLOR_RED`, `COLOR_ORANGE`, `COLOR_YELLOW`, `COLOR_GREEN`, `COLOR_BLUE`,
-  `COLOR_INDIGO`, `COLOR_PINK`, `COLOR_PEACH` — the Pico-8 palette, indices
-  0-15.
+  `COLOR_INDIGO`, `COLOR_PINK`, `COLOR_PEACH` — palette slot indices `1..16`,
+  matching `gfx.spr` and Lua's array convention (`0` is an out-of-range sentinel
+  that renders magenta). The RGB at each slot is the default Pico-8 palette
+  unless a `palette.png` overrides it (see below). The constants are slot
+  indices, not RGB promises: if you swap palettes, `gfx.COLOR_RED` still
+  resolves through slot 9, but its actual color depends on the active palette.
 
 The `_ex` variants pack every power-arg into one fixed signature instead of
 trailing optionals. With a single `_ex` per primitive there's exactly one
 decision per draw ("simple or extended?"). If you want shorter call sites, write
 a thin wrapper.
+
+#### Custom palettes (`palette.png`)
+
+Drop a `palette.png` at your project root to override the engine's default
+Pico-8 palette. Pixels are read in **row-major** order (left-to-right,
+top-to-bottom):
+
+- **Any rectangular shape.** A 16x1 strip, 16x2 grid (32 colors), or 4x4 (16
+  colors) all work. Color count = `width × height`. Multi-row is fine for
+  organizing larger palettes.
+- **Each pixel = one slot.** Use lospec.com's "1px cells" export rather than the
+  larger cell-block versions (where each color is a 16x16 block of duplicates).
+- **Slot indices are 1-based.** The top-left pixel is slot 1. The `gfx.COLOR_*`
+  constants are `1..16` slot indices into the active palette.
+
+Behavior:
+
+- Missing `palette.png` → engine uses the Pico-8 default (16 colors).
+- Hot-reloads like `sprites.png`. Save a new `palette.png` over the old one and
+  the running game flips colors immediately.
+- Slot indices outside the palette range render as magenta (`255,0,255,255`) —
+  the existing "unknown color" sentinel. If your palette has 8 colors,
+  `gfx.COLOR_RED` (slot 9) and higher will be magenta. Define your own constants
+  in Lua for non-default palettes.
+- Bundled into `usagi export` automatically when present.
+
+**Recommended pattern: name your own slots.** The built-in `gfx.COLOR_*`
+constants are named after Pico-8's slot ordering (slot 9 = `COLOR_RED`). With a
+custom palette, slot 9 might be a navy blue or a teal. The names don't match the
+colors anymore. Define your own constants once at the top of your project and
+use them everywhere:
+
+```lua
+-- e.g. for sweetie16
+local COLOR = {
+  NIGHT = 1, PURPLE = 2, RED = 3,    ORANGE = 4,
+  YELLOW = 5, LIME = 6,  GREEN = 7,  TEAL = 8,
+  NAVY = 9,  BLUE = 10,  SKY = 11,   CYAN = 12,
+  WHITE = 13, SILVER = 14, GRAY = 15, SHADOW = 16,
+}
+
+gfx.clear(COLOR.NIGHT)
+gfx.rect_fill(x, y, w, h, COLOR.RED)
+```
+
+Workflow tip: `palette.png` loads directly into Aseprite's palette panel with
+one click ("Edit → Preferences → Palette → Load"), so the same file drives both
+your engine colors and the swatches you paint with.
+
+See
+[`examples/palette_swap`](https://github.com/brettchalupa/usagi/tree/main/examples/palette_swap)
+for a runnable demo (ships sweetie16, uses a `COLOR` table for its named slots).
 
 #### Scaling sprites
 

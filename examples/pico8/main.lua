@@ -12,13 +12,9 @@ local SPR = {
   BULLET_SM = 3,
 }
 
--- Warm palette cycle for the ship's exhaust trail.
-local EXHAUST_COLORS = {
-  gfx.COLOR_YELLOW,
-  gfx.COLOR_ORANGE,
-  gfx.COLOR_RED,
-  gfx.COLOR_BROWN,
-}
+-- Warm palette cycle for the ship's exhaust trail. Pico-8 color indices
+-- (0-15) — the shim adds 1 when forwarding to usagi's gfx layer.
+local EXHAUST_COLORS = { 10, 9, 8, 4 } -- yellow, orange, red, brown
 
 function _config()
   return { name = "Pico-8 flavor" }
@@ -86,14 +82,17 @@ function _update(dt)
 end
 
 function _draw(_dt)
-  cls(gfx.COLOR_DARK_BLUE)
+  -- Pico-8 color literals (0-15) throughout — the shim adds 1 to map
+  -- to usagi's 1-based slots. This is the idiom a real Pico-8 cart
+  -- would use, which is the whole point of the shim.
+  cls(1) -- dark blue
 
   -- HUD bar with rectfill (inclusive corners, Pico-8 style) and a
   -- horizontal `line` separator below it.
-  rectfill(0, 0, usagi.GAME_W - 1, 13, gfx.COLOR_BLACK)
-  line(0, 14, usagi.GAME_W - 1, 14, gfx.COLOR_DARK_GRAY)
-  print("pico-8 flavor", 2, 1, gfx.COLOR_PEACH)
-  print("count: " .. State.count, 200, 1, gfx.COLOR_YELLOW)
+  rectfill(0, 0, usagi.GAME_W - 1, 13, 0)            -- black
+  line(0, 14, usagi.GAME_W - 1, 14, 5)               -- dark gray
+  print("pico-8 flavor", 2, 1, 15)                   -- peach
+  print("count: " .. State.count, 200, 1, 10)        -- yellow
 
   -- Sprite from the spr example. Pico-8 is 0-based; pico8.lua adds 1.
   -- The flip args route through gfx.spr_ex when face_left is true.
@@ -111,12 +110,12 @@ function _draw(_dt)
   -- Orbiting circle with a `line` crosshair through it. cos/sin take
   -- turns and sin is negated, exactly like Pico-8.
   local cx, cy = 280, 100
-  line(cx - 22, cy, cx + 22, cy, gfx.COLOR_DARK_GRAY)
-  line(cx, cy - 22, cx, cy + 22, gfx.COLOR_DARK_GRAY)
-  circ(cx, cy, 18, gfx.COLOR_DARK_GRAY)
+  line(cx - 22, cy, cx + 22, cy, 5)                  -- dark gray
+  line(cx, cy - 22, cx, cy + 22, 5)
+  circ(cx, cy, 18, 5)
   local px = cx + cos(State.spin) * 18
   local py = cy + sin(State.spin) * 18
-  circfill(px, py, 3, gfx.COLOR_PINK)
+  circfill(px, py, 3, 14)                            -- pink
 
-  print("arrows move, btn1 fires", 2, usagi.GAME_H - 10, gfx.COLOR_LIGHT_GRAY)
+  print("arrows move, btn1 fires", 2, usagi.GAME_H - 10, 6) -- light gray
 end

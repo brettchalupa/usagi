@@ -40,11 +40,13 @@ const FRAME_DELAY_CS: u16 = 2;
 const RECORDING_SCALE: u16 = 2;
 
 /// Resolved RGB triples for the 16 palette entries, in palette-index
-/// order. Built once and reused for every captured frame.
+/// order. Built once and reused for every captured frame. GIF palette
+/// slots are 0-based by spec, so usagi slots 1..=16 fill GIF positions
+/// 0..15.
 fn palette_rgb() -> [u8; 48] {
     let mut out = [0u8; 48];
     for i in 0..16 {
-        let c = palette::color(i as i32);
+        let c = palette::color((i + 1) as i32);
         out[i * 3] = c.r;
         out[i * 3 + 1] = c.g;
         out[i * 3 + 2] = c.b;
@@ -344,12 +346,15 @@ mod tests {
     #[test]
     fn palette_lookup_returns_exact_index_for_each_palette_color() {
         let p = PaletteIndex::new();
-        for i in 0..16u8 {
-            let c = palette::color(i as i32);
+        // GIF palette slots are 0..15; they correspond to usagi slots
+        // 1..16. The lookup returns the GIF-side index.
+        for gif_idx in 0..16u8 {
+            let c = palette::color((gif_idx + 1) as i32);
             assert_eq!(
                 p.lookup(c.r, c.g, c.b),
-                i,
-                "palette index {i} should round-trip"
+                gif_idx,
+                "gif idx {gif_idx} (usagi slot {}) should round-trip",
+                gif_idx + 1
             );
         }
     }
@@ -357,12 +362,13 @@ mod tests {
     #[test]
     fn palette_lookup_picks_nearest_for_off_palette_rgb() {
         let p = PaletteIndex::new();
-        // Pure black palette entry is index 0 (0,0,0). A near-black
-        // (1,1,1) should snap to it.
+        // Black is usagi slot 1 / GIF index 0. A near-black (1,1,1)
+        // should snap to it.
         assert_eq!(p.lookup(1, 1, 1), 0);
         // Bright red (255, 0, 0) is closest to palette red (255,0,77).
         // Should not pick yellow / orange / pink at this distance.
-        assert_eq!(p.lookup(255, 0, 0), palette::Pal::Red as i32 as u8);
+        // Red is usagi slot 9 / GIF index 8.
+        assert_eq!(p.lookup(255, 0, 0), (palette::Pal::Red as i32 - 1) as u8);
     }
 
     #[test]

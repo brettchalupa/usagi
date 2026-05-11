@@ -59,6 +59,30 @@ fn tinted(tint_idx: i32, alpha: f32) -> Color {
     c
 }
 
+/// Reads the project's optional `palette.png` and installs it as the
+/// active palette. Missing file keeps the Pico-8 default. A malformed
+/// or oversized image (e.g. anything taller than 1px) logs a warning
+/// and the default stays active — never a hard failure at session
+/// start.
+pub(crate) fn load_palette_from_vfs(vfs: &dyn VirtualFs) {
+    let Some(bytes) = vfs.read_palette() else {
+        return;
+    };
+    match crate::palette::Palette::from_image_bytes(&bytes) {
+        Ok(p) => {
+            let n = p.len();
+            crate::palette::set_active(p);
+            crate::msg::info!(
+                "loaded palette.png ({n} color{})",
+                if n == 1 { "" } else { "s" }
+            );
+        }
+        Err(e) => {
+            crate::msg::warn!("palette.png: {e}; using default Pico-8 palette");
+        }
+    }
+}
+
 /// Installs `usagi.measure_text(text)` once at session creation. The
 /// closure captures a `&'static Font` so it's not tied to a per-frame
 /// `lua.scope`; user Lua can call it from `_init` for layout-time
@@ -434,6 +458,10 @@ struct Session {
 
     last_error: Option<String>,
     last_modified: Option<SystemTime>,
+    /// mtime of `palette.png` at the last load, for hot-reload
+    /// detection. None when the project has no palette.png (or the
+    /// backend has no mtimes, e.g. bundled games).
+    palette_mtime: Option<SystemTime>,
     show_fps: bool,
     config: Config,
 
@@ -689,6 +717,12 @@ impl Session {
         // makes the function callable from any callback (including
         // `_init`), not just from inside per-frame scopes.
         let sprites = SpriteSheet::load(&mut rl, &thread, vfs.as_ref());
+        // Load the user's palette.png if present, otherwise stay on
+        // the Pico-8 default. Errors fall back to default with a log;
+        // we don't want a broken palette.png to refuse to start the
+        // session.
+        load_palette_from_vfs(vfs.as_ref());
+        let palette_mtime = vfs.palette_mtime();
         let font: &'static Font = &*Box::leak(Box::new(crate::font::load(&mut rl, &thread)));
 
         register_usagi_measure_text(&lua, font)
@@ -781,6 +815,7 @@ impl Session {
             music,
             last_error,
             last_modified,
+            palette_mtime,
             show_fps: false,
             config,
             elapsed: 0.0,
@@ -989,6 +1024,18 @@ impl Session {
             .reload_if_changed(&mut self.rl, &self.thread, self.vfs.as_ref())
         {
             crate::msg::info!("reloaded sprites.png");
+        }
+
+        let new_palette_mtime = self.vfs.palette_mtime();
+        if new_palette_mtime != self.palette_mtime {
+            self.palette_mtime = new_palette_mtime;
+            if new_palette_mtime.is_some() {
+                load_palette_from_vfs(self.vfs.as_ref());
+            } else {
+                // File deleted: fall back to the engine default.
+                crate::palette::set_active(crate::palette::Palette::pico8());
+                crate::msg::info!("palette.png removed, restoring default palette");
+            }
         }
 
         if let Some(a) = self.audio

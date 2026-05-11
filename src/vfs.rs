@@ -16,6 +16,14 @@ pub trait VirtualFs {
     fn read_sprites(&self) -> Option<Vec<u8>>;
     fn sprites_mtime(&self) -> Option<SystemTime>;
 
+    /// Optional `palette.png` at project root (or bundled). When
+    /// present, overrides the default Pico-8 palette. Format: exactly
+    /// 1px tall, one color per pixel (`crate::palette::Palette::from_image_bytes`
+    /// enforces this). Missing file is fine — engine falls back to
+    /// the Pico-8 default.
+    fn read_palette(&self) -> Option<Vec<u8>>;
+    fn palette_mtime(&self) -> Option<SystemTime>;
+
     fn sfx_stems(&self) -> Vec<String>;
     fn read_sfx(&self, stem: &str) -> Option<Vec<u8>>;
     fn sfx_manifest(&self) -> HashMap<String, SystemTime>;
@@ -262,6 +270,10 @@ impl FsBacked {
         self.root.join("sprites.png")
     }
 
+    fn palette_path(&self) -> PathBuf {
+        self.root.join("palette.png")
+    }
+
     fn sfx_dir(&self) -> PathBuf {
         self.root.join("sfx")
     }
@@ -288,6 +300,16 @@ impl VirtualFs for FsBacked {
 
     fn sprites_mtime(&self) -> Option<SystemTime> {
         std::fs::metadata(self.sprites_path())
+            .and_then(|m| m.modified())
+            .ok()
+    }
+
+    fn read_palette(&self) -> Option<Vec<u8>> {
+        std::fs::read(self.palette_path()).ok()
+    }
+
+    fn palette_mtime(&self) -> Option<SystemTime> {
+        std::fs::metadata(self.palette_path())
             .and_then(|m| m.modified())
             .ok()
     }
@@ -491,6 +513,14 @@ impl VirtualFs for BundleBacked {
     }
 
     fn sprites_mtime(&self) -> Option<SystemTime> {
+        None
+    }
+
+    fn read_palette(&self) -> Option<Vec<u8>> {
+        self.bundle.get("palette.png").map(<[u8]>::to_vec)
+    }
+
+    fn palette_mtime(&self) -> Option<SystemTime> {
         None
     }
 

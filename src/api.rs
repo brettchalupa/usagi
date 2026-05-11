@@ -80,22 +80,25 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     install_wrap_helper(lua)?;
 
     let gfx = lua.create_table()?;
-    gfx.set("COLOR_BLACK", 0)?;
-    gfx.set("COLOR_DARK_BLUE", 1)?;
-    gfx.set("COLOR_DARK_PURPLE", 2)?;
-    gfx.set("COLOR_DARK_GREEN", 3)?;
-    gfx.set("COLOR_BROWN", 4)?;
-    gfx.set("COLOR_DARK_GRAY", 5)?;
-    gfx.set("COLOR_LIGHT_GRAY", 6)?;
-    gfx.set("COLOR_WHITE", 7)?;
-    gfx.set("COLOR_RED", 8)?;
-    gfx.set("COLOR_ORANGE", 9)?;
-    gfx.set("COLOR_YELLOW", 10)?;
-    gfx.set("COLOR_GREEN", 11)?;
-    gfx.set("COLOR_BLUE", 12)?;
-    gfx.set("COLOR_INDIGO", 13)?;
-    gfx.set("COLOR_PINK", 14)?;
-    gfx.set("COLOR_PEACH", 15)?;
+    // Color slots are **1-based** to match `gfx.spr` and Lua array
+    // conventions: slot 1 is the first color, slot 16 is the last.
+    // `0` is reserved as an out-of-range sentinel (renders magenta).
+    gfx.set("COLOR_BLACK", 1)?;
+    gfx.set("COLOR_DARK_BLUE", 2)?;
+    gfx.set("COLOR_DARK_PURPLE", 3)?;
+    gfx.set("COLOR_DARK_GREEN", 4)?;
+    gfx.set("COLOR_BROWN", 5)?;
+    gfx.set("COLOR_DARK_GRAY", 6)?;
+    gfx.set("COLOR_LIGHT_GRAY", 7)?;
+    gfx.set("COLOR_WHITE", 8)?;
+    gfx.set("COLOR_RED", 9)?;
+    gfx.set("COLOR_ORANGE", 10)?;
+    gfx.set("COLOR_YELLOW", 11)?;
+    gfx.set("COLOR_GREEN", 12)?;
+    gfx.set("COLOR_BLUE", 13)?;
+    gfx.set("COLOR_INDIGO", 14)?;
+    gfx.set("COLOR_PINK", 15)?;
+    gfx.set("COLOR_PEACH", 16)?;
     lua.globals().set("gfx", gfx)?;
 
     let input = lua.create_table()?;
@@ -291,10 +294,10 @@ mod tests {
         let music: LuaTable = lua.globals().get("music").unwrap();
         let usagi: LuaTable = lua.globals().get("usagi").unwrap();
 
-        assert_eq!(gfx.get::<i32>("COLOR_BLACK").unwrap(), 0);
-        assert_eq!(gfx.get::<i32>("COLOR_WHITE").unwrap(), 7);
-        assert_eq!(gfx.get::<i32>("COLOR_RED").unwrap(), 8);
-        assert_eq!(gfx.get::<i32>("COLOR_PEACH").unwrap(), 15);
+        assert_eq!(gfx.get::<i32>("COLOR_BLACK").unwrap(), 1);
+        assert_eq!(gfx.get::<i32>("COLOR_WHITE").unwrap(), 8);
+        assert_eq!(gfx.get::<i32>("COLOR_RED").unwrap(), 9);
+        assert_eq!(gfx.get::<i32>("COLOR_PEACH").unwrap(), 16);
 
         // Input constants just need to be present; values are action IDs.
         assert!(input.get::<u32>("LEFT").is_ok());

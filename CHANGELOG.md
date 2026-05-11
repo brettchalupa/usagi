@@ -7,6 +7,13 @@ Doesn't contain updates relating to developing the engine itself.
 
 Breaking:
 
+- Color slot indices are now **1-based** instead of 0-based, matching `gfx.spr`
+  and Lua's array convention. The `gfx.COLOR_*` constants shift up by one.
+  `gfx.COLOR_BLACK` is now `1` (was `0`), `gfx.COLOR_PEACH` is `16` (was `15`).
+  Code that uses the named constants is unaffected; code that passes literal
+  integers (`gfx.clear(0)`, `gfx.rect_fill(..., 7)`) needs to bump each literal
+  by 1 or switch to the named constants. Slot `0` and any index above the active
+  palette's length now render as the magenta out-of-range sentinel.
 - `gfx.spr_ex` and `gfx.sspr_ex` gained three required trailing params:
   `rotation` (radians), `tint` (palette color), and `alpha` (`0..1`). Use
   `0, gfx.COLOR_WHITE, 1.0` for the identity values to preserve the old
@@ -16,6 +23,18 @@ Breaking:
 
 Features:
 
+- Custom color palettes via `palette.png`. Drop a PNG at your project root and
+  Usagi swaps the default Pico-8 palette for yours. Pixels read in row-major
+  order (left-to-right, top-to-bottom) so any rectangular shape works. 16x1
+  strips, 16x2 grids, 4x4 grids, etc. Color count = `width ×
+  height`.
+  lospec.com's "1px cells" exports are the canonical source. Hot-reloads like
+  `sprites.png`, ships in `usagi export` bundles. The `gfx.COLOR_*` constants
+  stay as slot indices, so they keep resolving through the same slots, but the
+  RGB at each slot is whatever you painted. Slots beyond your palette's range
+  render as magenta. The ColorPalette tool reflects the active palette. New
+  `examples/palette_swap` ships a sweetie16 palette; delete its `palette.png` to
+  see the same Lua in Pico-8 colors.
 - New `sfx.play_ex(name, volume, pitch, pan)`,
   `music.play_ex(name, volume, pitch, pan, loop)`, and
   `music.mutate(volume, pitch, pan)` for programmatic audio control. `play_ex`
