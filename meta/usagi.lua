@@ -199,6 +199,16 @@ sfx = {}
 ---@param name string  file stem of a `.wav` under `sfx/`
 function sfx.play(name) end
 
+---Plays a sound effect with per-call volume, pitch, and pan. Useful
+---for varied one-shot effects (random pitch on every step, panned
+---positional cues, attenuated UI clicks) without committing extra
+---`.wav` files.
+---@param name   string  file stem of a `.wav` under `sfx/`
+---@param volume number  `0..1` multiplier on the pause-menu sfx volume; `1.0` = identity
+---@param pitch  number  pitch multiplier; `1.0` = identity, `0.5` = octave down, `2.0` = octave up
+---@param pan    number  stereo pan; `-1` left, `0` center, `1` right
+function sfx.play_ex(name, volume, pitch, pan) end
+
 ---@class Usagi.Music
 music = {}
 
@@ -218,6 +228,28 @@ function music.loop(name) end
 
 ---Stops whatever music is currently playing. No-op when nothing is.
 function music.stop() end
+
+---Plays a music track with initial volume / pitch / pan / loop
+---settings. Replaces the simple `play` and `loop` for cases that need
+---configuration; subsequent `music.mutate` calls modulate from these
+---initial values.
+---@param name    string   file stem under `music/`
+---@param volume  number   `0..1` multiplier on the pause-menu music volume; `1.0` = identity
+---@param pitch   number   pitch multiplier; `1.0` = identity
+---@param pan     number   stereo pan; `-1` left, `0` center, `1` right
+---@param looping boolean  `true` plays in a loop, `false` plays once
+function music.play_ex(name, volume, pitch, pan, looping) end
+
+---Modulates the currently-playing music's volume / pitch / pan in
+---place. Replace semantics — each call sets the absolute current
+---values. No-op when nothing is playing. Common uses: ducking volume
+---during dialogue, pitch-warping during hitstun, fading on death.
+---Track the params in your own game state if you want tweens; the
+---engine doesn't expose getters by design.
+---@param volume number  `0..1` multiplier on the pause-menu music volume
+---@param pitch  number  pitch multiplier; `1.0` = identity
+---@param pan    number  stereo pan; `-1` left, `0` center, `1` right
+function music.mutate(volume, pitch, pan) end
 
 ---Abstract input actions. Each is a union over keyboard keys, gamepad
 ---buttons, and analog-stick directions:

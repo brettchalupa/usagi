@@ -238,6 +238,26 @@ impl<'a> SfxLibrary<'a> {
 
     pub fn play(&self, name: &str) {
         if let Some(sound) = self.sounds.get(name) {
+            // Reset to defaults in case a prior `play_with` left
+            // custom pitch/pan on this Sound. Volume is the library
+            // setting (user-controlled via pause menu).
+            sound.set_volume(self.volume);
+            sound.set_pitch(1.0);
+            sound.set_pan(0.0);
+            sound.play();
+        }
+    }
+
+    /// Fire-and-forget play with per-call volume / pitch / pan. Volume
+    /// multiplies the library-level volume (pause-menu setting); pitch
+    /// is a raw multiplier (`1.0` = identity); pan is `-1..1` with
+    /// `-1` left, `0` center, `1` right this is same range raylib uses.
+    pub fn play_with(&self, name: &str, volume: f32, pitch: f32, pan: f32) {
+        if let Some(sound) = self.sounds.get(name) {
+            let v = volume.clamp(0.0, 1.0) * self.volume;
+            sound.set_volume(v);
+            sound.set_pitch(pitch.max(0.01));
+            sound.set_pan(pan.clamp(-1.0, 1.0));
             sound.play();
         }
     }
@@ -271,8 +291,17 @@ pub struct MusicLibrary<'a> {
     current: Option<String>,
     /// Per-library output volume in `0.0..=1.0`. Applied to every loaded
     /// track and re-applied across hot reloads so user-selected levels
-    /// survive music file edits.
+    /// survive music file edits. This is the user-controlled volume
+    /// (pause-menu setting).
     volume: f32,
+    /// Game-controlled modulators applied on top of the user volume.
+    /// Set via `play_with` (resets each call) and `mutate` (modifies
+    /// live). Effective raylib values: volume = user * game; pitch and
+    /// pan come straight from the game side. Reset to identity when a
+    /// plain `play` / `loop_` starts a track.
+    game_volume: f32,
+    game_pitch: f32,
+    game_pan: f32,
 }
 
 impl<'a> MusicLibrary<'a> {
@@ -282,6 +311,9 @@ impl<'a> MusicLibrary<'a> {
             manifest: HashMap::new(),
             current: None,
             volume: 1.0,
+            game_volume: 1.0,
+            game_pitch: 1.0,
+            game_pan: 0.0,
         }
     }
 
@@ -315,6 +347,9 @@ impl<'a> MusicLibrary<'a> {
             manifest: vfs.music_manifest(),
             current: None,
             volume: 1.0,
+            game_volume: 1.0,
+            game_pitch: 1.0,
+            game_pan: 0.0,
         }
     }
 
@@ -337,9 +372,53 @@ impl<'a> MusicLibrary<'a> {
     }
 
     /// Plays `name` once. If another track is playing it stops first.
-    /// Unknown names silently no-op, matching `sfx.play`.
+    /// Unknown names silently no-op, matching `sfx.play`. Resets game-
+    /// side modulators (`mutate`) to identity so playback starts fresh.
     pub fn play(&mut self, name: &str) {
+        self.reset_game_modulators();
         self.start(name, false);
+    }
+
+    /// Plays `name` with explicit volume / pitch / pan / loop settings.
+    /// volume is `0..1` multiplier on the library (user) volume; pitch
+    /// is a raw multiplier (`1.0` = identity); pan is usagi-space
+    /// `-1..1`. These become the game-side modulators applied to the
+    /// track and any subsequent `mutate` calls until the next play /
+    /// loop / play_with.
+    pub fn play_with(&mut self, name: &str, volume: f32, pitch: f32, pan: f32, looping: bool) {
+        self.game_volume = volume.clamp(0.0, 1.0);
+        self.game_pitch = pitch.max(0.01);
+        self.game_pan = pan.clamp(-1.0, 1.0);
+        self.start(name, looping);
+    }
+
+    /// Modulates the **currently playing** track's volume / pitch / pan
+    /// in place. Replaces (does not stack) the prior modulator state.
+    /// No-op when nothing is playing — the next play / play_with will
+    /// install fresh modulators.
+    pub fn mutate(&mut self, volume: f32, pitch: f32, pan: f32) {
+        self.game_volume = volume.clamp(0.0, 1.0);
+        self.game_pitch = pitch.max(0.01);
+        self.game_pan = pan.clamp(-1.0, 1.0);
+        self.apply_to_current();
+    }
+
+    fn reset_game_modulators(&mut self) {
+        self.game_volume = 1.0;
+        self.game_pitch = 1.0;
+        self.game_pan = 0.0;
+    }
+
+    fn apply_to_current(&mut self) {
+        let Some(name) = self.current.as_deref() else {
+            return;
+        };
+        let Some(track) = self.tracks.get_mut(name) else {
+            return;
+        };
+        track.set_volume(self.volume * self.game_volume);
+        track.set_pitch(self.game_pitch);
+        track.set_pan(self.game_pan);
     }
 
     /// Pauses current track.
@@ -366,8 +445,10 @@ impl<'a> MusicLibrary<'a> {
     }
 
     /// Plays `name` and loops it forever. If another track is playing
-    /// it stops first.
+    /// it stops first. Resets game-side modulators (`mutate`) to
+    /// identity so playback starts fresh.
     pub fn loop_(&mut self, name: &str) {
+        self.reset_game_modulators();
         self.start(name, true);
     }
 
@@ -391,6 +472,10 @@ impl<'a> MusicLibrary<'a> {
         track.as_mut().looping = looping;
         track.play_stream();
         self.current = Some(name.to_string());
+        // Apply game modulators to the freshly-started track. For
+        // plain play / loop_ these were just reset to identity; for
+        // play_with they were set by the caller.
+        self.apply_to_current();
     }
 
     pub fn stop(&mut self) {
@@ -430,13 +515,23 @@ impl<'a> MusicLibrary<'a> {
         self.current.as_deref()
     }
 
-    /// Sets the output volume for every loaded music track. Stored on
-    /// the library so a fresh `reload_if_changed` can re-apply it.
+    /// Sets the user-controlled output volume (pause-menu setting).
+    /// Stored on the library so a fresh `reload_if_changed` can re-apply
+    /// it. Combines with any game-side `mutate` modulator on the
+    /// currently playing track: effective volume = user × game.
     pub fn set_volume(&mut self, v: f32) {
         let v = v.clamp(0.0, 1.0);
         self.volume = v;
-        for track in self.tracks.values() {
-            track.set_volume(v);
+        // Apply user volume to all tracks (idle ones get the bare
+        // user volume; the current one gets user × game so the
+        // ducking modulator is preserved across pause-menu adjustments).
+        for (name, track) in self.tracks.iter() {
+            let scale = if Some(name.as_str()) == self.current.as_deref() {
+                self.game_volume
+            } else {
+                1.0
+            };
+            track.set_volume(v * scale);
         }
     }
 }

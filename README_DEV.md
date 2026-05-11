@@ -255,9 +255,12 @@ gfx.COLOR_BLUE,  gfx.COLOR_INDIGO,    gfx.COLOR_PINK,       gfx.COLOR_PEACH
 -- Sound
 
 sfx.play(name)
+sfx.play_ex(name, volume, pitch, pan)
 music.play(name)
 music.loop(name)
 music.stop()
+music.play_ex(name, volume, pitch, pan, loop)
+music.mutate(volume, pitch, pan)
 
 -- Input -- actions
 
@@ -678,19 +681,41 @@ outgrown Usagi.
 
 - `sfx.play(name)` — play `sfx/<name>.wav`. Unknown names silently no-op.
   Playing a sound while it's already playing restarts it.
+- `sfx.play_ex(name, volume, pitch, pan)` — fire-and-forget with per-call
+  params. Useful for varied one-shot effects without needing to commit extra
+  `.wav` files. All three params required:
+  - `volume` (number) — `0..1` multiplier on the pause-menu sfx volume. `1.0` is
+    identity. Clamped.
+  - `pitch` (number) — pitch multiplier. `1.0` is identity, `0.5` is an octave
+    down, `2.0` is an octave up. Useful with `math.random` for varied footsteps
+    / coin pickups from a single .wav.
+  - `pan` (number) — stereo pan, `-1..1`. `-1` left, `0` center, `1` right.
+    Clamped.
 
 ### `music`
 
 Background music streamed from disk (or the fused bundle). Only one track plays
-at a time; calling `play` or `loop` while another is playing stops the old one
-first.
+at a time; calling `play`, `loop`, or `play_ex` while another is playing stops
+the old one first.
 
 - `music.play(name)` — play `music/<name>.<ext>` once and stop at the end.
 - `music.loop(name)` — play and loop forever.
 - `music.stop()` — stop whatever's playing. No-op if nothing is.
+- `music.play_ex(name, volume, pitch, pan, loop)` — play with explicit initial
+  params. `loop` is a boolean (`true` to loop forever, `false` to play once).
+  The other params follow `sfx.play_ex`. The chosen volume / pitch / pan become
+  the initial values that subsequent `music.mutate` calls modulate from.
+- `music.mutate(volume, pitch, pan)` — modulate the **currently playing**
+  track's params in place. Replace semantics: each call sets the absolute
+  values, no stacking. No-op when nothing is playing. Use this for ducking music
+  under dialogue, pitch-warping during hitstun, and fade-outs on death. Volume /
+  pitch / pan ranges match `sfx.play_ex`. The engine doesn't expose getters by
+  design. Track values in your own game state if you want to tween (see
+  `examples/music`).
 
-All three are callable from `_init`, so a title track can start the moment the
-window opens (no one-frame gap waiting for `_update`).
+All four play / loop / stop / play_ex calls are callable from `_init`, so a
+title track can start the moment the window opens (no one-frame gap waiting for
+`_update`).
 
 Recognized extensions: `.ogg`, `.mp3`, `.wav`, `.flac`. **OGG is recommended for
 music as they're small and cross-platform.**

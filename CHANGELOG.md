@@ -16,6 +16,16 @@ Breaking:
 
 Features:
 
+- New `sfx.play_ex(name, volume, pitch, pan)`,
+  `music.play_ex(name, volume, pitch, pan, loop)`, and
+  `music.mutate(volume, pitch, pan)` for programmatic audio control. `play_ex`
+  is fire-and-forget per-call params (use it for random-pitch footsteps, panned
+  UI cues, attenuated dialogue beeps). `music.mutate` modulates the
+  currently-playing track in place with replace semantics. This is useful for
+  ducking music under dialog, pitch-warping during hitstun, and fade-outs. Pan
+  is `-1..1` (left to right), volume `0..1`, pitch a raw multiplier (`1.0` =
+  identity). The `examples/sound` demo gets a random-pitch jump on BTN3;
+  `examples/music` ducks the track while LEFT is held.
 - New `gfx.text_ex(text, x, y, scale, rotation, color)` for scaled and rotated
   text. Scale is a font-size multiplier (use integers for crisp pixel-art text;
   fractional values blur). Rotation is in radians (use `math.rad(deg)` for
