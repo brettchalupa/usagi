@@ -1257,6 +1257,31 @@ impl Session {
                             );
                             Ok(())
                         })?;
+                    let text_ex = scope.create_function(
+                        |_, (s, x, y, scale, rotation, c): (String, f32, f32, f32, f32, i32)| {
+                            let base = crate::font::MONOGRAM_SIZE as f32;
+                            let font_size = base * scale;
+                            // Bounds drive the pivot. We center rotation
+                            // on the text's unrotated bounding box, so
+                            // shift `position` by half-bounds and pass
+                            // `origin = half-bounds`. At rotation = 0
+                            // this lands the text's top-left at (x, y).
+                            let bounds = font_ref.measure_text(&s, font_size, 0.0);
+                            let half = Vector2::new(bounds.x / 2.0, bounds.y / 2.0);
+                            let position = Vector2::new(x.round() + half.x, y.round() + half.y);
+                            d_rt_cell.borrow_mut().draw_text_pro(
+                                font_ref,
+                                &s,
+                                position,
+                                half,
+                                rotation.to_degrees(),
+                                font_size,
+                                0.0,
+                                color(c),
+                            );
+                            Ok(())
+                        },
+                    )?;
                     let rect = scope.create_function(
                         |_, (x, y, w, h, c): (f32, f32, f32, f32, i32)| {
                             d_rt_cell.borrow_mut().draw_rectangle_lines(
@@ -1530,6 +1555,15 @@ impl Session {
                             text,
                             "gfx.text",
                             &["string", "number", "number", "number"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "text_ex",
+                        wrap(
+                            lua,
+                            text_ex,
+                            "gfx.text_ex",
+                            &["string", "number", "number", "number", "number", "number"],
                         )?,
                     )?;
                     gfx_tbl.set(

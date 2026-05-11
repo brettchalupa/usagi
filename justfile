@@ -174,6 +174,7 @@ examples:
     just example mouse_physics
     just example waypoint
     just example shader
+    just example text
     just example keyboard
     just example util
     just example effect
