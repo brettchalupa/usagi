@@ -13,7 +13,7 @@ exclude = ["examples", ".zed", "docs", "justfile", "*.sh"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-mlua = { version = "0.11", features = ["lua54", "vendored", "serde"] }
+mlua = { version = "0.11", features = ["lua55", "vendored", "serde"] }
 serde_json = "1"
 # Used for SHA-256 verification of downloaded templates against published
 # sidecars and game_id hash fallback.
