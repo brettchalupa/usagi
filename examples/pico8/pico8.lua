@@ -18,6 +18,9 @@
 -- Notable behaviors preserved from Pico-8:
 --   * `spr(0)` draws the first sprite (Pico-8 is 0-based; usagi is
 --     1-based — the wrapper adds 1).
+--   * Colors are 0-based in Pico-8 (`rectfill(..., 8)` is red) but
+--     1-based in usagi (`gfx.rect_fill(..., 9)` is red). The wrappers
+--     bump each color arg by 1 on the way through.
 --   * `cos`/`sin` take turns, not radians, and `sin` is negated to
 --     match Pico-8's screen-Y-down convention.
 --   * `rect`/`rectfill` use inclusive corner coordinates (x0,y0,x1,y1)
@@ -29,26 +32,33 @@ local function rect_args(x0, y0, x1, y1)
   return x0, y0, x1 - x0 + 1, y1 - y0 + 1
 end
 
+-- Pico-8 color index (0-15) → usagi slot (1-16). Pico-8 carts pass
+-- raw integers everywhere; usagi's named constants would deviate from
+-- the source. The +1 keeps the cart's literals working unchanged.
+local function pc(c)
+  return c + 1
+end
+
 cls = function(c)
-  gfx.clear(c or gfx.COLOR_BLACK)
+  gfx.clear(c and pc(c) or gfx.COLOR_BLACK)
 end
 
 rect = function(x0, y0, x1, y1, c)
   local x, y, w, h = rect_args(x0, y0, x1, y1)
-  gfx.rect(x, y, w, h, c)
+  gfx.rect(x, y, w, h, pc(c))
 end
 
 rectfill = function(x0, y0, x1, y1, c)
   local x, y, w, h = rect_args(x0, y0, x1, y1)
-  gfx.rect_fill(x, y, w, h, c)
+  gfx.rect_fill(x, y, w, h, pc(c))
 end
 
 circ = function(x, y, r, c)
-  gfx.circ(x, y, r, c)
+  gfx.circ(x, y, r, pc(c))
 end
 
 circfill = function(x, y, r, c)
-  gfx.circ_fill(x, y, r, c)
+  gfx.circ_fill(x, y, r, pc(c))
 end
 
 line = function(x0, y0, x1, y1, c)
@@ -57,14 +67,14 @@ line = function(x0, y0, x1, y1, c)
   -- draws nothing. Bridge that with gfx.pixel to keep `for star in
   -- ... line(sx, sy, sx, sy, c) end` working as Pico-8 users expect.
   if x0 == x1 and y0 == y1 then
-    gfx.pixel(x0, y0, c)
+    gfx.pixel(x0, y0, pc(c))
   else
-    gfx.line(x0, y0, x1, y1, c)
+    gfx.line(x0, y0, x1, y1, pc(c))
   end
 end
 
 print = function(s, x, y, c)
-  gfx.text(tostring(s), x or 0, y or 0, c or gfx.COLOR_WHITE)
+  gfx.text(tostring(s), x or 0, y or 0, c and pc(c) or gfx.COLOR_WHITE)
 end
 
 -- Pico-8 `spr(n, x, y, [w, h, [flip_x, [flip_y]]])`. Usagi's spr is a
@@ -101,7 +111,7 @@ sspr = function(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)
 end
 
 pset = function(x, y, c)
-  gfx.pixel(x, y, c)
+  gfx.pixel(x, y, pc(c))
 end
 
 local BTN_TO_ACTION = {

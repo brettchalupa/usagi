@@ -2,24 +2,27 @@
 -- Usagi API stubs for lua-language-server.
 -- Declarations only; this file is never executed by the runtime.
 
----Pico-8 palette, indices 0-15.
+---Palette slot indices `1..16`, matching `gfx.spr` and Lua array
+---convention. The RGB at each slot is the default Pico-8 palette
+---unless a `palette.png` overrides it. Slot `0` and any index above
+---the active palette's length render as a magenta sentinel.
 ---@class Usagi.Gfx
----@field COLOR_BLACK        integer  0
----@field COLOR_DARK_BLUE    integer  1
----@field COLOR_DARK_PURPLE  integer  2
----@field COLOR_DARK_GREEN   integer  3
----@field COLOR_BROWN        integer  4
----@field COLOR_DARK_GRAY    integer  5
----@field COLOR_LIGHT_GRAY   integer  6
----@field COLOR_WHITE        integer  7
----@field COLOR_RED          integer  8
----@field COLOR_ORANGE       integer  9
----@field COLOR_YELLOW       integer  10
----@field COLOR_GREEN        integer  11
----@field COLOR_BLUE         integer  12
----@field COLOR_INDIGO       integer  13
----@field COLOR_PINK         integer  14
----@field COLOR_PEACH        integer  15
+---@field COLOR_BLACK        integer  1
+---@field COLOR_DARK_BLUE    integer  2
+---@field COLOR_DARK_PURPLE  integer  3
+---@field COLOR_DARK_GREEN   integer  4
+---@field COLOR_BROWN        integer  5
+---@field COLOR_DARK_GRAY    integer  6
+---@field COLOR_LIGHT_GRAY   integer  7
+---@field COLOR_WHITE        integer  8
+---@field COLOR_RED          integer  9
+---@field COLOR_ORANGE       integer  10
+---@field COLOR_YELLOW       integer  11
+---@field COLOR_GREEN        integer  12
+---@field COLOR_BLUE         integer  13
+---@field COLOR_INDIGO       integer  14
+---@field COLOR_PINK         integer  15
+---@field COLOR_PEACH        integer  16
 gfx = {}
 
 ---Clears the screen to the given color.
