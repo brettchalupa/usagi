@@ -1312,6 +1312,52 @@ impl Session {
                             Ok(())
                         },
                     )?;
+                    let rect_ex = scope.create_function(
+                        |_, (x, y, w, h, thickness, c): (f32, f32, f32, f32, f32, i32)| {
+                            d_rt_cell.borrow_mut().draw_rectangle_lines_ex(
+                                Rectangle {
+                                    x: x.round(),
+                                    y: y.round(),
+                                    width: w.round(),
+                                    height: h.round(),
+                                },
+                                thickness,
+                                color(c),
+                            );
+                            Ok(())
+                        },
+                    )?;
+                    let circ_ex = scope.create_function(
+                        |_, (x, y, r, thickness, c): (f32, f32, f32, f32, i32)| {
+                            // Centered stroke: thickness/2 on either
+                            // side of the nominal radius. Inner clamped
+                            // to 0 so a fat stroke on a tiny circle
+                            // doesn't produce a negative inner radius.
+                            let inner = (r - thickness / 2.0).max(0.0);
+                            let outer = r + thickness / 2.0;
+                            d_rt_cell.borrow_mut().draw_ring(
+                                Vector2::new(x.round(), y.round()),
+                                inner,
+                                outer,
+                                0.0,
+                                360.0,
+                                36,
+                                color(c),
+                            );
+                            Ok(())
+                        },
+                    )?;
+                    let line_ex = scope.create_function(
+                        |_, (x1, y1, x2, y2, thickness, c): (f32, f32, f32, f32, f32, i32)| {
+                            d_rt_cell.borrow_mut().draw_line_ex(
+                                Vector2::new(x1.round(), y1.round()),
+                                Vector2::new(x2.round(), y2.round()),
+                                thickness,
+                                color(c),
+                            );
+                            Ok(())
+                        },
+                    )?;
                     let pixel = scope.create_function(|_, (x, y, c): (f32, f32, i32)| {
                         d_rt_cell.borrow_mut().draw_pixel(
                             x.round() as i32,
@@ -1529,6 +1575,33 @@ impl Session {
                             line,
                             "gfx.line",
                             &["number", "number", "number", "number", "number"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "rect_ex",
+                        wrap(
+                            lua,
+                            rect_ex,
+                            "gfx.rect_ex",
+                            &["number", "number", "number", "number", "number", "number"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "circ_ex",
+                        wrap(
+                            lua,
+                            circ_ex,
+                            "gfx.circ_ex",
+                            &["number", "number", "number", "number", "number"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "line_ex",
+                        wrap(
+                            lua,
+                            line_ex,
+                            "gfx.line_ex",
+                            &["number", "number", "number", "number", "number", "number"],
                         )?,
                     )?;
                     gfx_tbl.set(
