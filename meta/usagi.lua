@@ -395,6 +395,15 @@ usagi = {}
 ---@return integer height  pixel height (equals the font's line height)
 function usagi.measure_text(text) end
 
+---Pretty-prints any Lua value to a string. Tables are recursed with
+---sorted keys; arrays render in order; cycles render as `<cycle>`;
+---non-serializable values (functions, userdata, threads) render as
+---placeholders. Pair with `print(usagi.dump(state))` for terminal
+---debugging or feed the result into `gfx.text` to draw it on screen.
+---@param v any  the value to inspect
+---@return string pretty  human-readable Lua-ish source for `v`
+function usagi.dump(v) end
+
 ---Persist a Lua table as JSON. Saves are per-game, namespaced by
 ---`game_id` from `_config()`. One file per game; nest your own
 ---structure inside (settings, run state, unlocks).

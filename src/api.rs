@@ -159,6 +159,15 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
         "measure_text",
         lua.create_function(|_, _s: String| Ok((0i32, 0i32)))?,
     )?;
+    // `usagi.dump` lives in runtime/usagi.lua so the pretty-printer is
+    // pure Lua and easy to fork or override at the script level. The
+    // file returns the dump function so we can attach it without
+    // round-tripping through a global.
+    let dump_fn: LuaFunction = lua
+        .load(include_str!("../runtime/usagi.lua"))
+        .set_name("usagi/usagi.lua")
+        .eval()?;
+    usagi.set("dump", dump_fn)?;
     lua.globals().set("usagi", usagi)?;
 
     // Pure-Lua stdlib (`util.clamp`, `util.rect_overlap`, etc.). Loaded
@@ -879,5 +888,67 @@ mod tests {
                 "{snippet}: error should mention '{expected}', got: {msg}"
             );
         }
+    }
+
+    #[test]
+    fn usagi_dump_renders_nested_table_with_sorted_keys() {
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+        let usagi: LuaTable = lua.globals().get("usagi").unwrap();
+        let dump: LuaFunction = usagi.get("dump").unwrap();
+        let t: LuaTable = lua
+            .load(
+                r#"
+                return {
+                    name = "snake",
+                    level = 3,
+                    tags = { "fast", "small" },
+                }
+                "#,
+            )
+            .eval()
+            .unwrap();
+        let s: String = dump.call(t).unwrap();
+        assert!(s.contains("name = \"snake\""), "got: {s}");
+        assert!(s.contains("level = 3"), "got: {s}");
+        // Array entries render in order, no `[1] =` prefix.
+        assert!(s.contains("\"fast\""), "got: {s}");
+        assert!(s.contains("\"small\""), "got: {s}");
+        // Keys are sorted: level comes before name comes before tags.
+        let lvl = s.find("level").unwrap();
+        let nm = s.find("name").unwrap();
+        let tg = s.find("tags").unwrap();
+        assert!(lvl < nm && nm < tg, "keys not sorted: {s}");
+    }
+
+    #[test]
+    fn usagi_dump_handles_primitives_and_cycles() {
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+        let usagi: LuaTable = lua.globals().get("usagi").unwrap();
+        let dump: LuaFunction = usagi.get("dump").unwrap();
+
+        assert_eq!(dump.call::<String>(42i32).unwrap(), "42");
+        assert_eq!(dump.call::<String>(true).unwrap(), "true");
+        assert_eq!(dump.call::<String>(LuaValue::Nil).unwrap(), "nil");
+        // %q quotes the string.
+        assert_eq!(dump.call::<String>("hi").unwrap(), "\"hi\"");
+        // Empty table is the literal "{}".
+        let empty: LuaTable = lua.create_table().unwrap();
+        assert_eq!(dump.call::<String>(empty).unwrap(), "{}");
+
+        // A self-referencing table renders <cycle> instead of recursing forever.
+        let t: LuaTable = lua
+            .load(
+                r#"
+                local a = {}
+                a.self = a
+                return a
+                "#,
+            )
+            .eval()
+            .unwrap();
+        let s: String = dump.call(t).unwrap();
+        assert!(s.contains("<cycle>"), "got: {s}");
     }
 }
