@@ -260,23 +260,7 @@ fn effective_face_buttons(action: u32, family: GamepadFamily) -> &'static [Gamep
 pub const ACTION_NAMES: [&str; 7] = ["LEFT", "RIGHT", "UP", "DOWN", "BTN1", "BTN2", "BTN3"];
 
 fn key_label(k: KeyboardKey) -> &'static str {
-    match k {
-        KeyboardKey::KEY_LEFT => "Left",
-        KeyboardKey::KEY_RIGHT => "Right",
-        KeyboardKey::KEY_UP => "Up",
-        KeyboardKey::KEY_DOWN => "Down",
-        KeyboardKey::KEY_A => "A",
-        KeyboardKey::KEY_D => "D",
-        KeyboardKey::KEY_W => "W",
-        KeyboardKey::KEY_S => "S",
-        KeyboardKey::KEY_Z => "Z",
-        KeyboardKey::KEY_X => "X",
-        KeyboardKey::KEY_C => "C",
-        KeyboardKey::KEY_J => "J",
-        KeyboardKey::KEY_K => "K",
-        KeyboardKey::KEY_L => "L",
-        _ => "?",
-    }
+    crate::keymap::key_label(k).unwrap_or("?")
 }
 
 /// Face-button glyph family. Detected from the connected gamepad's
@@ -1199,6 +1183,31 @@ mod tests {
         );
         // Unknown action.
         assert_eq!(mapping_for(99, &keymap, InputSource::Keyboard, xbox), None,);
+    }
+
+    #[test]
+    fn mapping_for_keyboard_labels_arbitrary_remapped_keys() {
+        // Any key the pause menu accepts as an override must produce a
+        // real label, not "?". Regression: input::key_label used to
+        // duplicate a tiny subset of keymap::key_label and fell through
+        // to "?" for letters like U, I, O.
+        let mut keymap = Keymap::default();
+        let xbox = GamepadFamily::Xbox;
+        keymap.overrides[ACTION_BTN1 as usize - 1] = Some(KeyboardKey::KEY_U);
+        keymap.overrides[ACTION_BTN2 as usize - 1] = Some(KeyboardKey::KEY_I);
+        keymap.overrides[ACTION_BTN3 as usize - 1] = Some(KeyboardKey::KEY_O);
+        assert_eq!(
+            mapping_for(ACTION_BTN1, &keymap, InputSource::Keyboard, xbox),
+            Some("U"),
+        );
+        assert_eq!(
+            mapping_for(ACTION_BTN2, &keymap, InputSource::Keyboard, xbox),
+            Some("I"),
+        );
+        assert_eq!(
+            mapping_for(ACTION_BTN3, &keymap, InputSource::Keyboard, xbox),
+            Some("O"),
+        );
     }
 
     #[test]
