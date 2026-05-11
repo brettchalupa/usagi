@@ -27,8 +27,37 @@ use std::rc::Rc;
 use std::time::SystemTime;
 
 /// Argument tuple for `gfx.sspr_ex`: `(sx, sy, sw, sh, dx, dy, dw, dh,
-/// flip_x, flip_y)`. Aliased so the closure signature stays readable.
-type SsprExArgs = (f32, f32, f32, f32, f32, f32, f32, f32, bool, bool);
+/// flip_x, flip_y, rotation_rad, tint_idx, alpha)`. Aliased so the
+/// closure signature stays readable.
+type SsprExArgs = (
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    bool,
+    bool,
+    f32,
+    i32,
+    f32,
+);
+
+/// Argument tuple for `gfx.spr_ex`: `(idx, x, y, flip_x, flip_y,
+/// rotation_rad, tint_idx, alpha)`.
+type SprExArgs = (i32, f32, f32, bool, bool, f32, i32, f32);
+
+/// Multiplies the user-supplied 0..1 alpha into a palette color's alpha
+/// channel, returning a tinted color ready for `draw_texture_pro`. The
+/// alpha float is clamped so out-of-range values can't push the byte
+/// arithmetic out of the u8 range.
+fn tinted(tint_idx: i32, alpha: f32) -> Color {
+    let mut c = crate::palette::color(tint_idx);
+    c.a = (c.a as f32 * alpha.clamp(0.0, 1.0)) as u8;
+    c
+}
 
 /// Installs `usagi.measure_text(text)` once at session creation. The
 /// closure captures a `&'static Font` so it's not tied to a per-frame
@@ -1331,7 +1360,7 @@ impl Session {
                         Ok(())
                     })?;
                     let spr_ex = scope.create_function(
-                        |_, (idx, x, y, flip_x, flip_y): (i32, f32, f32, bool, bool)| {
+                        |_, (idx, x, y, flip_x, flip_y, rotation, tint_idx, alpha): SprExArgs| {
                             if let Some(tex) = sprites_ref
                                 && let Some((col, row, cell)) = cell_for(tex, idx, sprite_size)
                             {
@@ -1345,19 +1374,26 @@ impl Session {
                                     width: sw,
                                     height: sh,
                                 };
+                                // Rotate around the center of the dest
+                                // rect: shift dest by half the cell so
+                                // (x, y) stays the visual top-left at
+                                // rotation 0, and pass origin = (half,
+                                // half) as the pivot.
+                                let half = cell as f32 / 2.0;
                                 let dest = Rectangle {
-                                    x: x.round(),
-                                    y: y.round(),
+                                    x: x.round() + half,
+                                    y: y.round() + half,
                                     width: cell as f32,
                                     height: cell as f32,
                                 };
+                                let origin = Vector2::new(half, half);
                                 d_rt_cell.borrow_mut().draw_texture_pro(
                                     tex,
                                     source,
                                     dest,
-                                    Vector2::zero(),
-                                    0.0,
-                                    Color::WHITE,
+                                    origin,
+                                    rotation.to_degrees(),
+                                    tinted(tint_idx, alpha),
                                 );
                             }
                             Ok(())
@@ -1390,7 +1426,22 @@ impl Session {
                     // wrapper if a particular flag combination shows
                     // up often in your code.
                     let sspr_ex = scope.create_function(
-                        |_, (sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y): SsprExArgs| {
+                        |_,
+                         (
+                            sx,
+                            sy,
+                            sw,
+                            sh,
+                            dx,
+                            dy,
+                            dw,
+                            dh,
+                            flip_x,
+                            flip_y,
+                            rotation,
+                            tint_idx,
+                            alpha,
+                        ): SsprExArgs| {
                             if let Some(tex) = sprites_ref {
                                 let src_w = if flip_x { -sw } else { sw };
                                 let src_h = if flip_y { -sh } else { sh };
@@ -1400,19 +1451,26 @@ impl Session {
                                     width: src_w,
                                     height: src_h,
                                 };
+                                // Rotation pivots around the center of
+                                // the dest rect — shift dest position
+                                // by half-size so (dx, dy) stays the
+                                // visual top-left when rotation is 0.
+                                let half_w = dw / 2.0;
+                                let half_h = dh / 2.0;
                                 let dest = Rectangle {
-                                    x: dx.round(),
-                                    y: dy.round(),
+                                    x: dx.round() + half_w,
+                                    y: dy.round() + half_h,
                                     width: dw,
                                     height: dh,
                                 };
+                                let origin = Vector2::new(half_w, half_h);
                                 d_rt_cell.borrow_mut().draw_texture_pro(
                                     tex,
                                     source,
                                     dest,
-                                    Vector2::zero(),
-                                    0.0,
-                                    Color::WHITE,
+                                    origin,
+                                    rotation.to_degrees(),
+                                    tinted(tint_idx, alpha),
                                 );
                             }
                             Ok(())
@@ -1487,7 +1545,10 @@ impl Session {
                             lua,
                             spr_ex,
                             "gfx.spr_ex",
-                            &["number", "number", "number", "boolean", "boolean"],
+                            &[
+                                "number", "number", "number", "boolean", "boolean", "number",
+                                "number", "number",
+                            ],
                         )?,
                     )?;
                     gfx_tbl.set(
@@ -1507,7 +1568,8 @@ impl Session {
                             "gfx.sspr_ex",
                             &[
                                 "number", "number", "number", "number", "number", "number",
-                                "number", "number", "boolean", "boolean",
+                                "number", "number", "boolean", "boolean", "number", "number",
+                                "number",
                             ],
                         )?,
                     )?;

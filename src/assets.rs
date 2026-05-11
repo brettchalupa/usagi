@@ -123,9 +123,13 @@ fn load_texture(rl: &mut RaylibHandle, thread: &RaylibThread, bytes: &[u8]) -> O
     let image = Image::load_image_from_mem(".png", bytes)
         .map_err(|e| crate::msg::err!("failed to decode sprites.png: {e}"))
         .ok()?;
-    rl.load_texture_from_image(thread, &image)
+    let texture = rl
+        .load_texture_from_image(thread, &image)
         .map_err(|e| crate::msg::err!("failed to upload sprite texture: {e}"))
-        .ok()
+        .ok()?;
+    // Pin POINT so the pixel-art intent doesn't ride on a default.
+    texture.set_texture_filter(thread, TextureFilter::TEXTURE_FILTER_POINT);
+    Some(texture)
 }
 
 /// Owns the sprite sheet texture and its mtime. `reload_if_changed` re-
