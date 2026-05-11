@@ -652,11 +652,23 @@ mod tests {
 
             let sfx: LuaTable = lua.globals().get("sfx")?;
             sfx.set("play", scope.create_function(|_, _n: String| Ok(()))?)?;
+            sfx.set(
+                "play_ex",
+                scope.create_function(|_, _a: (String, f32, f32, f32)| Ok(()))?,
+            )?;
 
             let music: LuaTable = lua.globals().get("music")?;
             music.set("play", scope.create_function(|_, _n: String| Ok(()))?)?;
             music.set("loop", scope.create_function(|_, _n: String| Ok(()))?)?;
             music.set("stop", scope.create_function(|_, ()| Ok(()))?)?;
+            music.set(
+                "play_ex",
+                scope.create_function(|_, _a: (String, f32, f32, f32, bool)| Ok(()))?,
+            )?;
+            music.set(
+                "mutate",
+                scope.create_function(|_, _a: (f32, f32, f32)| Ok(()))?,
+            )?;
 
             lua.load(
                 r#"
@@ -697,9 +709,12 @@ mod tests {
                 input.set_mouse_visible(true)
                 assert(type(input.mouse_visible()) == "boolean")
                 sfx.play("missing")
+                sfx.play_ex("missing", 0.8, 1.2, -0.5)
                 music.play("missing")
                 music.loop("missing")
                 music.stop()
+                music.play_ex("missing", 0.7, 1.0, 0.0, true)
+                music.mutate(0.5, 1.2, 0.0)
                 "#,
             )
             .exec()?;

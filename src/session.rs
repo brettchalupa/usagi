@@ -322,6 +322,33 @@ fn register_music_api(
     })?;
     music_tbl.set("stop", wrap(lua, stop, "music.stop", &[])?)?;
 
+    let m = Rc::clone(music);
+    let play_ex = lua.create_function(
+        move |_, (name, volume, pitch, pan, looping): (String, f32, f32, f32, bool)| {
+            m.borrow_mut().play_with(&name, volume, pitch, pan, looping);
+            Ok(())
+        },
+    )?;
+    music_tbl.set(
+        "play_ex",
+        wrap(
+            lua,
+            play_ex,
+            "music.play_ex",
+            &["string", "number", "number", "number", "boolean"],
+        )?,
+    )?;
+
+    let m = Rc::clone(music);
+    let mutate = lua.create_function(move |_, (v, p, pan): (f32, f32, f32)| {
+        m.borrow_mut().mutate(v, p, pan);
+        Ok(())
+    })?;
+    music_tbl.set(
+        "mutate",
+        wrap(lua, mutate, "music.mutate", &["number", "number", "number"])?,
+    )?;
+
     Ok(())
 }
 
@@ -1204,6 +1231,21 @@ impl Session {
                     Ok(())
                 })?;
                 sfx_tbl.set("play", wrap(lua, play, "sfx.play", &["string"])?)?;
+                let play_ex = scope.create_function(
+                    |_, (name, volume, pitch, pan): (String, f32, f32, f32)| {
+                        sfx_ref.play_with(&name, volume, pitch, pan);
+                        Ok(())
+                    },
+                )?;
+                sfx_tbl.set(
+                    "play_ex",
+                    wrap(
+                        lua,
+                        play_ex,
+                        "sfx.play_ex",
+                        &["string", "number", "number", "number"],
+                    )?,
+                )?;
 
                 update_fn.call::<()>(dt)?;
                 Ok(())
@@ -1687,6 +1729,21 @@ impl Session {
                         Ok(())
                     })?;
                     sfx_tbl.set("play", wrap(lua, play, "sfx.play", &["string"])?)?;
+                    let play_ex = scope.create_function(
+                        |_, (name, volume, pitch, pan): (String, f32, f32, f32)| {
+                            sfx_ref.play_with(&name, volume, pitch, pan);
+                            Ok(())
+                        },
+                    )?;
+                    sfx_tbl.set(
+                        "play_ex",
+                        wrap(
+                            lua,
+                            play_ex,
+                            "sfx.play_ex",
+                            &["string", "number", "number", "number"],
+                        )?,
+                    )?;
 
                     draw_fn.call::<()>(dt)?;
                     Ok(())
