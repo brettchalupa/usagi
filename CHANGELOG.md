@@ -5,6 +5,19 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Features:
+
+- TilePicker: LMB on a tile copies its `spr` index (existing behavior). RMB
+  click-and-drag now selects a tile-aligned rectangle on the sheet and copies
+  `sx,sy,sw,sh` ready for `sspr`. The current selection stays visible: a
+  highlight box on the sheet plus a readout in the header showing both the `spr`
+  index (for single tiles) and the `sspr` source rect. A live preview rect
+  tracks the drag.
+- TilePicker: hold middle mouse and drag, or hold space and drag with the left
+  mouse, to pan the sheet. Use the scroll wheel to zoom (anchored on the cursor
+  so the pixel under the mouse stays put). The header also shows the sheet pixel
+  coords under the cursor.
+
 ## v0.7.2 - May 10, 2026
 
 Fixes:

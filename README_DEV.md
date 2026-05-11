@@ -977,15 +977,22 @@ can just arrow through the list to hear each one.
 ### TilePicker
 
 Shows `<project>/sprites.png` with a 1-based grid overlay matching `gfx.spr`.
-Click any tile to copy its index to the clipboard (paste it straight into your
-Lua code).
+Click a tile to copy its index, or right-drag to grab a rectangle for `sspr`.
+The current selection is shown in the header and highlighted on the sheet.
 
-- **WASD** to pan. **Q** / **E** to zoom out / in (0.5×–20×). **0** resets the
-  view.
+- **WASD**, hold **middle mouse** and drag, or hold **space** and drag with the
+  left mouse to pan. **Q** / **E** or the **scroll wheel** to zoom out / in
+  (0.5×–20×). Wheel zoom is anchored on the cursor, so the pixel under the mouse
+  stays put. **0** resets the view.
 - **R** toggles the grid and index overlay.
 - **B** cycles the viewport background color (gray / black / white) so tiles
   stay visible regardless of palette.
-- Left click a tile to copy its 1-based index; a toast confirms the value.
+- **Left click** a tile to copy its 1-based `spr` index.
+- **Right click + drag** to select a tile-aligned rectangle and copy
+  `sx,sy,sw,sh` ready to paste into `gfx.sspr(...)`. Drag direction doesn't
+  matter; the rect is normalized and clamped to the sheet.
+- The header shows the current selection and the sheet pixel coords under the
+  cursor as you move it over the image.
 
 ### SaveInspector
 
