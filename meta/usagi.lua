@@ -123,6 +123,25 @@ function gfx.line_ex(x1, y1, x2, y2, thickness, color) end
 ---@param color integer  a gfx.COLOR_* constant
 function gfx.pixel(x, y, color) end
 
+---Reads a pixel from the most recently rendered frame. Returns the
+---RGB channels of the color at `(x, y)` plus the 1-based palette
+---slot when the color is an exact match for an active palette entry
+---(e.g. anything drawn with a `gfx.COLOR_*` constant). Returns four
+---`nil`s for off-screen coordinates, or on the very first frame
+---before any drawing has happened.
+---
+---Reads reflect the previous frame's finished image, so in-progress
+---draws inside the current `_draw` aren't visible. Common uses:
+---collision-by-color, fog-of-war reveals, water reflections, palette
+---swap effects.
+---@param x number  x in game-space pixels (0 = left edge)
+---@param y number  y in game-space pixels (0 = top edge)
+---@return integer? r              red channel, 0..255
+---@return integer? g              green channel, 0..255
+---@return integer? b              blue channel, 0..255
+---@return integer? palette_index  1-based palette slot, or nil if off-palette
+function gfx.px(x, y) end
+
 ---Draws a 16×16 sprite from the loaded sheet at (x, y). The sheet is
 ---`sprites.png` next to the game's main .lua; indices run left-to-right,
 ---top-to-bottom. Alpha-channel pixels render as transparent.
@@ -143,6 +162,28 @@ function gfx.spr(index, x, y) end
 ---@param tint     integer  palette color to multiply over the sprite; `gfx.COLOR_WHITE` for none
 ---@param alpha    number   opacity in `0..1`; `1.0` is opaque
 function gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha) end
+
+---Reads a pixel from `sprites.png`. `index` selects a sprite cell
+---(1-based, same shape as `gfx.spr`); `(x, y)` is the offset inside
+---the cell, with `(0, 0)` as that cell's top-left. Returns RGB plus
+---the 1-based palette slot for exact RGB matches; returns four
+---`nil`s for an out-of-range index, out-of-cell coordinates, a
+---project with no `sprites.png`, or a fully transparent pixel
+---(`gfx.spr` draws alpha-keyed, so a transparent pixel reads as
+---"nothing here" rather than as its backing RGB).
+---
+---Unlike `gfx.px`, sprite reads are deterministic and unaffected by
+---draw order: handy for pixel-perfect sprite collision and for
+---data-baked levels where you paint the layout into the sheet and
+---read it back at startup to spawn entities.
+---@param index integer  one-based sprite index (1 = top-left cell)
+---@param x     number   0-based x inside the cell, in pixels
+---@param y     number   0-based y inside the cell, in pixels
+---@return integer? r              red channel, 0..255
+---@return integer? g              green channel, 0..255
+---@return integer? b              blue channel, 0..255
+---@return integer? palette_index  1-based palette slot, or nil if off-palette
+function gfx.spr_px(index, x, y) end
 
 ---Draws an arbitrary (sx, sy, sw, sh) rectangle from `sprites.png` at
 ---(dx, dy) at its original size. `s*` args index into the source sheet

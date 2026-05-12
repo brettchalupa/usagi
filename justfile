@@ -166,6 +166,7 @@ examples:
     just example operators
     just example snake
     just example notetris
+    just example px
     just example pico8
     just example dialog
     just example music

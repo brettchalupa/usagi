@@ -160,6 +160,23 @@ pub fn color(c: impl Into<i32>) -> Color {
     ACTIVE.with(|p| p.borrow().lookup(idx))
 }
 
+/// Reverse lookup: returns the 1-based slot index of the active
+/// palette's exact RGB match, or `None` if the color isn't in the
+/// palette. Used by the screen and sprite pixel-read APIs so games
+/// can branch on palette identity (e.g. "is this red?") rather than
+/// on raw RGB triples. Alpha is ignored: palette entries are all
+/// opaque, but sprite samples carry alpha that the caller already
+/// handles separately.
+pub fn index_of(r: u8, g: u8, b: u8) -> Option<i32> {
+    ACTIVE.with(|p| {
+        p.borrow()
+            .colors
+            .iter()
+            .position(|c| c.r == r && c.g == g && c.b == b)
+            .map(|i| (i + 1) as i32)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,6 +242,48 @@ mod tests {
     #[test]
     fn pico8_palette_has_16_colors() {
         assert_eq!(Palette::pico8().len(), 16);
+    }
+
+    #[test]
+    fn index_of_returns_one_based_slot_for_every_pico8_color() {
+        reset();
+        for slot in 1..=16i32 {
+            let c = color(slot);
+            assert_eq!(
+                index_of(c.r, c.g, c.b),
+                Some(slot),
+                "slot {slot}'s RGB should round-trip"
+            );
+        }
+    }
+
+    #[test]
+    fn index_of_returns_none_for_off_palette_rgb() {
+        reset();
+        // Pure 1-bit color isn't in the Pico-8 palette: black is (0,0,0)
+        // and red is (255,0,77), so neither (1,1,1) nor (255,0,0) match.
+        assert!(index_of(1, 1, 1).is_none());
+        assert!(index_of(255, 0, 0).is_none());
+    }
+
+    #[test]
+    fn index_of_ignores_alpha() {
+        reset();
+        let black = color(1);
+        assert_eq!(index_of(black.r, black.g, black.b), Some(1));
+    }
+
+    #[test]
+    fn index_of_uses_active_palette() {
+        let custom = Palette {
+            colors: vec![Color::new(10, 20, 30, 255), Color::new(40, 50, 60, 255)],
+        };
+        set_active(custom);
+        assert_eq!(index_of(10, 20, 30), Some(1));
+        assert_eq!(index_of(40, 50, 60), Some(2));
+        // Black is in Pico-8 but not in this custom palette.
+        assert!(index_of(0, 0, 0).is_none());
+        reset();
     }
 
     #[test]
