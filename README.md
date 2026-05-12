@@ -25,18 +25,27 @@ Videos:
 
 ## Install
 
-[Download the latest Usagi build for your operating
-system.](https://github.com/brettchalupa/usagi/releases/latest)
+**Linux, macOS:**
+
+```sh
+curl -fsSL https://usagiengine.com/install.sh | sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://usagiengine.com/install.ps1 | iex
+```
+
+The installer fetches the latest release from GitHub, verifies its SHA-256
+checksum, installs `usagi` to `~/.usagi/bin/` (or `%USERPROFILE%\.usagi\bin\` on
+Windows), and sets up `PATH`.
 
 **Latest Usagi release:** v0.7.2
 
-You can keep the `usagi` executable in your project folder or install it
-globally on your computer.
-
-Places to download Usagi:
-
-- [GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest)
-- [itch.io](https://brettchalupa.itch.io/usagi)
+Or download manually from
+[GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest) or
+[itch.io](https://brettchalupa.itch.io/usagi).
 
 [View the changelog.](https://github.com/brettchalupa/usagi/blob/main/CHANGELOG.md)
 
