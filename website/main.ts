@@ -76,6 +76,18 @@ async function handler(req: Request): Promise<Response> {
     if (url.pathname === "/favicon.png") {
       return serveFile(req, "./favicon.png");
     }
+    if (url.pathname === "/install.sh" || url.pathname === "/install.ps1") {
+      const file = url.pathname.slice(1);
+      const body = await Deno.readTextFile(`./${file}`);
+      return new Response(body, {
+        headers: {
+          // text/plain so browsers show the script instead of saving/running it;
+          // curl and irm don't care about content-type.
+          "content-type": "text/plain; charset=utf-8",
+          "cache-control": "public, max-age=300",
+        },
+      });
+    }
     if (url.pathname === "/website/card-logo.png") {
       return serveFile(req, "./card-logo.png");
     }
