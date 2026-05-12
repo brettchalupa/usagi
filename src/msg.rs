@@ -6,7 +6,9 @@
 //! Color is auto-disabled when stdout/stderr aren't terminals (so
 //! piped output and CI logs stay clean) or when `NO_COLOR` is set
 //! in the environment, per the de facto cross-CLI convention from
-//! <https://no-color.org>.
+//! <https://no-color.org>. On the web (emscripten) color is forced
+//! off since the browser devtools console prints stdout verbatim
+//! and would render the escape bytes as garbage.
 //!
 //! ANSI escapes are written by hand here (no extra crate) since
 //! we control all the call sites and the styling is uniform.
@@ -30,10 +32,16 @@ fn no_color_env() -> bool {
 }
 
 fn color_stdout() -> bool {
+    if cfg!(target_os = "emscripten") {
+        return false;
+    }
     !no_color_env() && std::io::stdout().is_terminal()
 }
 
 fn color_stderr() -> bool {
+    if cfg!(target_os = "emscripten") {
+        return false;
+    }
     !no_color_env() && std::io::stderr().is_terminal()
 }
 
