@@ -91,7 +91,7 @@ pub(crate) fn load_palette_from_vfs(vfs: &dyn VirtualFs) {
 fn register_usagi_measure_text(lua: &Lua, font: &'static Font) -> LuaResult<()> {
     let usagi: LuaTable = lua.globals().get("usagi")?;
     let measure = lua.create_function(move |_, s: String| {
-        let m = font.measure_text(&s, crate::font::MONOGRAM_SIZE as f32, 0.0);
+        let m = font.measure_text(&s, font.base_size() as f32, 0.0);
         Ok((m.x as i32, m.y as i32))
     })?;
     usagi.set(
@@ -432,12 +432,17 @@ struct Session {
     /// `Drop` (UnloadShader) runs while the GL context is still alive.
     /// Must come before `rl` for the same reason `rt` does.
     shader: Rc<std::cell::RefCell<ShaderManager>>,
-    /// Bundled monogram font. Leaked to `'static` so `usagi.measure_text`
-    /// can capture a reference in a non-scoped Lua closure (callable
-    /// from `_init` / `_update` / `_draw` alike). The font lives for
-    /// program lifetime in practice; this matches how `audio` is leaked
-    /// and is reclaimed by process exit.
+    /// Bundled monogram font. Used for all engine UI overlays
+    /// (FPS, REC indicator, pause menu, error overlay) so layout
+    /// doesn't break when the user supplies an unusually-sized custom
+    /// font. Leaked to `'static` so closures can hold it; reclaimed at
+    /// process exit.
     font: &'static Font,
+    /// Font used by the Lua-facing text APIs (`gfx.text`,
+    /// `gfx.text_ex`, `usagi.measure_text`). Points at the user's
+    /// `font.png` if present at project root; otherwise aliases
+    /// `font` so Lua code still renders.
+    user_font: &'static Font,
 
     lua: Lua,
     update: Option<LuaFunction>,
@@ -729,9 +734,15 @@ impl Session {
         // session.
         load_palette_from_vfs(vfs.as_ref());
         let palette_mtime = vfs.palette_mtime();
-        let font: &'static Font = &*Box::leak(Box::new(crate::font::load(&mut rl, &thread)));
+        let font: &'static Font =
+            &*Box::leak(Box::new(crate::font::load_bundled(&mut rl, &thread)));
+        let user_font: &'static Font = match crate::font::load_user(&mut rl, &thread, vfs.as_ref())
+        {
+            Some(f) => &*Box::leak(Box::new(f)),
+            None => font,
+        };
 
-        register_usagi_measure_text(&lua, font)
+        register_usagi_measure_text(&lua, user_font)
             .map_err(|e| crate::Error::Cli(format!("registering usagi.measure_text: {e}")))?;
 
         let input_bridge = InputBridge::new();
@@ -813,6 +824,7 @@ impl Session {
             rt,
             sprites,
             font,
+            user_font,
             lua,
             update,
             draw,
@@ -1350,6 +1362,7 @@ impl Session {
             sprites,
             screen_pixels,
             font,
+            user_font,
             draw,
             last_error,
             show_fps,
@@ -1362,7 +1375,7 @@ impl Session {
             let sprites_ref = sprites.texture();
             let sprite_pixels_ref: Option<&crate::pixels::Pixels> = sprites.pixels();
             let screen_pixels_ref: Option<&crate::pixels::Pixels> = screen_pixels.as_ref();
-            let font_ref: &Font = font;
+            let font_ref: &Font = user_font;
             let sfx_ref: &SfxLibrary<'static> = sfx;
             record_err(
                 last_error,
@@ -1380,7 +1393,7 @@ impl Session {
                                 font_ref,
                                 &s,
                                 Vector2::new(x.round(), y.round()),
-                                crate::font::MONOGRAM_SIZE as f32,
+                                font_ref.base_size() as f32,
                                 0.0,
                                 color(c),
                             );
@@ -1388,7 +1401,7 @@ impl Session {
                         })?;
                     let text_ex = scope.create_function(
                         |_, (s, x, y, scale, rotation, c): (String, f32, f32, f32, f32, i32)| {
-                            let base = crate::font::MONOGRAM_SIZE as f32;
+                            let base = font_ref.base_size() as f32;
                             let font_size = base * scale;
                             // Bounds drive the pivot. We center rotation
                             // on the text's unrotated bounding box, so

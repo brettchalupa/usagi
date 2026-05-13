@@ -106,6 +106,26 @@ Features:
 - New `examples/px` cart demonstrates both reads side-by-side: a small maze
   where movement consults `gfx.px` for collision-by-color, plus a `gfx.spr_px`
   scan that re-renders sprite 1 pixel-by-pixel next to its `gfx.spr` original.
+- Bundled font upgraded from monogram (95 ASCII glyphs) to monogram-extended
+  (504 glyphs covering full Basic Latin, Latin-1 Supplement, Latin Extended-A,
+  partial Greek and Cyrillic). Text like `café naïve jalapeño`,
+  `Здравствуй,
+  мир!`, and `Καλημέρα κόσμε` now render. Same look, same line
+  height, just more codepoints. Updated `examples/text` shows the new chars.
+- Custom font support: drop `font.png` at your project root and Usagi uses it
+  for `gfx.text` / `gfx.text_ex` / `usagi.measure_text`. Engine UI (FPS overlay,
+  pause menu, error text) keeps the bundled font so layout stays predictable
+  regardless of what you ship. The font's natural line height drives
+  `font.base_size()` at runtime, so larger or smaller fonts render at their
+  design size with no scaling.
+- New `usagi font bake <font.ttf> <size>` subcommand bakes a TTF/OTF into the
+  custom-font format (a single PNG with glyph metadata embedded as a zTXt
+  chunk). Defaults to writing `font.png` in the current directory, so the output
+  is immediately a project drop-in. Includes the CJK Unified Ideographs block by
+  default for fonts that cover it (kanji/hanzi/hanja); pass `--no-cjk` to skip.
+  Pass the font's natural design size for crispest output (e.g., `15` for
+  monogram-style 5×7 fonts, `18` for Silver, `8` for Misaki Gothic). New
+  `examples/custom_font` ships a Silver-baked demo with multi-script text.
 
 ## v0.7.2 - May 10, 2026
 
