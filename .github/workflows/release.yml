@@ -48,6 +48,16 @@ jobs:
             libasound2-dev libudev-dev libx11-dev libxcursor-dev \
             libxinerama-dev libxrandr-dev libxi-dev libgl1-mesa-dev
 
+      - name: Install Windows zlib for freetype-sys
+        # See ci.yml for context. freetype-sys 0.23.0 bundled build
+        # needs zlib.h on the cl include path.
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          vcpkg install zlib:x64-windows-static-md
+          echo "CFLAGS_x86_64_pc_windows_msvc=-IC:\vcpkg\installed\x64-windows-static-md\include" `
+            | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Build
         run: cargo build --release --locked
 
