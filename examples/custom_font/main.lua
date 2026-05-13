@@ -7,6 +7,12 @@
 -- Silver is a 5x9-ish pixel font with broad European + partial CJK
 -- coverage, by Poppy Works, licensed CC-BY-4.0:
 -- https://poppyworks.itch.io/silver
+--
+-- To bake a font:
+--   usagi font bake Silver.ttf 18
+--
+-- The `usagi export` bundler skips .ttf files, so shipping the source TTF here
+-- doesn't bloat exported games.
 
 function _config()
   return { name = "Custom Font (Silver)" }
