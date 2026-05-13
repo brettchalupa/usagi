@@ -53,6 +53,21 @@ jobs:
             libxi-dev \
             libgl1-mesa-dev
 
+      - name: Install Windows zlib for freetype-sys
+        # freetype-sys 0.23.0's bundled FreeType build also compiles
+        # libpng, which #includes zlib.h. Its build.rs hardcodes
+        # `-I libz-sys/src/zlib` as a relative path that doesn't exist
+        # in registry-based cargo builds, so cl.exe can't find zlib.h
+        # on Windows. Install zlib via the preinstalled vcpkg and add
+        # its include dir to CFLAGS so cl finds the header alongside
+        # the broken hardcoded path.
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          vcpkg install zlib:x64-windows-static-md
+          echo "CFLAGS_x86_64_pc_windows_msvc=-IC:\vcpkg\installed\x64-windows-static-md\include" `
+            | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Fmt
         run: cargo fmt --check
 

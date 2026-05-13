@@ -149,6 +149,13 @@ impl Bundle {
             bundle.insert("palette.png", std::fs::read(&palette)?);
         }
 
+        // Custom font (single-file PNG with embedded zTXt metadata,
+        // produced by `usagi font bake`).
+        let font_png = root.join("font.png");
+        if font_png.is_file() {
+            bundle.insert("font.png", std::fs::read(&font_png)?);
+        }
+
         let sfx_dir = root.join("sfx");
         if sfx_dir.is_dir() {
             for entry in std::fs::read_dir(&sfx_dir)?.flatten() {

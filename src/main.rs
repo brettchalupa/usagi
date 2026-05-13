@@ -20,6 +20,8 @@ mod config;
 mod effect;
 mod error;
 mod font;
+#[cfg(not(target_os = "emscripten"))]
+mod font_bake;
 mod icon;
 mod input;
 mod msg;
@@ -181,6 +183,39 @@ enum Command {
         #[arg(long, conflicts_with = "yes")]
         dry_run: bool,
     },
+    /// Font asset commands.
+    Font {
+        #[command(subcommand)]
+        cmd: FontCmd,
+    },
+}
+
+#[cfg(not(target_os = "emscripten"))]
+#[derive(Subcommand)]
+enum FontCmd {
+    /// Bake a TTF/OTF into a single PNG with embedded glyph metadata
+    /// for use as a custom font. Drop the output next to your
+    /// project's main.lua and the engine loads it automatically. Pass
+    /// the font's natural design size for crispest output (e.g., 15
+    /// for monogram, 18 for Silver, 8 for Misaki); FreeType-hinted
+    /// rendering means most pixel fonts look right at their design
+    /// size and slightly fuzzy at other sizes.
+    Bake {
+        /// Path to the .ttf or .otf file to bake.
+        ttf: String,
+        /// Pixel size to rasterize at.
+        size: u32,
+        /// Output PNG path. Defaults to `font.png` in the current
+        /// directory so the result is immediately a project drop-in.
+        #[arg(short, long, default_value = "font.png")]
+        out: String,
+        /// Skip the CJK Unified Ideographs block. Default is to
+        /// include it; the cmap filter drops codepoints the font
+        /// doesn't cover, so enabling it costs nothing for fonts
+        /// without kanji/hanzi/hanja.
+        #[arg(long)]
+        no_cjk: bool,
+    },
 }
 
 #[cfg(not(target_os = "emscripten"))]
@@ -237,6 +272,7 @@ fn main() -> ExitCode {
             Command::Refresh { path, yes, dry_run } => {
                 refresh::run(path.as_deref().unwrap_or("."), yes, dry_run)
             }
+            Command::Font { cmd } => run_font_cmd(cmd),
         };
         finish(result)
     }
@@ -277,6 +313,24 @@ fn start_session(path_arg: &str, dev: bool) -> Result<()> {
 fn run_bundled(bundle: Bundle) -> Result<()> {
     let vfs = std::rc::Rc::new(BundleBacked::new(bundle));
     session::run(vfs, false)
+}
+
+#[cfg(not(target_os = "emscripten"))]
+fn run_font_cmd(cmd: FontCmd) -> Result<()> {
+    match cmd {
+        FontCmd::Bake {
+            ttf,
+            size,
+            out,
+            no_cjk,
+        } => font_bake::run(
+            std::path::Path::new(&ttf),
+            size,
+            std::path::Path::new(&out),
+            !no_cjk,
+        )
+        .map_err(crate::Error::Cli),
+    }
 }
 
 #[cfg(not(target_os = "emscripten"))]

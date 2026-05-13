@@ -40,6 +40,24 @@ what every example under `examples/` follows.
 
 Install Rust: https://rustup.rs
 
+### Windows build prerequisite
+
+The `usagi font bake` subcommand brings in `freetype-rs` with vendored FreeType.
+FreeType's bundled build compiles libpng, which `#include`s `zlib.h`, and
+freetype-sys 0.23.0 doesn't expose zlib's include path properly on Windows.
+Install zlib via vcpkg and point cl at it before building:
+
+```pwsh
+# `C:\vcpkg` ships preinstalled on GitHub's Windows runners. On a dev
+# machine, see https://learn.microsoft.com/vcpkg/get_started/get-started.
+vcpkg install zlib:x64-windows-static-md
+$env:CFLAGS_x86_64_pc_windows_msvc = "-IC:\vcpkg\installed\x64-windows-static-md\include"
+cargo build
+```
+
+Linux and macOS find a usable zlib path automatically and don't need this step.
+CI handles Windows automatically (see `.github/workflows/ci.yml`).
+
 ## Docs
 
 Documentation is written in Markdown. It's formatted with `deno fmt`, but it's

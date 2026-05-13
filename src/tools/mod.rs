@@ -106,7 +106,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     };
 
     let mut sprites = vfs.as_ref().map(|v| SpriteSheet::load(&mut rl, &thread, v));
-    let font = crate::font::load(&mut rl, &thread);
+    let font = crate::font::load_bundled(&mut rl, &thread);
 
     // Make raygui draw with monogram instead of raylib's built-in font.
     // TEXT_SIZE = 2 * baseSize keeps the pixel-art glyphs on integer

@@ -163,6 +163,7 @@ my_game/
   main.lua           -- required: your game's entry point
   sprites.png        -- optional: 16×16 sprite sheet (PNG with alpha)
   palette.png        -- optional: custom palette (1px tall, one color per pixel)
+  font.png           -- optional: custom font (bake with `usagi font bake`)
   enemies.lua        -- optional: require "enemies"
   scenes/
     main_menu.lua    -- optional: require "scenes.main_menu" - source code can be in folders
@@ -484,14 +485,16 @@ palette indices 0-15; use the named constants.
   see in-progress draws inside the current `_draw`. The classic use is
   collision-by-color: paint walls into the framebuffer with a known color, then
   consult `gfx.px` on the proposed destination in `_update`.
-- `gfx.text(text, x, y, color)` — bundled monogram font (5×7 pixel font, 16 px
-  line height; see Credits below). To measure text dimensions, use
+- `gfx.text(text, x, y, color)` — bundled monogram font (5×7 pixel font, 12 px
+  line height; see Credits below). Renders the engine's default Latin/Cyrillic/
+  Greek glyph set, or your custom font if a `font.png` is present at the project
+  root (see "Custom fonts" below). To measure text dimensions, use
   `usagi.measure_text` — it lives on `usagi` rather than `gfx` because
   measurement is a pure utility (no render side-effect) and is callable from any
   callback, including `_init`.
 - `gfx.text_ex(text, x, y, scale, rotation, color)` — extended `text`:
   - `scale` (number) — font-size multiplier. **Use integers** (`1`, `2`, `3`)
-    for crisp text — monogram is a bitmap font with POINT filtering, so integer
+    for crisp text since atlas-baked fonts use POINT filtering and integer
     scales preserve the pixel-art look. Fractional values blur.
   - `rotation` (number) — radians. `0` is no rotation. Use `math.rad(45)` for
     literal-degree values. Rotation pivots around the **center** of the
@@ -593,6 +596,78 @@ your engine colors and the swatches you paint with.
 See
 [`examples/palette_swap`](https://github.com/brettchalupa/usagi/tree/main/examples/palette_swap)
 for a runnable demo (ships sweetie16, uses a `COLOR` table for its named slots).
+
+#### Custom fonts (`font.png`)
+
+Drop a `font.png` at your project root to override the bundled monogram font
+used by `gfx.text` / `gfx.text_ex` / `usagi.measure_text`. The PNG is a baked
+glyph atlas with metadata embedded as a zTXt chunk (see "Baking" below).
+
+Scope of the override is intentionally narrow:
+
+- **Lua-drawn text uses the custom font.** Anything you draw with `gfx.text` or
+  `gfx.text_ex`.
+- **Engine UI uses the bundled font.** Pause menu, FPS overlay, error overlay,
+  tools window. So a wildly-sized custom font can't break engine layout.
+
+The font's natural line height drives `usagi.measure_text` and the per-glyph
+positioning, so a smaller custom font (e.g., Misaki Gothic 8×8) renders at 8 px
+and a larger one (Silver 5×9) renders at 21 px, both crisp at integer scales.
+
+**Baking a font:**
+
+```bash
+usagi font bake <font.ttf> <size>
+```
+
+Examples:
+
+```bash
+# Drop into the current project (writes font.png in CWD by default)
+usagi font bake my_font.ttf 12
+
+# Skip the kanji block for a font that covers it
+usagi font bake misaki_gothic.ttf 8 --no-cjk
+
+# Write to a specific path
+usagi font bake silver.ttf 18 --out my_proj/font.png
+```
+
+Behavior:
+
+- Pass the font's **natural design size** as the size arg. Pixel fonts only
+  rasterize crisply at the size their designer drew them at; rendering at other
+  sizes goes through FreeType's outline scaler and looks slightly fuzzy. Common
+  sizes: monogram at `15`, Silver at `18`, Misaki Gothic at `8`, Geist Pixel at
+  `16`.
+- The CJK Unified Ideographs block (~21k codepoints) is included by default.
+  Codepoints the font doesn't cover are skipped via the font's cmap, so this
+  costs nothing for non-CJK fonts. Pass `--no-cjk` if you want to skip the block
+  even when present.
+- Output is a single `font.png` with metadata in a zTXt chunk. Drop it next to
+  your `main.lua` and the engine picks it up automatically.
+- Bakes are reproducible: the same TTF + size yields byte-identical output.
+
+Behavior of the project drop-in:
+
+- Missing `font.png` → engine uses the bundled monogram font (current default).
+- Bundled into `usagi export` automatically when present.
+
+**Asian-language support:** the bundled monogram font covers Latin / Cyrillic /
+partial Greek but no CJK. For Japanese, Chinese, or Korean text, grab a pixel
+font that covers the scripts you need and bake it:
+
+```bash
+# Silver: 5x9-ish with broad European + ~8k CJK ideographs + ~2k Hangul.
+# Download from https://poppyworks.itch.io/silver (CC-BY-4.0).
+usagi font bake Silver.ttf 18
+# Drop the resulting font.png next to your project's main.lua.
+```
+
+See
+[`examples/custom_font`](https://github.com/brettchalupa/usagi/tree/main/examples/custom_font)
+for a working Silver-based demo that renders English, Cyrillic, Greek, and
+Japanese on the same screen.
 
 #### Scaling sprites
 
@@ -1360,10 +1435,29 @@ logs.
 Usagi is built with [Rust](https://rust-lang.org/) and
 [sola-raylib](https://crates.io/crates/sola-raylib).
 
-- **monogram** — the bundled font (`assets/monogram.ttf`) used by `gfx.text`,
-  the FPS overlay, the error overlay, and the tools window. A 5×7 pixel font by
+- **monogram-extended** — the bundled font (`assets/monogram.png`, a single PNG
+  with glyph metadata in a zTXt chunk) used by `gfx.text` (when no custom font
+  is dropped in) and by all engine UI overlays (FPS, error overlay, pause menu,
+  tools window). 5×7 pixel font, ~500 glyphs covering Basic Latin, Latin-1,
+  Latin Extended-A, partial Greek, and partial Cyrillic. By
   [datagoblin](https://datagoblin.itch.io/monogram), released under Creative
-  Commons Zero (CC0). No attribution required, but kindly given.
+  Commons Zero (CC0). Source TTF lives at `assets/monogram-extended.ttf`; to
+  rebake, run
+  `cargo run -- font bake assets/monogram-extended.ttf 15 --out
+  assets/monogram.png`.
+
+- **Silver** — used by the `examples/custom_font` demo to showcase the custom
+  font drop-in (`font.png` at the project root). A 5×9-ish pixel font with broad
+  European + partial CJK coverage by Poppy Works
+  ([poppyworks.itch.io/silver](https://poppyworks.itch.io/silver)), licensed
+  under
+  [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/).
+
+- **FreeType** — used by `usagi font bake` to rasterize TTF/OTF outlines into
+  monochrome bitmaps with TrueType bytecode hinting (so `ttfautohint`-hinted
+  pixel fonts render correctly at their design size). Vendored and statically
+  linked via the `freetype-rs` crate's `bundled` feature; no system install
+  required at user-side. Licensed under the FreeType License (BSD-style).
 
 ## (Un)license
 
