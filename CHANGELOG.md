@@ -109,8 +109,7 @@ Features:
 - Bundled font upgraded from monogram (95 ASCII glyphs) to monogram-extended
   (504 glyphs covering full Basic Latin, Latin-1 Supplement, Latin Extended-A,
   partial Greek and Cyrillic). Text like `café naïve jalapeño`,
-  `Здравствуй,
-  мир!`, and `Καλημέρα κόσμε` now render. Same look, same line
+  `Здравствуй, мир!`, and `Καλημέρα κόσμε` now render. Same look, same line
   height, just more codepoints. Updated `examples/text` shows the new chars.
 - Custom font support: drop `font.png` at your project root and Usagi uses it
   for `gfx.text` / `gfx.text_ex` / `usagi.measure_text`. Engine UI (FPS overlay,
