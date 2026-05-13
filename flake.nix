@@ -29,7 +29,7 @@
         pname = "usagi";
         version = "0.8.0-dev";
         src = ./.;
-        cargoHash = "sha256-ldq9exVQYlYwD43HLww5h/S/n5ofpfuIWbXGprLywVA=";
+        cargoHash = "sha256-6YvoUjnSVD7fKBpfwCIJgDcOZdWzke1XtUJjq/4w+7w=";
 
         nativeBuildInputs = [
           rustPlatform.bindgenHook
@@ -49,6 +49,9 @@
 
           zip
           unzip
+
+          zlib
+          gcc
         ];
 
         postFixup = ''
@@ -82,6 +85,8 @@
           unzip
 
           libGL
+          zlib
+          gcc
         ];
 
         nativeBuildInputs = [
