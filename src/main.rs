@@ -25,6 +25,7 @@ mod input;
 mod msg;
 mod palette;
 mod pause;
+mod pixels;
 mod preprocess;
 mod project_name;
 mod render;

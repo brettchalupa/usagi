@@ -443,6 +443,12 @@ struct Session {
     update: Option<LuaFunction>,
     draw: Option<LuaFunction>,
 
+    /// CPU snapshot of the most recently rendered frame, refreshed at
+    /// the end of every `frame()` and read by `gfx.px(x, y)` in the
+    /// next tick's `_update` and `_draw`. `None` on the first frame;
+    /// `gfx.px` returns `nil` until the first snapshot exists.
+    screen_pixels: Option<crate::pixels::Pixels>,
+
     /// `audio` is leaked to give it a `'static` lifetime so `Sound<'static>`
     /// can be stored alongside it in the same struct without self-reference
     /// pain. The audio device lives for program lifetime anyway; this is
@@ -810,6 +816,7 @@ impl Session {
             lua,
             update,
             draw,
+            screen_pixels: None,
             audio,
             sfx,
             music,
@@ -962,6 +969,12 @@ impl Session {
         if self.recorder.is_recording() {
             self.recorder.capture(&self.rt);
         }
+
+        // Snapshot the just-rendered frame for next tick's `gfx.px`
+        // reads. Pixel reads always reflect the most recently finished
+        // frame, so in-progress draws in the same `_draw` are not
+        // visible to `gfx.px`.
+        self.screen_pixels = crate::pixels::Pixels::from_render_texture(&self.rt);
 
         self.blit_and_overlay(screen_w, screen_h);
         true
@@ -1257,17 +1270,22 @@ impl Session {
     }
 
     fn run_update(&mut self, dt: f32) {
+        let sprite_size = self.config.sprite_size;
         let Self {
             lua,
             sfx,
             update,
             last_error,
+            screen_pixels,
+            sprites,
             ..
         } = self;
         let Some(update_fn) = update.as_ref() else {
             return;
         };
         let sfx_ref: &SfxLibrary<'static> = sfx;
+        let screen_pixels_ref: Option<&crate::pixels::Pixels> = screen_pixels.as_ref();
+        let sprite_pixels_ref: Option<&crate::pixels::Pixels> = sprites.pixels();
         record_err(
             last_error,
             "_update",
@@ -1294,6 +1312,25 @@ impl Session {
                     )?,
                 )?;
 
+                let gfx_tbl: LuaTable = lua.globals().get("gfx")?;
+                let px = scope.create_function(|_, (x, y): (f32, f32)| {
+                    Ok(crate::pixels::read_screen(screen_pixels_ref, x, y))
+                })?;
+                gfx_tbl.set("px", wrap(lua, px, "gfx.px", &["number", "number"])?)?;
+                let spr_px = scope.create_function(|_, (idx, x, y): (i32, f32, f32)| {
+                    Ok(crate::pixels::read_sprite(
+                        sprite_pixels_ref,
+                        sprite_size,
+                        idx,
+                        x,
+                        y,
+                    ))
+                })?;
+                gfx_tbl.set(
+                    "spr_px",
+                    wrap(lua, spr_px, "gfx.spr_px", &["number", "number", "number"])?,
+                )?;
+
                 update_fn.call::<()>(dt)?;
                 Ok(())
             }),
@@ -1311,6 +1348,7 @@ impl Session {
             rt,
             sfx,
             sprites,
+            screen_pixels,
             font,
             draw,
             last_error,
@@ -1322,6 +1360,8 @@ impl Session {
         if let Some(draw_fn) = draw.as_ref() {
             let d_rt_cell = std::cell::RefCell::new(&mut d_rt);
             let sprites_ref = sprites.texture();
+            let sprite_pixels_ref: Option<&crate::pixels::Pixels> = sprites.pixels();
+            let screen_pixels_ref: Option<&crate::pixels::Pixels> = screen_pixels.as_ref();
             let font_ref: &Font = font;
             let sfx_ref: &SfxLibrary<'static> = sfx;
             record_err(
@@ -1768,6 +1808,24 @@ impl Session {
                                 "number",
                             ],
                         )?,
+                    )?;
+
+                    let px = scope.create_function(|_, (x, y): (f32, f32)| {
+                        Ok(crate::pixels::read_screen(screen_pixels_ref, x, y))
+                    })?;
+                    gfx_tbl.set("px", wrap(lua, px, "gfx.px", &["number", "number"])?)?;
+                    let spr_px = scope.create_function(|_, (idx, x, y): (i32, f32, f32)| {
+                        Ok(crate::pixels::read_sprite(
+                            sprite_pixels_ref,
+                            sprite_size,
+                            idx,
+                            x,
+                            y,
+                        ))
+                    })?;
+                    gfx_tbl.set(
+                        "spr_px",
+                        wrap(lua, spr_px, "gfx.spr_px", &["number", "number", "number"])?,
                     )?;
 
                     let sfx_tbl: LuaTable = lua.globals().get("sfx")?;

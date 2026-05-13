@@ -87,6 +87,25 @@ Features:
 - New `usagi.dump(v)` helper: pretty-prints any Lua value to a string, recursing
   into tables with sorted keys and cycle detection. Pair with `print` for
   terminal debugging, or feed into `gfx.text` to draw on screen.
+- New `gfx.px(x, y)` reads a pixel from the most recently rendered frame and
+  returns `(r, g, b, palette_index)` as multiple values. The palette index is
+  the 1-based slot for an exact RGB match, or `nil` for off-palette colors. All
+  four returns are `nil` for off-screen coordinates or on the very first frame
+  before any drawing has happened. Reads reflect the previous frame's finished
+  image, so they don't see in-progress draws inside the current `_draw`. Useful
+  for collision-by-color, fog-of-war reveals, palette-swap effects, and water
+  reflections.
+- New `gfx.spr_px(index, x, y)` reads a pixel from `sprites.png`. `index` is a
+  1-based sprite slot (same shape as `gfx.spr`); `(x, y)` is the offset inside
+  that cell. Returns the same `(r, g, b, palette_index)` shape as `gfx.px`. All
+  four returns are `nil` for an out-of-range index, out-of-cell coordinates, a
+  project with no `sprites.png`, or a fully transparent source pixel (so the
+  ergonomic `if r then ...` check covers both "no sheet" and "alpha hole"
+  cases). Useful for pixel-perfect sprite collision and for data-baked levels
+  where you paint the layout into the sheet and scan it at startup.
+- New `examples/px` cart demonstrates both reads side-by-side: a small maze
+  where movement consults `gfx.px` for collision-by-color, plus a `gfx.spr_px`
+  scan that re-renders sprite 1 pixel-by-pixel next to its `gfx.spr` original.
 
 ## v0.7.2 - May 10, 2026
 

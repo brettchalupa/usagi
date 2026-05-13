@@ -119,34 +119,50 @@ pub fn clear_user_modules(lua: &Lua, vfs: &dyn VirtualFs) -> LuaResult<()> {
     Ok(())
 }
 
-fn load_texture(rl: &mut RaylibHandle, thread: &RaylibThread, bytes: &[u8]) -> Option<Texture2D> {
+/// Decodes the sprite PNG, uploads it as a GPU texture, and keeps a
+/// CPU-side pixel snapshot for `gfx.spr_px` reads. Both halves come
+/// from the same decode pass, so the CPU mirror is guaranteed to
+/// match what got uploaded.
+fn load_texture_and_pixels(
+    rl: &mut RaylibHandle,
+    thread: &RaylibThread,
+    bytes: &[u8],
+) -> Option<(Texture2D, crate::pixels::Pixels)> {
     let image = Image::load_image_from_mem(".png", bytes)
         .map_err(|e| crate::msg::err!("failed to decode sprites.png: {e}"))
         .ok()?;
+    let pixels = crate::pixels::Pixels::from_image(&image);
     let texture = rl
         .load_texture_from_image(thread, &image)
         .map_err(|e| crate::msg::err!("failed to upload sprite texture: {e}"))
         .ok()?;
     // Pin POINT so the pixel-art intent doesn't ride on a default.
     texture.set_texture_filter(thread, TextureFilter::TEXTURE_FILTER_POINT);
-    Some(texture)
+    Some((texture, pixels))
 }
 
-/// Owns the sprite sheet texture and its mtime. `reload_if_changed` re-
-/// reads from the vfs when the sprite file's mtime has moved (or always
-/// no-ops on a bundle-backed vfs, whose mtimes are None).
+/// Owns the sprite sheet texture, its CPU-side mirror used by
+/// `gfx.spr_px`, and its mtime. `reload_if_changed` re-reads from the
+/// vfs when the sprite file's mtime has moved (or always no-ops on a
+/// bundle-backed vfs, whose mtimes are None).
 pub struct SpriteSheet {
     pub texture: Option<Texture2D>,
+    pub pixels: Option<crate::pixels::Pixels>,
     mtime: Option<SystemTime>,
 }
 
 impl SpriteSheet {
     pub fn load(rl: &mut RaylibHandle, thread: &RaylibThread, vfs: &dyn VirtualFs) -> Self {
-        let texture = vfs
+        let (texture, pixels) = match vfs
             .read_sprites()
-            .and_then(|bytes| load_texture(rl, thread, &bytes));
+            .and_then(|bytes| load_texture_and_pixels(rl, thread, &bytes))
+        {
+            Some((t, p)) => (Some(t), Some(p)),
+            None => (None, None),
+        };
         Self {
             texture,
+            pixels,
             mtime: vfs.sprites_mtime(),
         }
     }
@@ -163,14 +179,24 @@ impl SpriteSheet {
             return false;
         }
         self.mtime = new_mtime;
-        self.texture = vfs
+        let (texture, pixels) = match vfs
             .read_sprites()
-            .and_then(|bytes| load_texture(rl, thread, &bytes));
+            .and_then(|bytes| load_texture_and_pixels(rl, thread, &bytes))
+        {
+            Some((t, p)) => (Some(t), Some(p)),
+            None => (None, None),
+        };
+        self.texture = texture;
+        self.pixels = pixels;
         true
     }
 
     pub fn texture(&self) -> Option<&Texture2D> {
         self.texture.as_ref()
+    }
+
+    pub fn pixels(&self) -> Option<&crate::pixels::Pixels> {
+        self.pixels.as_ref()
     }
 }
 
