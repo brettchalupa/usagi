@@ -5,6 +5,8 @@ captures/
 export/
 **/*/export/*
 *.app
+# Nix puts its outputs in 'result'
+/result
 # Stray font files at the project root (test/spike artifacts). The
 # bundled source `assets/monogram-extended.ttf` is intentionally
 # tracked; user-project TTFs live next to their project's main.lua.
