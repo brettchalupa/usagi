@@ -18,7 +18,7 @@
 //! path, but inspection is cheap and explicit feels better here.
 
 use super::{HINT_Y, PANEL_H, PANEL_W, PANEL_X, PANEL_Y};
-use crate::palette::{Pal, color};
+use crate::tools::theme;
 use crate::vfs::FsBacked;
 use sola_raylib::prelude::*;
 use std::path::{Path, PathBuf};
@@ -208,7 +208,7 @@ pub(super) fn draw(
         Vector2::new(30.0, y),
         SMALL,
         0.0,
-        color(Pal::DarkBlue),
+        theme::TEXT,
     );
     y += 24.0;
 
@@ -222,7 +222,7 @@ pub(super) fn draw(
         Vector2::new(30.0, y),
         SMALL,
         0.0,
-        color(Pal::DarkPurple),
+        theme::TEXT_DIM,
     );
     y += 24.0;
 
@@ -233,7 +233,7 @@ pub(super) fn draw(
             Vector2::new(30.0, y),
             SMALL,
             0.0,
-            color(Pal::DarkPurple),
+            theme::TEXT_DIM,
         );
         y += 24.0;
     }
@@ -269,14 +269,7 @@ pub(super) fn draw(
     y = btn_y + 56.0;
 
     if let Some(err) = &state.error {
-        d.draw_text_ex(
-            font,
-            err,
-            Vector2::new(30.0, y),
-            SMALL,
-            0.0,
-            color(Pal::Red),
-        );
+        d.draw_text_ex(font, err, Vector2::new(30.0, y), SMALL, 0.0, theme::DANGER);
         y += 24.0;
     }
 
@@ -300,7 +293,7 @@ pub(super) fn draw(
             Vector2::new(pane_x + 14.0, pane_y + 30.0),
             SMALL,
             0.0,
-            color(Pal::DarkGray),
+            theme::TEXT_MUTED,
         );
     } else if let Some(content) = state.content.as_deref() {
         let mut line_y = pane_y + 26.0;
@@ -314,7 +307,7 @@ pub(super) fn draw(
                 Vector2::new(pane_x + 14.0, line_y),
                 SMALL,
                 0.0,
-                Color::BLACK,
+                theme::TEXT,
             );
             line_y += 22.0;
         }
@@ -327,7 +320,7 @@ pub(super) fn draw(
                 Vector2::new(pane_x + 14.0, pane_y + pane_h - 22.0),
                 SMALL,
                 0.0,
-                color(Pal::DarkGray),
+                theme::TEXT_MUTED,
             );
         }
     }
@@ -338,7 +331,7 @@ pub(super) fn draw(
         Vector2::new(30.0, HINT_Y),
         SMALL,
         0.0,
-        color(Pal::DarkGray),
+        theme::TEXT_MUTED,
     );
 
     toast

@@ -11,7 +11,8 @@
 //! projects. Only the swatches reflect the user's palette.
 
 use super::{HINT_Y, PANEL_H, PANEL_W, PANEL_X, PANEL_Y};
-use crate::palette::{Pal, Palette, color};
+use crate::palette::Palette;
+use crate::tools::theme;
 use crate::vfs::VirtualFs;
 use sola_raylib::prelude::*;
 
@@ -190,7 +191,7 @@ pub(super) fn draw(d: &mut RaylibDrawHandle, font: &Font, state: &State) {
         Vector2::new(PANEL_X + 10.0, PANEL_Y + 30.0),
         SMALL,
         0.0,
-        color(Pal::DarkBlue),
+        theme::TEXT,
     );
 
     let rows = rows_for(count);
@@ -209,9 +210,9 @@ pub(super) fn draw(d: &mut RaylibDrawHandle, font: &Font, state: &State) {
         // via `palette::color` so the UI looks consistent regardless
         // of the project palette.
         let (border_color, border_thickness) = if hovered {
-            (color(Pal::Pink), 3.0)
+            (theme::ACCENT, 3.0)
         } else {
-            (color(Pal::DarkBlue), 1.0)
+            (theme::BORDER, 1.0)
         };
         d.draw_rectangle_lines_ex(swatch, border_thickness, border_color);
 
@@ -221,7 +222,7 @@ pub(super) fn draw(d: &mut RaylibDrawHandle, font: &Font, state: &State) {
             Vector2::new(cell.x + CELL_PAD, cell.y + cell.height - LABEL_H + 2.0),
             SMALL,
             0.0,
-            color(Pal::DarkBlue),
+            theme::TEXT,
         );
     }
 
@@ -236,6 +237,6 @@ pub(super) fn draw(d: &mut RaylibDrawHandle, font: &Font, state: &State) {
         Vector2::new(PANEL_X + 10.0, HINT_Y),
         SMALL,
         0.0,
-        color(Pal::DarkGray),
+        theme::TEXT_MUTED,
     );
 }

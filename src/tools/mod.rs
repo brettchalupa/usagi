@@ -6,10 +6,10 @@
 mod color_palette;
 mod jukebox;
 mod save_inspector;
+pub(super) mod theme;
 mod tilepicker;
 
 use crate::assets::{MusicLibrary, SfxLibrary, SpriteSheet};
-use crate::palette::{Pal, color};
 use crate::vfs::{FsBacked, VirtualFs};
 use sola_raylib::prelude::*;
 use std::path::{Path, PathBuf};
@@ -75,12 +75,11 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     let sfx_dir_display = project_dir.as_ref().map(|d| d.join("sfx"));
     let music_dir_display = project_dir.as_ref().map(|d| d.join("music"));
     let sprites_path_display = project_dir.as_ref().map(|d| d.join("sprites.png"));
-    // The tools UI keeps the default Pico-8 palette for its chrome
-    // regardless of what the project ships, so that swatches /
-    // tile-picker overlays / panel borders look consistent across
-    // every project. The ColorPalette tool reads `palette.png` itself
-    // (see `color_palette::State::new`) to show the user's custom
-    // palette in its swatches.
+    // The tools UI uses its own dark theme (see `theme.rs`) for chrome,
+    // independent of whatever palette the project ships. The
+    // ColorPalette tool still reads `palette.png` itself (see
+    // `color_palette::State::new`) to show the user's custom palette
+    // in its swatches.
 
     let (mut rl, thread) = sola_raylib::init()
         .size(WINDOW_W as i32, WINDOW_H as i32)
@@ -217,7 +216,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
 
         {
             let mut d = rl.begin_drawing(&thread);
-            d.clear_background(color(Pal::Indigo));
+            d.clear_background(theme::BG);
 
             if tab_button(
                 &mut d,
@@ -312,89 +311,91 @@ fn resolve_project_dir(path: &str) -> Option<PathBuf> {
         .map(|parent| parent.to_path_buf())
 }
 
-/// Theme drawn from the pico-8 / usagi 16-color palette so the tools
-/// window matches the engine. DEFAULT props (indices 0..=14) propagate
-/// to every control automatically; extended props like LINE_COLOR /
-/// BACKGROUND_COLOR only affect controls that look them up explicitly
-/// (e.g. GuiPanel uses LINE_COLOR for its border and BACKGROUND_COLOR
-/// for its body).
+/// Dark theme for the tools window. Reads colors from `theme.rs` so
+/// the per-tool draw code (text labels, hint lines, selection boxes)
+/// stays visually aligned with the raygui styling done here.
+///
+/// `DEFAULT` props (indices 0..=14) propagate to every control
+/// automatically. Extended props like `LINE_COLOR` / `BACKGROUND_COLOR`
+/// only affect controls that look them up explicitly (e.g. `GuiPanel`
+/// uses `LINE_COLOR` for its border and `BACKGROUND_COLOR` for its
+/// body).
 fn apply_theme(rl: &mut RaylibHandle) {
     use GuiControlProperty as P;
     use GuiDefaultProperty as D;
 
-    let pal = |c: Pal| color(c).color_to_int();
+    let c = |color: Color| color.color_to_int();
 
-    // Normal: cream base, dark-blue ink + borders.
+    // Normal: surface base with the primary text color.
     rl.gui_set_style(
         GuiControl::DEFAULT,
         P::BORDER_COLOR_NORMAL,
-        pal(Pal::DarkBlue),
+        c(theme::BORDER),
     );
-    rl.gui_set_style(GuiControl::DEFAULT, P::BASE_COLOR_NORMAL, pal(Pal::White));
+    rl.gui_set_style(GuiControl::DEFAULT, P::BASE_COLOR_NORMAL, c(theme::SURFACE));
+    rl.gui_set_style(GuiControl::DEFAULT, P::TEXT_COLOR_NORMAL, c(theme::TEXT));
+    // Focused: accent border highlights the hovered control while the
+    // base stays subdued so the focus reads at a glance.
     rl.gui_set_style(
         GuiControl::DEFAULT,
-        P::TEXT_COLOR_NORMAL,
-        pal(Pal::DarkBlue),
+        P::BORDER_COLOR_FOCUSED,
+        c(theme::ACCENT),
     );
-    // Focused: pink border on peach.
-    rl.gui_set_style(GuiControl::DEFAULT, P::BORDER_COLOR_FOCUSED, pal(Pal::Pink));
-    rl.gui_set_style(GuiControl::DEFAULT, P::BASE_COLOR_FOCUSED, pal(Pal::Peach));
     rl.gui_set_style(
         GuiControl::DEFAULT,
-        P::TEXT_COLOR_FOCUSED,
-        pal(Pal::DarkBlue),
+        P::BASE_COLOR_FOCUSED,
+        c(theme::SURFACE),
     );
-    // Pressed: dark-purple base with cream text.
+    rl.gui_set_style(GuiControl::DEFAULT, P::TEXT_COLOR_FOCUSED, c(theme::TEXT));
+    // Pressed: full accent fill so a depressed button is unmistakable.
     rl.gui_set_style(
         GuiControl::DEFAULT,
         P::BORDER_COLOR_PRESSED,
-        pal(Pal::DarkPurple),
+        c(theme::ACCENT),
     );
+    rl.gui_set_style(GuiControl::DEFAULT, P::BASE_COLOR_PRESSED, c(theme::ACCENT));
     rl.gui_set_style(
         GuiControl::DEFAULT,
-        P::BASE_COLOR_PRESSED,
-        pal(Pal::DarkPurple),
+        P::TEXT_COLOR_PRESSED,
+        c(theme::ON_ACCENT),
     );
-    rl.gui_set_style(GuiControl::DEFAULT, P::TEXT_COLOR_PRESSED, pal(Pal::White));
-    // Disabled: pico-8 grays.
+    // Disabled: muted text on the same surface.
     rl.gui_set_style(
         GuiControl::DEFAULT,
         P::BORDER_COLOR_DISABLED,
-        pal(Pal::DarkGray),
+        c(theme::BORDER),
     );
     rl.gui_set_style(
         GuiControl::DEFAULT,
         P::BASE_COLOR_DISABLED,
-        pal(Pal::LightGray),
+        c(theme::SURFACE),
     );
     rl.gui_set_style(
         GuiControl::DEFAULT,
         P::TEXT_COLOR_DISABLED,
-        pal(Pal::DarkGray),
+        c(theme::TEXT_MUTED),
     );
-    rl.gui_set_style(GuiControl::DEFAULT, P::BORDER_WIDTH, 2);
+    rl.gui_set_style(GuiControl::DEFAULT, P::BORDER_WIDTH, 1);
 
     // Tool panels (gui_panel) read BACKGROUND_COLOR for their body and
-    // LINE_COLOR for their border. PEACH sets the tool content area
-    // apart from the cream button bases without competing with the
-    // INDIGO window backdrop.
-    rl.gui_set_style(GuiControl::DEFAULT, D::BACKGROUND_COLOR, pal(Pal::Peach));
-    rl.gui_set_style(GuiControl::DEFAULT, D::LINE_COLOR, pal(Pal::DarkBlue));
+    // LINE_COLOR for their border.
+    rl.gui_set_style(GuiControl::DEFAULT, D::BACKGROUND_COLOR, c(theme::SURFACE));
+    rl.gui_set_style(GuiControl::DEFAULT, D::LINE_COLOR, c(theme::BORDER));
 
-    // Panel header strip (raygui draws it as a STATUSBAR). Override to
-    // a dark-blue title bar with cream text so the header reads as a
-    // distinct title strip rather than a continuation of the body.
+    // Panel header strip (raygui draws it as a STATUSBAR). SURFACE_HIGH
+    // is just one notch lighter than the panel body so the header reads
+    // as a title bar without needing a different hue.
     rl.gui_set_style(
         GuiControl::STATUSBAR,
         P::BORDER_COLOR_NORMAL,
-        pal(Pal::DarkBlue),
+        c(theme::BORDER),
     );
     rl.gui_set_style(
         GuiControl::STATUSBAR,
         P::BASE_COLOR_NORMAL,
-        pal(Pal::DarkBlue),
+        c(theme::SURFACE_HIGH),
     );
-    rl.gui_set_style(GuiControl::STATUSBAR, P::TEXT_COLOR_NORMAL, pal(Pal::White));
+    rl.gui_set_style(GuiControl::STATUSBAR, P::TEXT_COLOR_NORMAL, c(theme::TEXT));
 }
 
 /// Tab-bar button. When `active`, swaps the NORMAL/FOCUSED color slots
@@ -438,17 +439,22 @@ fn tab_button(d: &mut RaylibDrawHandle, rect: Rectangle, label: &str, active: bo
 }
 
 fn draw_toast(d: &mut RaylibDrawHandle, font: &Font, message: &str) {
-    let w = 360.0;
-    let h = 48.0;
+    // Match the body text size used by the rest of the tools (raygui's
+    // TEXT_SIZE = 2 * MONOGRAM_SIZE). The original 1x size came out way
+    // smaller than the surrounding labels, which made the toast read as
+    // a tooltip rather than a confirmation.
+    let text_size = (crate::font::MONOGRAM_SIZE * 2) as f32;
+    let w = 420.0;
+    let h = 56.0;
     let x = WINDOW_W - w - 20.0;
     let y = WINDOW_H - h - 20.0;
     d.gui_panel(Rectangle::new(x, y, w, h), "");
     d.draw_text_ex(
         font,
         message,
-        Vector2::new(x + 12.0, y + 14.0),
-        crate::font::MONOGRAM_SIZE as f32,
+        Vector2::new(x + 14.0, y + (h - text_size) * 0.5),
+        text_size,
         0.0,
-        Color::BLACK,
+        theme::TEXT,
     );
 }

@@ -3,7 +3,7 @@
 
 use super::{HINT_Y, PANEL_H, PANEL_W, PANEL_X, PANEL_Y};
 use crate::assets::MusicLibrary;
-use crate::palette::{Pal, color};
+use crate::tools::theme;
 use sola_raylib::prelude::*;
 use std::collections::HashMap;
 use std::path::Path;
@@ -195,7 +195,7 @@ pub(super) fn draw(
         Vector2::new(info_x, info_y),
         SMALL,
         0.0,
-        color(Pal::DarkBlue),
+        theme::TEXT,
     );
     info_y += 22.0;
     if let Some(dir) = sfx_dir {
@@ -205,7 +205,7 @@ pub(super) fn draw(
             Vector2::new(info_x, info_y),
             SMALL,
             0.0,
-            color(Pal::DarkPurple),
+            theme::TEXT_DIM,
         );
         info_y += 22.0;
     }
@@ -216,7 +216,7 @@ pub(super) fn draw(
             Vector2::new(info_x, info_y),
             SMALL,
             0.0,
-            color(Pal::DarkPurple),
+            theme::TEXT_DIM,
         );
     }
 
@@ -238,7 +238,7 @@ pub(super) fn draw(
         Vector2::new(left_x, header_y),
         SMALL,
         0.0,
-        Color::BLACK,
+        theme::TEXT,
     );
     d.draw_text_ex(
         font,
@@ -246,7 +246,7 @@ pub(super) fn draw(
         Vector2::new(right_x, header_y),
         SMALL,
         0.0,
-        Color::BLACK,
+        theme::TEXT,
     );
 
     // SFX column. Snapshot the active index before list_view_ex so we
@@ -268,7 +268,7 @@ pub(super) fn draw(
             Vector2::new(left_x + 10.0, list_y + 20.0),
             SMALL,
             0.0,
-            color(Pal::DarkGray),
+            theme::TEXT_MUTED,
         );
     }
     if d.gui_button(Rectangle::new(left_x, buttons_y, 140.0, 40.0), "Play")
@@ -287,7 +287,7 @@ pub(super) fn draw(
             Vector2::new(left_x + 160.0, buttons_y + 10.0),
             SMALL,
             0.0,
-            color(Pal::DarkBlue),
+            theme::TEXT,
         );
     }
 
@@ -315,7 +315,7 @@ pub(super) fn draw(
         FocusList::Sfx => Rectangle::new(left_x - 3.0, list_y - 3.0, col_w + 6.0, list_h + 6.0),
         FocusList::Music => Rectangle::new(right_x - 3.0, list_y - 3.0, col_w + 6.0, list_h + 6.0),
     };
-    d.draw_rectangle_lines_ex(focused_rect, 3.0, color(Pal::Pink));
+    d.draw_rectangle_lines_ex(focused_rect, 3.0, theme::ACCENT);
     if state.music_names.is_empty() {
         d.draw_text_ex(
             font,
@@ -323,7 +323,7 @@ pub(super) fn draw(
             Vector2::new(right_x + 10.0, list_y + 20.0),
             SMALL,
             0.0,
-            color(Pal::DarkGray),
+            theme::TEXT_MUTED,
         );
     }
     if d.gui_button(Rectangle::new(right_x, buttons_y, 140.0, 40.0), "Play")
@@ -348,7 +348,7 @@ pub(super) fn draw(
         Vector2::new(right_x, label_y),
         SMALL,
         0.0,
-        color(Pal::DarkBlue),
+        theme::TEXT,
     );
 
     d.draw_text_ex(
@@ -357,6 +357,6 @@ pub(super) fn draw(
         Vector2::new(30.0, HINT_Y),
         SMALL,
         0.0,
-        color(Pal::DarkGray),
+        theme::TEXT_MUTED,
     );
 }
