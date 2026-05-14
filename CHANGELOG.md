@@ -194,6 +194,12 @@ Features:
   New `examples/custom_menu.lua` ships a minimal hand-rolled menu (Resume,
   Toggle Fullscreen, Quit) wired up to the new APIs.
 
+Fixes:
+
+- `gfx.rect` no longer drops the top-right corner pixel on some desktop
+  environment + GPU configurations. Visual output matches the old path on every
+  platform that already rendered correctly.
+
 ## v0.7.2 - May 10, 2026
 
 Fixes:
