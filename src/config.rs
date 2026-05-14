@@ -84,6 +84,15 @@ pub struct Config {
     /// value on both axes; mismatches fall back to the default icon
     /// for the window-icon path.
     pub sprite_size: i32,
+    /// When `true` (default) the engine intercepts Esc / P / Enter /
+    /// gamepad Start to open its built-in pause menu. When `false` via
+    /// `_config().pause_menu = false`, those keys flow through to user
+    /// code so games can roll their own menu with the existing
+    /// `usagi.menu_item`, `usagi.toggle_fullscreen`, `usagi.quit`, and
+    /// `input.key_*` APIs. Disabling also silences the Test / Configure
+    /// Keys / Configure Gamepad screens, since they're sub-views of the
+    /// same overlay.
+    pub pause_menu: bool,
 }
 
 impl Default for Config {
@@ -95,6 +104,7 @@ impl Default for Config {
             icon: None,
             resolution: Resolution::DEFAULT,
             sprite_size: DEFAULT_SPRITE_SIZE,
+            pause_menu: true,
         }
     }
 }
@@ -143,6 +153,9 @@ impl Config {
                     && s >= 1
                 {
                     config.sprite_size = s;
+                }
+                if let Ok(Some(b)) = tbl.get::<Option<bool>>("pause_menu") {
+                    config.pause_menu = b;
                 }
             }
             Err(e) => {

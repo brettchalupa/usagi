@@ -168,6 +168,18 @@ Features:
   lifetime, so the canvas freezes on the last frame rather than tearing down the
   page. Gate with `usagi.PLATFORM` if your custom menu shouldn't expose a quit
   option on web.
+- New `_config().pause_menu = false` disables the built-in pause overlay so
+  games can roll their own menu system. Esc / P / Enter / gamepad Start flow
+  through to user code instead of opening the engine's menu. What you keep: raw
+  keyboard reads (`input.key_*`), the abstract direction and BTN actions, and
+  the standalone APIs `usagi.toggle_fullscreen`, `usagi.is_fullscreen`, and
+  `usagi.quit`. What you lose: the built-in pause overlay (which means
+  `usagi.menu_item` registrations no longer render anywhere), the Configure Keys
+  / Configure Gamepad screens, the Input Tester, keyboard remap UI, and
+  gamepad-driven menu nav. Suitable for keyboard-driven prototypes;
+  gamepad-heavy games that want full control should keep the default or fork.
+  New `examples/custom_menu.lua` ships a minimal hand-rolled menu (Resume,
+  Toggle Fullscreen, Quit) wired up to the new APIs.
 
 ## v0.7.2 - May 10, 2026
 

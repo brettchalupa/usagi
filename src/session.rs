@@ -981,22 +981,24 @@ impl Session {
         self.handle_global_shortcuts();
 
         let dt = self.rl.get_frame_time();
-        let menu_labels = crate::menu_items::snapshot_labels(&self.menu_items);
-        let pause_action = self.pause.update(
-            &mut self.rl,
-            crate::pause::PauseFrame {
-                settings: &self.settings,
-                maps: crate::pause::Maps {
-                    keymap: &self.keymap,
-                    pad_map: &self.pad_map,
+        if self.config.pause_menu {
+            let menu_labels = crate::menu_items::snapshot_labels(&self.menu_items);
+            let pause_action = self.pause.update(
+                &mut self.rl,
+                crate::pause::PauseFrame {
+                    settings: &self.settings,
+                    maps: crate::pause::Maps {
+                        keymap: &self.keymap,
+                        pad_map: &self.pad_map,
+                    },
+                    menu_items: &menu_labels,
                 },
-                menu_items: &menu_labels,
-            },
-            &self.axis_edges,
-            dt,
-        );
-        if let Some(action) = pause_action {
-            self.apply_pause_action(action);
+                &self.axis_edges,
+                dt,
+            );
+            if let Some(action) = pause_action {
+                self.apply_pause_action(action);
+            }
         }
         if self.should_quit {
             return false;
@@ -2269,6 +2271,21 @@ mod tests {
         let config = read_config(&lua, &mut err);
         assert!(!config.pixel_perfect);
         assert!(err.is_none());
+    }
+
+    #[test]
+    fn config_pause_menu_field_round_trips() {
+        // Default: pause_menu is on. Setting to false flips it. Setting
+        // to true is redundant but should still parse.
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+        let mut err = None;
+        assert!(read_config(&lua, &mut err).pause_menu);
+
+        lua.load("function _config() return { pause_menu = false } end")
+            .exec()
+            .unwrap();
+        assert!(!read_config(&lua, &mut err).pause_menu);
     }
 
     #[test]
