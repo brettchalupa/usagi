@@ -194,6 +194,14 @@ Features:
   New `examples/custom_menu.lua` ships a minimal hand-rolled menu (Resume,
   Toggle Fullscreen, Quit) wired up to the new APIs.
 
+Fixes:
+
+- `gfx.rect` no longer drops the top-right corner pixel on some Linux + KDE
+  Plasma fractional-scaling setups. The outline is now drawn as four 1px filled
+  sides instead of `GL_LINES`, which sidesteps a rasterizer corner-coverage rule
+  that varied between iGPU drivers. Visual output matches the old path on every
+  platform that already rendered correctly.
+
 ## v0.7.2 - May 10, 2026
 
 Fixes:

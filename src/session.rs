@@ -1607,11 +1607,19 @@ impl Session {
                     )?;
                     let rect = scope.create_function(
                         |_, (x, y, w, h, c): (f32, f32, f32, f32, i32)| {
-                            d_rt_cell.borrow_mut().draw_rectangle_lines(
-                                x.round() as i32,
-                                y.round() as i32,
-                                w.round() as i32,
-                                h.round() as i32,
+                            // thickness=1 routes through filled rects,
+                            // avoiding the GL_LINES corner rule that
+                            // drops the top-right pixel on some Linux
+                            // fractional-scaling setups. See
+                            // https://github.com/raysan5/raylib/issues/4756
+                            d_rt_cell.borrow_mut().draw_rectangle_lines_ex(
+                                Rectangle {
+                                    x: x.round(),
+                                    y: y.round(),
+                                    width: w.round(),
+                                    height: h.round(),
+                                },
+                                1.0,
                                 color(c),
                             );
                             Ok(())
