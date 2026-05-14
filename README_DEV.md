@@ -1425,6 +1425,17 @@ chain reaction it caused.
 Set the env var `USAGI_VERBOSE=1` to get full log output, including Raylib's
 logs.
 
+Set `NO_COLOR=1` (any value, presence is what's checked) to suppress the ANSI
+color escapes on `usagi`'s own log lines. Useful when piping output to a file or
+a CI log viewer that doesn't render ANSI cleanly. Usagi follows the
+[no-color.org](https://no-color.org) convention and also auto-disables color
+when stdout/stderr isn't a terminal, so most pipe / redirect cases are already
+covered without setting anything. PowerShell honors the same env var; set it for
+the current session with `$env:NO_COLOR = "1"`, or persistently via
+`[Environment]::SetEnvironmentVariable("NO_COLOR", "1",
+"User")`. cmd uses
+`set NO_COLOR=1`.
+
 ## Developing
 
 - `just run` - run hello_usagi example
