@@ -599,6 +599,7 @@ function usagi.quit() end
 ---@field game_width? number  game render width in pixels (default 320). Tested range 160..640
 ---@field game_height? number  game render height in pixels (default 180). Tested range 90..360
 ---@field sprite_size? integer  side length, in pixels, of one cell in sprites.png (default 16). Drives gfx.spr indexing, the tilepicker tool's grid, and the window-icon slicer. sprites.png must be a multiple of this value on both axes.
+---@field pause_menu? boolean  true (default) = engine handles Esc/P/Enter/Start to open the built-in pause overlay; false = those keys flow through to user code so games can roll their own menu. With it off you also give up keyboard remap UI, the Input Tester, and gamepad-driven menu nav. `usagi.menu_item` registrations no longer render. Suitable for keyboard-driven prototypes.
 
 ---Optional. Returns engine config read once before the window opens.
 ---Omit if the defaults are fine.
