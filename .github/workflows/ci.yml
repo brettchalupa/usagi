@@ -33,6 +33,19 @@ jobs:
         with:
           components: clippy, rustfmt
 
+      # macos-15 has flaked with `cargo fmt --check` invoking rustup-init
+      # (the installer) instead of the rustup proxy, suggesting PATH /
+      # proxy state is occasionally off after the toolchain action.
+      # Forcing the default and printing `which cargo` / `cargo --version`
+      # both stabilizes the proxies and surfaces diagnostics if it ever
+      # flakes again.
+      - name: Verify Rust toolchain
+        run: |
+          rustup default stable
+          rustup show
+          which cargo
+          cargo --version
+
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: ${{ matrix.os }}
