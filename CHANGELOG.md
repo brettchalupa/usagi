@@ -162,6 +162,12 @@ Features:
   uncovered targets like BSDs). Lets games gate code paths by platform without
   parsing user-agent strings or shelling out, e.g.
   `if usagi.PLATFORM ~= "web" then ... end` for desktop-only features.
+- New `usagi.quit()` terminates the main loop the same way the pause-menu Quit
+  row and Shift+Esc do, intended for custom in-game pause / title menus. On web
+  the call still flips the internal flag but the emscripten main loop owns
+  lifetime, so the canvas freezes on the last frame rather than tearing down the
+  page. Gate with `usagi.PLATFORM` if your custom menu shouldn't expose a quit
+  option on web.
 
 ## v0.7.2 - May 10, 2026
 

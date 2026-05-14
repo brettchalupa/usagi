@@ -233,6 +233,7 @@ usagi.menu_item(label, callback) -- up to 3; callback `return true` keeps menu o
 usagi.clear_menu_items()
 usagi.toggle_fullscreen() -- flips fullscreen, returns the new state as bool
 usagi.is_fullscreen()
+usagi.quit() -- terminate the main loop (no-op visually on web)
 
 -- Lifecycle callbacks
 
