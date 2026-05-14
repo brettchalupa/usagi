@@ -33,17 +33,19 @@ jobs:
         with:
           components: clippy, rustfmt
 
-      # macos-15 has flaked with `cargo fmt --check` invoking rustup-init
-      # (the installer) instead of the rustup proxy, suggesting PATH /
-      # proxy state is occasionally off after the toolchain action.
-      # Forcing the default and printing `which cargo` / `cargo --version`
-      # both stabilizes the proxies and surfaces diagnostics if it ever
-      # flakes again.
-      - name: Verify Rust toolchain
+      # macos-15 runners ship a pre-installed cargo at ~/.cargo/bin/cargo
+      # that's from a different (older) rustup install than the toolchain
+      # `dtolnay/rust-toolchain@stable` lays down at
+      # ~/.rustup/toolchains/<triple>/bin/cargo. When PATH resolves to the
+      # stale binary, `cargo fmt` errors out with rustup-init's usage line
+      # because the older proxy mishandles the subcommand. Pin PATH to the
+      # active toolchain's bin dir via `rustup which cargo` so every later
+      # cargo invocation lands on the matching toolchain binary.
+      - name: Pin toolchain bin in PATH
         run: |
-          rustup default stable
+          echo "$(dirname $(rustup which cargo))" >> $GITHUB_PATH
           rustup show
-          which cargo
+          rustup which cargo
           cargo --version
 
       - uses: Swatinem/rust-cache@v2
