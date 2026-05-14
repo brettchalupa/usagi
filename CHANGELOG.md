@@ -142,6 +142,15 @@ Features:
   fixed pixel offsets, so games running at non-default sizes (vertical
   orientations, 128x128 prototypes) no longer push columns past the right edge.
   The volume meter's `xx%` readout is omitted when it wouldn't fit.
+- New `usagi.menu_item(label, callback)` registers up to 3 custom rows on the
+  pause menu's Top view, between Continue and Settings. Use cases: jumping back
+  to a title screen, bumping a level counter, granting resources for testing.
+  The callback fires on selection; the menu closes by default but stays open if
+  the callback returns Lua `true` (handy for repeatable in-game tweaks). Items
+  auto-clear before each `_init` re-run so fresh registrations always land on a
+  clean slate. `usagi.clear_menu_items()` wipes them manually, which is what
+  `examples/menu_item.lua` uses to swap the registered set when transitioning
+  between its title and gameplay scenes.
 
 ## v0.7.2 - May 10, 2026
 

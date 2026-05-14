@@ -63,6 +63,11 @@ mod keymap;
 // dpad + left stick.
 mod pad_map;
 
+// Custom pause-menu items registered from Lua (usagi.menu_item).
+// Storage + Lua bindings + clear/reset lifecycle live here; the
+// pause module renders the labels.
+mod menu_items;
+
 // game_id is universal: same id namespaces save data on every target,
 // including web localStorage, the macOS CFBundleIdentifier, and any future
 // per-game preference. Runtime save/load resolves through this module too,

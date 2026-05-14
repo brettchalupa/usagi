@@ -546,6 +546,11 @@ struct Session {
     /// `keymap`; the pause menu's Configure Gamepad flow writes
     /// through here.
     pad_map: crate::pad_map::PadMap,
+    /// Custom pause-menu items registered from Lua via
+    /// `usagi.menu_item`. Cleared automatically before each `_init`
+    /// re-run so the script's registrations always land on a fresh
+    /// slate. Shared with the Lua side via Rc<RefCell>.
+    menu_items: crate::menu_items::MenuItemStore,
     /// Resolved game id, kept on the session so settings writes
     /// (mute toggles) can address the same per-game storage as save
     /// data. Cloned out of the resolver since `register_save_api`
@@ -820,6 +825,10 @@ impl Session {
         register_effect_api(&lua, &effects)
             .map_err(|e| crate::Error::Cli(format!("registering effect.* API: {e}")))?;
 
+        let menu_items = crate::menu_items::new_store();
+        crate::menu_items::register_api(&lua, &menu_items)
+            .map_err(|e| crate::Error::Cli(format!("registering usagi.menu_item: {e}")))?;
+
         if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
             record_err(&mut last_error, "_init", init.call::<()>(()));
         }
@@ -870,6 +879,7 @@ impl Session {
             settings,
             keymap,
             pad_map,
+            menu_items,
             game_id,
             should_quit: false,
             dev,
@@ -900,12 +910,16 @@ impl Session {
         self.handle_global_shortcuts();
 
         let dt = self.rl.get_frame_time();
+        let menu_labels = crate::menu_items::snapshot_labels(&self.menu_items);
         let pause_action = self.pause.update(
             &mut self.rl,
-            &self.settings,
-            crate::pause::Maps {
-                keymap: &self.keymap,
-                pad_map: &self.pad_map,
+            crate::pause::PauseFrame {
+                settings: &self.settings,
+                maps: crate::pause::Maps {
+                    keymap: &self.keymap,
+                    pad_map: &self.pad_map,
+                },
+                menu_items: &menu_labels,
             },
             &self.axis_edges,
             dt,
@@ -1025,11 +1039,17 @@ impl Session {
             settings,
             keymap,
             pad_map,
+            menu_items,
             ..
         } = self;
+        let menu_labels = crate::menu_items::snapshot_labels(menu_items);
         let mut d_rt = rl.begin_texture_mode(thread, rt);
-        let maps = crate::pause::Maps { keymap, pad_map };
-        pause.draw(&mut d_rt, font, settings, maps, family, res);
+        let frame = crate::pause::PauseFrame {
+            settings,
+            maps: crate::pause::Maps { keymap, pad_map },
+            menu_items: &menu_labels,
+        };
+        pause.draw(&mut d_rt, font, frame, family, res);
     }
 
     fn maybe_reload_assets(&mut self) {
@@ -1116,6 +1136,10 @@ impl Session {
     /// run doesn't freeze the new one.
     fn reset_game(&mut self) {
         self.effects.borrow_mut().reset();
+        // Wipe Lua-registered pause-menu items so the next `_init()`
+        // starts from a clean slate. Scripts that register in `_init`
+        // would otherwise accumulate duplicates across resets.
+        crate::menu_items::drain_into_lua(&self.menu_items, &self.lua);
         let Ok(init) = self.lua.globals().get::<LuaFunction>("_init") else {
             return;
         };
@@ -1129,6 +1153,45 @@ impl Session {
                 crate::msg::err!("{}", msg);
                 self.last_error = Some(msg);
             }
+        }
+    }
+
+    /// Invokes a Lua-registered pause menu callback by index, then
+    /// closes the menu unless the callback returned Lua `true`.
+    /// Lookup failures and callback errors are logged via the same
+    /// pattern as `_update` / `_draw` errors so a broken callback
+    /// doesn't crash the engine.
+    fn fire_menu_item(&mut self, idx: usize) {
+        let key = {
+            let items = self.menu_items.borrow();
+            let Some(item) = items.get(idx) else {
+                crate::msg::warn!("menu_item: index {idx} out of range, ignoring");
+                return;
+            };
+            // We can't hold the items borrow across the Lua call
+            // because the callback might call `usagi.clear_menu_items`
+            // or register a fresh item, both of which need a mutable
+            // borrow. Clone the key out, drop the borrow, then call.
+            match self.lua.registry_value::<LuaFunction>(&item.callback) {
+                Ok(f) => f,
+                Err(e) => {
+                    crate::msg::err!("menu_item callback lookup: {e}");
+                    return;
+                }
+            }
+        };
+        let stay_open = match key.call::<LuaValue>(()) {
+            Ok(LuaValue::Boolean(true)) => true,
+            Ok(_) => false,
+            Err(e) => {
+                let msg = format!("menu_item callback: {e}");
+                crate::msg::err!("{msg}");
+                self.last_error = Some(msg);
+                false
+            }
+        };
+        if !stay_open {
+            self.pause.open = false;
         }
     }
 
@@ -1301,6 +1364,9 @@ impl Session {
                 if let Err(e) = crate::pad_map::write(&self.game_id, &self.pad_map) {
                     crate::msg::err!("pad_map write failed: {e}");
                 }
+            }
+            PauseAction::FireMenuItem(idx) => {
+                self.fire_menu_item(idx);
             }
             PauseAction::Quit => {
                 self.should_quit = true;
