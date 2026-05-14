@@ -151,6 +151,12 @@ Features:
   clean slate. `usagi.clear_menu_items()` wipes them manually, which is what
   `examples/menu_item.lua` uses to swap the registered set when transitioning
   between its title and gameplay scenes.
+- New `usagi.toggle_fullscreen()` flips fullscreen state from Lua and returns
+  the new state as a bool. Paired with `usagi.is_fullscreen()` for reading
+  current state without flipping. Both persist to `settings.json` the same way
+  the pause-menu Fullscreen row and the Alt+Enter shortcut do, so the three
+  toggle paths stay in sync. Intended for games that ship a custom pause menu or
+  settings screen and need to drive fullscreen from script.
 
 ## v0.7.2 - May 10, 2026
 
