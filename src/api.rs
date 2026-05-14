@@ -76,6 +76,25 @@ pub fn wrap(lua: &Lua, raw: LuaFunction, name: &str, types: &[&str]) -> LuaResul
 /// gfx.clear, sfx.play) are registered inside `lua.scope` blocks in the main
 /// loop so their closures can borrow the current frame's draw handle, audio
 /// device, etc.
+/// Build target the running binary was compiled for, exposed as
+/// `usagi.PLATFORM`. Returned values mirror the export targets in
+/// `usagi export`: web (emscripten), macos, linux, windows. Anything
+/// else (BSDs, exotic Unixes) reports as "unknown" rather than
+/// silently masquerading as Linux.
+pub fn current_platform() -> &'static str {
+    if cfg!(target_os = "emscripten") {
+        "web"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "unknown"
+    }
+}
+
 pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     install_wrap_helper(lua)?;
 
@@ -146,6 +165,11 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     usagi.set("GAME_W", Resolution::DEFAULT.w)?;
     usagi.set("GAME_H", Resolution::DEFAULT.h)?;
     usagi.set("SPRITE_SIZE", DEFAULT_SPRITE_SIZE)?;
+    // Build target the binary was compiled for: "web", "macos",
+    // "linux", "windows", or "unknown". Lets games gate code paths
+    // by platform without parsing UA strings or shelling out (e.g.
+    // skip mouse-only UI on web, hide CLI hints on desktop).
+    usagi.set("PLATFORM", current_platform())?;
     // True when running under `usagi dev`. False for `usagi run` and
     // fused/compiled binaries. Lets games gate debug overlays, dev menus,
     // verbose logging, etc.
@@ -1005,5 +1029,27 @@ mod tests {
             .unwrap();
         let s: String = dump.call(t).unwrap();
         assert!(s.contains("<cycle>"), "got: {s}");
+    }
+
+    #[test]
+    fn platform_is_one_of_the_known_values() {
+        // The set is a stable contract for games doing
+        // `usagi.PLATFORM == "web"` checks. Unknown is allowed for
+        // builds on uncovered targets (BSDs etc.) but should never
+        // come up on the four shipped export targets.
+        let p = current_platform();
+        assert!(
+            matches!(p, "web" | "macos" | "linux" | "windows" | "unknown"),
+            "unexpected platform: {p}",
+        );
+    }
+
+    #[test]
+    fn setup_exposes_platform_on_usagi_table() {
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+        let usagi: LuaTable = lua.globals().get("usagi").unwrap();
+        let p: String = usagi.get("PLATFORM").unwrap();
+        assert_eq!(p, current_platform());
     }
 }

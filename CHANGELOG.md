@@ -157,6 +157,11 @@ Features:
   the pause-menu Fullscreen row and the Alt+Enter shortcut do, so the three
   toggle paths stay in sync. Intended for games that ship a custom pause menu or
   settings screen and need to drive fullscreen from script.
+- New `usagi.PLATFORM` string reports the build target the binary was compiled
+  for: `"web"`, `"macos"`, `"linux"`, `"windows"`, or `"unknown"` (for builds on
+  uncovered targets like BSDs). Lets games gate code paths by platform without
+  parsing user-agent strings or shelling out, e.g.
+  `if usagi.PLATFORM ~= "web" then ... end` for desktop-only features.
 
 ## v0.7.2 - May 10, 2026
 
