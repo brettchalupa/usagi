@@ -11,6 +11,7 @@
 //! the `&mut RaylibHandle` borrow that `begin_texture_mode` holds.
 
 use crate::keymap::Keymap;
+use crate::pad_map::PadMap;
 use sola_raylib::prelude::*;
 
 // Action IDs. Stable integers; `setup_api` exposes these as `input.LEFT`
@@ -421,7 +422,11 @@ impl Default for AxisEdgeTracker {
     }
 }
 
-fn button_label(b: GamepadButton, family: GamepadFamily) -> &'static str {
+/// Family-aware label for a gamepad button. Used by the input tester
+/// and Pad Config so the same physical button renders as "A" on Xbox,
+/// "Cross" on PlayStation, and "B" on Switch. Falls through to "?" for
+/// buttons outside the labeled set (dpad, stick clicks, etc.).
+pub fn button_label(b: GamepadButton, family: GamepadFamily) -> &'static str {
     use GamepadButton::*;
     use GamepadFamily::*;
     // Face buttons differ by family. South face is always at the
@@ -450,6 +455,15 @@ fn button_label(b: GamepadButton, family: GamepadFamily) -> &'static str {
         (GAMEPAD_BUTTON_RIGHT_TRIGGER_1, Xbox) => "RB",
         (GAMEPAD_BUTTON_RIGHT_TRIGGER_1, PlayStation) => "R1",
         (GAMEPAD_BUTTON_RIGHT_TRIGGER_1, Nintendo) => "R",
+        // Analog triggers (the squeeze-pull buttons, vs the digital
+        // bumpers above): LT/RT on Xbox, L2/R2 on PlayStation, ZL/ZR
+        // on Switch.
+        (GAMEPAD_BUTTON_LEFT_TRIGGER_2, Xbox) => "LT",
+        (GAMEPAD_BUTTON_LEFT_TRIGGER_2, PlayStation) => "L2",
+        (GAMEPAD_BUTTON_LEFT_TRIGGER_2, Nintendo) => "ZL",
+        (GAMEPAD_BUTTON_RIGHT_TRIGGER_2, Xbox) => "RT",
+        (GAMEPAD_BUTTON_RIGHT_TRIGGER_2, PlayStation) => "R2",
+        (GAMEPAD_BUTTON_RIGHT_TRIGGER_2, Nintendo) => "ZR",
         _ => "?",
     }
 }
@@ -465,10 +479,12 @@ fn axis_label(axis: GamepadAxis, sign: i8) -> &'static str {
 }
 
 /// Per-action binding split into keyboard and gamepad strings for the
-/// pause menu's Input Test table. Override-replaces-keyboard mirrors
-/// `action_pressed`.
+/// pause menu's Input Test table. Override-replaces-defaults mirrors
+/// `action_pressed` on both the keyboard side (Keymap) and the gamepad
+/// side (PadMap).
 pub fn binding_columns(
     keymap: &Keymap,
+    pad_map: &PadMap,
     family: GamepadFamily,
 ) -> [(&'static str, String, String); 7] {
     let mut out: [(&'static str, String, String); 7] =
@@ -480,16 +496,33 @@ pub fn binding_columns(
             None => b
                 .keys
                 .iter()
+                .filter(|k| !keymap.is_used_as_override(**k))
                 .map(|k| key_label(*k).to_string())
                 .collect::<Vec<_>>()
                 .join(", "),
         };
-        let mut gp = Vec::new();
-        for btn in effective_face_buttons(action, family) {
-            gp.push(button_label(*btn, family).to_string());
-        }
-        for (axis, sign) in b.axes {
-            gp.push(axis_label(*axis, *sign).to_string());
+        // Dpad button and stick axis label to the same direction
+        // string ("Left", "Up", ...). Dedupe so the column reads
+        // "Left" instead of "Left, Left" for directional actions.
+        let mut gp: Vec<String> = Vec::new();
+        let push_unique = |gp: &mut Vec<String>, label: String| {
+            if !gp.contains(&label) {
+                gp.push(label);
+            }
+        };
+        match pad_map.override_for(action) {
+            Some(btn) => push_unique(&mut gp, button_label(btn, family).to_string()),
+            None => {
+                for btn in effective_face_buttons(action, family) {
+                    if pad_map.is_used_as_override(*btn) {
+                        continue;
+                    }
+                    push_unique(&mut gp, button_label(*btn, family).to_string());
+                }
+                for (axis, sign) in b.axes {
+                    push_unique(&mut gp, axis_label(*axis, *sign).to_string());
+                }
+            }
         }
         out[i].1 = kb;
         out[i].2 = gp.join(", ");
@@ -527,6 +560,7 @@ impl InputSource {
 pub fn mapping_for(
     action: u32,
     keymap: &Keymap,
+    pad_map: &PadMap,
     source: InputSource,
     family: GamepadFamily,
 ) -> Option<&'static str> {
@@ -544,9 +578,14 @@ pub fn mapping_for(
             None
         }
         InputSource::Gamepad => {
+            if let Some(btn) = pad_map.override_for(action) {
+                return Some(button_label(btn, family));
+            }
             let buttons = effective_face_buttons(action, family);
-            if let Some(btn) = buttons.first() {
-                return Some(button_label(*btn, family));
+            for btn in buttons {
+                if !pad_map.is_used_as_override(*btn) {
+                    return Some(button_label(*btn, family));
+                }
             }
             b.axes.first().map(|(axis, sign)| axis_label(*axis, *sign))
         }
@@ -566,22 +605,33 @@ pub fn mapping_for(
 pub fn detect_source(
     rl: &RaylibHandle,
     keymap: &Keymap,
+    pad_map: &PadMap,
     prior: InputSource,
 ) -> (InputSource, Option<i32>) {
-    for b in BINDINGS.iter() {
+    for (i, b) in BINDINGS.iter().enumerate() {
+        let action = (i + 1) as u32;
         for pad in 0..MAX_GAMEPADS {
             if !rl.is_gamepad_available(pad) {
                 continue;
             }
-            for btn in b.buttons {
-                if rl.is_gamepad_button_down(pad, *btn) {
+            if let Some(btn) = pad_map.override_for(action) {
+                if rl.is_gamepad_button_down(pad, btn) {
                     return (InputSource::Gamepad, Some(pad));
                 }
-            }
-            for (axis, sign) in b.axes {
-                let v = rl.get_gamepad_axis_movement(pad, *axis);
-                if (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE) {
-                    return (InputSource::Gamepad, Some(pad));
+            } else {
+                for btn in b.buttons {
+                    if pad_map.is_used_as_override(*btn) {
+                        continue;
+                    }
+                    if rl.is_gamepad_button_down(pad, *btn) {
+                        return (InputSource::Gamepad, Some(pad));
+                    }
+                }
+                for (axis, sign) in b.axes {
+                    let v = rl.get_gamepad_axis_movement(pad, *axis);
+                    if (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE) {
+                        return (InputSource::Gamepad, Some(pad));
+                    }
                 }
             }
         }
@@ -614,12 +664,15 @@ pub fn is_valid_action(action: u32) -> bool {
 }
 
 /// True while any source bound to `action` is held. An override
-/// replaces this action's keyboard defaults (Pico-8 "replace"
-/// semantics); a default key claimed as another action's override is
-/// suppressed so a key only fires its current owner. Gamepad face
-/// buttons use the per-pad family (so a Switch Pro at slot 2 fires
-/// BTN1 from its A button, even if an Xbox-style pad is in slot 0).
-pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
+/// replaces this action's defaults on its own side (Pico-8 "replace"
+/// semantics, applied independently to keyboard and gamepad); a default
+/// key / button claimed as another action's override is suppressed so
+/// it only fires its current owner. Gamepad face buttons use the
+/// per-pad family (so a Switch Pro at slot 2 fires BTN1 from its A
+/// button, even if an Xbox-style pad is in slot 0). When `pad_map`
+/// overrides BTN1/2/3 the Nintendo south/east swap stops applying:
+/// the player picked a specific physical button and that's what fires.
+pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, pad_map: &PadMap, action: u32) -> bool {
     let Some(b) = binding(action) else {
         return false;
     };
@@ -641,16 +694,25 @@ pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
         if !rl.is_gamepad_available(pad) {
             continue;
         }
-        let buttons = effective_face_buttons(action, pad_family(rl, pad));
-        for btn in buttons {
-            if rl.is_gamepad_button_down(pad, *btn) {
+        if let Some(btn) = pad_map.override_for(action) {
+            if rl.is_gamepad_button_down(pad, btn) {
                 return true;
             }
-        }
-        for (axis, sign) in b.axes {
-            let v = rl.get_gamepad_axis_movement(pad, *axis);
-            if (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE) {
-                return true;
+        } else {
+            let buttons = effective_face_buttons(action, pad_family(rl, pad));
+            for btn in buttons {
+                if pad_map.is_used_as_override(*btn) {
+                    continue;
+                }
+                if rl.is_gamepad_button_down(pad, *btn) {
+                    return true;
+                }
+            }
+            for (axis, sign) in b.axes {
+                let v = rl.get_gamepad_axis_movement(pad, *axis);
+                if (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE) {
+                    return true;
+                }
             }
         }
     }
@@ -666,6 +728,7 @@ pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, action: u32) -> bool {
 pub fn action_pressed(
     rl: &RaylibHandle,
     keymap: &Keymap,
+    pad_map: &PadMap,
     axes: &AxisEdgeTracker,
     action: u32,
 ) -> bool {
@@ -690,17 +753,27 @@ pub fn action_pressed(
         if !rl.is_gamepad_available(pad) {
             continue;
         }
-        let buttons = effective_face_buttons(action, pad_family(rl, pad));
-        for btn in buttons {
-            if rl.is_gamepad_button_pressed(pad, *btn) {
+        if let Some(btn) = pad_map.override_for(action) {
+            if rl.is_gamepad_button_pressed(pad, btn) {
                 return true;
             }
-        }
-        for (axis, sign) in b.axes {
-            let v = rl.get_gamepad_axis_movement(pad, *axis);
-            let curr_past = (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE);
-            if curr_past && !axes.was_past(pad, *axis, *sign) {
-                return true;
+        } else {
+            let buttons = effective_face_buttons(action, pad_family(rl, pad));
+            for btn in buttons {
+                if pad_map.is_used_as_override(*btn) {
+                    continue;
+                }
+                if rl.is_gamepad_button_pressed(pad, *btn) {
+                    return true;
+                }
+            }
+            for (axis, sign) in b.axes {
+                let v = rl.get_gamepad_axis_movement(pad, *axis);
+                let curr_past =
+                    (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE);
+                if curr_past && !axes.was_past(pad, *axis, *sign) {
+                    return true;
+                }
             }
         }
     }
@@ -715,6 +788,7 @@ pub fn action_pressed(
 pub fn action_released(
     rl: &RaylibHandle,
     keymap: &Keymap,
+    pad_map: &PadMap,
     axes: &AxisEdgeTracker,
     action: u32,
 ) -> bool {
@@ -739,17 +813,27 @@ pub fn action_released(
         if !rl.is_gamepad_available(pad) {
             continue;
         }
-        let buttons = effective_face_buttons(action, pad_family(rl, pad));
-        for btn in buttons {
-            if rl.is_gamepad_button_released(pad, *btn) {
+        if let Some(btn) = pad_map.override_for(action) {
+            if rl.is_gamepad_button_released(pad, btn) {
                 return true;
             }
-        }
-        for (axis, sign) in b.axes {
-            let v = rl.get_gamepad_axis_movement(pad, *axis);
-            let curr_past = (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE);
-            if !curr_past && axes.was_past(pad, *axis, *sign) {
-                return true;
+        } else {
+            let buttons = effective_face_buttons(action, pad_family(rl, pad));
+            for btn in buttons {
+                if pad_map.is_used_as_override(*btn) {
+                    continue;
+                }
+                if rl.is_gamepad_button_released(pad, *btn) {
+                    return true;
+                }
+            }
+            for (axis, sign) in b.axes {
+                let v = rl.get_gamepad_axis_movement(pad, *axis);
+                let curr_past =
+                    (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE);
+                if !curr_past && axes.was_past(pad, *axis, *sign) {
+                    return true;
+                }
             }
         }
     }
@@ -808,6 +892,28 @@ pub fn set_mouse_visible(rl: &mut RaylibHandle, visible: bool) {
     }
 }
 
+/// Render-side knobs `InputState::sample` needs to translate the OS
+/// mouse position into game-pixel coords. Lives outside the function
+/// signature so adding a new render-dependent field doesn't bloat
+/// every caller.
+#[derive(Copy, Clone)]
+pub struct SampleConfig {
+    pub res: crate::config::Resolution,
+    pub pixel_perfect: bool,
+}
+
+/// State-side context for `InputState::sample`: the per-game override
+/// maps, the previous frame's axis snapshot, and the previous frame's
+/// source/pad so glyphs stay stable across idle frames.
+#[derive(Copy, Clone)]
+pub struct SampleContext<'a> {
+    pub keymap: &'a Keymap,
+    pub pad_map: &'a PadMap,
+    pub axes: &'a AxisEdgeTracker,
+    pub prior_source: InputSource,
+    pub prior_pad: Option<i32>,
+}
+
 /// One frame's worth of input state, sampled from raylib. `Copy` so the
 /// session can stash the latest snapshot in a `Cell<InputState>` and
 /// the Lua closures can read whole snapshots cheaply on each call. The
@@ -855,27 +961,27 @@ impl InputState {
     /// at the top of each frame, before user Lua runs. `prior_source`
     /// and `prior_pad` carry forward when no bound input fired this
     /// frame, so glyphs stay stable across idle moments.
-    pub fn sample(
-        rl: &RaylibHandle,
-        res: crate::config::Resolution,
-        pixel_perfect: bool,
-        keymap: &Keymap,
-        axes: &AxisEdgeTracker,
-        prior_source: InputSource,
-        prior_pad: Option<i32>,
-    ) -> Self {
+    pub fn sample(rl: &RaylibHandle, cfg: SampleConfig, ctx: SampleContext<'_>) -> Self {
+        let SampleConfig { res, pixel_perfect } = cfg;
+        let SampleContext {
+            keymap,
+            pad_map,
+            axes,
+            prior_source,
+            prior_pad,
+        } = ctx;
         let mut down = 0u32;
         let mut pressed = 0u32;
         let mut released = 0u32;
         for (i, _) in BINDINGS.iter().enumerate() {
             let action = (i + 1) as u32;
-            if action_down(rl, keymap, action) {
+            if action_down(rl, keymap, pad_map, action) {
                 down |= 1 << i;
             }
-            if action_pressed(rl, keymap, axes, action) {
+            if action_pressed(rl, keymap, pad_map, axes, action) {
                 pressed |= 1 << i;
             }
-            if action_released(rl, keymap, axes, action) {
+            if action_released(rl, keymap, pad_map, axes, action) {
                 released |= 1 << i;
             }
         }
@@ -883,7 +989,7 @@ impl InputState {
         let sw = rl.get_screen_width();
         let sh = rl.get_screen_height();
         let (mx, my) = screen_to_game(m.x, m.y, sw, sh, res, pixel_perfect);
-        let (last_source, fired_pad) = detect_source(rl, keymap, prior_source);
+        let (last_source, fired_pad) = detect_source(rl, keymap, pad_map, prior_source);
         // Carry the slot forward when nothing fired so a stretch of
         // idle frames doesn't wipe the glyph identity.
         let last_pad = fired_pad.or(prior_pad);
@@ -895,7 +1001,7 @@ impl InputState {
             None => current_gamepad_family(rl),
         };
         let mapping = std::array::from_fn(|i| {
-            mapping_for((i + 1) as u32, keymap, last_source, gamepad_family)
+            mapping_for((i + 1) as u32, keymap, pad_map, last_source, gamepad_family)
         });
         let mut keys_held = 0u128;
         let mut keys_pressed = 0u128;
@@ -1142,7 +1248,8 @@ mod tests {
     #[test]
     fn binding_columns_cover_every_action_with_filled_keyboard_and_gamepad() {
         let keymap = Keymap::default();
-        let cols = binding_columns(&keymap, GamepadFamily::Xbox);
+        let pad_map = PadMap::default();
+        let cols = binding_columns(&keymap, &pad_map, GamepadFamily::Xbox);
         assert_eq!(cols.len(), BINDINGS.len());
         for (i, (name, kb, gp)) in cols.iter().enumerate() {
             assert_eq!(*name, ACTION_NAMES[i]);
@@ -1171,7 +1278,8 @@ mod tests {
     fn binding_columns_swaps_keyboard_portion_for_override() {
         let mut keymap = Keymap::default();
         keymap.overrides[ACTION_LEFT as usize - 1] = Some(KeyboardKey::KEY_W);
-        let cols = binding_columns(&keymap, GamepadFamily::Xbox);
+        let pad_map = PadMap::default();
+        let cols = binding_columns(&keymap, &pad_map, GamepadFamily::Xbox);
         let (_, kb, gp) = &cols[ACTION_LEFT as usize - 1];
         assert_eq!(kb, "W");
         assert!(!gp.contains('W'));
@@ -1184,18 +1292,22 @@ mod tests {
     #[test]
     fn mapping_for_keyboard_returns_override_or_first_default() {
         let mut keymap = Keymap::default();
+        let pad_map = PadMap::default();
         let xbox = GamepadFamily::Xbox;
         assert_eq!(
-            mapping_for(ACTION_LEFT, &keymap, InputSource::Keyboard, xbox),
+            mapping_for(ACTION_LEFT, &keymap, &pad_map, InputSource::Keyboard, xbox),
             Some("Left"),
         );
         keymap.overrides[ACTION_LEFT as usize - 1] = Some(KeyboardKey::KEY_W);
         assert_eq!(
-            mapping_for(ACTION_LEFT, &keymap, InputSource::Keyboard, xbox),
+            mapping_for(ACTION_LEFT, &keymap, &pad_map, InputSource::Keyboard, xbox),
             Some("W"),
         );
         // Unknown action.
-        assert_eq!(mapping_for(99, &keymap, InputSource::Keyboard, xbox), None,);
+        assert_eq!(
+            mapping_for(99, &keymap, &pad_map, InputSource::Keyboard, xbox),
+            None,
+        );
     }
 
     #[test]
@@ -1205,20 +1317,21 @@ mod tests {
         // duplicate a tiny subset of keymap::key_label and fell through
         // to "?" for letters like U, I, O.
         let mut keymap = Keymap::default();
+        let pad_map = PadMap::default();
         let xbox = GamepadFamily::Xbox;
         keymap.overrides[ACTION_BTN1 as usize - 1] = Some(KeyboardKey::KEY_U);
         keymap.overrides[ACTION_BTN2 as usize - 1] = Some(KeyboardKey::KEY_I);
         keymap.overrides[ACTION_BTN3 as usize - 1] = Some(KeyboardKey::KEY_O);
         assert_eq!(
-            mapping_for(ACTION_BTN1, &keymap, InputSource::Keyboard, xbox),
+            mapping_for(ACTION_BTN1, &keymap, &pad_map, InputSource::Keyboard, xbox),
             Some("U"),
         );
         assert_eq!(
-            mapping_for(ACTION_BTN2, &keymap, InputSource::Keyboard, xbox),
+            mapping_for(ACTION_BTN2, &keymap, &pad_map, InputSource::Keyboard, xbox),
             Some("I"),
         );
         assert_eq!(
-            mapping_for(ACTION_BTN3, &keymap, InputSource::Keyboard, xbox),
+            mapping_for(ACTION_BTN3, &keymap, &pad_map, InputSource::Keyboard, xbox),
             Some("O"),
         );
     }
@@ -1228,14 +1341,15 @@ mod tests {
         // RIGHT remapped to Left arrow. LEFT now exposes A as its
         // canonical key because the Left arrow has been claimed.
         let mut keymap = Keymap::default();
+        let pad_map = PadMap::default();
         let xbox = GamepadFamily::Xbox;
         keymap.overrides[ACTION_RIGHT as usize - 1] = Some(KeyboardKey::KEY_LEFT);
         assert_eq!(
-            mapping_for(ACTION_LEFT, &keymap, InputSource::Keyboard, xbox),
+            mapping_for(ACTION_LEFT, &keymap, &pad_map, InputSource::Keyboard, xbox),
             Some("A"),
         );
         assert_eq!(
-            mapping_for(ACTION_RIGHT, &keymap, InputSource::Keyboard, xbox),
+            mapping_for(ACTION_RIGHT, &keymap, &pad_map, InputSource::Keyboard, xbox),
             Some("Left"),
         );
     }
@@ -1243,11 +1357,13 @@ mod tests {
     #[test]
     fn mapping_for_gamepad_returns_first_button_or_axis_per_family() {
         let keymap = Keymap::default();
+        let pad_map = PadMap::default();
         // Xbox: BTN1 south face = "A".
         assert_eq!(
             mapping_for(
                 ACTION_BTN1,
                 &keymap,
+                &pad_map,
                 InputSource::Gamepad,
                 GamepadFamily::Xbox
             ),
@@ -1258,6 +1374,7 @@ mod tests {
             mapping_for(
                 ACTION_BTN1,
                 &keymap,
+                &pad_map,
                 InputSource::Gamepad,
                 GamepadFamily::PlayStation,
             ),
@@ -1269,6 +1386,7 @@ mod tests {
             mapping_for(
                 ACTION_LEFT,
                 &keymap,
+                &pad_map,
                 InputSource::Gamepad,
                 GamepadFamily::PlayStation
             ),
@@ -1282,10 +1400,12 @@ mod tests {
         // Usagi swaps so BTN1 fires from A and BTN2 from B, matching
         // every native Switch game.
         let keymap = Keymap::default();
+        let pad_map = PadMap::default();
         assert_eq!(
             mapping_for(
                 ACTION_BTN1,
                 &keymap,
+                &pad_map,
                 InputSource::Gamepad,
                 GamepadFamily::Nintendo,
             ),
@@ -1295,6 +1415,7 @@ mod tests {
             mapping_for(
                 ACTION_BTN2,
                 &keymap,
+                &pad_map,
                 InputSource::Gamepad,
                 GamepadFamily::Nintendo,
             ),
@@ -1306,10 +1427,65 @@ mod tests {
             mapping_for(
                 ACTION_BTN3,
                 &keymap,
+                &pad_map,
                 InputSource::Gamepad,
                 GamepadFamily::Nintendo,
             ),
             Some("X"),
+        );
+    }
+
+    #[test]
+    fn pad_map_override_replaces_gamepad_label_and_disables_nintendo_swap() {
+        // Pico-8-style replace: when BTN1 is bound to R1, that's what
+        // the glyph reports, even on a Switch pad, where the south/east
+        // swap would otherwise reassign BTN1 to face-right.
+        let keymap = Keymap::default();
+        let mut pad_map = PadMap::default();
+        pad_map.overrides[0] = Some(GamepadButton::GAMEPAD_BUTTON_RIGHT_TRIGGER_1);
+        assert_eq!(
+            mapping_for(
+                ACTION_BTN1,
+                &keymap,
+                &pad_map,
+                InputSource::Gamepad,
+                GamepadFamily::Xbox,
+            ),
+            Some("RB"),
+        );
+        assert_eq!(
+            mapping_for(
+                ACTION_BTN1,
+                &keymap,
+                &pad_map,
+                InputSource::Gamepad,
+                GamepadFamily::Nintendo,
+            ),
+            Some("R"),
+        );
+    }
+
+    #[test]
+    fn pad_map_override_suppresses_default_when_used_elsewhere() {
+        // BTN1 remapped to face-right (Xbox B / Nintendo A). BTN2's
+        // default still includes face-right; that default must be
+        // suppressed so the button only fires its current owner.
+        let keymap = Keymap::default();
+        let mut pad_map = PadMap::default();
+        pad_map.overrides[0] = Some(GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
+        let cols = binding_columns(&keymap, &pad_map, GamepadFamily::Xbox);
+        let (_, _, btn1_gp) = &cols[ACTION_BTN1 as usize - 1];
+        let (_, _, btn2_gp) = &cols[ACTION_BTN2 as usize - 1];
+        assert_eq!(btn1_gp, "B", "BTN1 column shows its single override");
+        let btn2_tokens: Vec<&str> = btn2_gp.split(", ").collect();
+        assert!(
+            !btn2_tokens.contains(&"B"),
+            "BTN2 must not still list 'B' (face-right): {btn2_gp}",
+        );
+        // RB still appears for BTN2 since the trigger wasn't claimed.
+        assert!(
+            btn2_tokens.contains(&"RB"),
+            "BTN2 keeps its RB default: {btn2_gp}",
         );
     }
 
@@ -1339,9 +1515,52 @@ mod tests {
     }
 
     #[test]
+    fn trigger_2_buttons_have_family_specific_labels() {
+        // Xbox 360 surfaces LT/RT as `_TRIGGER_2`; without an explicit
+        // arm those fell through to "?". Cover every family so a
+        // Switch Pro / DualShock player who binds ZL/L2 sees the right
+        // glyph too.
+        use GamepadButton::*;
+        use GamepadFamily::*;
+        assert_eq!(button_label(GAMEPAD_BUTTON_LEFT_TRIGGER_2, Xbox), "LT");
+        assert_eq!(button_label(GAMEPAD_BUTTON_RIGHT_TRIGGER_2, Xbox), "RT");
+        assert_eq!(
+            button_label(GAMEPAD_BUTTON_LEFT_TRIGGER_2, PlayStation),
+            "L2"
+        );
+        assert_eq!(
+            button_label(GAMEPAD_BUTTON_RIGHT_TRIGGER_2, PlayStation),
+            "R2"
+        );
+        assert_eq!(button_label(GAMEPAD_BUTTON_LEFT_TRIGGER_2, Nintendo), "ZL");
+        assert_eq!(button_label(GAMEPAD_BUTTON_RIGHT_TRIGGER_2, Nintendo), "ZR");
+    }
+
+    #[test]
+    fn binding_columns_dedupes_dpad_and_stick_for_directionals() {
+        // Dpad button label and stick axis label resolve to the same
+        // direction word ("Left", "Up", ...). The Input Test column
+        // should show one entry per direction, not two identical ones.
+        let keymap = Keymap::default();
+        let pad_map = PadMap::default();
+        let cols = binding_columns(&keymap, &pad_map, GamepadFamily::Xbox);
+        for action in [ACTION_LEFT, ACTION_RIGHT, ACTION_UP, ACTION_DOWN] {
+            let (_, _, gp) = &cols[action as usize - 1];
+            let tokens: Vec<&str> = gp.split(", ").collect();
+            let dedup: std::collections::BTreeSet<_> = tokens.iter().copied().collect();
+            assert_eq!(
+                tokens.len(),
+                dedup.len(),
+                "directional gamepad column should be deduped: action {action}, raw {gp:?}",
+            );
+        }
+    }
+
+    #[test]
     fn binding_columns_reflects_nintendo_face_swap() {
         let keymap = Keymap::default();
-        let cols = binding_columns(&keymap, GamepadFamily::Nintendo);
+        let pad_map = PadMap::default();
+        let cols = binding_columns(&keymap, &pad_map, GamepadFamily::Nintendo);
         // BTN1's gamepad column starts with the Nintendo-A label.
         assert!(
             cols[ACTION_BTN1 as usize - 1].2.starts_with("A"),

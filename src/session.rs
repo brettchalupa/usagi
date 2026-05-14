@@ -542,6 +542,10 @@ struct Session {
     /// Per-game keyboard overrides. Read by `input::action_*`; the
     /// pause menu's Configure Keys flow writes through here.
     keymap: crate::keymap::Keymap,
+    /// Per-game gamepad overrides for BTN1/BTN2/BTN3. Sibling to
+    /// `keymap`; the pause menu's Configure Gamepad flow writes
+    /// through here.
+    pad_map: crate::pad_map::PadMap,
     /// Resolved game id, kept on the session so settings writes
     /// (mute toggles) can address the same per-game storage as save
     /// data. Cloned out of the resolver since `register_save_api`
@@ -625,6 +629,7 @@ impl Session {
             settings.fullscreen = false;
         }
         let keymap = crate::keymap::load(&resolved_game_id);
+        let pad_map = crate::pad_map::load(&resolved_game_id);
         #[cfg(not(target_os = "emscripten"))]
         let capture_prefix = resolved_game_id.short_name().to_string();
 
@@ -751,12 +756,17 @@ impl Session {
         // position over the live window, etc.) instead of zeroed defaults.
         input_bridge.state.set(input::InputState::sample(
             &rl,
-            res,
-            config.pixel_perfect,
-            &keymap,
-            &axis_edges,
-            input::InputSource::default(),
-            None,
+            input::SampleConfig {
+                res,
+                pixel_perfect: config.pixel_perfect,
+            },
+            input::SampleContext {
+                keymap: &keymap,
+                pad_map: &pad_map,
+                axes: &axis_edges,
+                prior_source: input::InputSource::default(),
+                prior_pad: None,
+            },
         ));
         // Roll forward axis state so frame 1's `action_pressed` compares
         // against frame 0's stick position rather than zeros (otherwise a
@@ -859,6 +869,7 @@ impl Session {
             capture_prefix,
             settings,
             keymap,
+            pad_map,
             game_id,
             should_quit: false,
             dev,
@@ -892,7 +903,10 @@ impl Session {
         let pause_action = self.pause.update(
             &mut self.rl,
             &self.settings,
-            &self.keymap,
+            crate::pause::Maps {
+                keymap: &self.keymap,
+                pad_map: &self.pad_map,
+            },
             &self.axis_edges,
             dt,
         );
@@ -914,12 +928,17 @@ impl Session {
         let prior_state = self.input_bridge.state.get();
         let mut sampled = input::InputState::sample(
             &self.rl,
-            self.config.resolution,
-            self.config.pixel_perfect,
-            &self.keymap,
-            &self.axis_edges,
-            prior_state.last_source(),
-            prior_state.last_pad(),
+            input::SampleConfig {
+                res: self.config.resolution,
+                pixel_perfect: self.config.pixel_perfect,
+            },
+            input::SampleContext {
+                keymap: &self.keymap,
+                pad_map: &self.pad_map,
+                axes: &self.axis_edges,
+                prior_source: prior_state.last_source(),
+                prior_pad: prior_state.last_pad(),
+            },
         );
         // Refresh the swallow mask while the menu is up or just
         // closed; otherwise drain it as the player releases each
@@ -1005,10 +1024,12 @@ impl Session {
             font,
             settings,
             keymap,
+            pad_map,
             ..
         } = self;
         let mut d_rt = rl.begin_texture_mode(thread, rt);
-        pause.draw(&mut d_rt, font, settings, keymap, family, res);
+        let maps = crate::pause::Maps { keymap, pad_map };
+        pause.draw(&mut d_rt, font, settings, maps, family, res);
     }
 
     fn maybe_reload_assets(&mut self) {
@@ -1273,6 +1294,12 @@ impl Session {
                 self.keymap = km;
                 if let Err(e) = crate::keymap::write(&self.game_id, &self.keymap) {
                     crate::msg::err!("keymap write failed: {e}");
+                }
+            }
+            PauseAction::SetGamepadMap(pm) => {
+                self.pad_map = pm;
+                if let Err(e) = crate::pad_map::write(&self.game_id, &self.pad_map) {
+                    crate::msg::err!("pad_map write failed: {e}");
                 }
             }
             PauseAction::Quit => {
