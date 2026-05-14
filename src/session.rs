@@ -249,6 +249,37 @@ fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
     Ok(())
 }
 
+/// Installs `usagi.toggle_fullscreen` and `usagi.is_fullscreen`. The
+/// shared `Rc<Cell<bool>>` mirrors `settings.fullscreen` so Lua reads
+/// stay cheap and so a Lua-triggered toggle can defer the real flip
+/// until the next frame start (the Lua closure has no `&mut`
+/// RaylibHandle). The session compares the mirror against
+/// `settings.fullscreen` once per frame and calls
+/// `toggle_fullscreen()` on divergence.
+fn register_fullscreen_api(lua: &Lua, state: &Rc<std::cell::Cell<bool>>) -> LuaResult<()> {
+    let usagi: LuaTable = lua.globals().get("usagi")?;
+
+    let s = Rc::clone(state);
+    let toggle = lua.create_function(move |_, ()| {
+        let next = !s.get();
+        s.set(next);
+        Ok(next)
+    })?;
+    usagi.set(
+        "toggle_fullscreen",
+        wrap(lua, toggle, "usagi.toggle_fullscreen", &[])?,
+    )?;
+
+    let s = Rc::clone(state);
+    let is_fullscreen = lua.create_function(move |_, ()| Ok(s.get()))?;
+    usagi.set(
+        "is_fullscreen",
+        wrap(lua, is_fullscreen, "usagi.is_fullscreen", &[])?,
+    )?;
+
+    Ok(())
+}
+
 /// Installs `effect.hitstop` / `screen_shake` / `flash` / `slow_mo`
 /// / `stop` once at session startup. Closures share an
 /// `Rc<RefCell<Effects>>` with the session so writes from any
@@ -551,6 +582,12 @@ struct Session {
     /// re-run so the script's registrations always land on a fresh
     /// slate. Shared with the Lua side via Rc<RefCell>.
     menu_items: crate::menu_items::MenuItemStore,
+    /// Mirror of `settings.fullscreen` that Lua reads / flips via
+    /// `usagi.is_fullscreen` / `usagi.toggle_fullscreen`. The actual
+    /// raylib toggle and settings.json write happen at the next frame
+    /// start (see `apply_lua_fullscreen_request`), since the Lua
+    /// closures don't carry a `&mut RaylibHandle`.
+    fullscreen_state: Rc<std::cell::Cell<bool>>,
     /// Resolved game id, kept on the session so settings writes
     /// (mute toggles) can address the same per-game storage as save
     /// data. Cloned out of the resolver since `register_save_api`
@@ -829,6 +866,10 @@ impl Session {
         crate::menu_items::register_api(&lua, &menu_items)
             .map_err(|e| crate::Error::Cli(format!("registering usagi.menu_item: {e}")))?;
 
+        let fullscreen_state = Rc::new(std::cell::Cell::new(settings.fullscreen));
+        register_fullscreen_api(&lua, &fullscreen_state)
+            .map_err(|e| crate::Error::Cli(format!("registering usagi.toggle_fullscreen: {e}")))?;
+
         if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
             record_err(&mut last_error, "_init", init.call::<()>(()));
         }
@@ -880,6 +921,7 @@ impl Session {
             keymap,
             pad_map,
             menu_items,
+            fullscreen_state,
             game_id,
             should_quit: false,
             dev,
@@ -907,6 +949,7 @@ impl Session {
         if self.reload {
             self.maybe_reload_assets();
         }
+        self.apply_lua_fullscreen_request();
         self.handle_global_shortcuts();
 
         let dt = self.rl.get_frame_time();
@@ -1208,8 +1251,24 @@ impl Session {
         #[cfg(not(target_os = "emscripten"))]
         self.rl.toggle_borderless_windowed();
         self.settings.fullscreen = !self.settings.fullscreen;
+        // Keep the Lua-side mirror aligned with the source of truth so
+        // a subsequent `apply_lua_fullscreen_request` doesn't double-flip
+        // after Alt+Enter or the pause-menu Fullscreen row also touches it.
+        self.fullscreen_state.set(self.settings.fullscreen);
         if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
             crate::msg::err!("settings write failed: {e}");
+        }
+    }
+
+    /// Reconciles a Lua-side `usagi.toggle_fullscreen` request with the
+    /// actual window state. The Lua closure can only mutate the shared
+    /// mirror cell, so we apply the real flip here at frame start where
+    /// `&mut self` is available. Multiple Lua toggles within one frame
+    /// cancel out automatically (the mirror reflects the final
+    /// prediction).
+    fn apply_lua_fullscreen_request(&mut self) {
+        if self.fullscreen_state.get() != self.settings.fullscreen {
+            self.toggle_fullscreen();
         }
     }
 

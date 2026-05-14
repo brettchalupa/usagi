@@ -565,6 +565,20 @@ function usagi.menu_item(label, callback) end
 ---swap the registered items mid-game.
 function usagi.clear_menu_items() end
 
+---Flips fullscreen state and persists to `settings.json`. Same effect
+---as the pause-menu Fullscreen row and the Alt+Enter shortcut, so all
+---three paths stay in sync. The actual window flip happens at the
+---next frame start; this call's return value reflects the new state
+---immediately so `if usagi.toggle_fullscreen() then ... end` reads
+---naturally.
+---@return boolean fullscreen  true if fullscreen is now on
+function usagi.toggle_fullscreen() end
+
+---Returns whether the window is currently fullscreen. Useful for
+---rendering a "Fullscreen: On/Off" row in a custom settings menu.
+---@return boolean
+function usagi.is_fullscreen() end
+
 ---Config table returned by `_config()`. All fields optional except
 ---`game_id`, which is only required if you call `usagi.save` /
 ---`usagi.load`. Missing fields fall back to engine defaults.
