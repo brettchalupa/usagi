@@ -198,6 +198,10 @@ Features:
   picking sprites, inspecting saves, or playing back music. The ColorPalette
   tool still displays the project's actual palette (the whole point of that
   tool); only the surrounding chrome changed.
+- First-boot music and sfx volumes default to `1.0` (full) instead of `0.8`.
+  Players with an existing `settings.json` keep whatever they previously set;
+  this only affects fresh installs and new game ids. The same `1.0` is also the
+  Shift+M unmute target now.
 
 Fixes:
 
