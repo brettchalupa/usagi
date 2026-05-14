@@ -82,6 +82,18 @@ pub struct Maps<'a> {
     pub pad_map: &'a crate::pad_map::PadMap,
 }
 
+/// Read-only per-frame state the pause menu needs from the session.
+/// Bundles `settings`, the input override maps, and the snapshot of
+/// `usagi.menu_item` labels so `update` / `draw` don't grow a long
+/// tail of positional args (clippy flags 7+, and bundling these is
+/// the cleaner fix than a `#[allow]`).
+#[derive(Copy, Clone)]
+pub struct PauseFrame<'a> {
+    pub settings: &'a crate::settings::Settings,
+    pub maps: Maps<'a>,
+    pub menu_items: &'a [String],
+}
+
 /// Reads the navigation inputs once per frame. Face buttons are
 /// per-pad family-aware inside `action_pressed`, so this works
 /// correctly when multiple controllers of different families are

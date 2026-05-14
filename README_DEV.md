@@ -228,6 +228,8 @@ usagi.elapsed
 usagi.measure_text(text)
 usagi.save(t)
 usagi.load()
+usagi.menu_item(label, callback) -- up to 3; callback `return true` keeps menu open
+usagi.clear_menu_items()
 
 -- Lifecycle callbacks
 

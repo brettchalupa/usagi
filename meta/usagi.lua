@@ -548,6 +548,23 @@ function usagi.save(t) end
 ---@return table?
 function usagi.load() end
 
+---Register a custom row on the pause menu's Top view, between
+---Continue and Settings. Up to 3 items can be registered; calls past
+---the cap raise a Lua error. Items auto-clear before each `_init`
+---re-run so registrations in `_init` start fresh every reset.
+---
+---The callback fires when the player picks the row. The menu closes
+---after the callback returns; return Lua `true` to keep it open
+---(useful for toggles like "Mute").
+---@param label string    label drawn on the row
+---@param callback fun(): boolean?  called on selection; return true to keep the menu open
+function usagi.menu_item(label, callback) end
+
+---Wipes every Lua-registered menu item. Rarely needed in practice:
+---items auto-clear on `_init` re-run. Call manually if you want to
+---swap the registered items mid-game.
+function usagi.clear_menu_items() end
+
 ---Config table returned by `_config()`. All fields optional except
 ---`game_id`, which is only required if you call `usagi.save` /
 ---`usagi.load`. Missing fields fall back to engine defaults.

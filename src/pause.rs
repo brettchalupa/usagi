@@ -41,12 +41,13 @@ use crate::keymap::{self, Keymap};
 use crate::pad_map::PadMap;
 use crate::palette;
 use crate::palette::Pal;
+#[cfg(test)]
 use crate::settings::Settings;
-pub use inputs::Maps;
 use inputs::{
     CaptureInputs, KeyConfigInputs, MenuInputs, PadConfigInputs, first_bindable_button_pressed,
     gamepad_select_pressed, read_inputs, snapshot_tester,
 };
+pub use inputs::{Maps, PauseFrame};
 use key_config::{KeyConfigState, is_reserved_key};
 use sola_raylib::prelude::*;
 
@@ -67,6 +68,11 @@ pub enum PauseAction {
     ClearSave,
     SetKeymap(Keymap),
     SetGamepadMap(PadMap),
+    /// Player selected a Lua-registered `usagi.menu_item` row. The
+    /// index points into the snapshot of menu_item labels that was
+    /// passed into `update` for the frame, which mirrors the
+    /// session-side menu_items store.
+    FireMenuItem(usize),
     /// Native-only. Web hides the menu item (emscripten's main loop
     /// can't exit), so the variant is never constructed there.
     #[cfg_attr(target_os = "emscripten", allow(dead_code))]
@@ -144,15 +150,14 @@ impl PauseMenu {
     pub fn update(
         &mut self,
         rl: &mut RaylibHandle,
-        settings: &Settings,
-        maps: Maps<'_>,
+        frame: PauseFrame<'_>,
         axes: &AxisEdgeTracker,
         dt: f32,
     ) -> Option<PauseAction> {
-        let menu_inputs = read_inputs(rl, maps.keymap, maps.pad_map, axes, self.open);
+        let menu_inputs = read_inputs(rl, frame.maps.keymap, frame.maps.pad_map, axes, self.open);
 
         // Snapshot the held actions so `draw` doesn't need `rl`.
-        self.tester_input = snapshot_tester(rl, maps.keymap, maps.pad_map);
+        self.tester_input = snapshot_tester(rl, frame.maps.keymap, frame.maps.pad_map);
 
         // Only drain raylib's key queue while capturing, so presses
         // on other views aren't silently consumed.
@@ -191,18 +196,22 @@ impl PauseMenu {
             backspace: rl.is_key_pressed(KeyboardKey::KEY_BACKSPACE) || pad_select,
         };
 
-        self.update_with(menu_inputs, settings, maps, CaptureInputs { kc, pc }, dt)
+        self.update_with(menu_inputs, frame, CaptureInputs { kc, pc }, dt)
     }
 
     /// Pure transition; tests drive this without a raylib handle.
     fn update_with(
         &mut self,
         inputs: MenuInputs,
-        settings: &Settings,
-        maps: Maps<'_>,
+        frame: PauseFrame<'_>,
         cap: CaptureInputs,
         dt: f32,
     ) -> Option<PauseAction> {
+        let PauseFrame {
+            settings,
+            maps,
+            menu_items,
+        } = frame;
         let CaptureInputs { kc, pc } = cap;
         self.last_open = self.open;
         self.time += dt;
@@ -272,7 +281,7 @@ impl PauseMenu {
         }
 
         match self.view {
-            View::Top => self.handle_top(inputs, settings),
+            View::Top => self.handle_top(inputs, menu_items),
             View::SettingsMenu => self.handle_settings_menu(inputs, settings),
             View::InputMenu => self.handle_input_menu(inputs, maps.keymap, maps.pad_map),
             View::InputTester => self.handle_input_tester(inputs),
@@ -294,11 +303,15 @@ impl PauseMenu {
         &self,
         d: &mut D,
         font: &Font,
-        settings: &Settings,
-        maps: Maps<'_>,
+        frame: PauseFrame<'_>,
         gamepad_family: GamepadFamily,
         res: crate::config::Resolution,
     ) {
+        let PauseFrame {
+            settings,
+            maps,
+            menu_items,
+        } = frame;
         d.draw_rectangle(
             0,
             0,
@@ -339,7 +352,7 @@ impl PauseMenu {
 
         let body_y = title_y + size + 8.0;
         match self.view {
-            View::Top => self.draw_top(d, font, body_y, res),
+            View::Top => self.draw_top(d, font, menu_items, body_y, res),
             View::SettingsMenu => self.draw_settings_menu(d, font, settings, body_y, res),
             View::InputMenu => self.draw_input_menu(d, font, body_y, res),
             View::InputTester => self.draw_input_tester(d, font, maps, gamepad_family, body_y, res),
@@ -383,7 +396,28 @@ mod tests {
     use crate::input::ACTION_LEFT;
     use input_menu::INPUT_ITEM_TEST;
     use settings_menu::{SETTINGS_ITEM_FULLSCREEN, SETTINGS_ITEM_INPUT, SETTINGS_ITEM_MUSIC};
-    use top::{ITEM_CLEAR, ITEM_QUIT, ITEM_RESET, ITEM_SETTINGS, TOP_COUNT};
+    use top::{item_clear, item_quit, item_reset, item_settings, top_count};
+
+    // Convenience aliases: existing tests assume no menu items are
+    // registered, so the named row constants resolve to their no-menu
+    // positions. New tests that exercise menu items compute offsets
+    // off the per-call menu_item count instead.
+    fn item_settings_0() -> usize {
+        item_settings(0)
+    }
+    fn item_clear_0() -> usize {
+        item_clear(0)
+    }
+    fn item_reset_0() -> usize {
+        item_reset(0)
+    }
+    #[cfg(not(target_os = "emscripten"))]
+    fn item_quit_0() -> usize {
+        item_quit(0)
+    }
+    fn top_count_0() -> usize {
+        top_count(0)
+    }
 
     fn toggle() -> MenuInputs {
         MenuInputs {
@@ -445,10 +479,19 @@ mod tests {
         }
     }
 
-    fn maps<'a>(k: &'a Keymap, p: &'a PadMap) -> Maps<'a> {
-        Maps {
-            keymap: k,
-            pad_map: p,
+    fn frame<'a>(
+        s: &'a Settings,
+        k: &'a Keymap,
+        p: &'a PadMap,
+        menu_items: &'a [String],
+    ) -> PauseFrame<'a> {
+        PauseFrame {
+            settings: s,
+            maps: Maps {
+                keymap: k,
+                pad_map: p,
+            },
+            menu_items,
         }
     }
 
@@ -459,7 +502,12 @@ mod tests {
         inputs: MenuInputs,
     ) -> Option<PauseAction> {
         let p = PadMap::default();
-        m.update_with(inputs, s, maps(k, &p), CaptureInputs::default(), 0.016)
+        m.update_with(
+            inputs,
+            frame(s, k, &p, &[]),
+            CaptureInputs::default(),
+            0.016,
+        )
     }
 
     fn step_with_pad(
@@ -469,7 +517,23 @@ mod tests {
         p: &PadMap,
         inputs: MenuInputs,
     ) -> Option<PauseAction> {
-        m.update_with(inputs, s, maps(k, p), CaptureInputs::default(), 0.016)
+        m.update_with(inputs, frame(s, k, p, &[]), CaptureInputs::default(), 0.016)
+    }
+
+    fn step_with_menu_items(
+        m: &mut PauseMenu,
+        s: &Settings,
+        k: &Keymap,
+        menu_items: &[String],
+        inputs: MenuInputs,
+    ) -> Option<PauseAction> {
+        let p = PadMap::default();
+        m.update_with(
+            inputs,
+            frame(s, k, &p, menu_items),
+            CaptureInputs::default(),
+            0.016,
+        )
     }
 
     fn capture(
@@ -486,7 +550,7 @@ mod tests {
             },
             ..Default::default()
         };
-        m.update_with(MenuInputs::default(), s, maps(k, &p), cap, 0.016)
+        m.update_with(MenuInputs::default(), frame(s, k, &p, &[]), cap, 0.016)
     }
 
     fn capture_button(
@@ -503,7 +567,7 @@ mod tests {
             },
             ..Default::default()
         };
-        m.update_with(MenuInputs::default(), s, maps(k, p), cap, 0.016)
+        m.update_with(MenuInputs::default(), frame(s, k, p, &[]), cap, 0.016)
     }
 
     fn delete(m: &mut PauseMenu, s: &Settings, k: &Keymap) -> Option<PauseAction> {
@@ -515,7 +579,7 @@ mod tests {
             },
             ..Default::default()
         };
-        m.update_with(MenuInputs::default(), s, maps(k, &p), cap, 0.016)
+        m.update_with(MenuInputs::default(), frame(s, k, &p, &[]), cap, 0.016)
     }
 
     fn pad_delete(m: &mut PauseMenu, s: &Settings, k: &Keymap, p: &PadMap) -> Option<PauseAction> {
@@ -526,7 +590,7 @@ mod tests {
             },
             ..Default::default()
         };
-        m.update_with(MenuInputs::default(), s, maps(k, p), cap, 0.016)
+        m.update_with(MenuInputs::default(), frame(s, k, p, &[]), cap, 0.016)
     }
 
     fn pad_backspace(
@@ -542,7 +606,7 @@ mod tests {
             },
             ..Default::default()
         };
-        m.update_with(MenuInputs::default(), s, maps(k, p), cap, 0.016)
+        m.update_with(MenuInputs::default(), frame(s, k, p, &[]), cap, 0.016)
     }
 
     fn backspace(m: &mut PauseMenu, s: &Settings, k: &Keymap) -> Option<PauseAction> {
@@ -554,7 +618,7 @@ mod tests {
             },
             ..Default::default()
         };
-        m.update_with(MenuInputs::default(), s, maps(k, &p), cap, 0.016)
+        m.update_with(MenuInputs::default(), frame(s, k, &p, &[]), cap, 0.016)
     }
 
     #[test]
@@ -578,7 +642,7 @@ mod tests {
         let k = Keymap::default();
         step(&mut m, &s, &k, toggle());
         step(&mut m, &s, &k, up());
-        assert_eq!(m.top_selected, TOP_COUNT - 1);
+        assert_eq!(m.top_selected, top_count_0() - 1);
         step(&mut m, &s, &k, down());
         assert_eq!(m.top_selected, 0);
     }
@@ -587,7 +651,7 @@ mod tests {
     /// sub-menu, walk to the requested item, and stop there.
     fn enter_settings_at(m: &mut PauseMenu, s: &Settings, k: &Keymap, target: usize) {
         step(m, s, k, toggle());
-        for _ in 0..ITEM_SETTINGS {
+        for _ in 0..item_settings_0() {
             step(m, s, k, down());
         }
         step(m, s, k, btn1());
@@ -640,10 +704,10 @@ mod tests {
         let s = Settings::default();
         let k = Keymap::default();
         step(&mut m, &s, &k, toggle());
-        for _ in 0..ITEM_CLEAR {
+        for _ in 0..item_clear_0() {
             step(&mut m, &s, &k, down());
         }
-        assert_eq!(m.top_selected, ITEM_CLEAR);
+        assert_eq!(m.top_selected, item_clear_0());
         assert_eq!(step(&mut m, &s, &k, btn1()), None);
         assert_eq!(m.view, View::ConfirmClearSave);
         assert_eq!(m.confirm_selected, 0);
@@ -657,7 +721,7 @@ mod tests {
         let s = Settings::default();
         let k = Keymap::default();
         step(&mut m, &s, &k, toggle());
-        for _ in 0..ITEM_CLEAR {
+        for _ in 0..item_clear_0() {
             step(&mut m, &s, &k, down());
         }
         step(&mut m, &s, &k, btn1());
@@ -673,7 +737,7 @@ mod tests {
         let s = Settings::default();
         let k = Keymap::default();
         step(&mut m, &s, &k, toggle());
-        for _ in 0..ITEM_CLEAR {
+        for _ in 0..item_clear_0() {
             step(&mut m, &s, &k, down());
         }
         step(&mut m, &s, &k, btn1());
@@ -730,17 +794,17 @@ mod tests {
         let s = Settings::default();
         let k = Keymap::default();
         step(&mut m, &s, &k, toggle());
-        for _ in 0..ITEM_RESET {
+        for _ in 0..item_reset_0() {
             step(&mut m, &s, &k, down());
         }
         assert_eq!(step(&mut m, &s, &k, btn1()), Some(PauseAction::ResetGame));
         assert!(!m.open, "Reset Game should close the menu");
 
         step(&mut m, &s, &k, toggle());
-        for _ in 0..ITEM_QUIT {
+        for _ in 0..item_quit_0() {
             step(&mut m, &s, &k, down());
         }
-        assert_eq!(m.top_selected, ITEM_QUIT);
+        assert_eq!(m.top_selected, item_quit_0());
         assert_eq!(step(&mut m, &s, &k, btn1()), Some(PauseAction::Quit));
     }
 
@@ -911,7 +975,7 @@ mod tests {
     fn open_to_pad_config(m: &mut PauseMenu, s: &Settings, k: &Keymap, p: &PadMap) {
         // Top -> Settings -> Input -> InputMenu (Test selected by default).
         step_with_pad(m, s, k, p, toggle());
-        for _ in 0..ITEM_SETTINGS {
+        for _ in 0..item_settings_0() {
             step_with_pad(m, s, k, p, down());
         }
         step_with_pad(m, s, k, p, btn1());
@@ -1097,7 +1161,7 @@ mod tests {
         // Open + walk through Settings -> Input -> InputMenu, then
         // down twice to land on INPUT_ITEM_CONFIGURE_PAD.
         step_with_pad(&mut m, &s, &k, &p, toggle());
-        for _ in 0..ITEM_SETTINGS {
+        for _ in 0..item_settings_0() {
             step_with_pad(&mut m, &s, &k, &p, down());
         }
         step_with_pad(&mut m, &s, &k, &p, btn1());
@@ -1176,12 +1240,92 @@ mod tests {
 
         // From SettingsMenu: Start climbs to Top (one level).
         step_with_pad(&mut m, &s, &k, &p, toggle());
-        for _ in 0..ITEM_SETTINGS {
+        for _ in 0..item_settings_0() {
             step_with_pad(&mut m, &s, &k, &p, down());
         }
         step_with_pad(&mut m, &s, &k, &p, btn1());
         assert_eq!(m.view, View::SettingsMenu);
         assert_eq!(step_with_pad(&mut m, &s, &k, &p, start()), None);
         assert_eq!(m.view, View::Top);
+    }
+
+    fn btn1_top_at(
+        m: &mut PauseMenu,
+        s: &Settings,
+        k: &Keymap,
+        menu_items: &[String],
+        row: usize,
+    ) -> Option<PauseAction> {
+        // Open the menu, walk to `row` in Top, and press BTN1.
+        step_with_menu_items(m, s, k, menu_items, toggle());
+        for _ in 0..row {
+            step_with_menu_items(m, s, k, menu_items, down());
+        }
+        assert_eq!(m.top_selected, row);
+        step_with_menu_items(m, s, k, menu_items, btn1())
+    }
+
+    #[test]
+    fn registered_menu_item_sits_between_continue_and_settings() {
+        // With one registered item, Continue is row 0, the menu item is
+        // row 1, and Settings shifts to row 2.
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        let items = vec!["Title Screen".to_string()];
+
+        // BTN1 at row 1 fires the menu item, doesn't open Settings.
+        assert_eq!(
+            btn1_top_at(&mut m, &s, &k, &items, 1),
+            Some(PauseAction::FireMenuItem(0)),
+        );
+        // Menu stays open (the session is the one that toggles open on
+        // FireMenuItem; the pure transition doesn't auto-close).
+        assert!(m.open);
+        assert_eq!(m.view, View::Top);
+
+        // BTN1 at row 2 still lands on Settings (shifted by 1).
+        let mut m = PauseMenu::new();
+        assert_eq!(btn1_top_at(&mut m, &s, &k, &items, 2), None);
+        assert_eq!(m.view, View::SettingsMenu);
+    }
+
+    #[test]
+    fn multiple_registered_items_fire_with_correct_indices() {
+        let s = Settings::default();
+        let k = Keymap::default();
+        let items = vec![
+            "Title Screen".to_string(),
+            "Skip Level".to_string(),
+            "Restart Run".to_string(),
+        ];
+
+        // Three items: rows 1, 2, 3.
+        for (row, expected_idx) in [(1, 0), (2, 1), (3, 2)] {
+            let mut m = PauseMenu::new();
+            assert_eq!(
+                btn1_top_at(&mut m, &s, &k, &items, row),
+                Some(PauseAction::FireMenuItem(expected_idx)),
+            );
+        }
+    }
+
+    #[test]
+    fn top_row_count_grows_with_registered_items() {
+        // Wrap-around respects the new row count, so down() from the
+        // last static row wraps to Continue past the menu items.
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        let items = vec!["A".to_string(), "B".to_string()];
+
+        step_with_menu_items(&mut m, &s, &k, &items, toggle());
+        // up() from Continue wraps to the last row (Quit on native).
+        step_with_menu_items(&mut m, &s, &k, &items, up());
+        let expected_last = top::top_count(items.len()) - 1;
+        assert_eq!(m.top_selected, expected_last);
+        // down() wraps back to Continue.
+        step_with_menu_items(&mut m, &s, &k, &items, down());
+        assert_eq!(m.top_selected, 0);
     }
 }
