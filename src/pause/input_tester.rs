@@ -125,9 +125,16 @@ impl PauseMenu {
         let cluster_bottom = dpad_y + dpad_h;
         let list_line_h = size;
         let mut list_y = cluster_bottom + 6.0;
-        let name_x = 48.0_f32;
-        let kb_x = 92.0_f32;
-        let gp_x = 144.0_f32;
+        // Proportional columns so the table reads at non-default
+        // resolutions. At 320 wide these are 48 / 93 / 166; at 128 wide
+        // they shrink to 19 / 37 / 67. Hard pixel positions used to push
+        // the gamepad column past the right edge at <144 wide. The
+        // gamepad column sits further right than a strict equal-thirds
+        // split so the keyboard column has room for longer labels like
+        // "Backslash" without crowding the gamepad glyph.
+        let name_x = (res.w * 0.15).round();
+        let kb_x = (res.w * 0.29).round();
+        let gp_x = (res.w * 0.52).round();
         for (name, kb, gp) in binding_columns(maps.keymap, maps.pad_map, gamepad_family).iter() {
             d.draw_text_ex(font, name, Vector2::new(name_x, list_y), size, 0.0, white);
             d.draw_text_ex(font, kb, Vector2::new(kb_x, list_y), size, 0.0, white);

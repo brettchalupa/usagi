@@ -133,6 +133,15 @@ Features:
   the previous capture; Del or Start resets every override. Overrides persist
   per game as `pad_map.json` next to `keymap.json`. Pause titles renamed to
   `KEYBOARD CONFIG` and `GAMEPAD CONFIG`.
+- Pause menu reorganized: a new Settings sub-menu now holds Music, SFX,
+  Fullscreen, and Input, so the Top stays focused on Continue plus the
+  destructive actions (Clear Save Data, Reset Game, Quit). The Input sub-menu is
+  reached via Top > Settings > Input.
+- Pause menu lays out more reasonably at low resolutions. Item left-margin and
+  the Input Tester's binding columns scale with the game's resolution instead of
+  fixed pixel offsets, so games running at non-default sizes (vertical
+  orientations, 128x128 prototypes) no longer push columns past the right edge.
+  The volume meter's `xx%` readout is omitted when it wouldn't fit.
 
 ## v0.7.2 - May 10, 2026
 
