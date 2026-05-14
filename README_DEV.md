@@ -223,6 +223,7 @@ via `meta/usagi.lua`.
 usagi.GAME_W
 usagi.GAME_H
 usagi.SPRITE_SIZE
+usagi.PLATFORM -- "web" | "macos" | "linux" | "windows" | "unknown"
 usagi.IS_DEV
 usagi.elapsed
 usagi.measure_text(text)
