@@ -280,6 +280,24 @@ fn register_fullscreen_api(lua: &Lua, state: &Rc<std::cell::Cell<bool>>) -> LuaR
     Ok(())
 }
 
+/// Installs `usagi.quit`. The Lua closure flips a shared
+/// `Rc<Cell<bool>>` that the frame guard ORs with `should_quit` on the
+/// next iteration, breaking out of the main loop the same way the
+/// pause-menu Quit row and Shift+Esc do. On web the flag still flips
+/// but the emscripten main loop owns lifetime, so the canvas freezes
+/// on the last frame rather than tearing down the page; games that
+/// need different behavior on web should gate with `usagi.PLATFORM`.
+fn register_quit_api(lua: &Lua, flag: &Rc<std::cell::Cell<bool>>) -> LuaResult<()> {
+    let usagi: LuaTable = lua.globals().get("usagi")?;
+    let f = Rc::clone(flag);
+    let quit = lua.create_function(move |_, ()| {
+        f.set(true);
+        Ok(())
+    })?;
+    usagi.set("quit", wrap(lua, quit, "usagi.quit", &[])?)?;
+    Ok(())
+}
+
 /// Installs `effect.hitstop` / `screen_shake` / `flash` / `slow_mo`
 /// / `stop` once at session startup. Closures share an
 /// `Rc<RefCell<Effects>>` with the session so writes from any
@@ -588,6 +606,11 @@ struct Session {
     /// start (see `apply_lua_fullscreen_request`), since the Lua
     /// closures don't carry a `&mut RaylibHandle`.
     fullscreen_state: Rc<std::cell::Cell<bool>>,
+    /// Set to true by `usagi.quit()`. ORed with `should_quit` at the
+    /// top of each `frame()` so the loop terminates on the next
+    /// iteration, matching the existing pause-menu Quit and Shift+Esc
+    /// paths.
+    lua_quit_requested: Rc<std::cell::Cell<bool>>,
     /// Resolved game id, kept on the session so settings writes
     /// (mute toggles) can address the same per-game storage as save
     /// data. Cloned out of the resolver since `register_save_api`
@@ -870,6 +893,10 @@ impl Session {
         register_fullscreen_api(&lua, &fullscreen_state)
             .map_err(|e| crate::Error::Cli(format!("registering usagi.toggle_fullscreen: {e}")))?;
 
+        let lua_quit_requested = Rc::new(std::cell::Cell::new(false));
+        register_quit_api(&lua, &lua_quit_requested)
+            .map_err(|e| crate::Error::Cli(format!("registering usagi.quit: {e}")))?;
+
         if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
             record_err(&mut last_error, "_init", init.call::<()>(()));
         }
@@ -922,6 +949,7 @@ impl Session {
             pad_map,
             menu_items,
             fullscreen_state,
+            lua_quit_requested,
             game_id,
             should_quit: false,
             dev,
@@ -936,7 +964,7 @@ impl Session {
     /// Runs a single frame. Returns false when the user has closed the
     /// window (only meaningful on native — browsers handle close themselves).
     fn frame(&mut self) -> bool {
-        if self.rl.window_should_close() || self.should_quit {
+        if self.rl.window_should_close() || self.should_quit || self.lua_quit_requested.get() {
             return false;
         }
 
@@ -2196,6 +2224,20 @@ fn run_emscripten(session: Box<Session>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn usagi_quit_flips_the_shared_flag() {
+        // The Lua closure must reach the same flag the frame guard
+        // reads, so a one-line `usagi.quit()` from script is enough to
+        // terminate the loop next frame.
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+        let flag = Rc::new(std::cell::Cell::new(false));
+        register_quit_api(&lua, &flag).unwrap();
+        assert!(!flag.get());
+        lua.load("usagi.quit()").exec().unwrap();
+        assert!(flag.get());
+    }
 
     #[test]
     fn config_returns_title_field() {

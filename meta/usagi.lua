@@ -580,6 +580,14 @@ function usagi.toggle_fullscreen() end
 ---@return boolean
 function usagi.is_fullscreen() end
 
+---Terminate the main loop the same way the pause-menu Quit row and
+---Shift+Esc do. Intended for custom in-game menus. On web the
+---internal flag still flips but the emscripten main loop owns
+---lifetime, so the canvas freezes on the last frame rather than
+---tearing down the page; gate with `usagi.PLATFORM == "web"` if your
+---menu shouldn't offer a quit option there.
+function usagi.quit() end
+
 ---Config table returned by `_config()`. All fields optional except
 ---`game_id`, which is only required if you call `usagi.save` /
 ---`usagi.load`. Missing fields fall back to engine defaults.
