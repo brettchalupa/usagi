@@ -2,12 +2,15 @@
 //!
 //! - **Top** — main item list (volumes, fullscreen, Input sub-menu,
 //!   Clear Save, Reset, Quit). See `pause/top.rs`.
-//! - **InputMenu** — Input sub-menu (Test / Configure Keys). See
-//!   `pause/input_menu.rs`.
+//! - **InputMenu** — Input sub-menu (Test / Configure Keys /
+//!   Configure Gamepad). See `pause/input_menu.rs`.
 //! - **InputTester** — visual D-pad / button tester + binding table.
 //!   See `pause/input_tester.rs`.
 //! - **KeyConfig** — Pico-8-style sequential key capture. See
 //!   `pause/key_config.rs`.
+//! - **PadConfig** — Pico-8-style sequential gamepad button capture
+//!   (BTN1/BTN2/BTN3 only; directionals stay on dpad + stick). See
+//!   `pause/pad_config.rs`.
 //! - **ConfirmClearSave** — yes/no dialog. See `pause/confirm_clear.rs`.
 //!
 //! This file owns the public surface (`PauseMenu`, `PauseAction`),
@@ -16,24 +19,31 @@
 //! and the integration tests that drive navigation across scenes.
 //!
 //! Side effects (settings write, fullscreen toggle, `_init`, save
-//! clear, quit, keymap write) are emitted as `PauseAction` and applied
-//! by the session. That keeps this module session-handle-free and
-//! makes the navigation testable without a raylib window.
+//! clear, quit, keymap write, pad_map write) are emitted as
+//! `PauseAction` and applied by the session. That keeps this module
+//! session-handle-free and makes the navigation testable without a
+//! raylib window.
 
 mod confirm_clear;
 mod input_menu;
 mod input_tester;
 mod inputs;
 mod key_config;
+mod pad_config;
 mod top;
 mod volume;
 
 use crate::input::{AxisEdgeTracker, GamepadFamily};
 use crate::keymap::{self, Keymap};
+use crate::pad_map::PadMap;
 use crate::palette;
 use crate::palette::Pal;
 use crate::settings::Settings;
-use inputs::{KeyConfigInputs, MenuInputs, read_inputs, snapshot_tester};
+pub use inputs::Maps;
+use inputs::{
+    CaptureInputs, KeyConfigInputs, MenuInputs, PadConfigInputs, first_bindable_button_pressed,
+    gamepad_select_pressed, read_inputs, snapshot_tester,
+};
 use key_config::{KeyConfigState, is_reserved_key};
 use sola_raylib::prelude::*;
 
@@ -53,6 +63,7 @@ pub enum PauseAction {
     ResetGame,
     ClearSave,
     SetKeymap(Keymap),
+    SetGamepadMap(PadMap),
     /// Native-only. Web hides the menu item (emscripten's main loop
     /// can't exit), so the variant is never constructed there.
     #[cfg_attr(target_os = "emscripten", allow(dead_code))]
@@ -65,12 +76,25 @@ pub enum PauseAction {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum View {
     Top,
-    /// Sub-menu under Input: Test and Configure Keys. Splitting these
-    /// out keeps the Tester from intercepting BTN1/BTN2.
+    /// Sub-menu under Input: Test, Configure Keys, Configure Gamepad.
+    /// Splitting these out keeps the Tester from intercepting BTN1/BTN2.
     InputMenu,
     InputTester,
     KeyConfig,
+    PadConfig,
     ConfirmClearSave,
+}
+
+/// In-flight Pad Config capture. Mutated as the player presses gamepad
+/// buttons; emitted via `PauseAction::SetGamepadMap` on completion.
+/// Stored at the parent module so `pad_config.rs` and the integration
+/// tests can both reach it.
+#[derive(Debug, Clone)]
+pub(crate) struct PadConfigState {
+    pub staging: PadMap,
+    /// Index into `pad_map::PAD_ACTIONS` (0..PAD_OVERRIDE_COUNT) of the
+    /// action currently awaiting a button press.
+    pub action_index: usize,
 }
 
 pub struct PauseMenu {
@@ -87,6 +111,8 @@ pub struct PauseMenu {
     tester_input: [bool; ACTION_COUNT],
     /// Capture state while in `View::KeyConfig`; `None` otherwise.
     key_config: Option<KeyConfigState>,
+    /// Capture state while in `View::PadConfig`; `None` otherwise.
+    pad_config: Option<PadConfigState>,
 }
 
 impl PauseMenu {
@@ -101,6 +127,7 @@ impl PauseMenu {
             time: 0.0,
             tester_input: [false; ACTION_COUNT],
             key_config: None,
+            pad_config: None,
         }
     }
 
@@ -108,14 +135,14 @@ impl PauseMenu {
         &mut self,
         rl: &mut RaylibHandle,
         settings: &Settings,
-        keymap: &Keymap,
+        maps: Maps<'_>,
         axes: &AxisEdgeTracker,
         dt: f32,
     ) -> Option<PauseAction> {
-        let menu_inputs = read_inputs(rl, keymap, axes, self.open);
+        let menu_inputs = read_inputs(rl, maps.keymap, maps.pad_map, axes, self.open);
 
         // Snapshot the held actions so `draw` doesn't need `rl`.
-        self.tester_input = snapshot_tester(rl, keymap);
+        self.tester_input = snapshot_tester(rl, maps.keymap, maps.pad_map);
 
         // Only drain raylib's key queue while capturing, so presses
         // on other views aren't silently consumed.
@@ -132,13 +159,29 @@ impl PauseMenu {
                 }
             }
         }
-        let kc_inputs = KeyConfigInputs {
+        let kc = KeyConfigInputs {
             captured_key,
             delete: rl.is_key_pressed(KeyboardKey::KEY_DELETE),
             backspace: rl.is_key_pressed(KeyboardKey::KEY_BACKSPACE),
         };
 
-        self.update_with(menu_inputs, settings, keymap, kc_inputs, dt)
+        // Only scan gamepad buttons while in PadConfig so presses on
+        // other views aren't silently consumed. Select on the pad
+        // acts as a Backspace-equivalent so a gamepad-only player can
+        // undo without reaching for the keyboard.
+        let mut captured_button: Option<GamepadButton> = None;
+        let mut pad_select = false;
+        if self.view == View::PadConfig {
+            captured_button = first_bindable_button_pressed(rl);
+            pad_select = gamepad_select_pressed(rl);
+        }
+        let pc = PadConfigInputs {
+            captured_button,
+            delete: rl.is_key_pressed(KeyboardKey::KEY_DELETE),
+            backspace: rl.is_key_pressed(KeyboardKey::KEY_BACKSPACE) || pad_select,
+        };
+
+        self.update_with(menu_inputs, settings, maps, CaptureInputs { kc, pc }, dt)
     }
 
     /// Pure transition; tests drive this without a raylib handle.
@@ -146,10 +189,11 @@ impl PauseMenu {
         &mut self,
         inputs: MenuInputs,
         settings: &Settings,
-        keymap: &Keymap,
-        kc: KeyConfigInputs,
+        maps: Maps<'_>,
+        cap: CaptureInputs,
         dt: f32,
     ) -> Option<PauseAction> {
+        let CaptureInputs { kc, pc } = cap;
         self.last_open = self.open;
         self.time += dt;
 
@@ -159,8 +203,21 @@ impl PauseMenu {
                 self.view = View::Top;
                 self.top_selected = 0;
                 self.key_config = None;
+                self.pad_config = None;
             }
             return None;
+        }
+
+        // Pad Config claims gamepad Start as its reset gesture (the
+        // gamepad-side counterpart to keyboard DEL): wipe every override
+        // and drop back to the Tester. Has to fire before the central
+        // toggle dispatcher, since `read_inputs` folds Start into
+        // `toggle` too. Esc / P in Pad Config still cancel without
+        // resetting because `start_press` is gamepad-only.
+        if inputs.start_press && self.view == View::PadConfig {
+            self.view = View::InputTester;
+            self.pad_config = None;
+            return Some(PauseAction::SetGamepadMap(PadMap::default()));
         }
 
         // Toggle (Esc/P/Start) climbs one level: Top closes the menu,
@@ -172,6 +229,7 @@ impl PauseMenu {
                 View::Top => {
                     self.open = false;
                     self.key_config = None;
+                    self.pad_config = None;
                     Some(PauseAction::Resume)
                 }
                 View::InputMenu => {
@@ -187,6 +245,11 @@ impl PauseMenu {
                     self.key_config = None;
                     None
                 }
+                View::PadConfig => {
+                    self.view = View::InputMenu;
+                    self.pad_config = None;
+                    None
+                }
                 View::ConfirmClearSave => {
                     self.view = View::Top;
                     None
@@ -196,9 +259,10 @@ impl PauseMenu {
 
         match self.view {
             View::Top => self.handle_top(inputs, settings),
-            View::InputMenu => self.handle_input_menu(inputs, keymap),
+            View::InputMenu => self.handle_input_menu(inputs, maps.keymap, maps.pad_map),
             View::InputTester => self.handle_input_tester(inputs),
             View::KeyConfig => self.handle_key_config(inputs, kc),
+            View::PadConfig => self.handle_pad_config(inputs, pc),
             View::ConfirmClearSave => self.handle_confirm_clear(inputs),
         }
     }
@@ -216,7 +280,7 @@ impl PauseMenu {
         d: &mut D,
         font: &Font,
         settings: &Settings,
-        keymap: &Keymap,
+        maps: Maps<'_>,
         gamepad_family: GamepadFamily,
         res: crate::config::Resolution,
     ) {
@@ -241,7 +305,8 @@ impl PauseMenu {
             View::Top => "PAUSED",
             View::InputMenu => "INPUT",
             View::InputTester => "INPUT TEST",
-            View::KeyConfig => "KEY CONFIG (KEYBOARD)",
+            View::KeyConfig => "KEYBOARD CONFIG",
+            View::PadConfig => "GAMEPAD CONFIG",
             View::ConfirmClearSave => "CLEAR SAVE?",
         };
         let title_m = font.measure_text(title, size, 0.0);
@@ -260,10 +325,9 @@ impl PauseMenu {
         match self.view {
             View::Top => self.draw_top(d, font, settings, body_y),
             View::InputMenu => self.draw_input_menu(d, font, body_y),
-            View::InputTester => {
-                self.draw_input_tester(d, font, keymap, gamepad_family, body_y, res)
-            }
+            View::InputTester => self.draw_input_tester(d, font, maps, gamepad_family, body_y, res),
             View::KeyConfig => self.draw_key_config(d, font, body_y, res),
+            View::PadConfig => self.draw_pad_config(d, font, gamepad_family, body_y, res),
             View::ConfirmClearSave => self.draw_confirm_clear(d, font, body_y, res),
         }
     }
@@ -344,13 +408,42 @@ mod tests {
         }
     }
 
+    /// Gamepad Start press. `read_inputs` folds Start into `toggle` so
+    /// it climbs in views that don't override it, and also surfaces
+    /// `start_press` so Pad Config can claim it as the reset gesture.
+    fn start() -> MenuInputs {
+        MenuInputs {
+            toggle: true,
+            start_press: true,
+            ..Default::default()
+        }
+    }
+
+    fn maps<'a>(k: &'a Keymap, p: &'a PadMap) -> Maps<'a> {
+        Maps {
+            keymap: k,
+            pad_map: p,
+        }
+    }
+
     fn step(
         m: &mut PauseMenu,
         s: &Settings,
         k: &Keymap,
         inputs: MenuInputs,
     ) -> Option<PauseAction> {
-        m.update_with(inputs, s, k, KeyConfigInputs::default(), 0.016)
+        let p = PadMap::default();
+        m.update_with(inputs, s, maps(k, &p), CaptureInputs::default(), 0.016)
+    }
+
+    fn step_with_pad(
+        m: &mut PauseMenu,
+        s: &Settings,
+        k: &Keymap,
+        p: &PadMap,
+        inputs: MenuInputs,
+    ) -> Option<PauseAction> {
+        m.update_with(inputs, s, maps(k, p), CaptureInputs::default(), 0.016)
     }
 
     fn capture(
@@ -359,27 +452,83 @@ mod tests {
         k: &Keymap,
         key: KeyboardKey,
     ) -> Option<PauseAction> {
-        let kc = KeyConfigInputs {
-            captured_key: Some(key),
+        let p = PadMap::default();
+        let cap = CaptureInputs {
+            kc: KeyConfigInputs {
+                captured_key: Some(key),
+                ..Default::default()
+            },
             ..Default::default()
         };
-        m.update_with(MenuInputs::default(), s, k, kc, 0.016)
+        m.update_with(MenuInputs::default(), s, maps(k, &p), cap, 0.016)
+    }
+
+    fn capture_button(
+        m: &mut PauseMenu,
+        s: &Settings,
+        k: &Keymap,
+        p: &PadMap,
+        btn: GamepadButton,
+    ) -> Option<PauseAction> {
+        let cap = CaptureInputs {
+            pc: PadConfigInputs {
+                captured_button: Some(btn),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        m.update_with(MenuInputs::default(), s, maps(k, p), cap, 0.016)
     }
 
     fn delete(m: &mut PauseMenu, s: &Settings, k: &Keymap) -> Option<PauseAction> {
-        let kc = KeyConfigInputs {
-            delete: true,
+        let p = PadMap::default();
+        let cap = CaptureInputs {
+            kc: KeyConfigInputs {
+                delete: true,
+                ..Default::default()
+            },
             ..Default::default()
         };
-        m.update_with(MenuInputs::default(), s, k, kc, 0.016)
+        m.update_with(MenuInputs::default(), s, maps(k, &p), cap, 0.016)
+    }
+
+    fn pad_delete(m: &mut PauseMenu, s: &Settings, k: &Keymap, p: &PadMap) -> Option<PauseAction> {
+        let cap = CaptureInputs {
+            pc: PadConfigInputs {
+                delete: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        m.update_with(MenuInputs::default(), s, maps(k, p), cap, 0.016)
+    }
+
+    fn pad_backspace(
+        m: &mut PauseMenu,
+        s: &Settings,
+        k: &Keymap,
+        p: &PadMap,
+    ) -> Option<PauseAction> {
+        let cap = CaptureInputs {
+            pc: PadConfigInputs {
+                backspace: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        m.update_with(MenuInputs::default(), s, maps(k, p), cap, 0.016)
     }
 
     fn backspace(m: &mut PauseMenu, s: &Settings, k: &Keymap) -> Option<PauseAction> {
-        let kc = KeyConfigInputs {
-            backspace: true,
+        let p = PadMap::default();
+        let cap = CaptureInputs {
+            kc: KeyConfigInputs {
+                backspace: true,
+                ..Default::default()
+            },
             ..Default::default()
         };
-        m.update_with(MenuInputs::default(), s, k, kc, 0.016)
+        m.update_with(MenuInputs::default(), s, maps(k, &p), cap, 0.016)
     }
 
     #[test]
@@ -729,5 +878,274 @@ mod tests {
         }
         assert_eq!(m.view, View::InputTester);
         assert!(m.key_config.is_none());
+    }
+
+    fn open_to_pad_config(m: &mut PauseMenu, s: &Settings, k: &Keymap, p: &PadMap) {
+        step_with_pad(m, s, k, p, toggle());
+        for _ in 0..ITEM_INPUT {
+            step_with_pad(m, s, k, p, down());
+        }
+        // Top -> InputMenu
+        step_with_pad(m, s, k, p, btn1());
+        // InputMenu: down twice to reach "Configure Gamepad", confirm.
+        step_with_pad(m, s, k, p, down());
+        step_with_pad(m, s, k, p, down());
+        step_with_pad(m, s, k, p, btn1());
+    }
+
+    #[test]
+    fn entering_pad_config_seeds_staging_from_current_pad_map() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        let mut p = PadMap::default();
+        p.overrides[0] = Some(GamepadButton::GAMEPAD_BUTTON_RIGHT_TRIGGER_1);
+        open_to_pad_config(&mut m, &s, &k, &p);
+        assert_eq!(m.view, View::PadConfig);
+        let state = m.pad_config.as_ref().expect("pad_config initialized");
+        assert_eq!(state.action_index, 0);
+        assert_eq!(
+            state.staging.overrides[0],
+            Some(GamepadButton::GAMEPAD_BUTTON_RIGHT_TRIGGER_1)
+        );
+    }
+
+    #[test]
+    fn capturing_three_buttons_emits_set_gamepad_map_and_returns_to_tester() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        let p = PadMap::default();
+        open_to_pad_config(&mut m, &s, &k, &p);
+
+        let captures = [
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_TRIGGER_1,
+        ];
+
+        for btn in &captures[..2] {
+            assert_eq!(capture_button(&mut m, &s, &k, &p, *btn), None);
+        }
+        let final_action = capture_button(&mut m, &s, &k, &p, captures[2]);
+        match final_action {
+            Some(PauseAction::SetGamepadMap(pm)) => {
+                for (i, btn) in captures.iter().enumerate() {
+                    assert_eq!(pm.overrides[i], Some(*btn));
+                }
+            }
+            other => panic!("expected SetGamepadMap, got {other:?}"),
+        }
+        assert_eq!(m.view, View::InputTester);
+        assert!(m.pad_config.is_none());
+    }
+
+    #[test]
+    fn duplicate_button_press_during_pad_config_is_rejected() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        let p = PadMap::default();
+        open_to_pad_config(&mut m, &s, &k, &p);
+        // First face-down: bound to BTN1, advance to BTN2.
+        capture_button(
+            &mut m,
+            &s,
+            &k,
+            &p,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
+        );
+        let state = m.pad_config.as_ref().unwrap();
+        assert_eq!(state.action_index, 1);
+        assert_eq!(
+            state.staging.overrides[0],
+            Some(GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN)
+        );
+        // Second face-down on BTN2: rejected. Stay on BTN2, slot 1
+        // untouched.
+        let action = capture_button(
+            &mut m,
+            &s,
+            &k,
+            &p,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
+        );
+        assert_eq!(action, None);
+        let state = m.pad_config.as_ref().unwrap();
+        assert_eq!(state.action_index, 1);
+        assert_eq!(state.staging.overrides[1], None);
+    }
+
+    #[test]
+    fn pad_backspace_undoes_last_capture() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        let p = PadMap::default();
+        open_to_pad_config(&mut m, &s, &k, &p);
+        capture_button(
+            &mut m,
+            &s,
+            &k,
+            &p,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
+        );
+        capture_button(
+            &mut m,
+            &s,
+            &k,
+            &p,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT,
+        );
+        // Undo: clear slot 1, return to BTN2.
+        assert_eq!(pad_backspace(&mut m, &s, &k, &p), None);
+        let state = m.pad_config.as_ref().unwrap();
+        assert_eq!(state.action_index, 1);
+        assert_eq!(
+            state.staging.overrides[0],
+            Some(GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN)
+        );
+        assert_eq!(state.staging.overrides[1], None);
+    }
+
+    #[test]
+    fn pad_delete_emits_default_gamepad_map() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        let mut p = PadMap::default();
+        p.overrides[0] = Some(GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
+        open_to_pad_config(&mut m, &s, &k, &p);
+        capture_button(
+            &mut m,
+            &s,
+            &k,
+            &p,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
+        );
+        match pad_delete(&mut m, &s, &k, &p) {
+            Some(PauseAction::SetGamepadMap(pm)) => {
+                assert_eq!(pm, PadMap::default());
+            }
+            other => panic!("expected SetGamepadMap(default), got {other:?}"),
+        }
+        assert_eq!(m.view, View::InputTester);
+        assert!(m.pad_config.is_none());
+    }
+
+    #[test]
+    fn toggle_during_pad_config_cancels_capture_only() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        let p = PadMap::default();
+        open_to_pad_config(&mut m, &s, &k, &p);
+        capture_button(
+            &mut m,
+            &s,
+            &k,
+            &p,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
+        );
+        let action = step_with_pad(&mut m, &s, &k, &p, toggle());
+        assert_eq!(action, None);
+        assert_eq!(m.view, View::InputMenu);
+        assert!(m.pad_config.is_none());
+        assert!(m.open);
+    }
+
+    /// Reaching PadConfig from the Tester requires the third menu
+    /// item. Guards against off-by-one if more items are added later.
+    #[test]
+    fn pad_config_is_the_third_input_menu_item() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        let p = PadMap::default();
+        // Open + walk: Top -> InputMenu, then down twice should select
+        // INPUT_ITEM_CONFIGURE_PAD.
+        step_with_pad(&mut m, &s, &k, &p, toggle());
+        for _ in 0..ITEM_INPUT {
+            step_with_pad(&mut m, &s, &k, &p, down());
+        }
+        step_with_pad(&mut m, &s, &k, &p, btn1());
+        step_with_pad(&mut m, &s, &k, &p, down());
+        step_with_pad(&mut m, &s, &k, &p, down());
+        assert_eq!(m.input_menu_selected, input_menu::INPUT_ITEM_CONFIGURE_PAD,);
+        step_with_pad(&mut m, &s, &k, &p, btn1());
+        assert_eq!(m.view, View::PadConfig);
+    }
+
+    #[test]
+    fn start_during_pad_config_resets_and_drops_to_tester() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        let mut p = PadMap::default();
+        p.overrides[0] = Some(GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
+        open_to_pad_config(&mut m, &s, &k, &p);
+        // Stage a partial capture, then gamepad Start: result is full
+        // reset (the gamepad-side counterpart to keyboard DEL).
+        capture_button(
+            &mut m,
+            &s,
+            &k,
+            &p,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
+        );
+        match step_with_pad(&mut m, &s, &k, &p, start()) {
+            Some(PauseAction::SetGamepadMap(pm)) => {
+                assert_eq!(pm, PadMap::default());
+            }
+            other => panic!("expected SetGamepadMap(default), got {other:?}"),
+        }
+        assert_eq!(m.view, View::InputTester);
+        assert!(m.pad_config.is_none());
+    }
+
+    /// Esc (or P) in PadConfig still cancels without resetting: only
+    /// the gamepad's Start triggers the destructive reset gesture.
+    /// `toggle()` here simulates Esc since it sets `toggle: true`
+    /// without `start_press`.
+    #[test]
+    fn esc_in_pad_config_climbs_one_level_without_resetting() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        let mut p = PadMap::default();
+        p.overrides[0] = Some(GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
+        open_to_pad_config(&mut m, &s, &k, &p);
+        let action = step_with_pad(&mut m, &s, &k, &p, toggle());
+        assert_eq!(action, None, "Esc must not emit a destructive reset");
+        assert_eq!(m.view, View::InputMenu);
+        assert!(m.pad_config.is_none());
+    }
+
+    /// Sanity-check that Start in every non-PadConfig view still climbs
+    /// one level (matching today's behavior). Only PadConfig overrides
+    /// the gamepad Start.
+    #[test]
+    fn start_in_non_pad_views_keeps_climb_semantics() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        let p = PadMap::default();
+        // From Top: Start closes the menu.
+        step_with_pad(&mut m, &s, &k, &p, toggle());
+        assert_eq!(
+            step_with_pad(&mut m, &s, &k, &p, start()),
+            Some(PauseAction::Resume),
+        );
+        assert!(!m.open);
+
+        // From InputMenu: Start climbs to Top.
+        step_with_pad(&mut m, &s, &k, &p, toggle());
+        for _ in 0..ITEM_INPUT {
+            step_with_pad(&mut m, &s, &k, &p, down());
+        }
+        step_with_pad(&mut m, &s, &k, &p, btn1());
+        assert_eq!(m.view, View::InputMenu);
+        assert_eq!(step_with_pad(&mut m, &s, &k, &p, start()), None);
+        assert_eq!(m.view, View::Top);
     }
 }

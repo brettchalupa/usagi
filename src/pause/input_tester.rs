@@ -7,12 +7,11 @@
 
 use super::PauseAction;
 use super::PauseMenu;
-use super::inputs::MenuInputs;
+use super::inputs::{Maps, MenuInputs};
 use crate::input::{
     ACTION_BTN1, ACTION_BTN2, ACTION_BTN3, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
     GamepadFamily, binding_columns,
 };
-use crate::keymap::Keymap;
 use crate::palette;
 use crate::palette::Pal;
 use sola_raylib::prelude::*;
@@ -28,7 +27,7 @@ impl PauseMenu {
         &self,
         d: &mut D,
         font: &Font,
-        keymap: &Keymap,
+        maps: Maps<'_>,
         gamepad_family: GamepadFamily,
         body_y: f32,
         res: crate::config::Resolution,
@@ -129,7 +128,7 @@ impl PauseMenu {
         let name_x = 48.0_f32;
         let kb_x = 92.0_f32;
         let gp_x = 144.0_f32;
-        for (name, kb, gp) in binding_columns(keymap, gamepad_family).iter() {
+        for (name, kb, gp) in binding_columns(maps.keymap, maps.pad_map, gamepad_family).iter() {
             d.draw_text_ex(font, name, Vector2::new(name_x, list_y), size, 0.0, white);
             d.draw_text_ex(font, kb, Vector2::new(kb_x, list_y), size, 0.0, white);
             d.draw_text_ex(font, gp, Vector2::new(gp_x, list_y), size, 0.0, white);

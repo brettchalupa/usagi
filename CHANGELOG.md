@@ -125,6 +125,14 @@ Features:
   Pass the font's natural design size for crispest output (e.g., `15` for
   monogram-style 5×7 fonts, `18` for Silver, `8` for Misaki Gothic). New
   `examples/custom_font` ships a Silver-baked demo with multi-script text.
+- Per-game gamepad remapping for BTN1/BTN2/BTN3 alongside the existing keyboard
+  remapping. New "Configure Gamepad" entry under the pause menu's Input
+  sub-menu, mirroring the Pico-8-style sequential capture flow used by
+  "Configure Keys": face buttons and shoulder/trigger positions are bindable;
+  dpad, Select/Start/Home, and stick clicks are reserved. Bksp or Select undoes
+  the previous capture; Del or Start resets every override. Overrides persist
+  per game as `pad_map.json` next to `keymap.json`. Pause titles renamed to
+  `KEYBOARD CONFIG` and `GAMEPAD CONFIG`.
 
 ## v0.7.2 - May 10, 2026
 

@@ -57,6 +57,12 @@ mod settings;
 // it and `input::action_*` reads through it to override defaults.
 mod keymap;
 
+// Per-game gamepad remapping for BTN1/BTN2/BTN3 only. Sibling to
+// keymap.rs: same data dir, same shim on web, same Pico-8-style
+// override-replaces-defaults semantics. Directional inputs stay on
+// dpad + left stick.
+mod pad_map;
+
 // game_id is universal: same id namespaces save data on every target,
 // including web localStorage, the macOS CFBundleIdentifier, and any future
 // per-game preference. Runtime save/load resolves through this module too,

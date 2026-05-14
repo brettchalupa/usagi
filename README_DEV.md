@@ -73,8 +73,9 @@ change in the future or be configurable.
   with constants for easy reference)
 - **Pause Menu with Settings and Input Mapping**: don't spend your time coding a
   pause menu and settings, focus on your game instead! Usagi comes with a Pause
-  menu with sound effect and music volume, fullscreen toggle, and keyboard input
-  mapping
+  menu with sound effect and music volume, fullscreen toggle, and per-game
+  keyboard and gamepad remapping for BTN1/BTN2/BTN3 (Input > Configure Keys /
+  Configure Gamepad)
 - **Easy Save Data**: use a single function to save and load your game data via
   a Lua table
 
