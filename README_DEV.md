@@ -1183,14 +1183,17 @@ progress.
   **BTN2**) close the menu. While paused, `_update` and `_draw` are skipped and
   the screen shows a black "PAUSED" overlay; music keeps streaming.
 - Press **Shift+Esc** in dev mode to quit the game
-- Press **F9** or **Cmd/Ctrl + G** to start recording a GIF. Press the same key
-  again to stop and save. Files land in `<cwd>/captures/` named
-  `<game>-YYYYMMDD-HHMMSS.gif`, where `<game>` is the short form of your
-  `_config().game_id` (e.g. `snake-20260101-120000.gif`). Upscaled 2x (640×360)
-  so they read well when embedded online. A small pulsing red "● REC" indicator
-  shows in the top-right while recording.
+- The engine keeps the last ~5 seconds of gameplay in memory at all times. Press
+  **F9** or **Cmd/Ctrl + G** to write that buffer out as a GIF in your user
+  Downloads dir, named `<game>-YYYYMMDD-HHMMSS.gif` (where `<game>` is the short
+  form of your `_config().game_id`, e.g.
+  `~/Downloads/snake-20260101-120000.gif`). Upscaled 2x (640×360) so they read
+  well when embedded online. Rolling buffer: trigger the save after the cool
+  moment, not before. Per-frame timing reflects real frame dt clamped to a 30fps
+  floor, so a game that stutters produces a GIF that plays at the same pace as
+  the game ran.
 - Press **F8** or **Cmd/Ctrl + F** to save a PNG screenshot to the same
-  `<cwd>/captures/` bucket. Same 2x upscale as the gif recorder, lossless,
+  Downloads bucket. Same 2x upscale as the gif recorder, lossless,
   palette-exact.
 - Press **Shift+M** to toggle audio mute. Master volume flips between `0.0` and
   the value in `settings.json` (defaults to `0.5`). Settings live in the same

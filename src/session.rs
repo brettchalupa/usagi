@@ -568,14 +568,17 @@ struct Session {
     /// `InputState` until each release, so a BTN1/BTN2 press that
     /// exits the menu doesn't fire in `_update` the same frame.
     input_swallow: input::InputSwallow,
-    /// In-game GIF recorder, toggled with F9 / Cmd+G. Native-only:
-    /// emscripten has no real filesystem to write to.
+    /// In-game rolling GIF recorder: always holding the last ~5s of
+    /// rendered frames in memory; F9 / Cmd+G writes the current buffer
+    /// out. Native-only since emscripten has no real filesystem.
     #[cfg(not(target_os = "emscripten"))]
     recorder: Recorder,
     /// Where the recorder and screenshot helper write their `*.gif`
-    /// and `*.png` files. One bucket so games have a single dir to
-    /// gitignore. Captured at session creation so we don't depend on
-    /// CWD changes mid-session.
+    /// and `*.png` files. Defaults to the user's Downloads dir
+    /// (`directories::UserDirs::download_dir()`) so shipped binaries
+    /// land captures somewhere the player can find regardless of the
+    /// exe's launch cwd. Captured at session creation so we don't
+    /// depend on CWD changes mid-session.
     #[cfg(not(target_os = "emscripten"))]
     captures_dir: std::path::PathBuf,
     /// Filename prefix for capture files. Derived from the resolved
@@ -934,14 +937,11 @@ impl Session {
             input_swallow: input::InputSwallow::new(),
             #[cfg(not(target_os = "emscripten"))]
             recorder: Recorder::new(),
-            // Captures (gifs + screenshots) land in `<cwd>/captures/`.
-            // CWD is the project dir for `usagi dev` / `usagi run`,
-            // and is the exec dir for fused / exported binaries.
-            // Print the absolute path on save.
+            // Captures (gifs + screenshots) land in the user's
+            // Downloads dir. Print the absolute path on save so a dev
+            // running from a project dir can still locate the file.
             #[cfg(not(target_os = "emscripten"))]
-            captures_dir: std::env::current_dir()
-                .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                .join("captures"),
+            captures_dir: crate::capture::default_captures_dir(),
             #[cfg(not(target_os = "emscripten"))]
             capture_prefix,
             settings,
@@ -1084,9 +1084,8 @@ impl Session {
             .apply_pending(&mut self.rl, &self.thread, self.vfs.as_ref());
 
         #[cfg(not(target_os = "emscripten"))]
-        if self.recorder.is_recording() {
-            self.recorder.capture(&self.rt);
-        }
+        self.recorder
+            .capture(&self.rt, self.rl.get_frame_time(), self.config.resolution);
 
         // Snapshot the just-rendered frame for next tick's `gfx.px`
         // reads. Pixel reads always reflect the most recently finished
@@ -1362,7 +1361,10 @@ impl Session {
             crate::msg::err!("music: {m:.2}, sfx: {s:.2}");
         }
 
-        // F9 / Cmd+G / Ctrl+G toggles GIF recording.
+        // F9 / Cmd+G / Ctrl+G writes the rolling buffer (~5s of gameplay
+        // already in memory) out to a GIF in the configured captures
+        // dir (Downloads by default). No toggle: recording is always
+        // on, the hotkey is the save trigger.
         #[cfg(not(target_os = "emscripten"))]
         {
             let mod_just_pressed = self.rl.is_key_pressed(KeyboardKey::KEY_LEFT_SUPER)
@@ -1371,19 +1373,16 @@ impl Session {
                 || self.rl.is_key_pressed(KeyboardKey::KEY_RIGHT_CONTROL);
             let mod_held = ctrl_held || super_held;
 
-            // F9 / Cmd+G / Ctrl+G toggles GIF recording.
             let g_pressed = self.rl.is_key_pressed(KeyboardKey::KEY_G);
             let g_down = self.rl.is_key_down(KeyboardKey::KEY_G);
             let cmd_g = (g_pressed && mod_held) || (mod_just_pressed && g_down);
-            let toggle_rec = self.rl.is_key_pressed(KeyboardKey::KEY_F9) || cmd_g;
-            if toggle_rec
-                && let Err(e) = self.recorder.toggle(
-                    &self.captures_dir,
-                    &self.capture_prefix,
-                    self.config.resolution,
-                )
-            {
-                crate::msg::err!("recorder toggle failed: {e}");
+            let save_rec = self.rl.is_key_pressed(KeyboardKey::KEY_F9) || cmd_g;
+            if save_rec {
+                match self.recorder.save(&self.captures_dir, &self.capture_prefix) {
+                    Ok(Some(path)) => crate::msg::info!("recording: writing {}", path.display()),
+                    Ok(None) => {}
+                    Err(e) => crate::msg::err!("recorder save failed: {e}"),
+                }
             }
 
             // F8 / Cmd+F / Ctrl+F saves a one-shot PNG screenshot.
@@ -2069,12 +2068,10 @@ impl Session {
 
     /// draw the renter target to the screen, on top of a true black bg
     fn blit_and_overlay(&mut self, screen_w: i32, screen_h: i32) {
-        #[cfg(not(target_os = "emscripten"))]
-        let recording = self.recorder.is_recording();
         // Shake offset is sampled here (post-update, post-draw) so the
         // RT itself stays unshaken; only the blit's dest rect moves.
-        // That keeps overlays drawn outside this function (error,
-        // REC) stable while the world dances. Suppressed under the
+        // That keeps overlays drawn outside this function (error
+        // overlay) stable while the world dances. Suppressed under the
         // pause overlay so the world doesn't keep shaking under
         // "PAUSED".
         let shake = if self.pause.open {
@@ -2134,28 +2131,6 @@ impl Session {
         }
         if let Some(ref err) = self.last_error {
             draw_error_overlay(&mut d, self.font, err, screen_w, screen_h);
-        }
-        // REC indicator drawn after the RT blit so the captured gif
-        // Lives on the screen overlay only so the player sees it, the recording
-        // doesn't.
-        #[cfg(not(target_os = "emscripten"))]
-        if recording {
-            const PADDING: i32 = 12;
-            let dot_r = 8.0;
-            let dot_x = (screen_w - PADDING - dot_r as i32 * 2) as f32 + dot_r;
-            let dot_y = (PADDING + dot_r as i32) as f32;
-            let pulse = 0.6 + 0.4 * (self.elapsed * 4.0).sin() as f32;
-            let alpha = (pulse * 255.0) as u8;
-            let red = Color::new(220, 60, 60, alpha);
-            d.draw_circle(dot_x as i32, dot_y as i32, dot_r, red);
-            d.draw_text_ex(
-                self.font,
-                "REC",
-                Vector2::new(dot_x - dot_r - 40.0, dot_y - 11.0),
-                (crate::font::MONOGRAM_SIZE * 2) as f32,
-                0.0,
-                red,
-            );
         }
     }
 }

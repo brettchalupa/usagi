@@ -168,6 +168,19 @@ Features:
   lifetime, so the canvas freezes on the last frame rather than tearing down the
   page. Gate with `usagi.PLATFORM` if your custom menu shouldn't expose a quit
   option on web.
+- GIF recordings and PNG screenshots now land in the user's Downloads directory
+  (e.g. `~/Downloads/<game>-YYYYMMDD-HHMMSS.gif`) instead of a project-local
+  `captures/` folder. Shipped binaries write somewhere players can actually find
+  regardless of where the exe was launched from. Falls back to `<cwd>/captures`
+  if the OS doesn't expose a Downloads dir.
+- GIF recorder reworked into a rolling buffer. The engine now keeps the last ~5
+  seconds of gameplay in memory at all times; pressing F9 / Ctrl+G / Cmd+G
+  writes that buffer out as a `.gif`. No more start / stop toggle: trigger the
+  save after the cool moment, not before. Per-frame timing reflects real frame
+  dt with a 30fps floor, so a game that stutters no longer produces a sped-up
+  GIF. The expensive work (LZW encode + disk write) happens only on save, not
+  every frame, which fixes the chug that recording caused in heavier games. The
+  always-on REC indicator is gone (recording is permanent now).
 - New `_config().pause_menu = false` disables the built-in pause overlay so
   games can roll their own menu system. Esc / P / Enter / gamepad Start flow
   through to user code instead of opening the engine's menu. What you keep: raw
