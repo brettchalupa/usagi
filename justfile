@@ -182,3 +182,6 @@ examples:
     just example resolution/vertical
     just example resolution/high_res
     just example custom_sprite_size
+    just example custom_menu
+    just example custom_font
+    just example palette_swap

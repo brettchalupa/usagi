@@ -5,6 +5,8 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+## v0.8.0 - May 14, 2026
+
 Breaking:
 
 - Color slot indices are now **1-based** instead of 0-based, matching `gfx.spr`

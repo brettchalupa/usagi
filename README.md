@@ -2,7 +2,7 @@
 
 # Usagi - Simple 2D Game Engine for Rapid Prototyping
 
-Usagi is a simple 2D game engine for quickly making games with **Lua** 5.4. It
+Usagi is a simple 2D game engine for quickly making games with **Lua** 5.5. It
 features live-reloading as you change your game code and assets. Its API is
 clear, consistent, and familiar.
 
@@ -41,7 +41,7 @@ The installer fetches the latest release from GitHub, verifies its SHA-256
 checksum, installs `usagi` to `~/.usagi/bin/` (or `%USERPROFILE%\.usagi\bin\` on
 Windows), and sets up `PATH`.
 
-**Latest Usagi release:** v0.7.2
+**Latest Usagi release:** v0.8.0
 
 Or download manually from
 [GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest) or
@@ -73,8 +73,9 @@ change in the future or be configurable.
   with constants for easy reference)
 - **Pause Menu with Settings and Input Mapping**: don't spend your time coding a
   pause menu and settings, focus on your game instead! Usagi comes with a Pause
-  menu with sound effect and music volume, fullscreen toggle, and keyboard input
-  mapping
+  menu with sound effect and music volume, fullscreen toggle, and per-game
+  keyboard and gamepad remapping for BTN1/BTN2/BTN3 (Input > Configure Keys /
+  Configure Gamepad)
 - **Easy Save Data**: use a single function to save and load your game data via
   a Lua table
 
@@ -162,6 +163,8 @@ stock Lua's `require`. Optional assets live alongside:
 my_game/
   main.lua           -- required: your game's entry point
   sprites.png        -- optional: 16×16 sprite sheet (PNG with alpha)
+  palette.png        -- optional: custom palette (1px tall, one color per pixel)
+  font.png           -- optional: custom font (bake with `usagi font bake`)
   enemies.lua        -- optional: require "enemies"
   scenes/
     main_menu.lua    -- optional: require "scenes.main_menu" - source code can be in folders
@@ -220,11 +223,17 @@ via `meta/usagi.lua`.
 usagi.GAME_W
 usagi.GAME_H
 usagi.SPRITE_SIZE
+usagi.PLATFORM -- "web" | "macos" | "linux" | "windows" | "unknown"
 usagi.IS_DEV
 usagi.elapsed
 usagi.measure_text(text)
 usagi.save(t)
 usagi.load()
+usagi.menu_item(label, callback) -- up to 3; callback `return true` keeps menu open
+usagi.clear_menu_items()
+usagi.toggle_fullscreen() -- flips fullscreen, returns the new state as bool
+usagi.is_fullscreen()
+usagi.quit() -- terminate the main loop (no-op visually on web)
 
 -- Lifecycle callbacks
 
@@ -237,16 +246,22 @@ _draw(dt)
 
 gfx.clear(color)
 gfx.text(text, x, y, color)
+gfx.text_ex(text, x, y, scale, rotation, color)
 gfx.rect(x, y, w, h, color)
 gfx.rect_fill(x, y, w, h, color)
+gfx.rect_ex(x, y, w, h, thickness, color)
 gfx.circ(x, y, r, color)
 gfx.circ_fill(x, y, r, color)
+gfx.circ_ex(x, y, r, thickness, color)
 gfx.line(x1, y1, x2, y2, color)
+gfx.line_ex(x1, y1, x2, y2, thickness, color)
 gfx.pixel(x, y, color)
+gfx.px(x, y)                  -- read screen pixel: r, g, b, palette_index
 gfx.spr(index, x, y)
-gfx.spr_ex(index, x, y, flip_x, flip_y)
+gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)
+gfx.spr_px(index, x, y)       -- read sprite-sheet pixel: r, g, b, palette_index
 gfx.sspr(sx, sy, sw, sh, dx, dy)
-gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)
+gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha)
 gfx.shader_set(name)
 gfx.shader_uniform(name, value)
 
@@ -260,9 +275,12 @@ gfx.COLOR_BLUE,  gfx.COLOR_INDIGO,    gfx.COLOR_PINK,       gfx.COLOR_PEACH
 -- Sound
 
 sfx.play(name)
+sfx.play_ex(name, volume, pitch, pan)
 music.play(name)
 music.loop(name)
 music.stop()
+music.play_ex(name, volume, pitch, pan, loop)
+music.mutate(volume, pitch, pan)
 
 -- Input -- actions
 
@@ -282,6 +300,7 @@ input.mouse()
 input.mouse_held(button)
 input.mouse_pressed(button)
 input.mouse_released(button)
+input.mouse_scroll()
 input.set_mouse_visible(visible)
 input.mouse_visible()
 
@@ -448,35 +467,256 @@ Draws to the screen. Positions are in game-space pixels (320×180). Colors are
 palette indices 0-15; use the named constants.
 
 - `gfx.clear(color)` — fill the screen.
-- `gfx.rect(x, y, w, h, color)` — rectangle outline.
+- `gfx.rect(x, y, w, h, color)` — 1-pixel rectangle outline.
 - `gfx.rect_fill(x, y, w, h, color)` — filled rectangle.
-- `gfx.circ(x, y, r, color)` — circle outline centered at `(x, y)`.
+- `gfx.rect_ex(x, y, w, h, thickness, color)` — rectangle outline with a custom
+  stroke thickness in pixels.
+- `gfx.circ(x, y, r, color)` — 1-pixel circle outline centered at `(x, y)`.
 - `gfx.circ_fill(x, y, r, color)` — filled circle centered at `(x, y)`.
-- `gfx.line(x1, y1, x2, y2, color)` — line from `(x1, y1)` to `(x2, y2)`.
+- `gfx.circ_ex(x, y, r, thickness, color)` — circle outline with a custom stroke
+  thickness. Stroke is centered on the nominal radius, so stacking three
+  `circ_ex(x, y, r, 1, c)` / `circ_ex(x, y, r-1, 1, c)` /
+  `circ_ex(x, y, r-2, 1, c)` calls produces flush concentric rings with no gaps
+  — fixes the rounding-gap issue you get layering plain `gfx.circ` calls at
+  adjacent radii.
+- `gfx.line(x1, y1, x2, y2, color)` — 1-pixel line from `(x1, y1)` to
+  `(x2, y2)`.
+- `gfx.line_ex(x1, y1, x2, y2, thickness, color)` — line with a custom thickness
+  in pixels.
 - `gfx.pixel(x, y, color)` — set a single pixel.
-- `gfx.text(text, x, y, color)` — bundled monogram font (5×7 pixel font, 16 px
-  line height; see Credits below). To measure text dimensions, use
+- `gfx.px(x, y)` returns `(r, g, b, palette_index)` for the pixel at `(x, y)` on
+  the most recently rendered frame. `palette_index` is the 1-based slot for an
+  exact RGB match or `nil` for off-palette colors. All four returns are `nil`
+  for off-screen coordinates and on the very first frame (before anything has
+  been drawn). Reads reflect the previous frame's finished image, so they don't
+  see in-progress draws inside the current `_draw`. The classic use is
+  collision-by-color: paint walls into the framebuffer with a known color, then
+  consult `gfx.px` on the proposed destination in `_update`.
+- `gfx.text(text, x, y, color)` — bundled monogram font (5×7 pixel font, 12 px
+  line height; see Credits below). Renders the engine's default Latin/Cyrillic/
+  Greek glyph set, or your custom font if a `font.png` is present at the project
+  root (see "Custom fonts" below). To measure text dimensions, use
   `usagi.measure_text` — it lives on `usagi` rather than `gfx` because
   measurement is a pure utility (no render side-effect) and is callable from any
   callback, including `_init`.
+- `gfx.text_ex(text, x, y, scale, rotation, color)` — extended `text`:
+  - `scale` (number) — font-size multiplier. **Use integers** (`1`, `2`, `3`)
+    for crisp text since atlas-baked fonts use POINT filtering and integer
+    scales preserve the pixel-art look. Fractional values blur.
+  - `rotation` (number) — radians. `0` is no rotation. Use `math.rad(45)` for
+    literal-degree values. Rotation pivots around the **center** of the
+    unrotated bounding box; `(x, y)` stays the top-left when `rotation = 0`.
+    Useful for juice — wiggling subtitles, tilted labels, score popups.
 - `gfx.spr(index, x, y)` — draw the 16×16 sprite at `index` (1 = top-left) from
-  `sprites.png`.
-- `gfx.spr_ex(index, x, y, flip_x, flip_y)` — extended `spr`: requires both flip
-  booleans.
+  `sprites.png`. Native size, no flips, no rotation, no tint, full opacity.
+- `gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)` — extended
+  `spr`. All eight args required:
+  - `flip_x` / `flip_y` (boolean) — mirror left/right or top/bottom.
+  - `rotation` (number) — radians. `0` is no rotation. Use `math.rad(45)` for
+    literal-degree values. Rotation pivots around the **center** of the sprite;
+    `(x, y)` stays the top-left of the unrotated bounding box.
+  - `tint` (palette color) — multiplied over the sprite. `gfx.COLOR_WHITE` is
+    the identity (no recolor). Other colors recolor the sprite (e.g.
+    `gfx.COLOR_RED` for a hit flash). Multiplicative semantics, so this can't
+    produce a full-white silhouette — for that, use a shader or draw a colored
+    rect on top.
+  - `alpha` (number) — opacity in `0..1`. `1.0` is opaque, `0.0` is invisible.
+- `gfx.spr_px(index, x, y)` returns `(r, g, b, palette_index)` for a pixel
+  inside the `index` sprite cell on `sprites.png`. `index` is 1-based (same
+  shape as `gfx.spr`); `(x, y)` is the offset inside the cell, with `(0, 0)` as
+  that cell's top-left. All four returns are `nil` for an out-of-range index,
+  out-of-cell coordinates, a project with no `sprites.png`, or a fully
+  transparent source pixel (`gfx.spr` draws alpha-keyed, so a transparent pixel
+  reads as "nothing here" rather than as its backing RGB). Unlike `gfx.px`,
+  sprite reads are deterministic and unaffected by draw order: useful for
+  pixel-perfect sprite collision and for levels where you paint the layout into
+  the sheet and scan it at startup to spawn entities.
 - `gfx.sspr(sx, sy, sw, sh, dx, dy)` — draw an arbitrary `(sx, sy, sw, sh)`
   rectangle from `sprites.png` at `(dx, dy)` at original size.
-- `gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)` — extended
-  `sspr`: stretches to `(dw, dh)` and flips per the booleans, all required.
+- `gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha)`
+  — extended `sspr`: stretches to `(dw, dh)`, flips per the booleans, then
+  rotates / tints / sets alpha. Same semantics as `spr_ex`. All thirteen args
+  required.
 - `gfx.COLOR_BLACK`, `COLOR_DARK_BLUE`, `COLOR_DARK_PURPLE`, `COLOR_DARK_GREEN`,
   `COLOR_BROWN`, `COLOR_DARK_GRAY`, `COLOR_LIGHT_GRAY`, `COLOR_WHITE`,
   `COLOR_RED`, `COLOR_ORANGE`, `COLOR_YELLOW`, `COLOR_GREEN`, `COLOR_BLUE`,
-  `COLOR_INDIGO`, `COLOR_PINK`, `COLOR_PEACH` — the Pico-8 palette, indices
-  0-15.
+  `COLOR_INDIGO`, `COLOR_PINK`, `COLOR_PEACH` — palette slot indices `1..16`,
+  matching `gfx.spr` and Lua's array convention (`0` is an out-of-range sentinel
+  that renders magenta). The RGB at each slot is the default Pico-8 palette
+  unless a `palette.png` overrides it (see below). The constants are slot
+  indices, not RGB promises: if you swap palettes, `gfx.COLOR_RED` still
+  resolves through slot 9, but its actual color depends on the active palette.
 
 The `_ex` variants pack every power-arg into one fixed signature instead of
 trailing optionals. With a single `_ex` per primitive there's exactly one
 decision per draw ("simple or extended?"). If you want shorter call sites, write
 a thin wrapper.
+
+#### Custom palettes (`palette.png`)
+
+Drop a `palette.png` at your project root to override the engine's default
+Pico-8 palette. Pixels are read in **row-major** order (left-to-right,
+top-to-bottom):
+
+- **Any rectangular shape.** A 16x1 strip, 16x2 grid (32 colors), or 4x4 (16
+  colors) all work. Color count = `width × height`. Multi-row is fine for
+  organizing larger palettes.
+- **Each pixel = one slot.** Use lospec.com's "1px cells" export rather than the
+  larger cell-block versions (where each color is a 16x16 block of duplicates).
+- **Slot indices are 1-based.** The top-left pixel is slot 1. The `gfx.COLOR_*`
+  constants are `1..16` slot indices into the active palette.
+
+Behavior:
+
+- Missing `palette.png` → engine uses the Pico-8 default (16 colors).
+- Hot-reloads like `sprites.png`. Save a new `palette.png` over the old one and
+  the running game flips colors immediately.
+- Slot indices outside the palette range render as magenta (`255,0,255,255`) —
+  the existing "unknown color" sentinel. If your palette has 8 colors,
+  `gfx.COLOR_RED` (slot 9) and higher will be magenta. Define your own constants
+  in Lua for non-default palettes.
+- Bundled into `usagi export` automatically when present.
+
+**Recommended pattern: name your own slots.** The built-in `gfx.COLOR_*`
+constants are named after Pico-8's slot ordering (slot 9 = `COLOR_RED`). With a
+custom palette, slot 9 might be a navy blue or a teal. The names don't match the
+colors anymore. Define your own constants once at the top of your project and
+use them everywhere:
+
+```lua
+-- e.g. for sweetie16
+local COLOR = {
+  NIGHT = 1, PURPLE = 2, RED = 3,    ORANGE = 4,
+  YELLOW = 5, LIME = 6,  GREEN = 7,  TEAL = 8,
+  NAVY = 9,  BLUE = 10,  SKY = 11,   CYAN = 12,
+  WHITE = 13, SILVER = 14, GRAY = 15, SHADOW = 16,
+}
+
+gfx.clear(COLOR.NIGHT)
+gfx.rect_fill(x, y, w, h, COLOR.RED)
+```
+
+Workflow tip: `palette.png` loads directly into Aseprite's palette panel with
+one click ("Edit → Preferences → Palette → Load"), so the same file drives both
+your engine colors and the swatches you paint with.
+
+See
+[`examples/palette_swap`](https://github.com/brettchalupa/usagi/tree/main/examples/palette_swap)
+for a runnable demo (ships sweetie16, uses a `COLOR` table for its named slots).
+
+#### Custom fonts (`font.png`)
+
+Drop a `font.png` at your project root to override the bundled monogram font
+used by `gfx.text` / `gfx.text_ex` / `usagi.measure_text`. The PNG is a baked
+glyph atlas with metadata embedded as a zTXt chunk (see "Baking" below).
+
+Scope of the override is intentionally narrow:
+
+- **Lua-drawn text uses the custom font.** Anything you draw with `gfx.text` or
+  `gfx.text_ex`.
+- **Engine UI uses the bundled font.** Pause menu, FPS overlay, error overlay,
+  tools window. So a wildly-sized custom font can't break engine layout.
+
+The font's natural line height drives `usagi.measure_text` and the per-glyph
+positioning, so a smaller custom font (e.g., Misaki Gothic 8×8) renders at 8 px
+and a larger one (Silver 5×9) renders at 21 px, both crisp at integer scales.
+
+**Baking a font:**
+
+```bash
+usagi font bake <font.ttf> <size>
+```
+
+Examples:
+
+```bash
+# Drop into the current project (writes font.png in CWD by default)
+usagi font bake my_font.ttf 12
+
+# Skip the kanji block for a font that covers it
+usagi font bake misaki_gothic.ttf 8 --no-cjk
+
+# Write to a specific path
+usagi font bake silver.ttf 18 --out my_proj/font.png
+```
+
+Behavior:
+
+- Pass the font's **natural design size** as the size arg. Pixel fonts only
+  rasterize crisply at the size their designer drew them at; rendering at other
+  sizes goes through FreeType's outline scaler and looks slightly fuzzy. Common
+  sizes: monogram at `15`, Silver at `18`, Misaki Gothic at `8`, Geist Pixel at
+  `16`.
+- The CJK Unified Ideographs block (~21k codepoints) is included by default.
+  Codepoints the font doesn't cover are skipped via the font's cmap, so this
+  costs nothing for non-CJK fonts. Pass `--no-cjk` if you want to skip the block
+  even when present.
+- Output is a single `font.png` with metadata in a zTXt chunk. Drop it next to
+  your `main.lua` and the engine picks it up automatically.
+- Bakes are reproducible: the same TTF + size yields byte-identical output.
+
+Behavior of the project drop-in:
+
+- Missing `font.png` → engine uses the bundled monogram font (current default).
+- Bundled into `usagi export` automatically when present.
+
+**Asian-language support:** the bundled monogram font covers Latin / Cyrillic /
+partial Greek but no CJK. For Japanese, Chinese, or Korean text, grab a pixel
+font that covers the scripts you need and bake it:
+
+```bash
+# Silver: 5x9-ish with broad European + ~8k CJK ideographs + ~2k Hangul.
+# Download from https://poppyworks.itch.io/silver (CC-BY-4.0).
+usagi font bake Silver.ttf 18
+# Drop the resulting font.png next to your project's main.lua.
+```
+
+See
+[`examples/custom_font`](https://github.com/brettchalupa/usagi/tree/main/examples/custom_font)
+for a working Silver-based demo that renders English, Cyrillic, Greek, and
+Japanese on the same screen.
+
+#### Scaling sprites
+
+There's no scale param on `spr` / `spr_ex` as those are fixed at the native
+sprite size. To draw a sprite scaled, use `sspr_ex` with a destination size that
+differs from the source size:
+
+```lua
+-- Draw sprite index 1 (16×16) at 2x scale at (x, y).
+local sz = usagi.SPRITE_SIZE
+gfx.sspr_ex(0, 0, sz, sz, x, y, sz * 2, sz * 2, false, false, 0, gfx.COLOR_WHITE, 1.0)
+```
+
+If you find yourself reaching for variants often, wrap them. These three helpers
+cover most games:
+
+```lua
+-- Scaled draw of a source rect on the sheet. Doesn't go through `spr`
+-- indexing — pick the source rect yourself with the TilePicker.
+function sspr_scaled(sx, sy, sw, sh, dx, dy, scale)
+  gfx.sspr_ex(
+    sx, sy, sw, sh,
+    dx, dy, sw * scale, sh * scale,
+    false, false, 0, gfx.COLOR_WHITE, 1.0
+  )
+end
+
+-- Sprite by 1-based index with rotation around its center, native size.
+function spr_rot(index, x, y, rotation)
+  gfx.spr_ex(index, x, y, false, false, rotation, gfx.COLOR_WHITE, 1.0)
+end
+
+-- Sprite by 1-based index with a tint applied, native size.
+function spr_tinted(index, x, y, tint)
+  gfx.spr_ex(index, x, y, false, false, 0, tint, 1.0)
+end
+```
+
+The engine intentionally doesn't ship these as every game has slightly different
+conventions (whether scale should be integer-only, whether rotation centers
+somewhere other than the middle, whether tinted draws also need alpha), and
+forcing one shape on everyone hurts more than it helps. Copy and adapt.
 
 ### `input`
 
@@ -549,8 +789,19 @@ gfx.text("Press " .. btn .. " to jump", 10, 10, gfx.COLOR_WHITE)
 - `input.mouse_held(button)` — true while `button` is held.
 - `input.mouse_pressed(button)` — true the frame `button` first went down.
 - `input.mouse_released(button)` — true the frame `button` first went up.
+- `input.mouse_scroll()` — per-frame vertical scroll delta. Returns a number:
+  positive when scrolled up this frame, negative when down, `0` when no scroll.
+  Works the same on a mouse wheel and on a trackpad two-finger swipe. Match on
+  `> 0` / `< 0` rather than `== 1` since trackpads emit fractional values:
+
+  ```lua
+  local s = input.mouse_scroll()
+  if s > 0 then slot = math.max(1, slot - 1) end
+  if s < 0 then slot = math.min(N, slot + 1) end
+  ```
+
 - `input.MOUSE_LEFT`, `input.MOUSE_RIGHT`, `input.MOUSE_MIDDLE` — the supported
-  buttons. Wheel scrolling isn't supported yet.
+  buttons.
 - `input.set_mouse_visible(visible)` — show or hide the OS cursor over the game
   window. Callable from `_init` to hide the cursor before the first frame draws
   (handy for games that render their own cursor sprite).
@@ -598,19 +849,41 @@ outgrown Usagi.
 
 - `sfx.play(name)` — play `sfx/<name>.wav`. Unknown names silently no-op.
   Playing a sound while it's already playing restarts it.
+- `sfx.play_ex(name, volume, pitch, pan)` — fire-and-forget with per-call
+  params. Useful for varied one-shot effects without needing to commit extra
+  `.wav` files. All three params required:
+  - `volume` (number) — `0..1` multiplier on the pause-menu sfx volume. `1.0` is
+    identity. Clamped.
+  - `pitch` (number) — pitch multiplier. `1.0` is identity, `0.5` is an octave
+    down, `2.0` is an octave up. Useful with `math.random` for varied footsteps
+    / coin pickups from a single .wav.
+  - `pan` (number) — stereo pan, `-1..1`. `-1` left, `0` center, `1` right.
+    Clamped.
 
 ### `music`
 
 Background music streamed from disk (or the fused bundle). Only one track plays
-at a time; calling `play` or `loop` while another is playing stops the old one
-first.
+at a time; calling `play`, `loop`, or `play_ex` while another is playing stops
+the old one first.
 
 - `music.play(name)` — play `music/<name>.<ext>` once and stop at the end.
 - `music.loop(name)` — play and loop forever.
 - `music.stop()` — stop whatever's playing. No-op if nothing is.
+- `music.play_ex(name, volume, pitch, pan, loop)` — play with explicit initial
+  params. `loop` is a boolean (`true` to loop forever, `false` to play once).
+  The other params follow `sfx.play_ex`. The chosen volume / pitch / pan become
+  the initial values that subsequent `music.mutate` calls modulate from.
+- `music.mutate(volume, pitch, pan)` — modulate the **currently playing**
+  track's params in place. Replace semantics: each call sets the absolute
+  values, no stacking. No-op when nothing is playing. Use this for ducking music
+  under dialogue, pitch-warping during hitstun, and fade-outs on death. Volume /
+  pitch / pan ranges match `sfx.play_ex`. The engine doesn't expose getters by
+  design. Track values in your own game state if you want to tween (see
+  `examples/music`).
 
-All three are callable from `_init`, so a title track can start the moment the
-window opens (no one-frame gap waiting for `_update`).
+All four play / loop / stop / play_ex calls are callable from `_init`, so a
+title track can start the moment the window opens (no one-frame gap waiting for
+`_update`).
 
 Recognized extensions: `.ogg`, `.mp3`, `.wav`, `.flac`. **OGG is recommended for
 music as they're small and cross-platform.**
@@ -910,18 +1183,22 @@ progress.
   **BTN2**) close the menu. While paused, `_update` and `_draw` are skipped and
   the screen shows a black "PAUSED" overlay; music keeps streaming.
 - Press **Shift+Esc** in dev mode to quit the game
-- Press **F9** or **Cmd/Ctrl + G** to start recording a GIF. Press the same key
-  again to stop and save. Files land in `<cwd>/captures/` named
-  `<game>-YYYYMMDD-HHMMSS.gif`, where `<game>` is the short form of your
-  `_config().game_id` (e.g. `snake-20260101-120000.gif`). Upscaled 2x (640×360)
-  so they read well when embedded online. A small pulsing red "● REC" indicator
-  shows in the top-right while recording.
+- The engine keeps the last ~5 seconds of gameplay in memory at all times. Press
+  **F9** or **Cmd/Ctrl + G** to write that buffer out as a GIF in your user
+  Downloads dir, named `<game>-YYYYMMDD-HHMMSS.gif` (where `<game>` is the short
+  form of your `_config().game_id`, e.g.
+  `~/Downloads/snake-20260101-120000.gif`). Upscaled 2x (640×360) so they read
+  well when embedded online. Rolling buffer: trigger the save after the cool
+  moment, not before. Per-frame timing reflects real frame dt clamped to a 30fps
+  floor, so a game that stutters produces a GIF that plays at the same pace as
+  the game ran.
 - Press **F8** or **Cmd/Ctrl + F** to save a PNG screenshot to the same
-  `<cwd>/captures/` bucket. Same 2x upscale as the gif recorder, lossless,
+  Downloads bucket. Same 2x upscale as the gif recorder, lossless,
   palette-exact.
-- Press **Shift+M** to toggle audio mute. Master volume flips between `0.0` and
-  the value in `settings.json` (defaults to `0.5`). Settings live in the same
-  per-game OS data dir as `save.json`; on web they're routed through
+- Press **Shift+M** to toggle audio mute. Volumes flip between `0.0` and the
+  values stored in `settings.json` (both music and sfx default to `1.0` on first
+  boot, then track whatever the player set via the pause menu). Settings live in
+  the same per-game OS data dir as `save.json`; on web they're routed through
   `localStorage` under `usagi.settings.<game_id>`.
 
 ### Writing Reload-Friendly Scripts
@@ -986,15 +1263,22 @@ can just arrow through the list to hear each one.
 ### TilePicker
 
 Shows `<project>/sprites.png` with a 1-based grid overlay matching `gfx.spr`.
-Click any tile to copy its index to the clipboard (paste it straight into your
-Lua code).
+Click a tile to copy its index, or right-drag to grab a rectangle for `sspr`.
+The current selection is shown in the header and highlighted on the sheet.
 
-- **WASD** to pan. **Q** / **E** to zoom out / in (0.5×–20×). **0** resets the
-  view.
+- **WASD**, hold **middle mouse** and drag, or hold **space** and drag with the
+  left mouse to pan. **Q** / **E** or the **scroll wheel** to zoom out / in
+  (0.5×–20×). Wheel zoom is anchored on the cursor, so the pixel under the mouse
+  stays put. **0** resets the view.
 - **R** toggles the grid and index overlay.
 - **B** cycles the viewport background color (gray / black / white) so tiles
   stay visible regardless of palette.
-- Left click a tile to copy its 1-based index; a toast confirms the value.
+- **Left click** a tile to copy its 1-based `spr` index.
+- **Right click + drag** to select a tile-aligned rectangle and copy
+  `sx,sy,sw,sh` ready to paste into `gfx.sspr(...)`. Drag direction doesn't
+  matter; the rect is normalized and clamped to the sheet.
+- The header shows the current selection and the sheet pixel coords under the
+  cursor as you move it over the image.
 
 ### SaveInspector
 
@@ -1102,14 +1386,55 @@ automatically. Override per-build with `--web-shell PATH`.
 
 ## Debugging
 
-With live reload, one way you can quickly debug your Usagi game is by `print`ing
-values that change overtime. With the instant feedback, it's surprisingly
-helpful.
+With live reload, the fastest debugging loop is usually `print`. Drop a `print`
+into `_update` or `_draw` with the value you care about, save, and watch it tick
+in the terminal while the game keeps running.
 
-Debugging your game's error
+For tables, stock `print(my_table)` shows something like `table: 0x55a...` which
+isn't useful. Use `usagi.dump(t)` to get a recursive pretty-print of any value:
+
+```lua
+print(usagi.dump(state))
+```
+
+Tables are recursed with sorted keys; arrays render in order; cycles show as
+`<cycle>`; functions / userdata / threads show as placeholders. The result is a
+string, so you can also draw it on screen during dev with `gfx.text`.
+
+Other Lua tools worth knowing:
+
+- `print(debug.traceback())` writes the current call stack to stdout. Useful for
+  "how did we get here?" questions.
+- `assert(cond, msg)` raises an error when `cond` is falsy. A cheap way to guard
+  invariants: `assert(player, "player is nil in _update")`.
+- `error(msg)` raises an error directly. In `usagi dev` it propagates to the
+  in-game error overlay (the red screen with the traceback), so you can stop the
+  world when state is clearly wrong rather than chase a quiet corruption several
+  frames later.
+- `pcall(fn, ...)` calls `fn` and returns `false, msg` instead of unwinding when
+  it errors. Use it around code that might fail (parsing optional data, loading
+  from a fragile source) when the rest of the game should keep running.
+
+A small amount of defensive programming pays off well in Lua. The language is
+dynamic and silent: a typo turns a real value into `nil`, and you find out
+several frames downstream when something unrelated tries to index that nil.
+Asserting your assumptions, especially in `_init` and at function boundaries,
+collapses that distance: the failure points at the real bug instead of at the
+chain reaction it caused.
 
 Set the env var `USAGI_VERBOSE=1` to get full log output, including Raylib's
 logs.
+
+Set `NO_COLOR=1` (any value, presence is what's checked) to suppress the ANSI
+color escapes on `usagi`'s own log lines. Useful when piping output to a file or
+a CI log viewer that doesn't render ANSI cleanly. Usagi follows the
+[no-color.org](https://no-color.org) convention and also auto-disables color
+when stdout/stderr isn't a terminal, so most pipe / redirect cases are already
+covered without setting anything. PowerShell honors the same env var; set it for
+the current session with `$env:NO_COLOR = "1"`, or persistently via
+`[Environment]::SetEnvironmentVariable("NO_COLOR", "1",
+"User")`. cmd uses
+`set NO_COLOR=1`.
 
 ## Developing
 
@@ -1132,10 +1457,29 @@ logs.
 Usagi is built with [Rust](https://rust-lang.org/) and
 [sola-raylib](https://crates.io/crates/sola-raylib).
 
-- **monogram** — the bundled font (`assets/monogram.ttf`) used by `gfx.text`,
-  the FPS overlay, the error overlay, and the tools window. A 5×7 pixel font by
+- **monogram-extended** — the bundled font (`assets/monogram.png`, a single PNG
+  with glyph metadata in a zTXt chunk) used by `gfx.text` (when no custom font
+  is dropped in) and by all engine UI overlays (FPS, error overlay, pause menu,
+  tools window). 5×7 pixel font, ~500 glyphs covering Basic Latin, Latin-1,
+  Latin Extended-A, partial Greek, and partial Cyrillic. By
   [datagoblin](https://datagoblin.itch.io/monogram), released under Creative
-  Commons Zero (CC0). No attribution required, but kindly given.
+  Commons Zero (CC0). Source TTF lives at `assets/monogram-extended.ttf`; to
+  rebake, run
+  `cargo run -- font bake assets/monogram-extended.ttf 15 --out
+  assets/monogram.png`.
+
+- **Silver** — used by the `examples/custom_font` demo to showcase the custom
+  font drop-in (`font.png` at the project root). A 5×9-ish pixel font with broad
+  European + partial CJK coverage by Poppy Works
+  ([poppyworks.itch.io/silver](https://poppyworks.itch.io/silver)), licensed
+  under
+  [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/).
+
+- **FreeType** — used by `usagi font bake` to rasterize TTF/OTF outlines into
+  monochrome bitmaps with TrueType bytecode hinting (so `ttfautohint`-hinted
+  pixel fonts render correctly at their design size). Vendored and statically
+  linked via the `freetype-rs` crate's `bundled` feature; no system install
+  required at user-side. Licensed under the FreeType License (BSD-style).
 
 ## (Un)license
 

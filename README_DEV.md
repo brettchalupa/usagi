@@ -41,7 +41,7 @@ The installer fetches the latest release from GitHub, verifies its SHA-256
 checksum, installs `usagi` to `~/.usagi/bin/` (or `%USERPROFILE%\.usagi\bin\` on
 Windows), and sets up `PATH`.
 
-**Latest Usagi release:** v0.7.2
+**Latest Usagi release:** v0.8.0
 
 Or download manually from
 [GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest) or
