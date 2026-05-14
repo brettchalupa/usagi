@@ -1,14 +1,15 @@
-//! Input sub-menu under the Top view: lists "Test", "Configure Keys",
-//! and "Configure Gamepad" so the Tester scene can stay free of
-//! Configure shortcuts that would be confusing to test against.
+//! Input sub-menu under the Settings view: lists "Test Input",
+//! "Configure Keys", and "Configure Gamepad" so the Tester scene can
+//! stay free of Configure shortcuts that would be confusing to test
+//! against.
 
 use super::PadConfigState;
 use super::PauseAction;
 use super::PauseMenu;
 use super::View;
-use super::draw_indicator;
 use super::inputs::MenuInputs;
 use super::key_config::KeyConfigState;
+use super::{draw_indicator, item_x_for};
 use crate::keymap::Keymap;
 use crate::pad_map::PadMap;
 use crate::palette;
@@ -28,7 +29,7 @@ impl PauseMenu {
         pad_map: &PadMap,
     ) -> Option<PauseAction> {
         if inputs.btn2 {
-            self.view = View::Top;
+            self.view = View::SettingsMenu;
             return None;
         }
         if inputs.up {
@@ -64,11 +65,17 @@ impl PauseMenu {
         None
     }
 
-    pub(super) fn draw_input_menu<D: RaylibDraw>(&self, d: &mut D, font: &Font, mut y: f32) {
+    pub(super) fn draw_input_menu<D: RaylibDraw>(
+        &self,
+        d: &mut D,
+        font: &Font,
+        mut y: f32,
+        res: crate::config::Resolution,
+    ) {
         let size = crate::font::MONOGRAM_SIZE as f32;
         let line_h = size + 6.0;
-        let item_x = 32.0_f32;
-        let labels = ["Test", "Configure Keys", "Configure Gamepad"];
+        let item_x = item_x_for(res);
+        let labels = ["Test Input", "Configure Keys", "Configure Gamepad"];
         for (i, text) in labels.iter().enumerate() {
             d.draw_text_ex(
                 font,

@@ -1,42 +1,39 @@
-//! Top-level pause view: Continue, Music, SFX, Fullscreen, Input,
-//! Clear Save Data, Reset Game, Quit. Vertical list with the active
-//! row marked by an oscillating indicator.
+//! Top-level pause view: Continue, Settings, Clear Save Data, Reset
+//! Game, Quit. Vertical list with the active row marked by an
+//! oscillating indicator. Tweakable options (volumes, fullscreen,
+//! input mapping) live under the Settings sub-menu so the Top stays
+//! short.
 //!
-//! Side-effecting items (volume changes, fullscreen toggle, save
-//! clear, reset, quit) emit a `PauseAction`; the session applies them.
+//! Side-effecting items (save clear, reset, quit) emit a `PauseAction`;
+//! the session applies them.
 
 use super::PauseMenu;
 use super::View;
 use super::inputs::MenuInputs;
-use super::volume::{draw_volume_bars, step_volume};
-use super::{PauseAction, draw_indicator};
+use super::{PauseAction, draw_indicator, item_x_for};
 use crate::palette;
 use crate::palette::Pal;
-use crate::settings::Settings;
 use sola_raylib::prelude::*;
 
 // Quit is hidden on web because the emscripten main loop can't
 // actually exit (it's `emscripten_set_main_loop_arg`, driven by the
 // browser), so the item would do nothing if we showed it.
 #[cfg(not(target_os = "emscripten"))]
-pub(super) const TOP_COUNT: usize = 8;
+pub(super) const TOP_COUNT: usize = 5;
 #[cfg(target_os = "emscripten")]
-pub(super) const TOP_COUNT: usize = 7;
+pub(super) const TOP_COUNT: usize = 4;
 pub(super) const ITEM_CONTINUE: usize = 0;
-pub(super) const ITEM_MUSIC: usize = 1;
-pub(super) const ITEM_SFX: usize = 2;
-pub(super) const ITEM_FULLSCREEN: usize = 3;
-pub(super) const ITEM_INPUT: usize = 4;
-pub(super) const ITEM_CLEAR: usize = 5;
-pub(super) const ITEM_RESET: usize = 6;
+pub(super) const ITEM_SETTINGS: usize = 1;
+pub(super) const ITEM_CLEAR: usize = 2;
+pub(super) const ITEM_RESET: usize = 3;
 #[cfg(not(target_os = "emscripten"))]
-pub(super) const ITEM_QUIT: usize = 7;
+pub(super) const ITEM_QUIT: usize = 4;
 
 impl PauseMenu {
     pub(super) fn handle_top(
         &mut self,
         inputs: MenuInputs,
-        settings: &Settings,
+        _settings: &crate::settings::Settings,
     ) -> Option<PauseAction> {
         if inputs.btn2 {
             self.open = false;
@@ -52,35 +49,15 @@ impl PauseMenu {
         if inputs.down {
             self.top_selected = (self.top_selected + 1) % TOP_COUNT;
         }
-        if inputs.left || inputs.right {
-            let dir = if inputs.right { 1 } else { -1 };
-            match self.top_selected {
-                ITEM_MUSIC => {
-                    return Some(PauseAction::SetMusicVolume(step_volume(
-                        settings.music_volume,
-                        dir,
-                    )));
-                }
-                ITEM_SFX => {
-                    return Some(PauseAction::SetSfxVolume(step_volume(
-                        settings.sfx_volume,
-                        dir,
-                    )));
-                }
-                ITEM_FULLSCREEN => return Some(PauseAction::ToggleFullscreen),
-                _ => {}
-            }
-        }
         if inputs.btn1 {
             match self.top_selected {
                 ITEM_CONTINUE => {
                     self.open = false;
                     return Some(PauseAction::Resume);
                 }
-                ITEM_FULLSCREEN => return Some(PauseAction::ToggleFullscreen),
-                ITEM_INPUT => {
-                    self.view = View::InputMenu;
-                    self.input_menu_selected = 0;
+                ITEM_SETTINGS => {
+                    self.view = View::SettingsMenu;
+                    self.settings_menu_selected = 0;
                 }
                 ITEM_CLEAR => {
                     self.view = View::ConfirmClearSave;
@@ -102,31 +79,19 @@ impl PauseMenu {
         &self,
         d: &mut D,
         font: &Font,
-        settings: &Settings,
         mut y: f32,
+        res: crate::config::Resolution,
     ) {
         let size = crate::font::MONOGRAM_SIZE as f32;
         let line_h = size + 4.0;
-        // Pull text away from the left edge enough that the indicator
-        // circle has somewhere to sit.
-        let item_x = 32.0_f32;
+        let item_x = item_x_for(res);
 
-        let mut labels: Vec<String> = vec![
-            "Continue".to_string(),
-            "Music:".to_string(),
-            "SFX:".to_string(),
-            format!(
-                "Fullscreen: {}",
-                if settings.fullscreen { "On" } else { "Off" }
-            ),
-            "Input".to_string(),
-            "Clear Save Data".to_string(),
-            "Reset Game".to_string(),
-        ];
+        let mut labels: Vec<&'static str> =
+            vec!["Continue", "Settings", "Clear Save Data", "Reset Game"];
         // `cfg!` (not `#[cfg]`) keeps `mut` used on every target; the
         // optimizer drops the dead branch on web.
         if cfg!(not(target_os = "emscripten")) {
-            labels.push("Quit".to_string());
+            labels.push("Quit");
         }
         debug_assert_eq!(labels.len(), TOP_COUNT);
 
@@ -139,19 +104,6 @@ impl PauseMenu {
                 0.0,
                 palette::color(Pal::White),
             );
-            // Music / SFX rows: render bars after the label so the
-            // selection cursor lines up with the row, not the label edge.
-            match i {
-                ITEM_MUSIC => {
-                    let label_m = font.measure_text(text, size, 0.0);
-                    draw_volume_bars(d, font, item_x + label_m.x + 6.0, y, settings.music_volume);
-                }
-                ITEM_SFX => {
-                    let label_m = font.measure_text(text, size, 0.0);
-                    draw_volume_bars(d, font, item_x + label_m.x + 6.0, y, settings.sfx_volume);
-                }
-                _ => {}
-            }
             if i == self.top_selected {
                 draw_indicator(d, self.time, item_x, y + size * 0.5);
             }

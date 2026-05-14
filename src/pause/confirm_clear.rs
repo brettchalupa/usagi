@@ -5,8 +5,8 @@
 use super::PauseAction;
 use super::PauseMenu;
 use super::View;
-use super::draw_indicator;
 use super::inputs::MenuInputs;
+use super::{draw_indicator, item_x_for};
 use crate::palette;
 use crate::palette::Pal;
 use sola_raylib::prelude::*;
@@ -39,7 +39,7 @@ impl PauseMenu {
     ) {
         let size = crate::font::MONOGRAM_SIZE as f32;
         let line_h = size + 6.0;
-        let item_x = 32.0_f32;
+        let item_x = item_x_for(res);
 
         let prompt = "Wipe all save data for this game?";
         let prompt_m = font.measure_text(prompt, size, 0.0);

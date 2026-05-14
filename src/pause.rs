@@ -1,8 +1,10 @@
 //! Pause menu. Pico-8-style overlay with multiple "scenes" stacked:
 //!
-//! - **Top** — main item list (volumes, fullscreen, Input sub-menu,
-//!   Clear Save, Reset, Quit). See `pause/top.rs`.
-//! - **InputMenu** — Input sub-menu (Test / Configure Keys /
+//! - **Top** — main item list (Continue, Settings sub-menu, Clear
+//!   Save, Reset, Quit). See `pause/top.rs`.
+//! - **SettingsMenu** — Settings sub-menu (Music, SFX, Fullscreen,
+//!   Input). See `pause/settings_menu.rs`.
+//! - **InputMenu** — Input sub-menu (Test Input / Configure Keys /
 //!   Configure Gamepad). See `pause/input_menu.rs`.
 //! - **InputTester** — visual D-pad / button tester + binding table.
 //!   See `pause/input_tester.rs`.
@@ -30,6 +32,7 @@ mod input_tester;
 mod inputs;
 mod key_config;
 mod pad_config;
+mod settings_menu;
 mod top;
 mod volume;
 
@@ -76,8 +79,13 @@ pub enum PauseAction {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum View {
     Top,
-    /// Sub-menu under Input: Test, Configure Keys, Configure Gamepad.
-    /// Splitting these out keeps the Tester from intercepting BTN1/BTN2.
+    /// Sub-menu under Top: bundles every "tweakable" so the Top list
+    /// stays short (Continue + destructive actions + Quit). Holds
+    /// Music, SFX, Fullscreen, and the Input sub-menu entry.
+    SettingsMenu,
+    /// Sub-menu under Settings: Test Input, Configure Keys, Configure
+    /// Gamepad. Splitting these out keeps the Tester from intercepting
+    /// BTN1/BTN2.
     InputMenu,
     InputTester,
     KeyConfig,
@@ -102,6 +110,7 @@ pub struct PauseMenu {
     last_open: bool,
     view: View,
     top_selected: usize,
+    settings_menu_selected: usize,
     input_menu_selected: usize,
     confirm_selected: usize,
     /// Drives the active-item indicator's sin oscillation.
@@ -122,6 +131,7 @@ impl PauseMenu {
             last_open: false,
             view: View::Top,
             top_selected: 0,
+            settings_menu_selected: 0,
             input_menu_selected: 0,
             confirm_selected: 0,
             time: 0.0,
@@ -232,8 +242,12 @@ impl PauseMenu {
                     self.pad_config = None;
                     Some(PauseAction::Resume)
                 }
-                View::InputMenu => {
+                View::SettingsMenu => {
                     self.view = View::Top;
+                    None
+                }
+                View::InputMenu => {
+                    self.view = View::SettingsMenu;
                     None
                 }
                 View::InputTester => {
@@ -259,6 +273,7 @@ impl PauseMenu {
 
         match self.view {
             View::Top => self.handle_top(inputs, settings),
+            View::SettingsMenu => self.handle_settings_menu(inputs, settings),
             View::InputMenu => self.handle_input_menu(inputs, maps.keymap, maps.pad_map),
             View::InputTester => self.handle_input_tester(inputs),
             View::KeyConfig => self.handle_key_config(inputs, kc),
@@ -303,6 +318,7 @@ impl PauseMenu {
         let size = crate::font::MONOGRAM_SIZE as f32;
         let title = match self.view {
             View::Top => "PAUSED",
+            View::SettingsMenu => "SETTINGS",
             View::InputMenu => "INPUT",
             View::InputTester => "INPUT TEST",
             View::KeyConfig => "KEYBOARD CONFIG",
@@ -323,8 +339,9 @@ impl PauseMenu {
 
         let body_y = title_y + size + 8.0;
         match self.view {
-            View::Top => self.draw_top(d, font, settings, body_y),
-            View::InputMenu => self.draw_input_menu(d, font, body_y),
+            View::Top => self.draw_top(d, font, body_y, res),
+            View::SettingsMenu => self.draw_settings_menu(d, font, settings, body_y, res),
+            View::InputMenu => self.draw_input_menu(d, font, body_y, res),
             View::InputTester => self.draw_input_tester(d, font, maps, gamepad_family, body_y, res),
             View::KeyConfig => self.draw_key_config(d, font, body_y, res),
             View::PadConfig => self.draw_pad_config(d, font, gamepad_family, body_y, res),
@@ -339,9 +356,19 @@ impl Default for PauseMenu {
     }
 }
 
+/// Left-margin for vertical-list scenes. Proportional to the game
+/// width so the menu reads at low resolutions (128x128 prototypes,
+/// vertical games) without clipping into the indicator on the left or
+/// running into the right edge with long labels. Clamped to a floor
+/// so it doesn't crowd the indicator at extreme widths.
+fn item_x_for(res: crate::config::Resolution) -> f32 {
+    (res.w * 0.1).max(8.0).round()
+}
+
 /// Active-item indicator: a small white dot that oscillates next to
 /// the selected row. Lives at the parent level because every list-
-/// shaped scene uses it (Top, InputMenu, ConfirmClearSave).
+/// shaped scene uses it (Top, SettingsMenu, InputMenu,
+/// ConfirmClearSave).
 fn draw_indicator<D: RaylibDraw>(d: &mut D, time: f32, item_x: f32, center_y: f32) {
     let amplitude = 1.5_f32;
     let speed = 6.0_f32;
@@ -355,9 +382,8 @@ mod tests {
     use super::*;
     use crate::input::ACTION_LEFT;
     use input_menu::INPUT_ITEM_TEST;
-    use top::{
-        ITEM_CLEAR, ITEM_FULLSCREEN, ITEM_INPUT, ITEM_MUSIC, ITEM_QUIT, ITEM_RESET, TOP_COUNT,
-    };
+    use settings_menu::{SETTINGS_ITEM_FULLSCREEN, SETTINGS_ITEM_INPUT, SETTINGS_ITEM_MUSIC};
+    use top::{ITEM_CLEAR, ITEM_QUIT, ITEM_RESET, ITEM_SETTINGS, TOP_COUNT};
 
     fn toggle() -> MenuInputs {
         MenuInputs {
@@ -557,14 +583,27 @@ mod tests {
         assert_eq!(m.top_selected, 0);
     }
 
+    /// Helper: open the menu, walk to Settings, enter the Settings
+    /// sub-menu, walk to the requested item, and stop there.
+    fn enter_settings_at(m: &mut PauseMenu, s: &Settings, k: &Keymap, target: usize) {
+        step(m, s, k, toggle());
+        for _ in 0..ITEM_SETTINGS {
+            step(m, s, k, down());
+        }
+        step(m, s, k, btn1());
+        assert_eq!(m.view, View::SettingsMenu);
+        for _ in 0..target {
+            step(m, s, k, down());
+        }
+        assert_eq!(m.settings_menu_selected, target);
+    }
+
     #[test]
     fn left_right_on_music_emits_set_music_volume() {
         let mut m = PauseMenu::new();
         let s = Settings::default();
         let k = Keymap::default();
-        step(&mut m, &s, &k, toggle());
-        step(&mut m, &s, &k, down());
-        assert_eq!(m.top_selected, ITEM_MUSIC);
+        enter_settings_at(&mut m, &s, &k, SETTINGS_ITEM_MUSIC);
         match step(&mut m, &s, &k, right()) {
             Some(PauseAction::SetMusicVolume(v)) => assert!((v - 1.0).abs() < 1e-5),
             other => panic!("expected SetMusicVolume, got {other:?}"),
@@ -580,11 +619,7 @@ mod tests {
         let mut m = PauseMenu::new();
         let s = Settings::default();
         let k = Keymap::default();
-        step(&mut m, &s, &k, toggle());
-        for _ in 0..3 {
-            step(&mut m, &s, &k, down());
-        }
-        assert_eq!(m.top_selected, ITEM_FULLSCREEN);
+        enter_settings_at(&mut m, &s, &k, SETTINGS_ITEM_FULLSCREEN);
         assert_eq!(
             step(&mut m, &s, &k, right()),
             Some(PauseAction::ToggleFullscreen)
@@ -647,21 +682,24 @@ mod tests {
         assert_eq!(m.view, View::Top);
     }
 
+    /// Helper: open the menu and land in InputMenu (Top -> Settings ->
+    /// Input -> InputMenu).
+    fn enter_input_menu(m: &mut PauseMenu, s: &Settings, k: &Keymap) {
+        enter_settings_at(m, s, k, SETTINGS_ITEM_INPUT);
+        step(m, s, k, btn1());
+        assert_eq!(m.view, View::InputMenu);
+    }
+
     #[test]
-    fn input_lands_on_input_menu_and_btn2_returns_to_top() {
+    fn input_lands_on_input_menu_and_btn2_returns_to_settings() {
         let mut m = PauseMenu::new();
         let s = Settings::default();
         let k = Keymap::default();
-        step(&mut m, &s, &k, toggle());
-        for _ in 0..ITEM_INPUT {
-            step(&mut m, &s, &k, down());
-        }
-        step(&mut m, &s, &k, btn1());
-        assert_eq!(m.view, View::InputMenu);
-        // Default selection is Test.
+        enter_input_menu(&mut m, &s, &k);
+        // Default selection is Test Input.
         assert_eq!(m.input_menu_selected, INPUT_ITEM_TEST);
         step(&mut m, &s, &k, btn2());
-        assert_eq!(m.view, View::Top);
+        assert_eq!(m.view, View::SettingsMenu);
     }
 
     #[test]
@@ -669,11 +707,7 @@ mod tests {
         let mut m = PauseMenu::new();
         let s = Settings::default();
         let k = Keymap::default();
-        step(&mut m, &s, &k, toggle());
-        for _ in 0..ITEM_INPUT {
-            step(&mut m, &s, &k, down());
-        }
-        step(&mut m, &s, &k, btn1()); // Top -> InputMenu
+        enter_input_menu(&mut m, &s, &k);
         step(&mut m, &s, &k, btn1()); // InputMenu -> InputTester (Test selected)
         assert_eq!(m.view, View::InputTester);
         // Inside the tester, BTN1/BTN2 should NOT change view: they
@@ -715,13 +749,12 @@ mod tests {
         let mut m = PauseMenu::new();
         let s = Settings::default();
         let k = Keymap::default();
-        step(&mut m, &s, &k, toggle()); // open: Top
-        for _ in 0..ITEM_INPUT {
-            step(&mut m, &s, &k, down());
-        }
-        step(&mut m, &s, &k, btn1()); // Top -> InputMenu
-        assert_eq!(m.view, View::InputMenu);
-        // Toggle from InputMenu returns to Top (no Resume).
+        enter_input_menu(&mut m, &s, &k);
+        // Toggle from InputMenu returns to SettingsMenu.
+        let action = step(&mut m, &s, &k, toggle());
+        assert_eq!(action, None);
+        assert_eq!(m.view, View::SettingsMenu);
+        // From SettingsMenu, toggle returns to Top.
         let action = step(&mut m, &s, &k, toggle());
         assert_eq!(action, None);
         assert_eq!(m.view, View::Top);
@@ -732,12 +765,7 @@ mod tests {
     }
 
     fn open_to_key_config(m: &mut PauseMenu, s: &Settings, k: &Keymap) {
-        step(m, s, k, toggle());
-        for _ in 0..ITEM_INPUT {
-            step(m, s, k, down());
-        }
-        // Top -> InputMenu
-        step(m, s, k, btn1());
+        enter_input_menu(m, s, k);
         // InputMenu: select "Configure Keys" (item 1) and confirm.
         step(m, s, k, down());
         step(m, s, k, btn1());
@@ -881,11 +909,15 @@ mod tests {
     }
 
     fn open_to_pad_config(m: &mut PauseMenu, s: &Settings, k: &Keymap, p: &PadMap) {
+        // Top -> Settings -> Input -> InputMenu (Test selected by default).
         step_with_pad(m, s, k, p, toggle());
-        for _ in 0..ITEM_INPUT {
+        for _ in 0..ITEM_SETTINGS {
             step_with_pad(m, s, k, p, down());
         }
-        // Top -> InputMenu
+        step_with_pad(m, s, k, p, btn1());
+        for _ in 0..SETTINGS_ITEM_INPUT {
+            step_with_pad(m, s, k, p, down());
+        }
         step_with_pad(m, s, k, p, btn1());
         // InputMenu: down twice to reach "Configure Gamepad", confirm.
         step_with_pad(m, s, k, p, down());
@@ -1062,10 +1094,14 @@ mod tests {
         let s = Settings::default();
         let k = Keymap::default();
         let p = PadMap::default();
-        // Open + walk: Top -> InputMenu, then down twice should select
-        // INPUT_ITEM_CONFIGURE_PAD.
+        // Open + walk through Settings -> Input -> InputMenu, then
+        // down twice to land on INPUT_ITEM_CONFIGURE_PAD.
         step_with_pad(&mut m, &s, &k, &p, toggle());
-        for _ in 0..ITEM_INPUT {
+        for _ in 0..ITEM_SETTINGS {
+            step_with_pad(&mut m, &s, &k, &p, down());
+        }
+        step_with_pad(&mut m, &s, &k, &p, btn1());
+        for _ in 0..SETTINGS_ITEM_INPUT {
             step_with_pad(&mut m, &s, &k, &p, down());
         }
         step_with_pad(&mut m, &s, &k, &p, btn1());
@@ -1138,13 +1174,13 @@ mod tests {
         );
         assert!(!m.open);
 
-        // From InputMenu: Start climbs to Top.
+        // From SettingsMenu: Start climbs to Top (one level).
         step_with_pad(&mut m, &s, &k, &p, toggle());
-        for _ in 0..ITEM_INPUT {
+        for _ in 0..ITEM_SETTINGS {
             step_with_pad(&mut m, &s, &k, &p, down());
         }
         step_with_pad(&mut m, &s, &k, &p, btn1());
-        assert_eq!(m.view, View::InputMenu);
+        assert_eq!(m.view, View::SettingsMenu);
         assert_eq!(step_with_pad(&mut m, &s, &k, &p, start()), None);
         assert_eq!(m.view, View::Top);
     }

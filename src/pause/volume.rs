@@ -24,7 +24,17 @@ pub(super) fn volume_bars_filled(v: f32) -> usize {
 }
 
 /// Renders the five-cell meter plus a percentage readout to the right.
-pub(super) fn draw_volume_bars<D: RaylibDraw>(d: &mut D, font: &Font, x: f32, y: f32, v: f32) {
+/// Drops the percentage readout if it would clip the game's right edge
+/// (matters at narrow widths like 128x128, where the label + bars +
+/// `100%` would overflow). Bars themselves still render.
+pub(super) fn draw_volume_bars<D: RaylibDraw>(
+    d: &mut D,
+    font: &Font,
+    x: f32,
+    y: f32,
+    v: f32,
+    res: crate::config::Resolution,
+) {
     let cell_w = 6.0_f32;
     let cell_h = (crate::font::MONOGRAM_SIZE as f32 * 0.7).round();
     let gap = 2.0_f32;
@@ -55,14 +65,19 @@ pub(super) fn draw_volume_bars<D: RaylibDraw>(d: &mut D, font: &Font, x: f32, y:
     let pct = (v.clamp(0.0, 1.0) * 100.0).round() as i32;
     let pct_text = format!("{pct}%");
     let bars_w = (total as f32) * cell_w + ((total - 1) as f32) * gap;
-    d.draw_text_ex(
-        font,
-        &pct_text,
-        Vector2::new(x + bars_w + 6.0, y),
-        crate::font::MONOGRAM_SIZE as f32,
-        0.0,
-        color,
-    );
+    let pct_x = x + bars_w + 6.0;
+    let pct_m = font.measure_text(&pct_text, crate::font::MONOGRAM_SIZE as f32, 0.0);
+    let margin = 4.0;
+    if pct_x + pct_m.x + margin <= res.w {
+        d.draw_text_ex(
+            font,
+            &pct_text,
+            Vector2::new(pct_x, y),
+            crate::font::MONOGRAM_SIZE as f32,
+            0.0,
+            color,
+        );
+    }
 }
 
 #[cfg(test)]
