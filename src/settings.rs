@@ -7,10 +7,10 @@
 use crate::game_id::GameId;
 
 /// First-boot music volume. Also the Shift+M unmute target for music.
-pub const DEFAULT_MUSIC_VOLUME: f32 = 0.8;
+pub const DEFAULT_MUSIC_VOLUME: f32 = 1.0;
 
 /// First-boot sfx volume. Also the Shift+M unmute target for sfx.
-pub const DEFAULT_SFX_VOLUME: f32 = 0.8;
+pub const DEFAULT_SFX_VOLUME: f32 = 1.0;
 
 /// First-boot fullscreen state. False so the player picks via Alt+Enter.
 const DEFAULT_FULLSCREEN: bool = false;
@@ -146,10 +146,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_volumes_are_eighty_percent() {
+    fn default_volumes_are_full() {
         let s = Settings::default();
-        assert_eq!(s.music_volume, 0.8);
-        assert_eq!(s.sfx_volume, 0.8);
+        assert_eq!(s.music_volume, 1.0);
+        assert_eq!(s.sfx_volume, 1.0);
     }
 
     #[test]

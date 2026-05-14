@@ -1195,9 +1195,10 @@ progress.
 - Press **F8** or **Cmd/Ctrl + F** to save a PNG screenshot to the same
   Downloads bucket. Same 2x upscale as the gif recorder, lossless,
   palette-exact.
-- Press **Shift+M** to toggle audio mute. Master volume flips between `0.0` and
-  the value in `settings.json` (defaults to `0.5`). Settings live in the same
-  per-game OS data dir as `save.json`; on web they're routed through
+- Press **Shift+M** to toggle audio mute. Volumes flip between `0.0` and the
+  values stored in `settings.json` (both music and sfx default to `1.0` on first
+  boot, then track whatever the player set via the pause menu). Settings live in
+  the same per-game OS data dir as `save.json`; on web they're routed through
   `localStorage` under `usagi.settings.<game_id>`.
 
 ### Writing Reload-Friendly Scripts

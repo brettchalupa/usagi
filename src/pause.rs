@@ -668,12 +668,15 @@ mod tests {
         let s = Settings::default();
         let k = Keymap::default();
         enter_settings_at(&mut m, &s, &k, SETTINGS_ITEM_MUSIC);
+        // Default is 1.0; right clamps at 1.0, left steps down to 0.8.
+        // Both calls operate on the unchanged `Settings` because the
+        // test never applies the emitted action.
         match step(&mut m, &s, &k, right()) {
             Some(PauseAction::SetMusicVolume(v)) => assert!((v - 1.0).abs() < 1e-5),
             other => panic!("expected SetMusicVolume, got {other:?}"),
         }
         match step(&mut m, &s, &k, left()) {
-            Some(PauseAction::SetMusicVolume(v)) => assert!((v - 0.6).abs() < 1e-5),
+            Some(PauseAction::SetMusicVolume(v)) => assert!((v - 0.8).abs() < 1e-5),
             other => panic!("expected SetMusicVolume, got {other:?}"),
         }
     }
