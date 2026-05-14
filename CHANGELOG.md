@@ -193,6 +193,11 @@ Features:
   gamepad-heavy games that want full control should keep the default or fork.
   New `examples/custom_menu.lua` ships a minimal hand-rolled menu (Resume,
   Toggle Fullscreen, Quit) wired up to the new APIs.
+- The `usagi tools` window adopts a clean dark theme of its own, independent of
+  the engine's Pico-8 palette. Less competing color for the eye when you're
+  picking sprites, inspecting saves, or playing back music. The ColorPalette
+  tool still displays the project's actual palette (the whole point of that
+  tool); only the surrounding chrome changed.
 
 Fixes:
 

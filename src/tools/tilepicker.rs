@@ -5,7 +5,7 @@
 //! header and highlighted on the sheet.
 
 use super::{HINT_Y, PANEL_H, PANEL_W, PANEL_X, PANEL_Y};
-use crate::palette::{Pal, color};
+use crate::tools::theme;
 use sola_raylib::prelude::*;
 use std::path::Path;
 
@@ -35,6 +35,11 @@ pub(super) struct Selection {
     pub spr_idx: Option<i32>,
 }
 
+/// Initial zoom factor. Picked so a typical 128x128 sprite sheet reads
+/// at a comfortable size in the viewport on first open; user pans/zooms
+/// from there. The `0` key reset returns to this zoom and re-centers.
+const DEFAULT_ZOOM: f32 = 4.0;
+
 pub(super) struct State {
     pub zoom: f32,
     pub pos: Vector2,
@@ -58,12 +63,18 @@ pub(super) struct State {
     /// While set, LMB selection is suppressed so the same drag doesn't
     /// also pick a tile.
     pub space_panning: bool,
+    /// Flipped to true after the first frame the tilepicker sees a
+    /// loaded texture and centers the camera on it. `State::new` runs
+    /// before the sprite sheet is loaded, so the centering has to
+    /// happen lazily once dims are known. Reset (`0` key) clears this
+    /// flag so the next frame re-centers.
+    pub auto_centered: bool,
 }
 
 impl State {
     pub fn new(sprite_size: i32) -> Self {
         Self {
-            zoom: 3.0,
+            zoom: DEFAULT_ZOOM,
             pos: default_pos(),
             show_overlay: true,
             bg_idx: 0,
@@ -72,12 +83,27 @@ impl State {
             drag_start_cell: None,
             mmb_panning: false,
             space_panning: false,
+            auto_centered: false,
         }
     }
 }
 
+/// Fallback camera position used until the first texture frame lands
+/// (and after, only if there's no sprites.png to center on).
 fn default_pos() -> Vector2 {
     Vector2::new(VIEW_X + 40.0, VIEW_Y + 40.0)
+}
+
+/// Centers a `tex_w × tex_h` sprite sheet at the given zoom inside the
+/// viewport. Result is the camera position (top-left of the rendered
+/// image) such that the image's center sits at the viewport's center.
+fn centered_pos(tex_w: i32, tex_h: i32, zoom: f32) -> Vector2 {
+    let img_w = tex_w as f32 * zoom;
+    let img_h = tex_h as f32 * zoom;
+    Vector2::new(
+        VIEW_X + (VIEW_W - img_w) * 0.5,
+        VIEW_Y + (VIEW_H - img_h) * 0.5,
+    )
 }
 
 /// Returns an optional toast message (e.g. "copied spr 7 to clipboard")
@@ -117,13 +143,20 @@ pub(super) fn handle_input(
         state.bg_idx = (state.bg_idx + 1) % BG_COLORS.len();
     }
     if rl.is_key_pressed(KeyboardKey::KEY_ZERO) {
-        state.pos = default_pos();
-        state.zoom = 3.0;
+        state.auto_centered = false;
     }
 
     let tex = texture?;
     if state.sprite_size <= 0 {
         return None;
+    }
+    // Lazy center: State::new ran before the sheet existed, so the
+    // first frame with a texture (and any frame after a `0` reset)
+    // snaps to a centered camera at the default zoom.
+    if !state.auto_centered {
+        state.zoom = DEFAULT_ZOOM;
+        state.pos = centered_pos(tex.width, tex.height, state.zoom);
+        state.auto_centered = true;
     }
     let mouse = rl.get_mouse_position();
     let in_viewport = mouse.x >= VIEW_X
@@ -176,40 +209,49 @@ pub(super) fn handle_input(
         }
     }
 
-    if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT)
-        && !space_held
-        && in_viewport
-        && let Some((col, row)) = mouse_to_cell(
+    if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) && !space_held && in_viewport {
+        match mouse_to_cell(
             mouse,
             state.pos,
             state.zoom,
             state.sprite_size,
             tex.width,
             tex.height,
-        )
-    {
-        let cols = tex.width / state.sprite_size;
-        if cols <= 0 {
-            return None;
+        ) {
+            Some((col, row)) => {
+                let cols = tex.width / state.sprite_size;
+                if cols <= 0 {
+                    return None;
+                }
+                let idx = row * cols + col + 1;
+                let sz = state.sprite_size;
+                state.selection = Some(Selection {
+                    sx: col * sz,
+                    sy: row * sz,
+                    sw: sz,
+                    sh: sz,
+                    spr_idx: Some(idx),
+                });
+                let s = idx.to_string();
+                let ok = rl.set_clipboard_text(&s).is_ok();
+                let msg = if ok {
+                    format!("copied spr {idx} to clipboard")
+                } else {
+                    format!("spr {idx} (clipboard unavailable)")
+                };
+                crate::msg::info!("{msg}");
+                return Some(msg);
+            }
+            None => {
+                // Click landed inside the viewport but off the sheet.
+                // Treat it as "clear the active selection" so the
+                // yellow box doesn't linger over a tile the user
+                // already noted down.
+                if state.selection.is_some() {
+                    state.selection = None;
+                }
+            }
         }
-        let idx = row * cols + col + 1;
-        let sz = state.sprite_size;
-        state.selection = Some(Selection {
-            sx: col * sz,
-            sy: row * sz,
-            sw: sz,
-            sh: sz,
-            spr_idx: Some(idx),
-        });
-        let s = idx.to_string();
-        let ok = rl.set_clipboard_text(&s).is_ok();
-        let msg = if ok {
-            format!("copied spr {idx} to clipboard")
-        } else {
-            format!("spr {idx} (clipboard unavailable)")
-        };
-        crate::msg::info!("{msg}");
-        return Some(msg);
     }
 
     // RMB press starts a drag; the rect isn't finalized until release.
@@ -311,7 +353,7 @@ pub(super) fn draw(
             Vector2::new(30.0, PANEL_Y + 30.0),
             SMALL,
             0.0,
-            color(Pal::DarkBlue),
+            theme::TEXT,
         );
         let mouse = d.get_mouse_position();
         let in_viewport = mouse.x >= VIEW_X
@@ -331,7 +373,7 @@ pub(super) fn draw(
             Vector2::new(30.0, PANEL_Y + 56.0),
             SMALL,
             0.0,
-            color(Pal::DarkBlue),
+            theme::TEXT,
         );
     } else {
         let msg = match sprites_path {
@@ -344,7 +386,7 @@ pub(super) fn draw(
             Vector2::new(30.0, PANEL_Y + 30.0),
             SMALL,
             0.0,
-            color(Pal::DarkBlue),
+            theme::TEXT,
         );
     }
 
@@ -375,7 +417,7 @@ pub(super) fn draw(
                 sel.sy,
                 sel.sw,
                 sel.sh,
-                color(Pal::Yellow),
+                theme::SELECTION,
             );
         }
         if let Some(start) = state.drag_start_cell
@@ -398,7 +440,7 @@ pub(super) fn draw(
                 row * sz,
                 cw * sz,
                 ch * sz,
-                color(Pal::Pink),
+                theme::ACCENT,
             );
         }
     }
@@ -409,7 +451,7 @@ pub(super) fn draw(
         Vector2::new(30.0, HINT_Y),
         SMALL,
         0.0,
-        color(Pal::DarkGray),
+        theme::TEXT_MUTED,
     );
 }
 
