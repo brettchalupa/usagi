@@ -47,7 +47,7 @@ Or download manually from
 [GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest) or
 [itch.io](https://brettchalupa.itch.io/usagi).
 
-[View the changelog.](https://github.com/brettchalupa/usagi/blob/main/CHANGELOG.md)
+[View the changelog.](https://usagiengine.com/changelog)
 
 ## Features / Bugs
 
