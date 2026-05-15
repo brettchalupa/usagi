@@ -8,8 +8,8 @@ remapping built in.
 
 Usagi is more flexible than Pico-8 while being simpler than Love2D.
 
-> Usagi is almost v1.0.0 and stable. Don't expect much breakage between v0.8.0
-> and v1.0.0.
+> Almost v1.0.0 and stable. Don't expect much breakage between v0.8.0 and
+> v1.0.0.
 
 Made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to the public
 domain.
@@ -55,11 +55,10 @@ Manual download:
   BTN3.
 - **Easy save data.** One function to save and load your game state as a Lua
   table.
-- **Small, fixed API.** You can't do everything, but you've got all that's
-  needed to make a great 2D game.
+- **Small, fixed API.** You can't do everything, but you've got what you need to
+  make a great 2D game.
 - **Constraints to inspire creativity.** 320x180 default resolution, 16x16
   sprite grid, a single `sprites.png` for textures. Override with `_config()`.
-- **Three action buttons.**
 
 Bring your own sound effects, sprite editor, and music tools.
 
@@ -101,16 +100,15 @@ for feedback, requests, and bugs. Search first to avoid duplicates.
 
 ## Goals and non-goals
 
-Usagi is for rapid 2D pixel-art prototyping in Lua. It's a great fit for you if
-you want to quickly try out an idea, if you're new to game programming, if don't
-want to deal with token limits, or if you want something simpler than Love2D.
+Usagi is for rapid 2D pixel-art prototyping in Lua. It's a great fit if you want
+to quickly try out an idea, if you're new to game programming, if you've hit
+Pico-8's token limit, or if you want something simpler than Love2D.
 
-It is **not** trying to be a fantasy console, replace Love2D, target mobile or
-VR, or ship medium-to-large polished games.
+It is **not** a fantasy console or a Love2D replacement. It doesn't target
+mobile or VR, and it isn't built for medium-to-large polished games.
 
-If you make a prototype that you want to turn into a full game, you are
-encouraged to fork the engine and customize it to your needs. That's one of the
-great benefits of it being open source.
+If you make a prototype that you want to turn into a full game, fork the engine
+and customize it. That's the benefit of open source.
 
 **Why Lua:** small, widely used in game tooling, and powerful enough to stay out
 of your way.
@@ -120,7 +118,7 @@ of your way.
 An Usagi game is either a single `.lua` file or a directory with a `main.lua` in
 it. Additional `.lua` files anywhere under the project root can be loaded with
 stock Lua's `require`. Optional assets live alongside the source code. Here's
-what a folder structure could look like for a robust game:
+what a folder structure could look like for a multi-file project:
 
 ```
 my_game/
@@ -143,7 +141,7 @@ my_game/
 ```
 
 `require "name"` resolves to `name.lua` in the project root, falling back to
-`name/init.lua` if the first miss. Dotted names (`require "world.tiles"`) become
+`name/init.lua` if that misses. Dotted names (`require "world.tiles"`) become
 slash-separated paths. The same lookup works inside a fused / exported build, so
 multi-file projects ship as a single binary or `.usagi` with no extra config.
 
@@ -160,7 +158,7 @@ Run with:
   Linux, macOS, Windows, and the web, plus a portable `.usagi` bundle. See the
   **Export** section below.
 
-Can you also run Usagi commands without the path to have it run in the current
+You can also run Usagi commands without a path to have them run in the current
 directory, like `usagi dev` or `usagi export`.
 
 ## Lua API
@@ -376,8 +374,8 @@ export`. Defaults to
   the window while preserving the game's aspect ratio, so bars only appear on
   the axis with extra room, never distorting the image. The default is `false`
   because at common fullscreen resolutions (720p, 1080p, 4K) the game's 320×180
-  native size lands on an integer multiple anyway, and in windowed mode it looks
-  good still.
+  native size lands on an integer multiple anyway, and it still looks good in
+  windowed mode.
 - `game_id`: reverse-DNS string like `com.brettmakesgames.snake`, namespaces
   save data and the macOS bundle identifier. Optional.
 - `icon`: 1-based tile index into `sprites.png`, used as the window icon and (on
@@ -390,7 +388,7 @@ export`. Defaults to
   active cell size.
 - `game_width` (default `320`) and `game_height` (default `180`): override the
   game's render resolution. The internal render target is sized to these
-  dimensions; the window upscales to fit, preserving aspect ratio. Tested band
+  dimensions; the window upscales to fit, preserving aspect ratio. Tested range
   is roughly 320x180 to 640x360. Outside that, the pause-menu and tools UI are
   pixel-fixed and may overflow at very small sizes or look sparse at very large
   ones. Sprite size (`usagi.SPRITE_SIZE`, 16) and the bundled font (5x7) don't
@@ -813,7 +811,7 @@ function keys `F1`–`F12`, `SPACE`, `ENTER`, `ESCAPE`, `TAB`, `BACKSPACE`,
 `LCTRL`, `RCTRL`, `LALT`, `RALT`), and punctuation (`BACKTICK`, `MINUS`,
 `EQUAL`, `LBRACKET`, `RBRACKET`, `BACKSLASH`, `SEMICOLON`, `APOSTROPHE`,
 `COMMA`, `PERIOD`, `SLASH`). Numpad and the navigation cluster
-(Insert/Home/End/PgUp/PgDn) aren't exposed yet.
+(Insert/Home/End/PgUp/PgDn) aren't exposed.
 [Open an issue](https://github.com/brettchalupa/usagi/issues/new) or submit a PR
 if you need them.
 
@@ -894,8 +892,8 @@ instead of a confusing nil-arithmetic explosion deep inside the helper.
   values outside `[0, 1]` extrapolate.
 - `util.wrap(v, lo, hi)` — wraps `v` into `[lo, hi)`. Cycle-safe for negatives.
 - `util.flash(t, hz)` — boolean from time, toggles `hz` times per second.
-- `util.remap(v, start_a, end_a, start_b, end_b)` — Converts the value `v` from
-  the range [`start_a`; `end_a`] into the range [`start_b`; `end_b`]
+- `util.remap(v, start_a, end_a, start_b, end_b)` — maps `v` from
+  `[start_a, end_a]` to `[start_b, end_b]`.
 
 **Vectors:**
 
@@ -924,7 +922,8 @@ Engine-level info.
 
 - `usagi.GAME_W`, `usagi.GAME_H` — game render dimensions (320, 180).
 - `usagi.SPRITE_SIZE` — side length, in pixels, of one cell in `sprites.png`
-  (currently 16). Use it for tile-grid math instead of hardcoding 16:
+  (default 16, set via `_config().sprite_size`). Use it for tile-grid math
+  instead of hardcoding 16:
   `gfx.spr(idx, col * usagi.SPRITE_SIZE, row * usagi.SPRITE_SIZE)`.
 - `usagi.IS_DEV` — `true` when running under `usagi dev`; `false` under
   `usagi run` and inside exported binaries. Useful for gating debug overlays,
@@ -1158,7 +1157,7 @@ progress.
 - Press **Esc**, **P**, or gamepad **Start** to pause. The same keys (plus
   **BTN2**) close the menu. While paused, `_update` and `_draw` are skipped and
   the screen shows a black "PAUSED" overlay; music keeps streaming.
-- Press **Shift+Esc** in dev mode to quit the game
+- Press **Shift+Esc** in dev mode to quit the game.
 - The engine keeps the last ~5 seconds of gameplay in memory at all times. Press
   **F9** or **Cmd/Ctrl + G** to write that buffer out as a GIF in your user
   Downloads dir, named `<game>-YYYYMMDD-HHMMSS.gif` (where `<game>` is the short
@@ -1262,8 +1261,7 @@ Reads the project's `_config().game_id` and shows the current `save.json`
 contents alongside the resolved file path. Useful for debugging save formats and
 inspecting state between runs without leaving the editor.
 
-- Rendered as written since engine output is already formatted, so no
-  reformatting happens here.
+- Save JSON is shown raw; the engine already pretty-prints it on write.
 - **R** or the **Refresh** button rereads the file from disk; the inspector
   doesn't auto-poll, so hit refresh after the running game has saved.
 - **Clear** deletes the save file. The next `usagi.load()` returns `nil`.
@@ -1277,10 +1275,10 @@ Lua value to your clipboard.
 
 ### Bring Your Own Tools
 
-Usagi does not (at least yet) include a sprite editor, sound effect generator,
-or music tracker. You can find assets to use on
-[opengameart.org](https://opengameart.org/) and [itch.io](https://itch.io) or
-make your own. Here are some tools worth checking out that work well with Usagi:
+Usagi doesn't include a sprite editor, sound effect generator, or music tracker.
+You can find assets to use on [opengameart.org](https://opengameart.org/) and
+[itch.io](https://itch.io) or make your own. Here are some tools worth checking
+out that work well with Usagi:
 
 - **Sprite Editors**:
   - [Aseprite](https://www.aseprite.org/): an excellent pixel art editor
@@ -1433,7 +1431,7 @@ the current session with `$env:NO_COLOR = "1"`, or persistently via
 Usagi is built with [Rust](https://rust-lang.org/).
 
 - **Raylib and the sola-raylib Rust bindings** — Usagi is powered by
-  [Raylib](https://raylib.com), whih does so much of the heavy lifting, from
+  [Raylib](https://raylib.com), which does so much of the heavy lifting, from
   handling input to rendering to sound.
 
 - **mlua** — the Rust bindings for Lua are essential for Usagi to work.
