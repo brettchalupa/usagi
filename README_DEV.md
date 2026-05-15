@@ -1465,6 +1465,13 @@ Usagi is built with [Rust](https://rust-lang.org/).
   linked via the `freetype-rs` crate's `bundled` feature; no system install
   required at user-side. Licensed under the FreeType License (BSD-style).
 
+The full list of every transitive Rust crate Usagi depends on, with each
+license's text, lives at
+[usagiengine.com/third-parties](https://usagiengine.com/third-parties) (also
+bundled in every release archive as `THIRD_PARTY_LICENSES.md` next to the
+binary). Regenerate with `just licenses` after touching dependencies; CI fails
+if it drifts.
+
 ## (Un)license
 
 Usagi's source code is dedicated to the public domain. You can see the full

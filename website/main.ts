@@ -97,6 +97,28 @@ async function handler(req: Request): Promise<Response> {
         },
       });
     }
+    if (
+      url.pathname === "/THIRD_PARTY_LICENSES.md" ||
+      url.pathname === "/third-parties/"
+    ) {
+      return Response.redirect(new URL("/third-parties", url), 301);
+    }
+    if (url.pathname === "/third-parties") {
+      const markdown = await Deno.readTextFile("../THIRD_PARTY_LICENSES.md");
+      const body = render(markdown);
+      const html = await renderPage({
+        title: "Third-Party Licenses",
+        description:
+          "Licenses of every Rust crate Usagi Engine depends on, with full license text. Generated from Cargo.lock by cargo-about.",
+        path: "/third-parties",
+        body,
+      });
+      return new Response(html, {
+        headers: {
+          "content-type": "text/html;charset=utf-8",
+        },
+      });
+    }
     if (url.pathname === "/favicon.png") {
       return serveFile(req, "./favicon.png");
     }

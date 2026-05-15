@@ -58,6 +58,23 @@ cargo build
 Linux and macOS find a usable zlib path automatically and don't need this step.
 CI handles Windows automatically (see `.github/workflows/ci.yml`).
 
+### Third-party licenses
+
+`THIRD_PARTY_LICENSES.md` is generated from `Cargo.lock` by
+[cargo-about](https://github.com/EmbarkStudios/cargo-about). CI fails if the
+committed copy doesn't match what cargo-about would produce, so re-run after any
+dep change:
+
+```sh
+cargo install cargo-about --features cli  # one-time
+just licenses
+git diff THIRD_PARTY_LICENSES.md          # review
+```
+
+The accepted-licenses list lives in `about.toml`. If a new dep brings in a
+license that's not in the list, cargo-about errors; add the SPDX ID after
+eyeballing the terms, or replace the dep.
+
 ## Docs
 
 Documentation is written in Markdown. It's formatted with `deno fmt`, but it's
