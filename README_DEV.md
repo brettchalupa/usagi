@@ -2,26 +2,23 @@
 
 # Usagi - Simple 2D Game Engine for Rapid Prototyping
 
-Usagi is a simple 2D game engine for quickly making games with **Lua** 5.5. It
-features live-reloading as you change your game code and assets. Its API is
-clear, consistent, and familiar.
+Usagi is a small 2D game engine for making pixel art games in **Lua** 5.5, with
+live reload, one-command cross-platform export, and a pause menu with input
+remapping built in.
 
-**NOTE:** Usagi is almost v1.0.0 and is pretty stable! Don't expect much
-breakage between v0.8.0 and v1.0.0.
+Usagi is more flexible than Pico-8 while being simpler than Love2D.
 
-Usagi is made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to
-the public domain.
+> Usagi is almost v1.0.0 and stable. Don't expect much breakage between v0.8.0
+> and v1.0.0.
 
-Key links:
+Made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to the public
+domain.
 
-- Website: [usagiengine.com](https://usagiengine.com)
-- Discord: [usagiengine.com/discord](https://usagiengine.com/discord)
-- Reddit: [reddit.com/r/UsagiEngine](https://reddit.com/r/UsagiEngine)
-
-Videos:
-
-- [v0.1 to v0.6 overview](https://www.youtube.com/watch?v=wYIGB91i8Lc)
-- [Introduction with initial release of v0.1](https://www.youtube.com/watch?v=byp3rKd626M)
+**Links:** [usagiengine.com](https://usagiengine.com),
+[Discord](https://usagiengine.com/discord),
+[r/UsagiEngine](https://reddit.com/r/UsagiEngine),
+[v0.1-v0.6 overview video](https://www.youtube.com/watch?v=wYIGB91i8Lc),
+[v0.1 intro video](https://www.youtube.com/watch?v=byp3rKd626M).
 
 ## Install
 
@@ -39,55 +36,49 @@ irm https://usagiengine.com/install.ps1 | iex
 
 The installer fetches the latest release from GitHub, verifies its SHA-256
 checksum, installs `usagi` to `~/.usagi/bin/` (or `%USERPROFILE%\.usagi\bin\` on
-Windows), and sets up `PATH`.
+Windows), and adds it to `PATH`.
 
-**Latest Usagi release:** v0.8.0
-
-Or download manually from
+Manual download:
 [GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest) or
-[itch.io](https://brettchalupa.itch.io/usagi).
-
+[itch.io](https://brettchalupa.itch.io/usagi). Latest release: **v0.8.0**.
 [View the changelog.](https://usagiengine.com/changelog)
 
-## Features / Bugs
+## Features
 
-Usagi embraces a few constraints inspired by Pico-8 and Pyxel to help focus on
-prototyping rather than making polished high-resolution graphics. These may
-change in the future or be configurable.
+- **Live reload.** `usagi dev` watches your code and assets; saves apply without
+  losing game state. Tweak a sprite in your editor and see it in place. Press F5
+  to reset when you want a clean slate.
+- **One-command export.** `usagi export` packages your game for Linux, macOS,
+  Windows, and the web.
+- **Pause menu, free.** Built-in pause menu with sfx and music volume,
+  fullscreen toggle, and per-game keyboard + gamepad remapping for BTN1, BTN2,
+  BTN3.
+- **Easy save data.** One function to save and load your game state as a Lua
+  table.
+- **Small, fixed API.** You can't do everything, but you've got all that's
+  needed to make a great 2D game.
+- **Constraints to inspire creativity.** 320x180 default resolution, 16x16
+  sprite grid, a single `sprites.png` for textures. Override with `_config()`.
+- **Three action buttons.**
 
-- **Live Reload**: when you run `usagi dev`, your game automatically updates
-  with your newest code and assets, enabling rapid development
-- **Cross Platform Export**: run `usagi export` and your game is exported for
-  Linux, macOS, Windows, and web
-- **Default Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely
-  to common monitor sizes; override with `_config()`
-- **One Spritesheet**: `sprites.png` is the only image file for textures that
-  can be loaded
-- **Small API**: you can't do everything with Usagi, but there's enough to make
-  simple 2D games
-- **Default Sprite Size**: 16px by 16px - using `gfx.spr` uses the index based
-  on this sized sprite; you can draw larger sprites with `gfx.sspr`; override
-  with `_config()`
-- **3 Action Buttons**: Embrace modernity with 3 different action buttons!
-- **Pico-8 Colors**: the color palette for drawing are the same as Pico-8 (but
-  with constants for easy reference)
-- **Pause Menu with Settings and Input Mapping**: don't spend your time coding a
-  pause menu and settings, focus on your game instead! Usagi comes with a Pause
-  menu with sound effect and music volume, fullscreen toggle, and per-game
-  keyboard and gamepad remapping for BTN1/BTN2/BTN3 (Input > Configure Keys /
-  Configure Gamepad)
-- **Easy Save Data**: use a single function to save and load your game data via
-  a Lua table
-
-Bring your own sound effects, sprite editor, and music.
+Bring your own sound effects, sprite editor, and music tools.
 
 ## Hello, Usagi
 
-You now have the `usagi` CLI that you can run from your shell (`usagi.exe` on
-Windows).
+Bootstrap a project and start it in dev mode:
 
-Starting development is as simple as creating `main.lua`, running `usagi dev`,
-and coding:
+```sh
+usagi init my_game
+cd my_game
+usagi dev
+```
+
+`init` writes `main.lua` (with `_init` / `_update` / `_draw` stubs),
+`.luarc.json` for Lua LSP support, `.gitignore`, `meta/usagi.lua` (API type
+stubs), and `USAGI.md` (a copy of these docs).
+
+Edit `main.lua`, save, and the running game picks up the change without
+restarting or losing state. Drawing "Hello, Usagi!" looks like:
 
 ```lua
 function _draw(_dt)
@@ -96,68 +87,40 @@ function _draw(_dt)
 end
 ```
 
-You can quickly bootstrap a new project and start it in dev mode:
-
-```sh
-usagi init my_game
-cd my_game
-usagi dev
-```
-
-`init` writes `main.lua` (with stubbed `_init` / `_update` / `_draw` functions),
-`.luarc.json` for Lua LSP support, `.gitignore`, `meta/usagi.lua` (API type
-stubs), and `USAGI.md` (a copy of these docs).
-
-Edit `main.lua` and save. The Usagi runtime automatically reloads, so your
-changes show up live without losing game state.
-
-In most traditional game development environments, you would need to restart
-your game's executable after making changes. Usagi lets you focus on coding and
-making art without losing the current game state, allowing for much faster
-iteration cycles.
-
-Need to revise a sprite quickly? Just open `sprites.png` in your sprite editor,
-change it, save it, and see it update in the context of your game.
-
 ## Updating Usagi
 
-Replace the `usagi` binary with a newer release from your preferred download
-source. You can also run `usagi update` to fetch the latest version if there is
-one.
-
-To refresh engine-owned files in a project (the LSP type stubs and the embedded
-docs), run: `usagi refresh`. It updates `meta/usagi.lua`, `.luarc.json`, and
-`USAGI.md`. Does **not** update `main.lua`. Use this after `usagi update` to get
-the docs and LSP integration for the `usagi -V` you're using.
+Replace the `usagi` binary with a newer release, or run `usagi update` to fetch
+the latest. Then run `usagi refresh` inside a project to refresh the LSP type
+stubs and embedded docs (`meta/usagi.lua`, `.luarc.json`, `USAGI.md`). It won't
+touch `main.lua`.
 
 ## Feedback and Issues
 
-[Create a new GitHub issue](https://github.com/brettchalupa/usagi/issues/new/choose)
-to share feedback on the engine, make requests, and report bugs. Be sure to
-search to see if there's already an existing issue.
+Open a [GitHub issue](https://github.com/brettchalupa/usagi/issues/new/choose)
+for feedback, requests, and bugs. Search first to avoid duplicates.
 
-## Project Goal
+## Goals and non-goals
 
-Usagi does not aim to be anything more than a rapid development engine for
-simple, pixel art games. It doesn't intend to support mobile platforms or mobile
-or VR. It doesn't aim to replace Love2D or Pico-8 or Picotron. It's not a
-fantasy console. It's a command-line program and suite of tools to help you make
-games quickly.
+Usagi is for rapid 2D pixel-art prototyping in Lua. It's a great fit for you if
+you want to quickly try out an idea, if you're new to game programming, if don't
+want to deal with token limits, or if you want something simpler than Love2D.
 
-Usagi is great for those learning game programming. And for those who to use
-something more flexible than Pico-8/Picotron but more constrained than Love2D.
+It is **not** trying to be a fantasy console, replace Love2D, target mobile or
+VR, or ship medium-to-large polished games.
 
-**Why Lua:** Lua is a widely-used language in game programming, and it's quite
-simple yet surprisingly powerful, making it a good fit for Usagi.
+If you make a prototype that you want to turn into a full game, you are
+encouraged to fork the engine and customize it to your needs. That's one of the
+great benefits of it being open source.
 
-If you want to build a medium-to-large polished game, Usagi would not be a good
-fit.
+**Why Lua:** small, widely used in game tooling, and powerful enough to stay out
+of your way.
 
 ## Project Layout
 
 An Usagi game is either a single `.lua` file or a directory with a `main.lua` in
 it. Additional `.lua` files anywhere under the project root can be loaded with
-stock Lua's `require`. Optional assets live alongside:
+stock Lua's `require`. Optional assets live alongside the source code. Here's
+what a folder structure could look like for a robust game:
 
 ```
 my_game/
@@ -207,8 +170,8 @@ signatures.
 
 **Style**: for Lua, 2 spaces indent with `snake_case` for locals, function
 names, and table fields. `SCREAMING_SNAKE_CASE` for file-scope constants
-(`local TICK = 0.12`, `gfx.COLOR_*`). Cross-frame globals are **`Capitalized`**
-— the canonical game-state container is `State`, set inside `_init`; module
+(`local TICK = 0.12`, `gfx.COLOR_*`). Cross-frame globals are **`Capitalized`**.
+The canonical game-state container is `State`, set inside `_init`. Module
 imports kept as globals are `Player = require("player")`. The shipped
 `.luarc.json` enables `lowercase-global`, so any unguarded lowercase assignment
 at file scope is flagged as an accidental missing `local`. Engine API (`gfx`,
@@ -256,10 +219,10 @@ gfx.circ_ex(x, y, r, thickness, color)
 gfx.line(x1, y1, x2, y2, color)
 gfx.line_ex(x1, y1, x2, y2, thickness, color)
 gfx.pixel(x, y, color)
-gfx.px(x, y)                  -- read screen pixel: r, g, b, palette_index
+gfx.px(x, y) -- read screen pixel: r, g, b, palette_index
 gfx.spr(index, x, y)
 gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)
-gfx.spr_px(index, x, y)       -- read sprite-sheet pixel: r, g, b, palette_index
+gfx.spr_px(index, x, y) -- read sprite-sheet pixel: r, g, b, palette_index
 gfx.sspr(sx, sy, sw, sh, dx, dy)
 gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha)
 gfx.shader_set(name)
@@ -331,7 +294,7 @@ effect.hitstop(time)
 effect.screen_shake(time, intensity)
 effect.flash(time, color)
 effect.slow_mo(time, scale)
-effect.stop()                         -- stop all running effects
+effect.stop() -- stop all running effects
 
 -- Util -- math
 
@@ -380,10 +343,10 @@ State.timer += dt
 
 Limitations: the rewrite is line-anchored, so `if cond then x += 1 end` is left
 as-is (use longhand). The LHS is duplicated verbatim, so `t[f()] += 1` calls
-`f()` twice — same gotcha as PICO-8's preprocessor.
+`f()` twice.
 
 The shipped `.luarc.json` declares these as nonstandard symbols so the
-lua-language-server stops underlining them as syntax errors.
+lua-language-server does not underline them as syntax errors.
 
 ### Callbacks
 
@@ -857,7 +820,7 @@ if you need them.
 Raw gamepad reads (analog sticks, triggers, individual face buttons by index)
 are intentionally not exposed. The abstract `input.held(input.BTN1)` family
 covers gamepad input; if you need finer-grained control than that, you've likely
-outgrown Usagi.
+outgrown Usagi. Fork the engine or use Love2D!
 
 ### `sfx`
 
@@ -1068,13 +1031,12 @@ See
 [`examples/effect.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/effect.lua)
 for a runnable demo (one key per primitive plus a combo button).
 
-### Shaders (advanced, experimental)
+### Shaders (advanced)
 
 Post-process GLSL fragment shaders run as the final pass when the game's render
 target is blitted to the window. Use them for CRT effects, palette swaps,
 vignettes, color grading, and so on.
 
-**Status:** experimental. The API surface and dual-file convention may change.
 Captures have a known limitation (see below).
 
 API:
@@ -1354,7 +1316,7 @@ $ usagi export examples/snake --target windows
 $ usagi export examples/snake --target bundle
 ```
 
-### Cross-platform Templates
+### Cross-Platform Templates
 
 Non-host platforms come from "runtime templates" published alongside each
 release. The CLI fetches them on first use, caches them per-OS, and verifies
@@ -1468,8 +1430,13 @@ the current session with `$env:NO_COLOR = "1"`, or persistently via
 
 ## Credits
 
-Usagi is built with [Rust](https://rust-lang.org/) and
-[sola-raylib](https://crates.io/crates/sola-raylib).
+Usagi is built with [Rust](https://rust-lang.org/).
+
+- **Raylib and the sola-raylib Rust bindings** — Usagi is powered by
+  [Raylib](https://raylib.com), whih does so much of the heavy lifting, from
+  handling input to rendering to sound.
+
+- **mlua** — the Rust bindings for Lua are essential for Usagi to work.
 
 - **monogram-extended** — the bundled font (`assets/monogram.png`, a single PNG
   with glyph metadata in a zTXt chunk) used by `gfx.text` (when no custom font
