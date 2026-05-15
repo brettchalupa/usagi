@@ -9,43 +9,33 @@ The page you are looking for could not be found.
 [Return home.](/)
 `;
 
-function renderPage(title: string, body: string): string {
-  return `<!DOCTYPE html>
-    <html lang="en">
-      <head>
-        <title>${title}</title>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta property="og:title" content="Usagi Engine" />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://usagiengine.com/" />
-        <meta property="og:image" content="https://usagiengine.com/og.png" />
-        <meta property="og:image:type" content="image/png" />
-        <meta property="og:image:alt" content="Usagi Logo: pixel art bunny, Usagi Engine - Rapid 2D Prototyping" />
-        <link rel="icon" href="favicon.png" />
-        <meta
-          name="description"
-          content="Usagi is a free and open source game engine for making pixel art games coded with Lua. It features live reloading of code and assets during development and cross-platform export in a single command."
-          />
-        <style>
-        body {
-          max-width: 800px;
-          margin: 24px auto;
-          padding: 12px;
-        }
-        ${CSS}
-        </style>
-      </head>
-      <body
-        data-color-mode="auto"
-        data-light-theme="light"
-        data-dark-theme="dark"
-        class="markdown-body"
-      >
-        ${body}
-      </body>
-    </html>
-  `;
+const SITE_URL = "https://usagiengine.com";
+const HOME_TITLE = "Usagi Engine - Rapid 2D Game Prototyping";
+const DEFAULT_DESCRIPTION =
+  "Usagi is a free and open source game engine for making pixel art games coded with Lua. It features live reloading of code and assets during development and cross-platform export in a single command.";
+
+type PageOpts = {
+  // Page name; appended with " | Usagi Engine". Omit for the home page.
+  title?: string;
+  description: string;
+  path: string;
+  body: string;
+};
+
+async function renderPage(opts: PageOpts): Promise<string> {
+  const layout = await Deno.readTextFile("./layout.html");
+  const fullTitle = opts.title ? `${opts.title} | Usagi Engine` : HOME_TITLE;
+  const values: Record<string, string> = {
+    "title": fullTitle,
+    "description": opts.description,
+    "url": `${SITE_URL}${opts.path}`,
+    "gfm-css": CSS,
+    "body": opts.body,
+  };
+  return layout.replace(
+    /\{\{(title|description|url|gfm-css|body)\}\}/g,
+    (_, key) => values[key],
+  );
 }
 
 async function handler(req: Request): Promise<Response> {
@@ -55,7 +45,11 @@ async function handler(req: Request): Promise<Response> {
     if (url.pathname == "/" || url.pathname == "index.html") {
       const markdown = await Deno.readTextFile("../README.md");
       const body = render(markdown);
-      const html = renderPage("Usagi Engine - Rapid 2D Game Prototyping", body);
+      const html = await renderPage({
+        description: DEFAULT_DESCRIPTION,
+        path: "/",
+        body,
+      });
       return new Response(html, {
         headers: {
           "content-type": "text/html;charset=utf-8",
@@ -65,11 +59,41 @@ async function handler(req: Request): Promise<Response> {
     if (url.pathname.toLowerCase().replace(/\/$/, "") === "/discord") {
       return Response.redirect("https://discord.gg/a92ZjE4NUx", 302);
     }
-    if (url.pathname === "/UNLICENSE") {
-      const license = await Deno.readTextFile("../UNLICENSE");
-      return new Response(license, {
+    if (url.pathname.toLowerCase().replace(/\/$/, "") === "/changelog") {
+      const markdown = await Deno.readTextFile("../CHANGELOG.md");
+      const body = render(markdown);
+      const html = await renderPage({
+        title: "Changelog",
+        description:
+          "Release notes and version history for Usagi Engine, the open source 2D game engine for prototyping with Lua.",
+        path: "/changelog",
+        body,
+      });
+      return new Response(html, {
         headers: {
-          "content-type": "text/plain;charset=utf-8",
+          "content-type": "text/html;charset=utf-8",
+        },
+      });
+    }
+    if (url.pathname === "/UNLICENSE" || url.pathname === "/unlicense/") {
+      return Response.redirect(new URL("/unlicense", url), 301);
+    }
+    if (url.pathname.toLowerCase().replace(/\/$/, "") === "/license") {
+      return Response.redirect(new URL("/unlicense", url), 301);
+    }
+    if (url.pathname === "/unlicense") {
+      const license = await Deno.readTextFile("../UNLICENSE");
+      const body = render(`# License\n\n${license}`);
+      const html = await renderPage({
+        title: "License",
+        description:
+          "Usagi Engine is public domain software released under The Unlicense. Free to copy, modify, and use for any purpose.",
+        path: "/unlicense",
+        body,
+      });
+      return new Response(html, {
+        headers: {
+          "content-type": "text/html;charset=utf-8",
         },
       });
     }
@@ -95,10 +119,12 @@ async function handler(req: Request): Promise<Response> {
       return serveFile(req, "./og.png");
     }
 
-    const html = renderPage(
-      "Not Found | Usagi Engine",
-      render(NOT_FOUND_MD),
-    );
+    const html = await renderPage({
+      title: "Not Found",
+      description: "The page you are looking for could not be found.",
+      path: url.pathname,
+      body: render(NOT_FOUND_MD),
+    });
     return new Response(html, {
       headers: {
         "content-type": "text/html;charset=utf-8",

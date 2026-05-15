@@ -1,7 +1,8 @@
 {
   "tasks": {
     "dev": "deno run --watch --allow-net --allow-env --allow-read main.ts",
-    "run": "deno run --allow-net --allow-env --allow-read main.ts"
+    "run": "deno run --allow-net --allow-env --allow-read main.ts",
+    "ok": "deno check main.ts && deno lint && deno fmt --check && deno test --allow-read --permit-no-files"
   },
   "imports": {
     "@deno/gfm": "jsr:@deno/gfm@^0.12.0",

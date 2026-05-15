@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>{{title}}</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="{{description}}" />
+    <link rel="canonical" href="{{url}}" />
+    <meta property="og:title" content="{{title}}" />
+    <meta property="og:description" content="{{description}}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="{{url}}" />
+    <meta property="og:image" content="https://usagiengine.com/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta
+      property="og:image:alt"
+      content="Usagi Logo: pixel art bunny, Usagi Engine - Rapid 2D Prototyping"
+    />
+    <link rel="icon" href="favicon.png" />
+    <!-- deno-fmt-ignore -->
+    <style>
+            body {
+              max-width: 800px;
+              margin: 24px auto;
+              padding: 12px;
+            }
+            .site-header {
+              display: flex;
+              align-items: center;
+              gap: 16px;
+              flex-wrap: wrap;
+              margin-bottom: 24px;
+              padding-bottom: 16px;
+              border-bottom: 1px solid var(--borderColor-muted, #d0d7de);
+            }
+            .site-header a.site-logo {
+              display: inline-flex;
+              align-items: center;
+              font-weight: 600;
+              text-decoration: none;
+              color: inherit;
+            }
+            .site-header img.site-logo-img {
+              height: 32px;
+              width: 32px;
+              margin-right: 8px;
+              image-rendering: pixelated;
+              image-rendering: crisp-edges;
+            }
+            .site-nav {
+              display: flex;
+              gap: 16px;
+              margin-left: auto;
+              flex-wrap: wrap;
+            }
+            .site-nav a {
+              text-decoration: none;
+            }
+            .site-nav a:hover {
+              text-decoration: underline;
+            }
+            {{gfm-css}}
+            .markdown-body code, .markdown-body tt {
+                padding: 0.1em 0.2em;
+            }
+        </style>
+  </head>
+  <body
+    data-color-mode="auto"
+    data-light-theme="light"
+    data-dark-theme="dark"
+    class="markdown-body"
+  >
+    <header class="site-header">
+      <a class="site-logo" href="/">
+        <img
+          class="site-logo-img"
+          src="/favicon.png"
+          alt="Usagi Engine logo"
+        />
+        <span>Usagi Engine</span>
+      </a>
+      <nav class="site-nav">
+        <a href="/">Docs</a>
+        <a href="/changelog">Changelog</a>
+        <a href="https://github.com/brettchalupa/usagi">GitHub</a>
+        <a href="/discord">Discord</a>
+      </nav>
+    </header>
+    {{body}}
+  </body>
+</html>

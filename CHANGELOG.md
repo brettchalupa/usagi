@@ -1,7 +1,7 @@
-# Changelog
+# Usagi Engine Changelog
 
-History of Usagi releases and what changed in each release. User-facing notes.
-Doesn't contain updates relating to developing the engine itself.
+The history of Usagi releases and what changed in each release. It only contains
+dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
