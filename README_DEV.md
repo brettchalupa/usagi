@@ -1211,6 +1211,11 @@ There are a variety of examples exercising the full Usagi API that you can
 browse and adapt. Their source is all public domain, so do with them what you
 want.
 
+[Bomberfrog: Alpha](https://github.com/brettchalupa/bomberfrog/tree/alpha.1) is
+a finished shoot-em-up made with Usagi that you can reference or using as a
+starting point for your own game. It includes scene switching, dev-only
+functionality, score tracking, and more.
+
 ## Tools
 
 `usagi tools [path]` opens a 1280×720 window with a tab bar for the available
