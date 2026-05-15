@@ -1,10 +1,14 @@
 //! Color palette. Default is Pico-8's 16-color palette; user games can
 //! override by dropping a `palette.png` at the project root (read in
 //! row-major order, any rectangular size). Slot indices are **1-based**
-//! to match `gfx.spr` and Lua's array convention — slot 1 is the
-//! first color, slot N is the Nth. Values outside the active palette's
-//! range (including 0) return magenta as an obvious "unknown color"
-//! sentinel.
+//! to match `gfx.spr` and Lua's array convention: slot 1 is the
+//! first color, slot N is the Nth. Slot `0` resolves to true white
+//! (`255,255,255`) regardless of the active palette and is exposed as
+//! `gfx.COLOR_TRUE_WHITE`: useful as the identity tint for
+//! `gfx.spr_ex` / `gfx.sspr_ex` where the Pico-8 `COLOR_WHITE`
+//! (`255,241,232`) would shift colors slightly. Negative indices and
+//! indices past the palette's length return magenta as an obvious
+//! "unknown color" sentinel.
 
 use sola_raylib::prelude::*;
 use std::cell::RefCell;
@@ -118,10 +122,15 @@ impl Palette {
         self.colors.len()
     }
 
-    /// Look up a color by 1-based slot index. `0` and out-of-range
-    /// values return magenta sentinel.
+    /// Look up a color by 1-based slot index. Slot `0` is reserved for
+    /// true white (`255,255,255`) as the identity tint, independent of
+    /// the active palette. Negative indices and indices past the
+    /// palette's length return the magenta sentinel.
     pub fn lookup(&self, idx: i32) -> Color {
-        if idx < 1 {
+        if idx == 0 {
+            return Color::WHITE;
+        }
+        if idx < 0 {
             return MAGENTA_SENTINEL;
         }
         self.colors
@@ -153,8 +162,9 @@ pub fn set_active(palette: Palette) {
 }
 
 /// Maps a palette index to an RGBA color via the active palette.
-/// Accepts a `Pal` variant or any `i32`. Out-of-range indices return
-/// magenta as an obvious sentinel.
+/// Accepts a `Pal` variant or any `i32`. Slot `0` resolves to true
+/// white (`COLOR_TRUE_WHITE` on the Lua side). Out-of-range indices
+/// return magenta as an obvious sentinel.
 pub fn color(c: impl Into<i32>) -> Color {
     let idx = c.into();
     ACTIVE.with(|p| p.borrow().lookup(idx))
@@ -228,8 +238,7 @@ mod tests {
     fn unknown_indices_return_magenta() {
         reset();
         let magenta = Color::new(255, 0, 255, 255);
-        // 0 is now an out-of-range sentinel too (slots are 1-based).
-        for i in [-1, 0, 17, 99, i32::MAX, i32::MIN] {
+        for i in [-1, 17, 99, i32::MAX, i32::MIN] {
             let c = color(i);
             assert_eq!(
                 (c.r, c.g, c.b, c.a),
@@ -237,6 +246,22 @@ mod tests {
                 "index {i} should return magenta"
             );
         }
+    }
+
+    #[test]
+    fn slot_zero_is_true_white() {
+        reset();
+        assert_rgb(color(0), 255, 255, 255);
+    }
+
+    #[test]
+    fn slot_zero_is_true_white_under_custom_palette() {
+        let custom = Palette {
+            colors: vec![Color::new(10, 20, 30, 255), Color::new(40, 50, 60, 255)],
+        };
+        set_active(custom);
+        assert_rgb(color(0), 255, 255, 255);
+        reset();
     }
 
     #[test]
@@ -292,12 +317,8 @@ mod tests {
             colors: vec![Color::new(10, 20, 30, 255), Color::new(40, 50, 60, 255)],
         };
         set_active(custom);
-        // Slot 1 is the first color, slot 2 is the second. Slot 0 is
-        // out-of-range (1-based indexing).
         assert_rgb(color(1), 10, 20, 30);
         assert_rgb(color(2), 40, 50, 60);
-        let c0 = color(0);
-        assert_eq!((c0.r, c0.g, c0.b), (255, 0, 255));
         // Beyond the custom palette's range -> magenta, not Pico-8's
         // dark purple. Slot indices honor the active palette length.
         let c3 = color(3);

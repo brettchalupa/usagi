@@ -87,7 +87,7 @@ spr = function(n, x, y, _w, _h, flip_x, flip_y)
     -- usagi's spr_ex has more knobs than Pico-8 ever exposed; pass the
     -- identity values for rotation / tint / alpha so this wrapper
     -- behaves like Pico-8.
-    gfx.spr_ex(n + 1, x, y, flip_x or false, flip_y or false, 0, gfx.COLOR_WHITE, 1.0)
+    gfx.spr_ex(n + 1, x, y, flip_x or false, flip_y or false, 0, gfx.COLOR_TRUE_WHITE, 1.0)
   else
     gfx.spr(n + 1, x, y)
   end
@@ -105,7 +105,7 @@ sspr = function(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)
       sx, sy, sw, sh, dx, dy,
       dw or sw, dh or sh,
       flip_x or false, flip_y or false,
-      0, gfx.COLOR_WHITE, 1.0
+      0, gfx.COLOR_TRUE_WHITE, 1.0
     )
   end
 end
