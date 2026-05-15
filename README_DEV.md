@@ -272,6 +272,9 @@ gfx.COLOR_BROWN, gfx.COLOR_DARK_GRAY, gfx.COLOR_LIGHT_GRAY, gfx.COLOR_WHITE
 gfx.COLOR_RED,   gfx.COLOR_ORANGE,    gfx.COLOR_YELLOW,     gfx.COLOR_GREEN
 gfx.COLOR_BLUE,  gfx.COLOR_INDIGO,    gfx.COLOR_PINK,       gfx.COLOR_PEACH
 
+-- Off-palette pure (255,255,255). Identity tint for spr_ex / sspr_ex.
+gfx.COLOR_TRUE_WHITE
+
 -- Sound
 
 sfx.play(name)
@@ -515,11 +518,14 @@ palette indices 0-15; use the named constants.
   - `rotation` (number) — radians. `0` is no rotation. Use `math.rad(45)` for
     literal-degree values. Rotation pivots around the **center** of the sprite;
     `(x, y)` stays the top-left of the unrotated bounding box.
-  - `tint` (palette color) — multiplied over the sprite. `gfx.COLOR_WHITE` is
-    the identity (no recolor). Other colors recolor the sprite (e.g.
-    `gfx.COLOR_RED` for a hit flash). Multiplicative semantics, so this can't
-    produce a full-white silhouette — for that, use a shader or draw a colored
-    rect on top.
+  - `tint` (palette color) — multiplied over the sprite. `gfx.COLOR_TRUE_WHITE`
+    is the identity (no recolor). Other colors recolor the sprite (e.g.
+    `gfx.COLOR_RED` for a hit flash). Note that `gfx.COLOR_WHITE` is the Pico-8
+    palette white (`255,241,232`), which is _slightly_ warm and will shift
+    colors a touch; use it intentionally for a paper-aged look, or use
+    `gfx.COLOR_TRUE_WHITE` (off-palette pure white) when you want pixels to pass
+    through unchanged. Multiplicative semantics, so this can't produce a
+    full-white silhouette: for that, use a shader or draw a colored rect on top.
   - `alpha` (number) — opacity in `0..1`. `1.0` is opaque, `0.0` is invisible.
 - `gfx.spr_px(index, x, y)` returns `(r, g, b, palette_index)` for a pixel
   inside the `index` sprite cell on `sprites.png`. `index` is 1-based (same
@@ -541,11 +547,19 @@ palette indices 0-15; use the named constants.
   `COLOR_BROWN`, `COLOR_DARK_GRAY`, `COLOR_LIGHT_GRAY`, `COLOR_WHITE`,
   `COLOR_RED`, `COLOR_ORANGE`, `COLOR_YELLOW`, `COLOR_GREEN`, `COLOR_BLUE`,
   `COLOR_INDIGO`, `COLOR_PINK`, `COLOR_PEACH` — palette slot indices `1..16`,
-  matching `gfx.spr` and Lua's array convention (`0` is an out-of-range sentinel
-  that renders magenta). The RGB at each slot is the default Pico-8 palette
-  unless a `palette.png` overrides it (see below). The constants are slot
-  indices, not RGB promises: if you swap palettes, `gfx.COLOR_RED` still
-  resolves through slot 9, but its actual color depends on the active palette.
+  matching `gfx.spr` and Lua's array convention. The RGB at each slot is the
+  default Pico-8 palette unless a `palette.png` overrides it (see below). The
+  constants are slot indices, not RGB promises: if you swap palettes,
+  `gfx.COLOR_RED` still resolves through slot 9, but its actual color depends on
+  the active palette.
+- `gfx.COLOR_TRUE_WHITE` — slot `0`, pure `(255, 255, 255)`. Off-palette: stays
+  pure white even when a `palette.png` is loaded. Use as the identity tint for
+  `gfx.spr_ex` / `gfx.sspr_ex` when you want sprites to draw with their source
+  colors untouched. The Pico-8 `gfx.COLOR_WHITE` is slightly warm
+  (`255, 241, 232`) and will tint sprites a touch peachy if you pass it as the
+  tint, fine if you want that look, but `gfx.COLOR_TRUE_WHITE` is the no-op.
+  (Indices below `0` or above the active palette's length render as magenta as
+  an obvious "unknown color" sentinel.)
 
 The `_ex` variants pack every power-arg into one fixed signature instead of
 trailing optionals. With a single `_ex` per primitive there's exactly one
@@ -685,7 +699,7 @@ differs from the source size:
 ```lua
 -- Draw sprite index 1 (16×16) at 2x scale at (x, y).
 local sz = usagi.SPRITE_SIZE
-gfx.sspr_ex(0, 0, sz, sz, x, y, sz * 2, sz * 2, false, false, 0, gfx.COLOR_WHITE, 1.0)
+gfx.sspr_ex(0, 0, sz, sz, x, y, sz * 2, sz * 2, false, false, 0, gfx.COLOR_TRUE_WHITE, 1.0)
 ```
 
 If you find yourself reaching for variants often, wrap them. These three helpers
@@ -698,13 +712,13 @@ function sspr_scaled(sx, sy, sw, sh, dx, dy, scale)
   gfx.sspr_ex(
     sx, sy, sw, sh,
     dx, dy, sw * scale, sh * scale,
-    false, false, 0, gfx.COLOR_WHITE, 1.0
+    false, false, 0, gfx.COLOR_TRUE_WHITE, 1.0
   )
 end
 
 -- Sprite by 1-based index with rotation around its center, native size.
 function spr_rot(index, x, y, rotation)
-  gfx.spr_ex(index, x, y, false, false, rotation, gfx.COLOR_WHITE, 1.0)
+  gfx.spr_ex(index, x, y, false, false, rotation, gfx.COLOR_TRUE_WHITE, 1.0)
 end
 
 -- Sprite by 1-based index with a tint applied, native size.

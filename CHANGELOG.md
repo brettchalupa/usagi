@@ -5,6 +5,24 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## UNRELEASED
 
+Features:
+
+- New `gfx.COLOR_TRUE_WHITE` constant: an off-palette pure `(255, 255, 255)`
+  white. Use it as the identity tint for `gfx.spr_ex` and `gfx.sspr_ex` when you
+  want sprite pixels to pass through unchanged. The Pico-8 `gfx.COLOR_WHITE` is
+  slightly warm (`255, 241, 232`) and tints sprites a touch peachy if used as
+  the identity, which is fine if you want a warm look but undesirable if you're
+  after pure pass-through. Available in every API that takes a palette index
+  (`gfx.text`, `gfx.clear`, `gfx.rect`, etc.) and stays pure white even with a
+  custom `palette.png` loaded.
+
+Breaking:
+
+- Palette slot `0` now resolves to true white (`COLOR_TRUE_WHITE`) instead of
+  the magenta out-of-range sentinel. Negative indices and indices past the
+  active palette's length still render as magenta, so the "obvious unknown
+  color" indicator survives for the common typo cases.
+
 ## v0.8.0 - May 14, 2026
 
 Breaking:

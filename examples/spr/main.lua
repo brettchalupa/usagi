@@ -102,24 +102,25 @@ function _draw(_dt)
 
   -- gfx.spr_ex: full power. Required params: flip_x, flip_y, rotation
   -- (radians; use math.rad(deg) for literal-degree values), tint
-  -- (gfx.COLOR_WHITE = no recolor), alpha (0..1; 1 = opaque).
+  -- (gfx.COLOR_TRUE_WHITE = no recolor; gfx.COLOR_WHITE is the Pico-8
+  -- white and will shift colors slightly), alpha (0..1; 1 = opaque).
   --
   -- Spinning bunny: rotation is the elapsed time scaled to ~1 turn/sec.
-  gfx.spr_ex(SPR.BUNNY, 20, 20, false, false, usagi.elapsed * 2, gfx.COLOR_WHITE, 1.0)
+  gfx.spr_ex(SPR.BUNNY, 20, 20, false, false, usagi.elapsed * 2, gfx.COLOR_TRUE_WHITE, 1.0)
   -- Ship tints red briefly after a BTN1 press to show the tint param.
-  local ship_tint = State.hit_flash > 0 and gfx.COLOR_RED or gfx.COLOR_WHITE
+  local ship_tint = State.hit_flash > 0 and gfx.COLOR_RED or gfx.COLOR_TRUE_WHITE
   gfx.spr_ex(SPR.SHIP, State.p.x, State.p.y, State.p.face_left, false, 0, ship_tint, 1.0)
   -- Pulsing alpha on the big bullet: sin wave between 0.2 and 1.0.
   local pulse = 0.6 + 0.4 * math.sin(usagi.elapsed * 4)
-  gfx.spr_ex(SPR.BULLET_LG, 50, 40, false, false, 0, gfx.COLOR_WHITE, pulse)
+  gfx.spr_ex(SPR.BULLET_LG, 50, 40, false, false, 0, gfx.COLOR_TRUE_WHITE, pulse)
 
   -- gfx.sspr_ex: extended source-rect draw with flipping + rotation +
   -- tint + alpha. The new params trail the legacy ones: same identity
-  -- values mean "draw it normally" — 0 rotation, COLOR_WHITE tint, 1.0
-  -- alpha.
-  gfx.sspr_ex(0, 32, 32, 32, 200, 20, 32, 32, false, false, 0, gfx.COLOR_WHITE, 1.0)
-  gfx.sspr_ex(0, 32, 32, 32, 200, 62, 32, 32, true, false, 0, gfx.COLOR_WHITE, 1.0)
-  gfx.sspr_ex(0, 32, 32, 32, 240, 62, 32, 32, true, true, 0, gfx.COLOR_WHITE, 1.0)
+  -- values mean "draw it normally": 0 rotation, COLOR_TRUE_WHITE tint,
+  -- 1.0 alpha.
+  gfx.sspr_ex(0, 32, 32, 32, 200, 20, 32, 32, false, false, 0, gfx.COLOR_TRUE_WHITE, 1.0)
+  gfx.sspr_ex(0, 32, 32, 32, 200, 62, 32, 32, true, false, 0, gfx.COLOR_TRUE_WHITE, 1.0)
+  gfx.sspr_ex(0, 32, 32, 32, 240, 62, 32, 32, true, true, 0, gfx.COLOR_TRUE_WHITE, 1.0)
   -- A rotating + tinted variant to show both at once.
   gfx.sspr_ex(0, 32, 32, 32, 240, 20, 32, 32, false, false,
               usagi.elapsed, gfx.COLOR_PINK, 1.0)

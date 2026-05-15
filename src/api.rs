@@ -101,7 +101,11 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     let gfx = lua.create_table()?;
     // Color slots are **1-based** to match `gfx.spr` and Lua array
     // conventions: slot 1 is the first color, slot 16 is the last.
-    // `0` is reserved as an out-of-range sentinel (renders magenta).
+    // Slot `0` is `COLOR_TRUE_WHITE`: pure (255,255,255) regardless of
+    // the active palette. It's the identity tint for
+    // `gfx.spr_ex` / `gfx.sspr_ex` because Pico-8's `COLOR_WHITE`
+    // (255,241,232) shifts sprite colors slightly.
+    gfx.set("COLOR_TRUE_WHITE", 0)?;
     gfx.set("COLOR_BLACK", 1)?;
     gfx.set("COLOR_DARK_BLUE", 2)?;
     gfx.set("COLOR_DARK_PURPLE", 3)?;
@@ -318,6 +322,7 @@ mod tests {
         let music: LuaTable = lua.globals().get("music").unwrap();
         let usagi: LuaTable = lua.globals().get("usagi").unwrap();
 
+        assert_eq!(gfx.get::<i32>("COLOR_TRUE_WHITE").unwrap(), 0);
         assert_eq!(gfx.get::<i32>("COLOR_BLACK").unwrap(), 1);
         assert_eq!(gfx.get::<i32>("COLOR_WHITE").unwrap(), 8);
         assert_eq!(gfx.get::<i32>("COLOR_RED").unwrap(), 9);
