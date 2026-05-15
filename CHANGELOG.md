@@ -15,6 +15,9 @@ Features:
   after pure pass-through. Available in every API that takes a palette index
   (`gfx.text`, `gfx.clear`, `gfx.rect`, etc.) and stays pure white even with a
   custom `palette.png` loaded.
+- New examples:
+  - scene_switching: how to define multiple scenes like gameplay, main menu,
+    etc. and switch between them
 
 Breaking:
 
