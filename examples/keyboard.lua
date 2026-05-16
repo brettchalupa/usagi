@@ -4,7 +4,13 @@
 -- what makes a literal keyboard test like this possible.
 
 function _config()
-  return { name = "Keyboard" }
+  return {
+    name = "Keyboard",
+
+    -- This option is needed, in order for the game to be able
+    -- to capture the [Esc], [P] and [Enter] keypresses
+    pause_menu = false,
+  }
 end
 
 local KH = 14

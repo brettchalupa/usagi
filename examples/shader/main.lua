@@ -4,7 +4,8 @@
 -- - BTN1: cycle to the next shader (off, CRT, gameboy)
 -- - BTN2: cycle CRT scanline intensity (only matters for CRT)
 
-local SHADERS = { nil, "crt", "gameboy", }
+local SHADERS = { nil, "crt", "gameboy" }
+local SHADER_COUNT = 3
 local LABELS = { "off", "crt", "gameboy" }
 local SCANLINE_LEVELS = { 0.0, 0.25, 0.5, 0.75 }
 
@@ -27,7 +28,7 @@ function _update(dt)
   State.t = State.t + dt
 
   if input.pressed(input.BTN1) then
-    State.shader_idx = (State.shader_idx % #SHADERS) + 1
+    State.shader_idx = (State.shader_idx % SHADER_COUNT) + 1
     gfx.shader_set(SHADERS[State.shader_idx])
   end
   if input.pressed(input.BTN2) then
