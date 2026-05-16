@@ -61,9 +61,11 @@ CI handles Windows automatically (see `.github/workflows/ci.yml`).
 ### Third-party licenses
 
 `THIRD_PARTY_LICENSES.md` is generated from `Cargo.lock` by
-[cargo-about](https://github.com/EmbarkStudios/cargo-about). CI fails if the
-committed copy doesn't match what cargo-about would produce, so re-run after any
-dep change:
+[cargo-about](https://github.com/EmbarkStudios/cargo-about) and committed. It's
+regenerated as part of release prep, not on every CI run: cargo-about picks one
+"representative" LICENSE file per SPDX group and the pick varies between
+environments, so a CI sync check produces flaky diffs that don't reflect real
+problems. Run it locally before tagging a release:
 
 ```sh
 cargo install cargo-about --features cli  # one-time
@@ -221,9 +223,12 @@ them for spot-checking a PR. For distribution, cut a release.
 6. Verify gamepads work
 7. Bump `version` in `Cargo.toml` and run `cargo update -p usagi` to refresh
    `Cargo.lock` before tagging. The tag should match the manifest version
-8. Update the current version in README_DEV.md
-9. Update CHANGELOG.md
-10. `cp README_DEV.md README.md`
+8. Run `just licenses` to regenerate `THIRD_PARTY_LICENSES.md` from the current
+   `Cargo.lock`. Review the diff and commit it. (See
+   [Third-party licenses](#third-party-licenses) for setup.)
+9. Update the current version in README_DEV.md
+10. Update CHANGELOG.md
+11. `cp README_DEV.md README.md`
 
 ### Tagging
 

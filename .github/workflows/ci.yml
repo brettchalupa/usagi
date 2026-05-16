@@ -104,32 +104,6 @@ jobs:
             target/release/usagi.exe
           if-no-files-found: ignore
 
-  licenses:
-    name: licenses (sync check)
-    runs-on: ubuntu-22.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: licenses
-
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-about
-
-      - name: Regenerate THIRD_PARTY_LICENSES.md
-        run: cargo about generate about.md.hbs --output-file THIRD_PARTY_LICENSES.md
-
-      - name: Verify in-tree copy is up to date
-        # Fails when Cargo.lock changes without a paired `just licenses` run.
-        # If this fails on your PR, run `just licenses` locally and commit
-        # the updated THIRD_PARTY_LICENSES.md.
-        run: git diff --exit-code THIRD_PARTY_LICENSES.md
-
   web:
     name: emscripten
     runs-on: ubuntu-22.04
