@@ -1217,6 +1217,10 @@ a finished shoot-em-up made with Usagi that you can reference or using as a
 starting point for your own game. It includes scene switching, dev-only
 functionality, score tracking, and more.
 
+[SokoWorld](https://github.com/brettchalupa/sokoworld) is a Sokoban puzzle game
+made with Usagi with custom level parsing code, scene switching, and save data
+tracking.
+
 ## Tools
 
 `usagi tools [path]` opens a 1280×720 window with a tab bar for the available
@@ -1450,8 +1454,7 @@ Usagi is built with [Rust](https://rust-lang.org/).
   [datagoblin](https://datagoblin.itch.io/monogram), released under Creative
   Commons Zero (CC0). Source TTF lives at `assets/monogram-extended.ttf`; to
   rebake, run
-  `cargo run -- font bake assets/monogram-extended.ttf 15 --out
-  assets/monogram.png`.
+  `cargo run -- font bake assets/monogram-extended.ttf 15 --out assets/monogram.png`.
 
 - **Silver** — used by the `examples/custom_font` demo to showcase the custom
   font drop-in (`font.png` at the project root). A 5×9-ish pixel font with broad
