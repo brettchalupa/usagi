@@ -18,6 +18,9 @@ Features:
 - New examples:
   - scene_switching: how to define multiple scenes like gameplay, main menu,
     etc. and switch between them
+- The credit for the open source code that Usagi depends on is now included in
+  the engine's archive, detailing the various licenses. These are also viewable
+  at https://usagiengine.com/third-parties.
 
 Breaking:
 

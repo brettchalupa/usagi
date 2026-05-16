@@ -66,13 +66,20 @@ jobs:
         shell: bash
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
+      - name: Stage archive contents
+        shell: bash
+        run: |
+          mkdir -p staging
+          cp "target/release/usagi${{ matrix.ext }}" staging/
+          cp UNLICENSE THIRD_PARTY_LICENSES.md staging/
+
       - name: Package (tar.gz)
         if: matrix.archive == 'tar.gz'
         shell: bash
         run: |
           mkdir -p dist
           archive="usagi-${{ steps.ver.outputs.version }}-${{ matrix.name }}.tar.gz"
-          tar -czf "dist/$archive" -C target/release "usagi${{ matrix.ext }}"
+          tar -czf "dist/$archive" -C staging .
           (cd dist && (sha256sum "$archive" 2>/dev/null || shasum -a 256 "$archive") > "$archive.sha256")
 
       - name: Package (zip)
@@ -81,7 +88,7 @@ jobs:
         run: |
           mkdir -p dist
           archive="usagi-${{ steps.ver.outputs.version }}-${{ matrix.name }}.zip"
-          7z a -tzip "dist/$archive" "./target/release/usagi${{ matrix.ext }}"
+          (cd staging && 7z a -tzip "../dist/$archive" .)
           (cd dist && (sha256sum "$archive" 2>/dev/null || shasum -a 256 "$archive") > "$archive.sha256")
 
       - uses: actions/upload-artifact@v4
@@ -130,8 +137,10 @@ jobs:
           mkdir -p dist
           archive="usagi-${{ steps.ver.outputs.version }}-wasm.tar.gz"
           cp web/shell.html target/wasm32-unknown-emscripten/release/
+          cp UNLICENSE THIRD_PARTY_LICENSES.md target/wasm32-unknown-emscripten/release/
           tar -czf "dist/$archive" \
-            -C target/wasm32-unknown-emscripten/release usagi.js usagi.wasm shell.html
+            -C target/wasm32-unknown-emscripten/release \
+            usagi.js usagi.wasm shell.html UNLICENSE THIRD_PARTY_LICENSES.md
           (cd dist && (sha256sum "$archive" 2>/dev/null || shasum -a 256 "$archive") > "$archive.sha256")
 
       - uses: actions/upload-artifact@v4

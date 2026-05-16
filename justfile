@@ -19,6 +19,19 @@ fmt:
     cargo fmt
     deno fmt *.md **/*.md **/*.html
 
+[doc("""
+Regenerate THIRD_PARTY_LICENSES.md from the current Cargo.lock. Requires
+`cargo install cargo-about --features cli`. CI fails if this output
+drifts from what's committed, so re-run after touching deps.
+
+The perl step normalizes CRLF -> LF; some upstream license texts ship
+with Windows line endings, and git would otherwise warn on commit and
+the CI sync check would see false drift.
+""")]
+licenses:
+    cargo about generate about.md.hbs --output-file THIRD_PARTY_LICENSES.md
+    perl -i -pe 's/\r\n/\n/g' THIRD_PARTY_LICENSES.md
+
 # Open the Usagi tools window. Optional path is forwarded to `usagi tools`.
 
 # Example: `just tools examples/spr`.
