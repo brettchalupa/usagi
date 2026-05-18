@@ -106,7 +106,7 @@ fn centered_pos(tex_w: i32, tex_h: i32, zoom: f32) -> Vector2 {
     )
 }
 
-/// Returns an optional toast message (e.g. "copied spr 7 to clipboard")
+/// Returns an optional toast message (e.g. "copied spr 7")
 /// for the wrapper to display. The persistent selection readout in the
 /// header is the durable channel; the toast is a transient
 /// confirmation that something hit the clipboard.
@@ -235,7 +235,7 @@ pub(super) fn handle_input(
                 let s = idx.to_string();
                 let ok = rl.set_clipboard_text(&s).is_ok();
                 let msg = if ok {
-                    format!("copied spr {idx} to clipboard")
+                    format!("copied spr {idx}")
                 } else {
                     format!("spr {idx} (clipboard unavailable)")
                 };
@@ -307,7 +307,7 @@ pub(super) fn handle_input(
         let snippet = format!("{sx},{sy},{sw},{sh}");
         let ok = rl.set_clipboard_text(&snippet).is_ok();
         let msg = if ok {
-            format!("copied sspr {snippet} to clipboard")
+            format!("copied sspr {snippet}")
         } else {
             format!("sspr {snippet} (clipboard unavailable)")
         };

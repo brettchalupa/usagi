@@ -160,7 +160,7 @@ pub(super) fn handle_input(rl: &mut RaylibHandle, state: &mut State) -> Option<S
             let snippet = snippet_for(slot, state.is_custom);
             let ok = rl.set_clipboard_text(&snippet).is_ok();
             let msg = if ok {
-                format!("copied {snippet} to clipboard")
+                format!("copied {snippet}")
             } else {
                 format!("{snippet} (clipboard unavailable)")
             };
