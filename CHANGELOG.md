@@ -24,6 +24,18 @@ Breaking:
 
 Features:
 
+- New `usagi.read_json(path)` and `usagi.read_text(path)` for loading arbitrary
+  game data (level layouts, dialog scripts, tuning configs) from a project-level
+  `data/` directory. Paths are forward-slash relative to `data/`, nested subdirs
+  supported (`usagi.read_json("levels/01.json")`). The whole `data/` tree is
+  bundled by `usagi export`, so the same call resolves identically in dev and
+  shipped builds. Hot reload: any save to a data file pokes the same
+  script-reload path as a `.lua` save, so top-level
+  `local levels = usagi.read_json("levels.json")` picks up new bytes without F5.
+  New `examples/level_from_json` and `examples/level_from_csv` (the latter shows
+  the `read_text` + `string.gmatch` pattern for simple CSV grids, since the
+  engine doesn't ship a CSV parser).
+  [See #218](https://github.com/brettchalupa/usagi/issues/218)
 - New `gfx.tri(x1, y1, x2, y2, x3, y3, color)` and
   `gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)` for drawing triangle outlines
   and filled triangles from three points. Filled-triangle vertex order is

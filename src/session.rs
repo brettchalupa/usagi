@@ -436,6 +436,58 @@ fn register_music_api(
     Ok(())
 }
 
+/// Installs `usagi.read_json(path)` and `usagi.read_text(path)`.
+/// Paths are forward-slash relative to the project's `data/` dir;
+/// `safe_rel_path` (in vfs.rs) rejects backslashes, absolute paths,
+/// and `..` segments so users can't escape `data/` by accident. Each
+/// call reads fresh from the vfs (no caching) so hot-reload via the
+/// data-mtime watcher Just Works on top-level reads.
+fn register_data_api(lua: &Lua, vfs: Rc<dyn VirtualFs>) -> LuaResult<()> {
+    let usagi: LuaTable = lua.globals().get("usagi")?;
+
+    let vfs_for_json = vfs.clone();
+    let read_json = lua.create_function(move |lua, path: mlua::String| {
+        let path = path.to_str()?.to_string();
+        let key = format!("data/{path}");
+        let bytes = vfs_for_json.read_file(&key).ok_or_else(|| {
+            mlua::Error::external(format!(
+                "usagi.read_json: data/{path} not found (use forward slashes; no \\, no .., no leading /)"
+            ))
+        })?;
+        let s = std::str::from_utf8(&bytes).map_err(|e| {
+            mlua::Error::external(format!("usagi.read_json: data/{path} is not UTF-8: {e}"))
+        })?;
+        crate::save::json_to_lua(lua, s).map_err(|e| {
+            mlua::Error::external(format!("usagi.read_json: data/{path}: {e}"))
+        })
+    })?;
+    usagi.set(
+        "read_json",
+        wrap(lua, read_json, "usagi.read_json", &["string"])?,
+    )?;
+
+    let vfs_for_text = vfs;
+    let read_text = lua.create_function(move |_, path: mlua::String| {
+        let path = path.to_str()?.to_string();
+        let key = format!("data/{path}");
+        let bytes = vfs_for_text.read_file(&key).ok_or_else(|| {
+            mlua::Error::external(format!(
+                "usagi.read_text: data/{path} not found (use forward slashes; no \\, no .., no leading /)"
+            ))
+        })?;
+        let s = std::str::from_utf8(&bytes).map_err(|e| {
+            mlua::Error::external(format!("usagi.read_text: data/{path} is not UTF-8: {e}"))
+        })?;
+        Ok(s.to_string())
+    })?;
+    usagi.set(
+        "read_text",
+        wrap(lua, read_text, "usagi.read_text", &["string"])?,
+    )?;
+
+    Ok(())
+}
+
 /// Installs `usagi.save(t)` and `usagi.load()` against the resolved
 /// `game_id`. Resolution happens once at session creation via
 /// `GameId::resolve` (preferring `_config().game_id`, falling back to
@@ -529,6 +581,12 @@ struct Session {
 
     last_error: Option<String>,
     last_modified: Option<SystemTime>,
+    /// Newest mtime across `data/` at the last reload check. A change
+    /// pokes the same script-reload path as a `.lua` save, so top-level
+    /// `usagi.read_json` / `usagi.read_text` calls re-execute with
+    /// fresh bytes. None on bundle-backed vfs or when the project has
+    /// no `data/` dir.
+    last_data_mtime: Option<SystemTime>,
     /// mtime of `palette.png` at the last load, for hot-reload
     /// detection. None when the project has no palette.png (or the
     /// backend has no mtimes, e.g. bundled games).
@@ -664,6 +722,17 @@ impl Session {
         setup_api(&lua, dev)?;
         install_require(&lua, vfs.clone())
             .map_err(|e| crate::Error::Cli(format!("installing require: {e}")))?;
+        // Register data readers before `load_script` so the chunk's
+        // top-level code can call `usagi.read_json` / `usagi.read_text`
+        // (the recommended pattern, since top-level reads re-execute
+        // on hot reload). `register_save_api` registers later because
+        // it needs the game_id resolved out of `_config()`, which
+        // requires the script to already be loaded.
+        register_data_api(&lua, vfs.clone()).map_err(|e| {
+            crate::Error::Cli(format!(
+                "registering usagi.read_json / usagi.read_text: {e}"
+            ))
+        })?;
 
         let mut last_error: Option<String> = None;
 
@@ -920,6 +989,7 @@ impl Session {
         // doesn't spuriously reload just because a sibling module's mtime
         // is newer than main.lua's.
         let last_modified = vfs.freshest_lua_mtime();
+        let last_data_mtime = vfs.freshest_data_mtime();
 
         Ok(Self {
             rt,
@@ -935,6 +1005,7 @@ impl Session {
             music,
             last_error,
             last_modified,
+            last_data_mtime,
             palette_mtime,
             show_fps: false,
             config,
@@ -1136,12 +1207,18 @@ impl Session {
     }
 
     fn maybe_reload_assets(&mut self) {
-        // Script reload: re-exec on mtime change. State is preserved (no
-        // _init); F5 is the explicit reset. Errors are logged and the
-        // previous callbacks keep running so a half-saved file can't kill
-        // the session.
+        // Script reload: re-exec on mtime change to either any `.lua`
+        // file or any file under `data/`. The latter so editing a
+        // level JSON re-runs the chunk and any top-level
+        // `usagi.read_json` calls pick up the new bytes. State is
+        // preserved (no _init); F5 is the explicit reset. Errors are
+        // logged and the previous callbacks keep running so a half-
+        // saved file can't kill the session.
         let new_mtime = self.vfs.freshest_lua_mtime();
-        if new_mtime.is_some() && new_mtime != self.last_modified {
+        let new_data_mtime = self.vfs.freshest_data_mtime();
+        let lua_changed = new_mtime.is_some() && new_mtime != self.last_modified;
+        let data_changed = new_data_mtime.is_some() && new_data_mtime != self.last_data_mtime;
+        if lua_changed || data_changed {
             // Drop cached require results so dependencies re-execute when
             // main.lua re-runs. Built-in libs are untouched.
             if let Err(e) = clear_user_modules(&self.lua, self.vfs.as_ref()) {
@@ -1149,7 +1226,11 @@ impl Session {
             }
             match load_script(&self.lua, self.vfs.as_ref()) {
                 Ok(()) => {
-                    crate::msg::info!("reloaded {} & required dependents", self.vfs.script_name());
+                    let cause = if lua_changed { "" } else { " (data/)" };
+                    crate::msg::info!(
+                        "reloaded {} & required dependents{cause}",
+                        self.vfs.script_name()
+                    );
                     self.update = self.lua.globals().get("_update").ok();
                     self.draw = self.lua.globals().get("_draw").ok();
                     self.last_error = None;
@@ -1160,12 +1241,13 @@ impl Session {
                     self.last_error = Some(msg);
                 }
             }
-            // Cache the pre-reload value rather than re-stat'ing after
+            // Cache the pre-reload values rather than re-stat'ing after
             // the reload: any save that landed during load_script will
-            // bump the next freshest_lua_mtime past this captured value
+            // bump the next freshest_*_mtime past these captured values
             // and re-trigger reload. The old re-stat approach silently
             // swallowed mid-reload saves.
             self.last_modified = new_mtime;
+            self.last_data_mtime = new_data_mtime;
         }
 
         if self

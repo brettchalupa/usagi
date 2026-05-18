@@ -75,6 +75,15 @@ pub trait VirtualFs {
         None
     }
 
+    /// Newest mtime across every file under the project's `data/` dir.
+    /// Backs hot reload for `usagi.read_json` / `usagi.read_text`:
+    /// editing any data file pokes the same script-reload path as
+    /// editing a `.lua` file, so top-level `read_*` calls re-execute
+    /// with the new bytes. `BundleBacked` returns None.
+    fn freshest_data_mtime(&self) -> Option<SystemTime> {
+        None
+    }
+
     /// Whether filesystem reload checks are meaningful on this vfs.
     /// `FsBacked` returns true; `BundleBacked` always returns false.
     fn supports_reload(&self) -> bool;
@@ -200,6 +209,41 @@ pub(crate) fn for_each_lua_file<F: FnMut(&std::fs::DirEntry)>(root: &Path, mut v
     }
 }
 
+/// Recursively visits every regular file under `dir`, yielding the file
+/// entry plus its slash-joined path relative to `dir`. Skips dotfiles /
+/// dot-directories. Used by the `data/` bundler and the data mtime
+/// watcher, which want any file shape (json, txt, csv, ...) at any
+/// depth, with no extension filtering.
+pub(crate) fn for_each_data_file<F: FnMut(&std::fs::DirEntry, &str)>(dir: &Path, mut visit: F) {
+    let mut stack: Vec<(PathBuf, String)> = vec![(dir.to_path_buf(), String::new())];
+    while let Some((current, prefix)) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&current) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Some(name) = entry.file_name().to_str().map(String::from) else {
+                continue;
+            };
+            if name.starts_with('.') {
+                continue;
+            }
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            let rel = if prefix.is_empty() {
+                name.clone()
+            } else {
+                format!("{prefix}/{name}")
+            };
+            if file_type.is_dir() {
+                stack.push((entry.path(), rel));
+                continue;
+            }
+            visit(&entry, &rel);
+        }
+    }
+}
+
 /// Newest mtime across reload-relevant `.lua` files under `root`. The
 /// `meta/usagi.lua` LSP stub `usagi init` ships is excluded so editing
 /// it doesn't trigger a no-op reload (it's never executable per
@@ -280,6 +324,10 @@ impl FsBacked {
 
     fn music_dir(&self) -> PathBuf {
         self.root.join("music")
+    }
+
+    fn data_dir(&self) -> PathBuf {
+        self.root.join("data")
     }
 }
 
@@ -458,6 +506,20 @@ impl VirtualFs for FsBacked {
 
     fn freshest_lua_mtime(&self) -> Option<SystemTime> {
         freshest_lua_mtime_under(&self.root)
+    }
+
+    fn freshest_data_mtime(&self) -> Option<SystemTime> {
+        let mut newest: Option<SystemTime> = None;
+        for_each_data_file(&self.data_dir(), |entry, _rel| {
+            let Ok(t) = entry.metadata().and_then(|m| m.modified()) else {
+                return;
+            };
+            newest = Some(match newest {
+                Some(prev) => prev.max(t),
+                None => t,
+            });
+        });
+        newest
     }
 
     fn project_name_hint(&self) -> Option<String> {
@@ -844,6 +906,91 @@ mod tests {
         fs::write(root.join(".git/hook.lua"), b"-- ignored").unwrap();
         let vfs = FsBacked::from_project_dir(root.to_path_buf());
         assert!(vfs.freshest_lua_mtime().is_none());
+    }
+
+    #[test]
+    fn fs_backed_reads_data_files_via_read_file() {
+        // `usagi.read_json("levels/01.json")` resolves through
+        // `read_file("data/levels/01.json")`. Confirm both flat and
+        // nested paths reach the right bytes.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("main.lua"), b"").unwrap();
+        fs::create_dir_all(root.join("data/levels")).unwrap();
+        fs::write(root.join("data/config.json"), br#"{"hp":3}"#).unwrap();
+        fs::write(root.join("data/levels/01.json"), br#"[1,2,3]"#).unwrap();
+        let vfs = FsBacked::from_script_path(&root.join("main.lua"));
+        assert_eq!(
+            vfs.read_file("data/config.json").as_deref(),
+            Some(b"{\"hp\":3}".as_slice())
+        );
+        assert_eq!(
+            vfs.read_file("data/levels/01.json").as_deref(),
+            Some(b"[1,2,3]".as_slice())
+        );
+        // Backslash-style paths are rejected at the vfs boundary.
+        assert!(vfs.read_file("data\\config.json").is_none());
+        assert!(vfs.read_file("data/../main.lua").is_none());
+    }
+
+    #[test]
+    fn freshest_data_mtime_tracks_nested_files() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("main.lua"), b"").unwrap();
+        fs::create_dir_all(root.join("data/levels")).unwrap();
+        fs::write(root.join("data/config.json"), b"{}").unwrap();
+        fs::write(root.join("data/levels/01.json"), b"[]").unwrap();
+        let vfs = FsBacked::from_script_path(&root.join("main.lua"));
+        let baseline = vfs
+            .freshest_data_mtime()
+            .expect("data/ files present, baseline mtime should exist");
+
+        // Bump the nested level's mtime; the freshest mtime must move
+        // forward, otherwise hot reload of a nested data file silently
+        // no-ops.
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(root.join("data/levels/01.json"))
+            .unwrap()
+            .set_modified(later)
+            .unwrap();
+        let after = vfs
+            .freshest_data_mtime()
+            .expect("still have an mtime after bump");
+        assert!(
+            after > baseline,
+            "nested data file save must move freshest forward (baseline={baseline:?}, after={after:?})"
+        );
+    }
+
+    #[test]
+    fn freshest_data_mtime_is_none_without_data_dir() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("main.lua"), b"").unwrap();
+        let vfs = FsBacked::from_script_path(&root.join("main.lua"));
+        assert!(vfs.freshest_data_mtime().is_none());
+    }
+
+    #[test]
+    fn bundle_backed_reads_data_files_at_data_prefix() {
+        let mut b = Bundle::new();
+        b.insert("main.lua", b"".to_vec());
+        b.insert("data/config.json", br#"{"x":1}"#.to_vec());
+        b.insert("data/levels/01.json", br#"[1,2,3]"#.to_vec());
+        let vfs = BundleBacked::new(b);
+        assert_eq!(
+            vfs.read_file("data/config.json").as_deref(),
+            Some(b"{\"x\":1}".as_slice())
+        );
+        assert_eq!(
+            vfs.read_file("data/levels/01.json").as_deref(),
+            Some(b"[1,2,3]".as_slice())
+        );
+        // BundleBacked has no mtimes, so hot reload no-ops in shipped builds.
+        assert!(vfs.freshest_data_mtime().is_none());
     }
 
     #[test]

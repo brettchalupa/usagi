@@ -1,0 +1,13 @@
+{
+  "lang_name": "English",
+  "title": "Hello, world!",
+  "subtitle": "A localization demo.",
+  "menu": {
+    "play": "Play",
+    "options": "Options",
+    "quit": "Quit"
+  },
+  "fruits": ["apple", "banana", "cherry", "date"],
+  "instructions": "BTN1: switch language",
+  "footer": "Edit data/strings/*.json to add languages."
+}

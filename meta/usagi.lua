@@ -571,6 +571,26 @@ function usagi.save(t) end
 ---@return table?
 function usagi.load() end
 
+---Reads a JSON file from the project's `data/` dir and returns it
+---as a Lua table. `path` is forward-slash-separated and relative to
+---`data/` (e.g. `"levels/01.json"`). Bundled by `usagi export`, so
+---the same call works in dev and shipped builds. Hot-reload-aware:
+---editing any file under `data/` triggers a script reload, so
+---top-level `local levels = usagi.read_json("levels.json")` picks
+---up new bytes without F5.
+---@param path string  forward-slash path under `data/`, e.g. `"levels/01.json"`
+---@return table
+function usagi.read_json(path) end
+
+---Reads a text file from the project's `data/` dir as a UTF-8
+---string. Same path rules as `usagi.read_json` (forward slashes,
+---under `data/`, bundled by `usagi export`). Use this for plain
+---text (dialog scripts, CSV grids, hand-rolled formats) and split /
+---parse in Lua.
+---@param path string  forward-slash path under `data/`, e.g. `"dialog/intro.txt"`
+---@return string
+function usagi.read_text(path) end
+
 ---Register a custom row on the pause menu's Top view, between
 ---Continue and Settings. Up to 3 items can be registered; calls past
 ---the cap raise a Lua error. Items auto-clear before each `_init`

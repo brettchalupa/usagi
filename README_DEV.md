@@ -193,6 +193,8 @@ usagi.elapsed
 usagi.measure_text(text)
 usagi.save(t)
 usagi.load()
+usagi.read_json(path) -- read data/<path> as a Lua table
+usagi.read_text(path) -- read data/<path> as a string
 usagi.menu_item(label, callback) -- up to 3; callback `return true` keeps menu open
 usagi.clear_menu_items()
 usagi.toggle_fullscreen() -- flips fullscreen, returns the new state as bool
@@ -1015,6 +1017,52 @@ Engine-level info.
   instead of silently truncating. If you want a map indexed by integers,
   stringify the keys (`{[tostring(level)] = time}`); if you want a list, fill
   `1..n`.
+
+### Loading game data: JSON and text
+
+Drop arbitrary game data (levels, dialog, tunable configs) under a `data/`
+directory at your project root. `usagi export` bundles the whole tree, so the
+same paths resolve identically in dev and in shipped builds.
+
+- `usagi.read_json(path)` — reads `data/<path>` as JSON and returns a Lua table.
+  JSON arrays come back as 1-indexed Lua arrays; JSON objects come back as
+  tables with string keys. Errors loudly on malformed JSON, missing file, or
+  non-UTF-8 bytes.
+- `usagi.read_text(path)` — reads `data/<path>` as a UTF-8 string. Use for
+  hand-rolled formats: CSV grids, dialog scripts, anything you want to parse
+  yourself in Lua.
+
+Paths are forward-slash relative to `data/`. Nested subdirs are fine
+(`data/levels/01.json` → `usagi.read_json("levels/01.json")`). Backslashes,
+absolute paths, and `..` segments are rejected at the vfs boundary so a
+malicious or buggy path can't escape `data/`.
+
+```lua
+function _config()
+  return { name = "Tile Demo" }
+end
+
+-- Read at the top of the chunk so live reload picks up edits to the JSON
+-- without needing F5. The script re-runs whenever any data file mtime
+-- changes, the same way it does for any .lua file.
+local levels = usagi.read_json("levels.json")
+local intro  = usagi.read_text("dialog/intro.txt")
+
+function _draw(_dt)
+  gfx.clear(gfx.COLOR_BLACK)
+  gfx.text(intro, 4, 4, gfx.COLOR_WHITE)
+  -- ... iterate `levels` ...
+end
+```
+
+Hot reload: any save to a file under `data/` triggers the same script re-run
+that a `.lua` save does. State globals (capitalized vars set in `_init`) are
+preserved across reloads; if you want a true reset, press F5. Bundled builds
+have no mtimes, so hot reload is a dev-only convenience; shipped games read once
+from the bundle.
+
+For CSV, use `read_text` + Lua splitting. A 3-line `string.gmatch` covers the
+simple-grid case (see `examples/level_from_csv/`).
 
 ### Effects: hitstop, screen shake, flash, slow-mo
 

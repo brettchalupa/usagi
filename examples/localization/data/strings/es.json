@@ -1,0 +1,13 @@
+{
+  "lang_name": "Español",
+  "title": "¡Hola, mundo!",
+  "subtitle": "Una demostración de localización.",
+  "menu": {
+    "play": "Jugar",
+    "options": "Opciones",
+    "quit": "Salir"
+  },
+  "fruits": ["manzana", "plátano", "cereza", "dátil"],
+  "instructions": "BTN1: cambiar idioma",
+  "footer": "Edita data/strings/*.json para añadir idiomas."
+}

@@ -109,8 +109,11 @@ impl Bundle {
 
     /// Builds a bundle from a game's script path. Includes the script as
     /// `main.lua`, every other `.lua` under the project root (so `require`
-    /// can find them at runtime), `sprites.png` if present, and any
-    /// `sfx/*.wav` in the script's parent directory.
+    /// can find them at runtime), `sprites.png` / `palette.png` /
+    /// `font.png` if present, any `sfx/*.wav`, `shaders/*.fs|.vs`,
+    /// recognized `music/*` files, and the entire `data/` tree (any
+    /// file shape, any depth) so `usagi.read_json` / `usagi.read_text`
+    /// resolve identically in dev and exported builds.
     pub fn from_project(script_path: &Path) -> io::Result<Self> {
         let mut bundle = Self::new();
         bundle.insert("main.lua", std::fs::read(script_path)?);
@@ -205,6 +208,28 @@ impl Bundle {
                     continue;
                 };
                 bundle.insert(format!("music/{name}"), std::fs::read(&p)?);
+            }
+        }
+
+        // Arbitrary game data: every file under `data/`, any shape
+        // (json/txt/csv/whatever), keyed with the `data/` prefix so
+        // `usagi.read_json("foo.json")` and friends resolve identically
+        // in dev and in the exported bundle. Nested subdirs are kept
+        // (`data/levels/01.json` stays at that path).
+        let data_dir = root.join("data");
+        if data_dir.is_dir() {
+            let mut walk_err: Option<io::Error> = None;
+            crate::vfs::for_each_data_file(&data_dir, |entry, rel| {
+                if walk_err.is_some() {
+                    return;
+                }
+                match std::fs::read(entry.path()) {
+                    Ok(bytes) => bundle.insert(format!("data/{rel}"), bytes),
+                    Err(e) => walk_err = Some(e),
+                }
+            });
+            if let Some(e) = walk_err {
+                return Err(e);
             }
         }
 
@@ -459,6 +484,52 @@ mod tests {
         assert_eq!(bundle.get("main.lua"), Some(b"-- minimal".as_slice()));
         assert!(bundle.get("sprites.png").is_none());
         assert_eq!(bundle.file_count(), 1);
+    }
+
+    #[test]
+    fn from_project_picks_up_data_files_at_any_depth() {
+        // `usagi export` must mirror dev-mode `data/` so
+        // `usagi.read_json("levels/01.json")` resolves identically
+        // in both. Nested subdirs are preserved; non-`.lua` shapes
+        // (json/txt/csv) ride through with no extension filtering.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("main.lua"), b"").unwrap();
+        fs::create_dir_all(root.join("data/levels")).unwrap();
+        fs::write(root.join("data/config.json"), br#"{"hp":3}"#).unwrap();
+        fs::write(root.join("data/notes.txt"), b"hello").unwrap();
+        fs::write(root.join("data/grid.csv"), b"1,2,3\n4,5,6").unwrap();
+        fs::write(root.join("data/levels/01.json"), b"[1]").unwrap();
+
+        let bundle = Bundle::from_project(&root.join("main.lua")).unwrap();
+        assert_eq!(
+            bundle.get("data/config.json"),
+            Some(b"{\"hp\":3}".as_slice())
+        );
+        assert_eq!(bundle.get("data/notes.txt"), Some(b"hello".as_slice()));
+        assert_eq!(
+            bundle.get("data/grid.csv"),
+            Some(b"1,2,3\n4,5,6".as_slice())
+        );
+        assert_eq!(bundle.get("data/levels/01.json"), Some(b"[1]".as_slice()));
+    }
+
+    #[test]
+    fn from_project_skips_dotfiles_under_data() {
+        // Editor swap files and dot-dirs under data/ are noise; they
+        // shouldn't bloat the shipped bundle.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("main.lua"), b"").unwrap();
+        fs::create_dir_all(root.join("data/.cache")).unwrap();
+        fs::write(root.join("data/.swp"), b"swap").unwrap();
+        fs::write(root.join("data/.cache/blob"), b"cache").unwrap();
+        fs::write(root.join("data/real.json"), b"{}").unwrap();
+
+        let bundle = Bundle::from_project(&root.join("main.lua")).unwrap();
+        assert_eq!(bundle.get("data/real.json"), Some(b"{}".as_slice()));
+        assert!(bundle.get("data/.swp").is_none());
+        assert!(bundle.get("data/.cache/blob").is_none());
     }
 
     #[test]
