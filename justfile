@@ -198,3 +198,6 @@ examples:
     just example custom_menu
     just example custom_font
     just example palette_swap
+    just example level_from_csv
+    just example level_from_json
+    just example localization
