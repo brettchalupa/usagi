@@ -47,8 +47,8 @@ Manual download:
 ## Features
 
 - **Live reload.** `usagi dev` watches your code and assets; saves apply without
-  losing game state. Tweak a sprite in your editor and see it in place. Press F5
-  to reset when you want a clean slate.
+  losing game state. Tweak a sprite in your editor and see it in place. Hit
+  [Reset](#reset) when you want a clean slate.
 - **One-command export.** `usagi export` packages your game for Linux, macOS,
   Windows, and the web.
 - **Pause menu, free.** Built-in pause menu with sfx and music volume,
@@ -151,7 +151,7 @@ Run with:
 - `usagi init path/to/new_game` bootstraps a project (main.lua stub,
   `.luarc.json`, `.gitignore`, LSP stubs, `USAGI.md` docs).
 - `usagi dev path/to/my_game` for live-reload development (script, sprites, and
-  sfx reload on save; F5 resets state).
+  sfx reload on save; [Reset](#reset) re-runs `_init`).
 - `usagi run path/to/my_game` to run without live-reload.
 - `usagi tools [path]` opens the Usagi tools window (jukebox, tile picker). See
   the **Tools** section below.
@@ -351,8 +351,8 @@ lua-language-server does not underline them as syntax errors.
 
 Define any of these as globals for Usagi to call them:
 
-- `_init()` — once at start, and when the user presses **F5**. Initialize
-  `State` (and any other cross-frame globals) here.
+- `_init()` — once at start, and on [Reset](#reset). Initialize `State` (and any
+  other cross-frame globals) here.
 - `_update(dt)` — each frame, before draw. `dt` is seconds since last frame.
 - `_draw(dt)` — each frame, after update. `dt` same as above.
 - `_config()` — optional. Called **once at startup, before the window opens**;
@@ -398,6 +398,14 @@ export`. Defaults to
   aspect ratio from the configured resolution, so non-16:9 / non-default games
   ship correctly with the default shell (no `--web-shell` needed) and embed
   cleanly in itch at any iframe size.
+- `pause_menu` (default `true`): when `true`, the engine intercepts Esc / P /
+  Enter / gamepad Start to open the built-in pause overlay. Set to `false` and
+  those keys flow through to user code so the game can roll its own menu with
+  `usagi.menu_item`, `usagi.toggle_fullscreen`, `usagi.quit`, and the
+  `input.key_*` APIs. Disabling also turns off the keyboard remap UI, the Input
+  Tester, and gamepad-driven menu nav (sub-views of the same overlay), and
+  `usagi.menu_item` registrations no longer render. Suitable for keyboard-driven
+  prototypes.
 
 ```lua
 function _config()
@@ -409,6 +417,7 @@ function _config()
     -- game_width = 480,   -- optional; default 320
     -- game_height = 270,  -- optional; default 180
     -- sprite_size = 32,   -- optional; default 16
+    -- pause_menu = false, -- optional; default true
   }
 end
 ```
@@ -938,8 +947,8 @@ Engine-level info.
 
 - `usagi.elapsed` — wall-clock seconds since the session started, updated once
   per frame before `_update`. Frame-stable (every read in one frame returns the
-  same value). Doesn't reset on F5; track your own counter from `_init` if you
-  need a per-run timer.
+  same value). Survives [Reset](#reset); track your own counter from `_init` if
+  you need a per-run timer.
 - `usagi.measure_text(text)` — returns two values, `width, height` in pixels,
   for `text` rendered in the bundled font. Pure utility (no rendering); call it
   from `_init` to pre-compute layouts, or from `_update` / `_draw` for dynamic
@@ -1148,16 +1157,16 @@ Usagi watches the running script file and re-executes it when you save. The new
 progress.
 
 - `_init()` is **not** called on a save-triggered reload.
-- Press **F5** (or **Ctrl+R** / **Cmd+R**) for a hard reset: Usagi runs
-  `_init()` to reinitialize state.
+- See [Reset](#reset) for the hotkeys and exactly what resets.
 - Press **~** (grave/tilde) to toggle the FPS overlay. Hidden by default in
   `dev`.
 - Press **Alt+Enter** to toggle borderless fullscreen. Persists in
   `settings.json` and applies before the first frame on the next launch. No Lua
   or `_config` surface by design; the player owns this setting.
 - Press **Esc**, **P**, or gamepad **Start** to pause. The same keys (plus
-  **BTN2**) close the menu. While paused, `_update` and `_draw` are skipped and
-  the screen shows a black "PAUSED" overlay; music keeps streaming.
+  **BTN2**) close the menu. While paused, `_update` is skipped but `_draw` still
+  runs each frame, with the pause overlay rendered on top. Music pauses on menu
+  open and resumes on close.
 - Press **Shift+Esc** in dev mode to quit the game.
 - The engine keeps the last ~5 seconds of gameplay in memory at all times. Press
   **F9** or **Cmd/Ctrl + G** to write that buffer out as a GIF in your user
@@ -1177,6 +1186,34 @@ progress.
   the same per-game OS data dir as `save.json`; on web they're routed through
   `localStorage` under `usagi.settings.<game_id>`.
 
+### Reset
+
+Press **F5** (or **Ctrl+R** / **Cmd+R**) for a hard reset. The pause menu's
+**Reset Game** item does the same thing. Reset re-runs `_init()` so anything you
+build there starts from scratch, while leaving the rest of the session alone.
+
+What a reset clears:
+
+- `State` and any other globals you assign in `_init`, since `_init` re-runs.
+- In-flight engine effects: `effect.flash`, `effect.shake`, `effect.hitstop`,
+  `effect.slow_mo`. Cleared before `_init` runs so a fresh game can register new
+  ones.
+- `usagi.menu_item` registrations from Lua. Re-register them inside `_init` if
+  you use them.
+
+What a reset leaves alone:
+
+- `usagi.elapsed` keeps counting from session start. Track your own counter from
+  `_init` for a per-run timer.
+- Music and sfx currently playing. Stop them in `_init` if you want silence on
+  reset.
+- On-disk state: save data, pause-menu volumes, fullscreen setting, and keyboard
+  / gamepad remaps.
+- Loaded assets (`sprites.png`, sfx, music).
+- Any Lua state outside `_init`. The VM itself is not torn down, so file-scope
+  locals and globals you assign elsewhere persist across reset unless `_init`
+  overwrites them.
+
 ### Writing Reload-Friendly Scripts
 
 The chunk re-executes on save, so any top-level `local` bindings get re-bound
@@ -1184,8 +1221,9 @@ each time. A `local State` at module scope would get reset to a fresh table on
 every save and obliterate the running game; it has to be a global. The pattern:
 
 - **Mutable game state** → a single capitalized global, conventionally `State`,
-  assigned only inside `_init`. `_init` runs once at startup and on F5, so the
-  table outlives reloads. Saved edits keep your in-progress game intact.
+  assigned only inside `_init`. `_init` runs once at startup and on
+  [Reset](#reset), so the table outlives reloads. Saved edits keep your
+  in-progress game intact.
 - **Constants** → file-scope `local`. Re-binding to the same value each reload
   is harmless.
 - **Required modules** → either file-scope `local Foo = require("foo")`, or a
@@ -1362,7 +1400,7 @@ automatically. Override per-build with `--web-shell PATH`.
   windows zip names it `<name>.exe`). The web zip is unzip-and-serve.
 - `<name>` is the project directory name (or the script's stem for flat `.lua`
   files). `-o <path>` overrides the output location.
-- Live-reload is disabled in exported artifacts; F5 still resets state via
+- Live-reload is disabled in exported artifacts; [Reset](#reset) still re-runs
   `_init()`.
 - The fuse format is simple and additive: a magic footer at the end of the exe
   points back to an appended bundle. A `.usagi` file is the same bundle bytes
