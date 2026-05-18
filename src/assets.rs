@@ -125,7 +125,7 @@ pub fn clear_user_modules(lua: &Lua, vfs: &dyn VirtualFs) -> LuaResult<()> {
 }
 
 /// Decodes the sprite PNG, uploads it as a GPU texture, and keeps a
-/// CPU-side pixel snapshot for `gfx.spr_px` reads. Both halves come
+/// CPU-side pixel snapshot for `gfx.get_spr_px` reads. Both halves come
 /// from the same decode pass, so the CPU mirror is guaranteed to
 /// match what got uploaded.
 fn load_texture_and_pixels(
@@ -147,7 +147,7 @@ fn load_texture_and_pixels(
 }
 
 /// Owns the sprite sheet texture, its CPU-side mirror used by
-/// `gfx.spr_px`, and its mtime. `reload_if_changed` re-reads from the
+/// `gfx.get_spr_px`, and its mtime. `reload_if_changed` re-reads from the
 /// vfs when the sprite file's mtime has moved (or always no-ops on a
 /// bundle-backed vfs, whose mtimes are None).
 pub struct SpriteSheet {

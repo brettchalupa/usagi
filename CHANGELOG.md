@@ -7,6 +7,13 @@ dev-facing changes, not those related to developing the engine itself.
 
 Breaking:
 
+- Pixel API renamed for consistency with the other shorthand primitives (`rect`,
+  `circ`, `tri`, `spr`, ...). The writer is now `gfx.px(x, y, color)`, the
+  screen-pixel reader is `gfx.get_px(x, y)`, and the sprite-pixel reader is
+  `gfx.get_spr_px(index, x, y)`. The old names, `gfx.pixel`, `gfx.px(x, y)`
+  (two-arg reader), and `gfx.spr_px`, are gone. Find and replace in your code:
+  `gfx.pixel` → `gfx.px`, `gfx.px(x, y)` → `gfx.get_px(x, y)`, `gfx.spr_px` →
+  `gfx.get_spr_px`. [See #215](https://github.com/brettchalupa/usagi/issues/215)
 - Palette slot `0` now resolves to true white (`COLOR_TRUE_WHITE`) instead of
   the magenta out-of-range sentinel. Negative indices and indices past the
   active palette's length still render as magenta, so the "obvious unknown

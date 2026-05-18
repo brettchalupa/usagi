@@ -687,7 +687,7 @@ mod tests {
                 scope.create_function(|_, _a: SsprExArgs| Ok(()))?,
             )?;
             gfx.set(
-                "pixel",
+                "px",
                 scope.create_function(|_, _a: (f32, f32, i32)| Ok(()))?,
             )?;
 
@@ -768,7 +768,7 @@ mod tests {
                 gfx.spr_ex(1, 0, 0, true, true, math.pi / 2, gfx.COLOR_WHITE, 1.0)
                 gfx.sspr(0, 0, 16, 16, 10, 10)
                 gfx.sspr_ex(0, 0, 16, 16, 10, 10, 32, 32, true, false, 0, gfx.COLOR_RED, 0.5)
-                gfx.pixel(5, 5, gfx.COLOR_WHITE)
+                gfx.px(5, 5, gfx.COLOR_WHITE)
                 local mw, mh = usagi.measure_text("hello")
                 assert(type(mw) == "number" and type(mh) == "number")
                 assert(type(usagi.elapsed) == "number")

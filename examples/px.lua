@@ -1,16 +1,17 @@
--- Demo of `gfx.px` (screen pixel read) and `gfx.spr_px` (sprite sheet
--- pixel read).
+-- Demo of `gfx.get_px` (screen pixel read) and `gfx.get_spr_px`
+-- (sprite sheet pixel read).
 --
 -- The walls are drawn into the framebuffer in a specific palette
--- color. Movement consults `gfx.px` on the proposed destination
+-- color. Movement consults `gfx.get_px` on the proposed destination
 -- pixels and blocks the move when any of them is wall-colored. The
 -- painted screen IS the collision data, which is the classic
 -- fantasy-console trick: no tilemap, no separate collision layer.
 --
--- Note that `gfx.px` reads the previous frame's finished image, so
--- mid-`_draw` reads don't see what the current frame has drawn yet.
--- For collision logic in `_update` that doesn't matter; the previous
--- frame's walls are exactly what you want to consult before moving.
+-- Note that `gfx.get_px` reads the previous frame's finished image,
+-- so mid-`_draw` reads don't see what the current frame has drawn
+-- yet. For collision logic in `_update` that doesn't matter; the
+-- previous frame's walls are exactly what you want to consult
+-- before moving.
 
 local WALL_COLOR   = gfx.COLOR_RED
 local FLOOR_COLOR  = gfx.COLOR_DARK_BLUE
@@ -42,7 +43,7 @@ end
 local function blocked_at(x, y)
   for dy = 0, PLAYER_SIZE - 1 do
     for dx = 0, PLAYER_SIZE - 1 do
-      local _, _, _, slot = gfx.px(x + dx, y + dy)
+      local _, _, _, slot = gfx.get_px(x + dx, y + dy)
       if slot == WALL_COLOR then return true end
     end
   end
@@ -67,15 +68,15 @@ function _update(_dt)
 end
 
 -- Re-renders the first sprite cell pixel-by-pixel by scanning the
--- sheet with `gfx.spr_px`. Should be visually identical to the plain
--- `gfx.spr(1, ...)` next to it.
+-- sheet with `gfx.get_spr_px`. Should be visually identical to the
+-- plain `gfx.spr(1, ...)` next to it.
 local function draw_spr_px_scan(dx, dy)
   local size = usagi.SPRITE_SIZE
   for y = 0, size - 1 do
     for x = 0, size - 1 do
-      local _, _, _, slot = gfx.spr_px(1, x, y)
+      local _, _, _, slot = gfx.get_spr_px(1, x, y)
       if slot then
-        gfx.pixel(dx + x, dy + y, slot)
+        gfx.px(dx + x, dy + y, slot)
       end
     end
   end
@@ -86,14 +87,20 @@ function _draw(_dt)
   draw_walls()
   gfx.rect_fill(player.x, player.y, PLAYER_SIZE, PLAYER_SIZE, PLAYER_COLOR)
 
-  gfx.text("gfx.px example", 4, 8, gfx.COLOR_WHITE)
+  gfx.text("gfx.get_px example", 4, 8, gfx.COLOR_WHITE)
 
   -- Right panel: sprite-sheet read demo. Original via `gfx.spr`,
-  -- then re-rendered by `gfx.spr_px` scanning, to show the same
+  -- then re-rendered by `gfx.get_spr_px` scanning, to show the same
   -- data is reachable as pixels.
-  gfx.text("gfx.spr_px scan", 220, 8, gfx.COLOR_WHITE)
+  gfx.text("gfx.get_spr_px scan", 204, 8, gfx.COLOR_WHITE)
   gfx.spr(1, 224, 20)
   draw_spr_px_scan(264, 20)
-  gfx.text("spr", 228, 40, gfx.COLOR_LIGHT_GRAY)
-  gfx.text("spr_px", 264, 40, gfx.COLOR_LIGHT_GRAY)
+  gfx.text("spr", 218, 40, gfx.COLOR_LIGHT_GRAY)
+  gfx.text("get_spr_px", 248, 40, gfx.COLOR_LIGHT_GRAY)
+
+  gfx.px(218, 80, gfx.COLOR_PEACH)
+  gfx.px(220, 80, gfx.COLOR_PEACH)
+  gfx.px(222, 80, gfx.COLOR_PEACH)
+  gfx.px(224, 80, gfx.COLOR_PEACH)
+  gfx.text("px", 218, 84, gfx.COLOR_LIGHT_GRAY)
 end

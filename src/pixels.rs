@@ -1,5 +1,5 @@
-//! CPU-side pixel buffers backing the `gfx.px` (screen) and
-//! `gfx.spr_px` (sprite sheet) read APIs. Each holds a copy of the
+//! CPU-side pixel buffers backing the `gfx.get_px` (screen) and
+//! `gfx.get_spr_px` (sprite sheet) read APIs. Each holds a copy of the
 //! pixels in top-down row-major order so callers can sample by (x, y)
 //! without allocating per call and without thinking about OpenGL's
 //! bottom-up framebuffer convention.
@@ -46,7 +46,7 @@ impl Pixels {
     }
 }
 
-/// Shape returned to Lua by `gfx.px` and `gfx.spr_px`: r, g, b, and the
+/// Shape returned to Lua by `gfx.get_px` and `gfx.get_spr_px`: r, g, b, and the
 /// 1-based palette index of an exact RGB match (or `None` when the
 /// color isn't in the active palette). All four slots are `None` when
 /// the read fails outright (no snapshot yet, out-of-bounds, unknown
@@ -67,7 +67,7 @@ fn color_to_lua(c: Color) -> LuaPixel {
     )
 }
 
-/// `gfx.px(x, y)` body: reads a screen pixel from the most recent
+/// `gfx.get_px(x, y)` body: reads a screen pixel from the most recent
 /// frame snapshot, or returns all `None` when no snapshot exists yet
 /// (first frame of the session) or the coordinates fall outside the
 /// game-space resolution. Floats are rounded to the nearest int.
@@ -80,7 +80,7 @@ pub fn read_screen(snapshot: Option<&Pixels>, x: f32, y: f32) -> LuaPixel {
         .unwrap_or(NIL_PIXEL)
 }
 
-/// `gfx.spr_px(idx, x, y)` body: resolves a 1-based sprite index plus
+/// `gfx.get_spr_px(idx, x, y)` body: resolves a 1-based sprite index plus
 /// `(x, y)` inside the cell into a sheet pixel coordinate and reads
 /// from the CPU-side sheet mirror. Returns all `None` on any miss
 /// (no sheet loaded, idx out of range, (x, y) outside the cell) or

@@ -102,7 +102,7 @@ function _draw(_dt)
   spr(SPR.BULLET_LG, 50, 50)
 
   -- Ship exhaust particle emitter. Each spark is one pixel via `pset`,
-  -- Pico-8's single-pixel draw. The shim forwards pset to gfx.pixel.
+  -- Pico-8's single-pixel draw. The shim forwards pset to gfx.px.
   for _, s in ipairs(State.sparks) do
     pset(s.x, s.y, s.color)
   end
