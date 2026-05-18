@@ -44,7 +44,7 @@ end
 function _draw(_dt)
   gfx.clear(COLOR.NIGHT)
 
-  gfx.text_ex("PALETTE SWAP", 80, 12, 2, 0, COLOR.WHITE)
+  gfx.text_ex("PALETTE SWAP", 80, 12, 2, 0, COLOR.WHITE, 1.0)
   gfx.text("drop a palette.png at project root to swap colors", 8, 36, COLOR.SILVER)
 
   -- Every slot in the active palette, numbered. Each swatch labelled
@@ -62,7 +62,7 @@ function _draw(_dt)
 
   -- Small scene using the named constants from the COLOR table above.
   -- This is the pattern: name your slots, then use those names.
-  gfx.text_ex("named for sweetie16:", 8, 108, 1, 0, COLOR.WHITE)
+  gfx.text_ex("named for sweetie16:", 8, 108, 1, 0, COLOR.WHITE, 1.0)
   gfx.rect_fill(8, 122, 30, 12, COLOR.RED)
   gfx.text("RED", 42, 122, COLOR.WHITE)
   gfx.rect_fill(8, 138, 30, 12, COLOR.GREEN)

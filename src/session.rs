@@ -1581,7 +1581,16 @@ impl Session {
                             Ok(())
                         })?;
                     let text_ex = scope.create_function(
-                        |_, (s, x, y, scale, rotation, c): (String, f32, f32, f32, f32, i32)| {
+                        |_,
+                         (s, x, y, scale, rotation, c, alpha): (
+                            String,
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            i32,
+                            f32,
+                        )| {
                             let base = font_ref.base_size() as f32;
                             let font_size = base * scale;
                             // Bounds drive the pivot. We center rotation
@@ -1600,7 +1609,7 @@ impl Session {
                                 rotation.to_degrees(),
                                 font_size,
                                 0.0,
-                                color(c),
+                                tinted(c, alpha),
                             );
                             Ok(())
                         },

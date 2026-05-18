@@ -11,15 +11,17 @@ function _draw(_dt)
   gfx.clear(gfx.COLOR_DARK_BLUE)
 
   -- Big title at scale 4 (integer scale = crisp pixel art).
-  gfx.text_ex("USAGI", 80, 8, 4, 0, gfx.COLOR_YELLOW)
+  gfx.text_ex("USAGI", 80, 8, 4, 0, gfx.COLOR_YELLOW, 1.0)
 
   -- Wiggling subtitle: small sinusoidal rotation around the text's
-  -- center. Radians here; ~0.1 rad ≈ 6 degrees of sway.
+  -- center, with a sin-based alpha pulse so it fades in and out.
+  -- Radians here; ~0.1 rad ≈ 6 degrees of sway.
   local wiggle = math.sin(usagi.elapsed * 4) * 0.1
-  gfx.text_ex("press z to start", 96, 60, 2, wiggle, gfx.COLOR_WHITE)
+  local pulse = 0.5 + math.sin(usagi.elapsed * 3) * 0.5
+  gfx.text_ex("press z to start", 96, 60, 2, wiggle, gfx.COLOR_WHITE, pulse)
 
   -- Static tilted label. math.rad turns literal degrees into radians.
-  gfx.text_ex("v0.8", 24, 92, 2, math.rad(-45), gfx.COLOR_PINK)
+  gfx.text_ex("v0.8", 24, 92, 2, math.rad(-45), gfx.COLOR_PINK, 1.0)
 
   -- Extended character coverage at native size.
   gfx.text("café naïve jalapeño façade", 4, 120, gfx.COLOR_LIGHT_GRAY)

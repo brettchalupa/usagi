@@ -28,6 +28,9 @@ Breaking:
   the magenta out-of-range sentinel. Negative indices and indices past the
   active palette's length still render as magenta, so the "obvious unknown
   color" indicator survives for the common typo cases.
+- `gfx.text_ex` gained a required trailing `alpha` (`0..1`) param for parity
+  with `gfx.spr_ex` / `gfx.sspr_ex`. Pass `1.0` to keep the old behavior. The
+  simple `gfx.text` signature is unchanged.
 
 ## v0.8.0 - May 14, 2026
 
