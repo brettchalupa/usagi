@@ -6,16 +6,24 @@
 //!
 //! GIF pipeline (rolling buffer): every frame, accumulate real elapsed
 //! time. Once at least one frame's worth of time at the 30fps floor has
-//! passed, read the game render target's pixel data back from the GPU,
-//! map each pixel to a palette index via a fixed lookup, and push the
-//! indexed buffer + actual elapsed centiseconds onto a ring sized to
-//! hold the last ~5 seconds. The expensive work (2x upscale + LZW +
-//! disk write) is deferred to the hotkey moment AND moved to a
-//! background thread, so the per-frame cost while idle is just the
-//! cheap palette quantize and the save itself doesn't stall the main
-//! loop (no visible frame hitch, no audio underrun). The per-frame
-//! `Arc<[u8]>` makes the snapshot handed to the worker free of any
-//! large copies.
+//! passed, read the game render target's pixel data back from the GPU
+//! and push the raw RGB pixels + actual elapsed centiseconds onto a
+//! ring sized to hold the last ~5 seconds. The expensive work (per-frame
+//! palette build, 2x upscale, LZW, disk write) is deferred to the
+//! hotkey moment AND moved to a background thread, so the per-frame
+//! cost while idle is just the RT readback and the save itself doesn't
+//! stall the main loop (no visible frame hitch, no audio underrun).
+//! The per-frame `Arc<[u8]>` makes the snapshot handed to the worker
+//! free of any large copies.
+//!
+//! Palette handling: GIF allows up to 256 colors per frame. For each
+//! frame the encoder builds a *local* palette from the actual pixels.
+//! If the frame has ≤256 unique RGB triples (the common case for
+//! palette-based games), every pixel survives bit-exact. Otherwise it
+//! falls back to NeuQuant (via `gif::Frame::from_rgb_speed`) to fit
+//! into 256 colors. There is no global palette; the recorder is
+//! palette-agnostic and reproduces whatever the RT contains, shaders
+//! and effect overlays included.
 //!
 //! Screenshot pipeline: same RT readback, but one-shot. Flip
 //! vertically (RTs are stored bottom-up under OpenGL), upscale 2x via
@@ -34,8 +42,6 @@ use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::palette;
-
 /// Lower bound on the per-frame delay written to the GIF, in centiseconds.
 /// Frames captured within this window are coalesced (accumulated dt
 /// carries forward into the next capture). Picked to be roughly a 30fps
@@ -45,88 +51,32 @@ use crate::palette;
 const MIN_DELAY_CS: u16 = 3;
 
 /// Target retained-buffer duration in seconds. At ~30fps after the
-/// frame-skip and 320×180 indexed pre-upscale storage, this works out to
-/// roughly 9MB of resident memory, regardless of how long the session
-/// has been running.
+/// frame-skip and 320×180 raw-RGB pre-upscale storage, this works out
+/// to roughly 26MB of resident memory, regardless of how long the
+/// session has been running.
 const BUFFER_SECONDS: f32 = 5.0;
 
 /// Nearest-neighbor upscale applied at save time so the resulting GIF
 /// reads well when shared.
 const RECORDING_SCALE: u16 = 2;
 
-/// Resolved RGB triples for the 16 palette entries, in palette-index
-/// order. GIF palette slots are 0-based by spec, so usagi slots 1..=16
-/// fill GIF positions 0..15.
-fn palette_rgb() -> [u8; 48] {
-    let mut out = [0u8; 48];
-    for i in 0..16 {
-        let c = palette::color((i + 1) as i32);
-        out[i * 3] = c.r;
-        out[i * 3 + 1] = c.g;
-        out[i * 3 + 2] = c.b;
-    }
-    out
-}
+/// NeuQuant speed/quality tradeoff (1 = best quality, 30 = fastest).
+/// Only used when a frame has more than 256 unique RGB triples and we
+/// have to quantize. 10 is the gif crate's documented sweet spot. The
+/// work runs on the save-time worker thread, so the main loop is
+/// insulated either way.
+const NEUQUANT_SPEED: i32 = 10;
 
-/// Maps an exact RGB triple back to its palette index. Built once at
-/// recorder construction. Pixels that don't match any palette color
-/// (e.g. antialiased font edges) fall through to the closest palette
-/// entry by squared-distance lookup.
-struct PaletteIndex {
-    /// Fast path: exact RGB to index match. Hits for every pixel a game
-    /// draws via a `COLOR_*` constant, which is ~all of them.
-    exact: HashMap<(u8, u8, u8), u8>,
-    /// Slow-path fallback for unrecognized RGB. Stored as a contiguous
-    /// `[r, g, b, ...]` so the closest-match scan stays cache-friendly
-    /// across the 16-iter loop.
-    palette: [u8; 48],
-}
-
-impl PaletteIndex {
-    fn new() -> Self {
-        let palette = palette_rgb();
-        let mut exact = HashMap::with_capacity(16);
-        for i in 0..16u8 {
-            let r = palette[i as usize * 3];
-            let g = palette[i as usize * 3 + 1];
-            let b = palette[i as usize * 3 + 2];
-            exact.insert((r, g, b), i);
-        }
-        Self { exact, palette }
-    }
-
-    fn lookup(&self, r: u8, g: u8, b: u8) -> u8 {
-        if let Some(&idx) = self.exact.get(&(r, g, b)) {
-            return idx;
-        }
-        let mut best = 0u8;
-        let mut best_dist = i32::MAX;
-        for i in 0..16usize {
-            let pr = self.palette[i * 3] as i32;
-            let pg = self.palette[i * 3 + 1] as i32;
-            let pb = self.palette[i * 3 + 2] as i32;
-            let dr = pr - r as i32;
-            let dg = pg - g as i32;
-            let db = pb - b as i32;
-            let dist = dr * dr + dg * dg + db * db;
-            if dist < best_dist {
-                best_dist = dist;
-                best = i as u8;
-            }
-        }
-        best
-    }
-}
-
-/// One captured frame in the ring. Stores pixels at game resolution
-/// (pre-upscale) as palette indices, and the actual elapsed time since
-/// the previous kept frame so playback timing reflects reality even
-/// across stutters. `Arc<[u8]>` so the save-on-hotkey path can snapshot
-/// the buffer for a background worker with only atomic refcount bumps
-/// per frame instead of copying ~10MB of pixels.
+/// One captured frame in the ring. Stores raw RGB pixels at game
+/// resolution (pre-upscale, `3 * w * h` bytes) and the actual elapsed
+/// time since the previous kept frame so playback timing reflects
+/// reality even across stutters. `Arc<[u8]>` so the save-on-hotkey
+/// path can snapshot the buffer for a background worker with only
+/// atomic refcount bumps per frame instead of copying tens of MB of
+/// pixels.
 #[derive(Clone)]
 struct CapturedFrame {
-    indexed: Arc<[u8]>,
+    rgb: Arc<[u8]>,
     delay_cs: u16,
 }
 
@@ -166,7 +116,6 @@ pub struct Recorder {
     /// Accumulates across skipped frames so a coalesced delay still
     /// reflects real time.
     accumulated_dt: f32,
-    palette_index: PaletteIndex,
     /// Source frame dimensions of the buffered frames. Set on the first
     /// captured frame. If the game's render resolution changes
     /// mid-session the buffer is discarded so the encoder never sees
@@ -181,7 +130,6 @@ impl Recorder {
             frames: VecDeque::new(),
             total_seconds: 0.0,
             accumulated_dt: 0.0,
-            palette_index: PaletteIndex::new(),
             width: 0,
             height: 0,
         }
@@ -190,9 +138,10 @@ impl Recorder {
     /// Per-frame entry point. Called every game frame after `_draw`.
     /// Accumulates `dt` (seconds, from raylib's frame time); if enough
     /// has passed to clear the 30fps floor, reads the RT back from the
-    /// GPU, quantizes to palette indices, and appends to the ring.
-    /// Evicts the oldest frames once total duration exceeds
-    /// `BUFFER_SECONDS`.
+    /// GPU and appends the raw RGB pixels (already flipped top-down)
+    /// to the ring. Evicts the oldest frames once total duration
+    /// exceeds `BUFFER_SECONDS`. Palette building / quantization is
+    /// deferred to save time on a worker thread.
     pub fn capture(&mut self, rt: &RenderTexture2D, dt: f32, res: crate::config::Resolution) {
         let Some(delay_cs) = tick_timing(&mut self.accumulated_dt, dt) else {
             return;
@@ -225,22 +174,24 @@ impl Recorder {
             );
             return;
         }
-        // RTs are bottom-up under OpenGL; flip during the palette walk
-        // so the buffered indexed bytes are already top-down. Save time
-        // can then upscale linearly without re-flipping.
-        let mut indexed = vec![0u8; src_w * src_h];
+        // RTs are bottom-up under OpenGL; flip during the copy so the
+        // buffered RGB bytes are already top-down. Save time can then
+        // build the palette and upscale linearly without re-flipping.
+        let mut rgb = vec![0u8; src_w * src_h * 3];
         for sy in 0..src_h {
             let flipped = src_h - 1 - sy;
             let src_off = flipped * src_w;
-            let dst_off = sy * src_w;
+            let dst_off = sy * src_w * 3;
             for sx in 0..src_w {
                 let p = pixels[src_off + sx];
-                indexed[dst_off + sx] = self.palette_index.lookup(p.r, p.g, p.b);
+                rgb[dst_off + sx * 3] = p.r;
+                rgb[dst_off + sx * 3 + 1] = p.g;
+                rgb[dst_off + sx * 3 + 2] = p.b;
             }
         }
 
         self.frames.push_back(CapturedFrame {
-            indexed: Arc::from(indexed.into_boxed_slice()),
+            rgb: Arc::from(rgb.into_boxed_slice()),
             delay_cs,
         });
         self.total_seconds += used_seconds;
@@ -310,6 +261,8 @@ impl Recorder {
 
 /// Encodes a snapshot of captured frames into a GIF at `path`. Pure;
 /// invoked from the save worker thread so the main loop stays free.
+/// Each frame carries its own local 256-color palette. No global
+/// palette is written.
 fn write_gif(
     path: &Path,
     width: u16,
@@ -318,39 +271,104 @@ fn write_gif(
 ) -> std::io::Result<()> {
     let file = File::create(path)?;
     let writer = BufWriter::new(file);
-    let palette = palette_rgb();
     let scale = RECORDING_SCALE;
     let gif_w = width.saturating_mul(scale);
     let gif_h = height.saturating_mul(scale);
-    let mut encoder = gif::Encoder::new(writer, gif_w, gif_h, &palette).map_err(io_err)?;
+    let mut encoder = gif::Encoder::new(writer, gif_w, gif_h, &[]).map_err(io_err)?;
     encoder.set_repeat(gif::Repeat::Infinite).map_err(io_err)?;
-    let src_w = width as usize;
-    let src_h = height as usize;
-    let s = scale as usize;
-    let out_w = src_w * s;
-    let out_h = src_h * s;
     for f in frames {
-        let mut upscaled = vec![0u8; out_w * out_h];
-        for sy in 0..src_h {
-            let src_row = sy * src_w;
-            let dst_y0 = sy * s;
-            for sx in 0..src_w {
-                let idx = f.indexed[src_row + sx];
-                let dst_x0 = sx * s;
-                for dy in 0..s {
-                    let row_off = (dst_y0 + dy) * out_w;
-                    for dx in 0..s {
-                        upscaled[row_off + dst_x0 + dx] = idx;
-                    }
-                }
-            }
-        }
-        let mut frame = gif::Frame::from_indexed_pixels(gif_w, gif_h, upscaled, None);
-        frame.delay = f.delay_cs;
+        let frame = encode_frame(width, height, &f.rgb, f.delay_cs, scale);
         encoder.write_frame(&frame).map_err(io_err)?;
     }
     drop(encoder);
     Ok(())
+}
+
+/// Builds a single GIF frame from source-resolution RGB. If the frame
+/// has ≤256 unique RGB triples (the common case for palette-based
+/// games), they go straight into a local palette and every pixel
+/// survives bit-exact. Otherwise NeuQuant (via the gif crate's
+/// `from_rgb_speed`) reduces to 256 colors. The indexed buffer is
+/// upscaled `scale`× by nearest-neighbor after palette assignment so
+/// the quantizer only ever sees the source-resolution pixel set.
+fn encode_frame(
+    src_w: u16,
+    src_h: u16,
+    rgb: &[u8],
+    delay_cs: u16,
+    scale: u16,
+) -> gif::Frame<'static> {
+    let src_w_us = src_w as usize;
+    let src_h_us = src_h as usize;
+    let s = scale as usize;
+    let out_w = src_w_us * s;
+    let out_h = src_h_us * s;
+
+    let (indexed_src, palette) =
+        build_palette_exact(rgb).unwrap_or_else(|| build_palette_quantized(src_w, src_h, rgb));
+
+    let mut upscaled = vec![0u8; out_w * out_h];
+    for sy in 0..src_h_us {
+        let src_row = sy * src_w_us;
+        let dst_y0 = sy * s;
+        for sx in 0..src_w_us {
+            let idx = indexed_src[src_row + sx];
+            let dst_x0 = sx * s;
+            for dy in 0..s {
+                let row_off = (dst_y0 + dy) * out_w;
+                for dx in 0..s {
+                    upscaled[row_off + dst_x0 + dx] = idx;
+                }
+            }
+        }
+    }
+
+    let gif_w = out_w as u16;
+    let gif_h = out_h as u16;
+    let mut frame = gif::Frame::from_indexed_pixels(gif_w, gif_h, upscaled, None);
+    frame.palette = Some(palette);
+    frame.delay = delay_cs;
+    frame
+}
+
+/// Tries to build a bit-exact local palette. Returns
+/// `Some((indexed_buffer, palette_bytes))` if the frame has ≤256
+/// unique RGB triples; `None` (signalling "fall back to NeuQuant") if
+/// it exceeds the GIF per-frame limit.
+fn build_palette_exact(rgb: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
+    let n = rgb.len() / 3;
+    let mut color_to_idx: HashMap<(u8, u8, u8), u8> = HashMap::new();
+    let mut palette: Vec<u8> = Vec::new();
+    let mut indexed: Vec<u8> = Vec::with_capacity(n);
+    for chunk in rgb.chunks_exact(3) {
+        let key = (chunk[0], chunk[1], chunk[2]);
+        let idx = if let Some(&i) = color_to_idx.get(&key) {
+            i
+        } else {
+            if color_to_idx.len() >= 256 {
+                return None;
+            }
+            let i = color_to_idx.len() as u8;
+            color_to_idx.insert(key, i);
+            palette.extend_from_slice(&[chunk[0], chunk[1], chunk[2]]);
+            i
+        };
+        indexed.push(idx);
+    }
+    Some((indexed, palette))
+}
+
+/// NeuQuant fallback for frames that exceed 256 unique colors (shader
+/// output, blends, gradients). Routes through the gif crate's helper
+/// to reuse the `color_quant` dependency rather than maintaining a
+/// second quantizer here.
+fn build_palette_quantized(src_w: u16, src_h: u16, rgb: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    let frame = gif::Frame::from_rgb_speed(src_w, src_h, rgb, NEUQUANT_SPEED);
+    let palette = frame
+        .palette
+        .clone()
+        .expect("gif::Frame::from_rgb_speed always sets a palette");
+    (frame.buffer.into_owned(), palette)
 }
 
 impl Default for Recorder {
@@ -461,24 +479,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn palette_lookup_returns_exact_index_for_each_palette_color() {
-        let p = PaletteIndex::new();
-        for gif_idx in 0..16u8 {
-            let c = palette::color((gif_idx + 1) as i32);
-            assert_eq!(
-                p.lookup(c.r, c.g, c.b),
-                gif_idx,
-                "gif idx {gif_idx} (usagi slot {}) should round-trip",
-                gif_idx + 1
-            );
-        }
+    fn exact_palette_round_trips_low_color_frame() {
+        // A frame using two distinct RGB triples lands in the exact
+        // path: both colors appear in the palette in first-seen order,
+        // and every pixel maps to its slot.
+        let rgb = vec![10, 20, 30, 200, 100, 50, 10, 20, 30, 200, 100, 50];
+        let (indexed, palette) = build_palette_exact(&rgb).expect("two colors fit in 256");
+        assert_eq!(indexed, vec![0, 1, 0, 1]);
+        assert_eq!(palette, vec![10, 20, 30, 200, 100, 50]);
     }
 
     #[test]
-    fn palette_lookup_picks_nearest_for_off_palette_rgb() {
-        let p = PaletteIndex::new();
-        assert_eq!(p.lookup(1, 1, 1), 0);
-        assert_eq!(p.lookup(255, 0, 0), (palette::Pal::Red as i32 - 1) as u8);
+    fn exact_palette_returns_none_when_over_256_colors() {
+        // 257 distinct triples must overflow the local-palette limit
+        // and force the caller to fall back to quantization.
+        let mut rgb: Vec<u8> = Vec::with_capacity(257 * 3);
+        for i in 0..257u32 {
+            rgb.push((i & 0xFF) as u8);
+            rgb.push(((i >> 8) & 0xFF) as u8);
+            rgb.push(((i ^ 0xA5) & 0xFF) as u8);
+        }
+        assert!(build_palette_exact(&rgb).is_none());
+    }
+
+    #[test]
+    fn quantized_palette_fits_in_256_for_high_color_frame() {
+        // NeuQuant should always produce a palette with at most 256
+        // colors (768 bytes) regardless of input. Use a small 16×16
+        // frame with random-ish RGBs.
+        let mut rgb: Vec<u8> = Vec::with_capacity(16 * 16 * 3);
+        for i in 0..(16 * 16) {
+            rgb.push((i * 3) as u8);
+            rgb.push((i * 5) as u8);
+            rgb.push((i * 7) as u8);
+        }
+        let (indexed, palette) = build_palette_quantized(16, 16, &rgb);
+        assert_eq!(indexed.len(), 16 * 16);
+        assert!(palette.len() <= 256 * 3, "got {} bytes", palette.len());
     }
 
     #[test]
@@ -516,14 +553,14 @@ mod tests {
 
     /// Direct timing-math test helper. Calls the same `tick_timing`
     /// the real `capture` uses, but stubs the GPU readback with a
-    /// zeroed indexed buffer so eviction can be exercised without a
+    /// zeroed RGB buffer so eviction can be exercised without a
     /// raylib context.
     fn push_synthetic_frame(rec: &mut Recorder, dt: f32, w: u16, h: u16) -> Option<u16> {
         let delay_cs = tick_timing(&mut rec.accumulated_dt, dt)?;
         rec.width = w;
         rec.height = h;
         rec.frames.push_back(CapturedFrame {
-            indexed: Arc::from(vec![0u8; w as usize * h as usize].into_boxed_slice()),
+            rgb: Arc::from(vec![0u8; w as usize * h as usize * 3].into_boxed_slice()),
             delay_cs,
         });
         rec.total_seconds += delay_cs as f32 / 100.0;
