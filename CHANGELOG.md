@@ -50,6 +50,12 @@ Fixes:
   was previously upscaled at a fractional ratio and came out blurred / curly.
   The overlay now draws at an integer multiple of the bundled monogram's native
   size. [See #212](https://github.com/brettchalupa/usagi/issues/212)
+- `usagi.save` now rejects unsupported table shapes with a clear message instead
+  of either a cryptic serde error or silent data loss. Tables with sparse
+  integer keys (`{[6]=1, [7]=2}`), gaps in a 1..n array (`{[1]="x", [3]="z"}`),
+  or mixed string/integer keys now error up front and point at the workaround.
+  JSON only supports maps with string keys or dense `1..n` arrays.
+  [See #220](https://github.com/brettchalupa/usagi/issues/220)
 
 ## v0.8.0 - May 14, 2026
 

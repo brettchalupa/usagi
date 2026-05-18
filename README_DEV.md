@@ -999,6 +999,13 @@ Engine-level info.
   strings, numbers, booleans, nil. Functions, userdata, NaN, and circular tables
   raise an error.
 
+  **Table keys must be either all strings (a map) or a dense `1..n` integer
+  array.** JSON has no integer-keyed map type, so sparse integer keys like
+  `{[6]=1, [7]=2}` and gaps like `{[1]="x", [3]="z"}` raise a clear error
+  instead of silently truncating. If you want a map indexed by integers,
+  stringify the keys (`{[tostring(level)] = time}`); if you want a list, fill
+  `1..n`.
+
 ### Effects: hitstop, screen shake, flash, slow-mo
 
 The `effect.*` module gives you four engine-level juice primitives. Each is a

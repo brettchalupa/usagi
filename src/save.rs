@@ -50,13 +50,74 @@ const SAVE_FILE: &str = "save.json";
 const SAVE_FILE_TMP: &str = "save.json.tmp";
 
 /// Serializes a Lua value (typically a table) to a pretty-printed JSON
-/// string. Errors surface to Lua as runtime errors with whatever
-/// context serde_json gives us (e.g. "key must be a string" for
-/// integer-keyed maps that aren't 1..n arrays).
+/// string. Validates the table shape up front so the user gets a clear
+/// "JSON can't hold this" message instead of a cryptic serde error or,
+/// worse, silent data loss when mlua treats a sparse near-array as its
+/// dense prefix.
 pub fn lua_to_json(lua: &Lua, value: Value) -> mlua::Result<String> {
+    if let Value::Table(ref t) = value {
+        validate_save_table(t)?;
+    }
     let json: serde_json::Value = lua.from_value(value)?;
     serde_json::to_string_pretty(&json)
         .map_err(|e| mlua::Error::external(format!("save: serialize: {e}")))
+}
+
+/// Walks a Lua table (and its nested tables) and rejects shapes that
+/// don't round-trip cleanly through JSON: integer keys that aren't a
+/// dense `1..n` array, mixed string+integer keys, and non-string /
+/// non-integer keys. The error message points at the workaround
+/// (`tostring(k)` for maps, fill `1..n` for arrays) instead of the raw
+/// serde "expected a string key" wording.
+fn validate_save_table(table: &mlua::Table) -> mlua::Result<()> {
+    let mut int_keys: Vec<i64> = Vec::new();
+    let mut string_count: usize = 0;
+    let mut nested: Vec<mlua::Table> = Vec::new();
+    for pair in table.pairs::<Value, Value>() {
+        let (k, v) = pair?;
+        match k {
+            Value::String(_) => string_count += 1,
+            Value::Integer(n) => int_keys.push(n),
+            Value::Number(n)
+                if n.is_finite() && n.fract() == 0.0 && n.abs() < (i64::MAX as f64) =>
+            {
+                int_keys.push(n as i64);
+            }
+            other => {
+                return Err(mlua::Error::external(format!(
+                    "usagi.save: table key must be a string or 1..n integer; got {}. \
+                     JSON only supports string keys (and 1..n arrays).",
+                    other.type_name()
+                )));
+            }
+        }
+        if let Value::Table(t) = v {
+            nested.push(t);
+        }
+    }
+    if string_count > 0 && !int_keys.is_empty() {
+        return Err(mlua::Error::external(
+            "usagi.save: table mixes string and integer keys. JSON tables hold either a \
+             map (all string keys) or a dense 1..n array, not both. \
+             Convert integer keys with tostring(k) to save as a map.",
+        ));
+    }
+    if !int_keys.is_empty() {
+        int_keys.sort_unstable();
+        let n = int_keys.len() as i64;
+        let dense_1_to_n = int_keys[0] == 1 && int_keys[(n - 1) as usize] == n;
+        if !dense_1_to_n {
+            return Err(mlua::Error::external(format!(
+                "usagi.save: integer-keyed table must be a dense 1..n array (no gaps, starting at 1); \
+                 got keys {int_keys:?}. \
+                 Convert the keys with tostring(k) to save as a map, or fill 1..n for an array.",
+            )));
+        }
+    }
+    for t in nested {
+        validate_save_table(&t)?;
+    }
+    Ok(())
 }
 
 /// Parses a JSON string into a Lua value. JSON arrays become 1-indexed
@@ -259,6 +320,59 @@ mod tests {
         };
         assert_eq!(back.get::<i64>(1).unwrap(), 10);
         assert_eq!(back.get::<i64>(3).unwrap(), 30);
+    }
+
+    #[test]
+    fn rejects_sparse_integer_keys() {
+        // {[6]=1, [7]=2} used to surface as "invalid type: integer `6`,
+        // expected a string key"; now we catch it up front with a
+        // pointer at the workaround.
+        let lua = Lua::new();
+        let t: mlua::Table = lua.load(r#"return {[6]=1, [7]=2}"#).eval().unwrap();
+        let err = lua_to_json(&lua, Value::Table(t)).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("1..n") && msg.contains("tostring"),
+            "expected workaround hint, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn rejects_array_with_gap_instead_of_silently_truncating() {
+        // {[1]=x, [3]=z} used to serialize as `[x]` (mlua stops at the
+        // Lua "border" — silent data loss). Now it errors so the dev
+        // sees the problem before shipping.
+        let lua = Lua::new();
+        let t: mlua::Table = lua.load(r#"return {[1]="x", [3]="z"}"#).eval().unwrap();
+        let err = lua_to_json(&lua, Value::Table(t)).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("1..n"),
+            "expected dense-array hint, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn rejects_mixed_string_and_integer_keys() {
+        let lua = Lua::new();
+        let t: mlua::Table = lua.load(r#"return {a=1, [1]="x"}"#).eval().unwrap();
+        let err = lua_to_json(&lua, Value::Table(t)).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("mixes string and integer"),
+            "expected mixed-keys hint, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn rejects_sparse_keys_in_nested_table() {
+        let lua = Lua::new();
+        let t: mlua::Table = lua
+            .load(r#"return { settings = { [6]=1, [7]=2 } }"#)
+            .eval()
+            .unwrap();
+        let err = lua_to_json(&lua, Value::Table(t)).unwrap_err();
+        assert!(err.to_string().contains("1..n"));
     }
 
     #[test]
