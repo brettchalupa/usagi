@@ -188,7 +188,7 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     // field without erroring.
     usagi.set(
         "measure_text",
-        lua.create_function(|_, _s: String| Ok((0i32, 0i32)))?,
+        lua.create_function(|_, _s: LuaString| Ok((0i32, 0i32)))?,
     )?;
     // `usagi.dump` lives in runtime/usagi.lua so the pretty-printer is
     // pure Lua and easy to fork or override at the script level. The
@@ -222,7 +222,11 @@ pub fn register_shader_api(lua: &Lua, mgr: &Rc<RefCell<ShaderManager>>) -> LuaRe
     let gfx: LuaTable = lua.globals().get("gfx")?;
 
     let m = Rc::clone(mgr);
-    let shader_set = lua.create_function(move |_, name: Option<String>| {
+    let shader_set = lua.create_function(move |_, name: Option<LuaString>| {
+        // Lossy conversion so a non-UTF-8 name doesn't error at the FFI
+        // boundary (Windows MSVC longjmp hazard); an unknown shader name
+        // is already a silent no-op downstream.
+        let name = name.map(|s| s.to_string_lossy());
         m.borrow_mut().request_set(name);
         Ok(())
     })?;
@@ -234,7 +238,8 @@ pub fn register_shader_api(lua: &Lua, mgr: &Rc<RefCell<ShaderManager>>) -> LuaRe
     )?;
 
     let m = Rc::clone(mgr);
-    let shader_uniform = lua.create_function(move |_, (name, value): (String, LuaValue)| {
+    let shader_uniform = lua.create_function(move |_, (name, value): (LuaString, LuaValue)| {
+        let name = name.to_string_lossy();
         let v = parse_uniform(&value).map_err(mlua::Error::external)?;
         m.borrow_mut().queue_uniform(name, v);
         Ok(())
@@ -397,6 +402,40 @@ mod tests {
             .exec()
             .expect_err("string arg must be rejected");
         assert!(err.to_string().contains("test.double"));
+    }
+
+    #[test]
+    fn lua_string_param_accepts_non_utf8_without_error() {
+        // Regression: `string.char(127+)` passed to a Rust callback used
+        // to fail mlua's `FromLua for String` conversion (invalid UTF-8),
+        // and that Err propagated back through the C trampoline via
+        // longjmp. On Windows MSVC the longjmp can't cross Rust frames
+        // and the process aborts with "panic in a function that cannot
+        // unwind". Accepting `LuaString` + `to_string_lossy` keeps the
+        // conversion infallible, so the call returns Ok with U+FFFD
+        // replacement chars instead.
+        let lua = Lua::new();
+        lua.globals()
+            .set(
+                "echo_len",
+                lua.create_function(|_, s: LuaString| {
+                    let s = s.to_string_lossy();
+                    Ok(s.chars().count())
+                })
+                .unwrap(),
+            )
+            .unwrap();
+        for code_point in [127u32, 128, 200, 255] {
+            let code = format!("return echo_len(string.char({code_point}))");
+            let len: usize = lua
+                .load(&code)
+                .eval()
+                .unwrap_or_else(|e| panic!("string.char({code_point}) failed: {e}"));
+            assert_eq!(
+                len, 1,
+                "every byte should produce exactly one char (replacement char counts as one)"
+            );
+        }
     }
 
     #[test]
@@ -601,11 +640,11 @@ mod tests {
             )?;
             gfx.set(
                 "text",
-                scope.create_function(|_, _a: (String, f32, f32, i32)| Ok(()))?,
+                scope.create_function(|_, _a: (LuaString, f32, f32, i32)| Ok(()))?,
             )?;
             gfx.set(
                 "text_ex",
-                scope.create_function(|_, _a: (String, f32, f32, f32, f32, i32, f32)| Ok(()))?,
+                scope.create_function(|_, _a: (LuaString, f32, f32, f32, f32, i32, f32)| Ok(()))?,
             )?;
             gfx.set(
                 "spr",
@@ -683,19 +722,19 @@ mod tests {
             )?;
 
             let sfx: LuaTable = lua.globals().get("sfx")?;
-            sfx.set("play", scope.create_function(|_, _n: String| Ok(()))?)?;
+            sfx.set("play", scope.create_function(|_, _n: LuaString| Ok(()))?)?;
             sfx.set(
                 "play_ex",
-                scope.create_function(|_, _a: (String, f32, f32, f32)| Ok(()))?,
+                scope.create_function(|_, _a: (LuaString, f32, f32, f32)| Ok(()))?,
             )?;
 
             let music: LuaTable = lua.globals().get("music")?;
-            music.set("play", scope.create_function(|_, _n: String| Ok(()))?)?;
-            music.set("loop", scope.create_function(|_, _n: String| Ok(()))?)?;
+            music.set("play", scope.create_function(|_, _n: LuaString| Ok(()))?)?;
+            music.set("loop", scope.create_function(|_, _n: LuaString| Ok(()))?)?;
             music.set("stop", scope.create_function(|_, ()| Ok(()))?)?;
             music.set(
                 "play_ex",
-                scope.create_function(|_, _a: (String, f32, f32, f32, bool)| Ok(()))?,
+                scope.create_function(|_, _a: (LuaString, f32, f32, f32, bool)| Ok(()))?,
             )?;
             music.set(
                 "mutate",

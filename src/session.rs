@@ -90,7 +90,15 @@ pub(crate) fn load_palette_from_vfs(vfs: &dyn VirtualFs) {
 /// Returns two values: width and height in pixels.
 fn register_usagi_measure_text(lua: &Lua, font: &'static Font) -> LuaResult<()> {
     let usagi: LuaTable = lua.globals().get("usagi")?;
-    let measure = lua.create_function(move |_, s: String| {
+    let measure = lua.create_function(move |_, s: LuaString| {
+        // `LuaString` + `to_string_lossy` instead of `s: String`: a
+        // Lua string containing non-UTF-8 bytes (e.g. `string.char(200)`)
+        // would otherwise fail mlua's FromLua conversion at the FFI
+        // boundary, and that Err path crashes on Windows MSVC
+        // (longjmp through Rust frames) like the wrap helper guards
+        // against. Replacement chars render visibly so the issue is
+        // discoverable rather than silent.
+        let s = s.to_string_lossy();
         let m = font.measure_text(&s, font.base_size() as f32, 0.0);
         Ok((m.x as i32, m.y as i32))
     })?;
@@ -375,14 +383,16 @@ fn register_music_api(
     let music_tbl: LuaTable = lua.globals().get("music")?;
 
     let m = Rc::clone(music);
-    let play = lua.create_function(move |_, name: String| {
+    let play = lua.create_function(move |_, name: LuaString| {
+        let name = name.to_string_lossy();
         m.borrow_mut().play(&name);
         Ok(())
     })?;
     music_tbl.set("play", wrap(lua, play, "music.play", &["string"])?)?;
 
     let m = Rc::clone(music);
-    let loop_ = lua.create_function(move |_, name: String| {
+    let loop_ = lua.create_function(move |_, name: LuaString| {
+        let name = name.to_string_lossy();
         m.borrow_mut().loop_(&name);
         Ok(())
     })?;
@@ -397,7 +407,8 @@ fn register_music_api(
 
     let m = Rc::clone(music);
     let play_ex = lua.create_function(
-        move |_, (name, volume, pitch, pan, looping): (String, f32, f32, f32, bool)| {
+        move |_, (name, volume, pitch, pan, looping): (LuaString, f32, f32, f32, bool)| {
+            let name = name.to_string_lossy();
             m.borrow_mut().play_with(&name, volume, pitch, pan, looping);
             Ok(())
         },
@@ -1484,13 +1495,15 @@ impl Session {
             "_update",
             lua.scope(|scope| {
                 let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
-                let play = scope.create_function(|_, name: String| {
+                let play = scope.create_function(|_, name: LuaString| {
+                    let name = name.to_string_lossy();
                     sfx_ref.play(&name);
                     Ok(())
                 })?;
                 sfx_tbl.set("play", wrap(lua, play, "sfx.play", &["string"])?)?;
                 let play_ex = scope.create_function(
-                    |_, (name, volume, pitch, pan): (String, f32, f32, f32)| {
+                    |_, (name, volume, pitch, pan): (LuaString, f32, f32, f32)| {
+                        let name = name.to_string_lossy();
                         sfx_ref.play_with(&name, volume, pitch, pan);
                         Ok(())
                     },
@@ -1569,7 +1582,8 @@ impl Session {
                         Ok(())
                     })?;
                     let text =
-                        scope.create_function(|_, (s, x, y, c): (String, f32, f32, i32)| {
+                        scope.create_function(|_, (s, x, y, c): (LuaString, f32, f32, i32)| {
+                            let s = s.to_string_lossy();
                             d_rt_cell.borrow_mut().draw_text_ex(
                                 font_ref,
                                 &s,
@@ -1583,7 +1597,7 @@ impl Session {
                     let text_ex = scope.create_function(
                         |_,
                          (s, x, y, scale, rotation, c, alpha): (
-                            String,
+                            LuaString,
                             f32,
                             f32,
                             f32,
@@ -1591,6 +1605,7 @@ impl Session {
                             i32,
                             f32,
                         )| {
+                            let s = s.to_string_lossy();
                             let base = font_ref.base_size() as f32;
                             let font_size = base * scale;
                             // Bounds drive the pivot. We center rotation
@@ -2040,13 +2055,15 @@ impl Session {
                     )?;
 
                     let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
-                    let play = scope.create_function(|_, name: String| {
+                    let play = scope.create_function(|_, name: LuaString| {
+                        let name = name.to_string_lossy();
                         sfx_ref.play(&name);
                         Ok(())
                     })?;
                     sfx_tbl.set("play", wrap(lua, play, "sfx.play", &["string"])?)?;
                     let play_ex = scope.create_function(
-                        |_, (name, volume, pitch, pan): (String, f32, f32, f32)| {
+                        |_, (name, volume, pitch, pan): (LuaString, f32, f32, f32)| {
+                            let name = name.to_string_lossy();
                             sfx_ref.play_with(&name, volume, pitch, pan);
                             Ok(())
                         },

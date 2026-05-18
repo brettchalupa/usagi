@@ -41,6 +41,11 @@ Fixes:
   warning at startup. Cocoa never honored the per-window icon anyway, so the
   call was a known no-op; the `.app` bundle's `AppIcon.icns` is the path that
   matters there, and it's still generated at `usagi export --target macos` time.
+- Passing a non-UTF-8 byte sequence (e.g. `string.char(200)`) to engine APIs
+  that take a string (`gfx.text`, `gfx.text_ex`, `usagi.measure_text`,
+  `usagi.menu_item`, `sfx.play`, `music.play`, `gfx.shader_set`, etc.) no longer
+  crashes on Windows. Bytes outside ASCII render as the U+FFFD replacement
+  character instead of erroring at the FFI boundary.
 
 ## v0.8.0 - May 14, 2026
 

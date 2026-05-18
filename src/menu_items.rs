@@ -61,7 +61,7 @@ pub fn register_api(lua: &Lua, store: &MenuItemStore) -> LuaResult<()> {
     let usagi: LuaTable = lua.globals().get("usagi")?;
 
     let s = Rc::clone(store);
-    let menu_item = lua.create_function(move |lua, (label, cb): (String, LuaFunction)| {
+    let menu_item = lua.create_function(move |lua, (label, cb): (LuaString, LuaFunction)| {
         let mut items = s.borrow_mut();
         if items.len() >= MENU_ITEM_LIMIT {
             return Err(LuaError::RuntimeError(format!(
@@ -69,6 +69,7 @@ pub fn register_api(lua: &Lua, store: &MenuItemStore) -> LuaResult<()> {
                  call usagi.clear_menu_items() to reset"
             )));
         }
+        let label = label.to_string_lossy();
         let callback = lua.create_registry_value(cb)?;
         items.push(MenuItem { label, callback });
         Ok(())

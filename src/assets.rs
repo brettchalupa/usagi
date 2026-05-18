@@ -39,54 +39,59 @@ pub fn install_require(lua: &Lua, vfs: Rc<dyn VirtualFs>) -> LuaResult<()> {
     let preload_searcher: LuaValue = stock_searchers.get(1)?;
 
     let vfs_for_searcher = vfs.clone();
-    let searcher = lua.create_function(move |lua, name: String| -> LuaResult<LuaMultiValue> {
-        match vfs_for_searcher.read_module(&name) {
-            Some((bytes, chunk_name)) => {
-                // Preprocess and compile here, in the searcher, rather than
-                // wrapping the load in a Rust loader callback. The loader
-                // returned to `require` is then a precompiled Lua function
-                // (or a tiny Lua thunk that calls `error(...)` if compile
-                // failed), never a Rust closure.
-                //
-                // Why: Lua reports errors via `lua_error`, which longjmps to
-                // the nearest `lua_pcall`. When the loader is a Rust callback
-                // and it returns `Err`, mlua re-raises via `lua_error`, and
-                // the longjmp has to unwind across Rust frames. On Windows
-                // MSVC that trips the GS stack-cookie check and aborts the
-                // process with STATUS_STACK_BUFFER_OVERRUN. Keeping the loader
-                // Lua-only confines the longjmp to Lua/C frames back to the
-                // require pcall which is fine on every platform.
-                let prepared = preprocess(&bytes);
-                let loader: LuaFunction = match lua
-                    .load(prepared.as_slice())
-                    .set_name(chunk_name.as_str())
-                    .into_function()
-                {
-                    Ok(f) => f,
-                    Err(e) => {
-                        // Build a Lua closure that throws when called. error()
-                        // is a Lua builtin, so its longjmp originates inside
-                        // Lua's C, which means no Rust frames to unwind through.
-                        let msg = format!("error loading module '{name}':\n  {e}");
-                        let msg_str = lua.create_string(&msg)?;
-                        lua.load("local msg = ...; return function() error(msg, 0) end")
-                            .set_name("=usagi require error thunk")
-                            .call::<LuaFunction>(msg_str)?
-                    }
-                };
-                Ok(LuaMultiValue::from_vec(vec![
-                    LuaValue::Function(loader),
-                    LuaValue::String(lua.create_string(&chunk_name)?),
-                ]))
+    let searcher =
+        lua.create_function(move |lua, name: LuaString| -> LuaResult<LuaMultiValue> {
+            // `LuaString` not `String`: a non-UTF-8 module name (rare but
+            // possible) must not error at the FFI boundary, since that path
+            // crashes on Windows MSVC (see the loader-via-thunk note below).
+            let name = name.to_string_lossy();
+            match vfs_for_searcher.read_module(&name) {
+                Some((bytes, chunk_name)) => {
+                    // Preprocess and compile here, in the searcher, rather than
+                    // wrapping the load in a Rust loader callback. The loader
+                    // returned to `require` is then a precompiled Lua function
+                    // (or a tiny Lua thunk that calls `error(...)` if compile
+                    // failed), never a Rust closure.
+                    //
+                    // Why: Lua reports errors via `lua_error`, which longjmps to
+                    // the nearest `lua_pcall`. When the loader is a Rust callback
+                    // and it returns `Err`, mlua re-raises via `lua_error`, and
+                    // the longjmp has to unwind across Rust frames. On Windows
+                    // MSVC that trips the GS stack-cookie check and aborts the
+                    // process with STATUS_STACK_BUFFER_OVERRUN. Keeping the loader
+                    // Lua-only confines the longjmp to Lua/C frames back to the
+                    // require pcall which is fine on every platform.
+                    let prepared = preprocess(&bytes);
+                    let loader: LuaFunction = match lua
+                        .load(prepared.as_slice())
+                        .set_name(chunk_name.as_str())
+                        .into_function()
+                    {
+                        Ok(f) => f,
+                        Err(e) => {
+                            // Build a Lua closure that throws when called. error()
+                            // is a Lua builtin, so its longjmp originates inside
+                            // Lua's C, which means no Rust frames to unwind through.
+                            let msg = format!("error loading module '{name}':\n  {e}");
+                            let msg_str = lua.create_string(&msg)?;
+                            lua.load("local msg = ...; return function() error(msg, 0) end")
+                                .set_name("=usagi require error thunk")
+                                .call::<LuaFunction>(msg_str)?
+                        }
+                    };
+                    Ok(LuaMultiValue::from_vec(vec![
+                        LuaValue::Function(loader),
+                        LuaValue::String(lua.create_string(&chunk_name)?),
+                    ]))
+                }
+                None => {
+                    let msg = format!("\n\tno module '{name}' in usagi vfs");
+                    Ok(LuaMultiValue::from_vec(vec![LuaValue::String(
+                        lua.create_string(&msg)?,
+                    )]))
+                }
             }
-            None => {
-                let msg = format!("\n\tno module '{name}' in usagi vfs");
-                Ok(LuaMultiValue::from_vec(vec![LuaValue::String(
-                    lua.create_string(&msg)?,
-                )]))
-            }
-        }
-    })?;
+        })?;
     let new_searchers = lua.create_table()?;
     new_searchers.raw_push(preload_searcher)?;
     new_searchers.raw_push(searcher)?;
