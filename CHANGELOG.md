@@ -5,6 +5,16 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
+Breaking:
+
+- Palette slot `0` now resolves to true white (`COLOR_TRUE_WHITE`) instead of
+  the magenta out-of-range sentinel. Negative indices and indices past the
+  active palette's length still render as magenta, so the "obvious unknown
+  color" indicator survives for the common typo cases.
+- `gfx.text_ex` gained a required trailing `alpha` (`0..1`) param for parity
+  with `gfx.spr_ex` / `gfx.sspr_ex`. Pass `1.0` to keep the old behavior. The
+  simple `gfx.text` signature is unchanged.
+
 Features:
 
 - New `gfx.COLOR_TRUE_WHITE` constant: an off-palette pure `(255, 255, 255)`
@@ -22,15 +32,11 @@ Features:
   the engine's archive, detailing the various licenses. These are also viewable
   at https://usagiengine.com/third-parties.
 
-Breaking:
+Fixes:
 
-- Palette slot `0` now resolves to true white (`COLOR_TRUE_WHITE`) instead of
-  the magenta out-of-range sentinel. Negative indices and indices past the
-  active palette's length still render as magenta, so the "obvious unknown
-  color" indicator survives for the common typo cases.
-- `gfx.text_ex` gained a required trailing `alpha` (`0..1`) param for parity
-  with `gfx.spr_ex` / `gfx.sspr_ex`. Pass `1.0` to keep the old behavior. The
-  simple `gfx.text` signature is unchanged.
+- GIF recordings now use 255 colors instead of the default Pico-8 color palette,
+  fixing an issue where exported GIF colors were wrong.
+  [See #222](https://github.com/brettchalupa/usagi/issues/222)
 
 ## v0.8.0 - May 14, 2026
 
