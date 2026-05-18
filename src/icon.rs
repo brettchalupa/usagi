@@ -55,8 +55,10 @@ pub fn apply_from_sprites(
 
 /// Sizes shipped to the WM. Linux WMs (KDE ≈32, GNOME ≈48) and Windows
 /// taskbars pick the closest match; nearest-neighbor upscales of the
-/// 16x16 source keep pixel art crisp at every size.
-#[cfg(not(target_os = "emscripten"))]
+/// 16x16 source keep pixel art crisp at every size. macOS is excluded
+/// because Cocoa ignores per-window icons (see `apply_multires`), so
+/// the const would be dead code there.
+#[cfg(all(not(target_os = "emscripten"), not(target_os = "macos")))]
 const ICON_RES_PX: &[u32] = &[16, 32, 48, 64, 128, 256];
 
 /// GLFW copies the pixel data during `SetWindowIcons`, so the scaled
