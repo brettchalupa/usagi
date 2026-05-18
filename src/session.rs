@@ -1738,6 +1738,51 @@ impl Session {
                             Ok(())
                         },
                     )?;
+                    let tri = scope.create_function(
+                        |_, (x1, y1, x2, y2, x3, y3, c): (f32, f32, f32, f32, f32, f32, i32)| {
+                            d_rt_cell.borrow_mut().draw_triangle_lines(
+                                Vector2::new(x1.round(), y1.round()),
+                                Vector2::new(x2.round(), y2.round()),
+                                Vector2::new(x3.round(), y3.round()),
+                                color(c),
+                            );
+                            Ok(())
+                        },
+                    )?;
+                    let tri_fill = scope.create_function(
+                        |_, (x1, y1, x2, y2, x3, y3, c): (f32, f32, f32, f32, f32, f32, i32)| {
+                            // raylib's backface culling (front = GL_CCW
+                            // in clip space, post Y-flip ortho) means a
+                            // user-space triangle has to be CCW *as you
+                            // see it on screen* to render, which is a
+                            // negative 2D cross product in Y-down user
+                            // coords. Positive cross = CW-on-screen =
+                            // back-face = invisible. Swap two verts so
+                            // callers can pass points in any order.
+                            let x1r = x1.round();
+                            let y1r = y1.round();
+                            let x2r = x2.round();
+                            let y2r = y2.round();
+                            let x3r = x3.round();
+                            let y3r = y3.round();
+                            let cross = (x2r - x1r) * (y3r - y1r) - (x3r - x1r) * (y2r - y1r);
+                            let (a, b, cc) = if cross > 0.0 {
+                                (
+                                    Vector2::new(x1r, y1r),
+                                    Vector2::new(x3r, y3r),
+                                    Vector2::new(x2r, y2r),
+                                )
+                            } else {
+                                (
+                                    Vector2::new(x1r, y1r),
+                                    Vector2::new(x2r, y2r),
+                                    Vector2::new(x3r, y3r),
+                                )
+                            };
+                            d_rt_cell.borrow_mut().draw_triangle(a, b, cc, color(c));
+                            Ok(())
+                        },
+                    )?;
                     let pixel = scope.create_function(|_, (x, y, c): (f32, f32, i32)| {
                         d_rt_cell.borrow_mut().draw_pixel(
                             x.round() as i32,
@@ -1991,6 +2036,30 @@ impl Session {
                             line_ex,
                             "gfx.line_ex",
                             &["number", "number", "number", "number", "number", "number"],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "tri",
+                        wrap(
+                            lua,
+                            tri,
+                            "gfx.tri",
+                            &[
+                                "number", "number", "number", "number", "number", "number",
+                                "number",
+                            ],
+                        )?,
+                    )?;
+                    gfx_tbl.set(
+                        "tri_fill",
+                        wrap(
+                            lua,
+                            tri_fill,
+                            "gfx.tri_fill",
+                            &[
+                                "number", "number", "number", "number", "number", "number",
+                                "number",
+                            ],
                         )?,
                     )?;
                     gfx_tbl.set(

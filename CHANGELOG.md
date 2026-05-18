@@ -17,6 +17,12 @@ Breaking:
 
 Features:
 
+- New `gfx.tri(x1, y1, x2, y2, x3, y3, color)` and
+  `gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)` for drawing triangle outlines
+  and filled triangles from three points. Filled-triangle vertex order is
+  auto-corrected so arrows, spaceship nosecones, and pointer shapes draw
+  regardless of how you specified the points.
+  [See #211](https://github.com/brettchalupa/usagi/issues/211)
 - New `gfx.COLOR_TRUE_WHITE` constant: an off-palette pure `(255, 255, 255)`
   white. Use it as the identity tint for `gfx.spr_ex` and `gfx.sspr_ex` when you
   want sprite pixels to pass through unchanged. The Pico-8 `gfx.COLOR_WHITE` is

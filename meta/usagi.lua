@@ -118,6 +118,27 @@ function gfx.circ_ex(x, y, r, thickness, color) end
 ---@param color     integer  a gfx.COLOR_* constant
 function gfx.line_ex(x1, y1, x2, y2, thickness, color) end
 
+---Draws a triangle outline from three points.
+---@param x1    number   first vertex x in game-space pixels
+---@param y1    number   first vertex y in game-space pixels
+---@param x2    number   second vertex x in game-space pixels
+---@param y2    number   second vertex y in game-space pixels
+---@param x3    number   third vertex x in game-space pixels
+---@param y3    number   third vertex y in game-space pixels
+---@param color integer  a gfx.COLOR_* constant
+function gfx.tri(x1, y1, x2, y2, x3, y3, color) end
+
+---Draws a filled triangle from three points. Vertex order doesn't
+---matter; winding is corrected internally.
+---@param x1    number   first vertex x in game-space pixels
+---@param y1    number   first vertex y in game-space pixels
+---@param x2    number   second vertex x in game-space pixels
+---@param y2    number   second vertex y in game-space pixels
+---@param x3    number   third vertex x in game-space pixels
+---@param y3    number   third vertex y in game-space pixels
+---@param color integer  a gfx.COLOR_* constant
+function gfx.tri_fill(x1, y1, x2, y2, x3, y3, color) end
+
 ---Sets a single pixel.
 ---@param x     number  x in game-space pixels
 ---@param y     number  y in game-space pixels
