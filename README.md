@@ -21,6 +21,7 @@ Key links:
 
 Videos:
 
+- [Quickstart Guide](https://www.youtube.com/watch?v=0i1wIm6c6Rw)
 - [v0.8 overview](https://www.youtube.com/watch?v=-_5yTiRNvo4)
 - [v0.1 to v0.6 overview](https://www.youtube.com/watch?v=wYIGB91i8Lc)
 - [Introduction with initial release of v0.1](https://www.youtube.com/watch?v=byp3rKd626M)

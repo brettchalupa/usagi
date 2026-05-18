@@ -18,6 +18,7 @@ dedicated to the public domain.
 **Links:** [usagiengine.com](https://usagiengine.com),
 [Discord](https://usagiengine.com/discord),
 [r/UsagiEngine](https://reddit.com/r/UsagiEngine),
+[Quickstart video](https://www.youtube.com/watch?v=0i1wIm6c6Rw),
 [v0.8 overview](https://www.youtube.com/watch?v=-_5yTiRNvo4),
 [v0.1-v0.6 overview video](https://www.youtube.com/watch?v=wYIGB91i8Lc),
 [v0.1 intro video](https://www.youtube.com/watch?v=byp3rKd626M).
