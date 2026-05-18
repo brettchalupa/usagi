@@ -143,7 +143,7 @@ function gfx.tri_fill(x1, y1, x2, y2, x3, y3, color) end
 ---@param x     number  x in game-space pixels
 ---@param y     number  y in game-space pixels
 ---@param color integer  a gfx.COLOR_* constant
-function gfx.pixel(x, y, color) end
+function gfx.px(x, y, color) end
 
 ---Reads a pixel from the most recently rendered frame. Returns the
 ---RGB channels of the color at `(x, y)` plus the 1-based palette
@@ -162,7 +162,7 @@ function gfx.pixel(x, y, color) end
 ---@return integer? g              green channel, 0..255
 ---@return integer? b              blue channel, 0..255
 ---@return integer? palette_index  1-based palette slot, or nil if off-palette
-function gfx.px(x, y) end
+function gfx.get_px(x, y) end
 
 ---Draws a 16×16 sprite from the loaded sheet at (x, y). The sheet is
 ---`sprites.png` next to the game's main .lua; indices run left-to-right,
@@ -194,8 +194,8 @@ function gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha) end
 ---(`gfx.spr` draws alpha-keyed, so a transparent pixel reads as
 ---"nothing here" rather than as its backing RGB).
 ---
----Unlike `gfx.px`, sprite reads are deterministic and unaffected by
----draw order: handy for pixel-perfect sprite collision and for
+---Unlike `gfx.get_px`, sprite reads are deterministic and unaffected
+---by draw order: handy for pixel-perfect sprite collision and for
 ---data-baked levels where you paint the layout into the sheet and
 ---read it back at startup to spawn entities.
 ---@param index integer  one-based sprite index (1 = top-left cell)
@@ -205,7 +205,7 @@ function gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha) end
 ---@return integer? g              green channel, 0..255
 ---@return integer? b              blue channel, 0..255
 ---@return integer? palette_index  1-based palette slot, or nil if off-palette
-function gfx.spr_px(index, x, y) end
+function gfx.get_spr_px(index, x, y) end
 
 ---Draws an arbitrary (sx, sy, sw, sh) rectangle from `sprites.png` at
 ---(dx, dy) at its original size. `s*` args index into the source sheet

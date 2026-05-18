@@ -89,18 +89,18 @@ end
 local function draw_cursor(x, y)
   -- Tiny crosshair: a center pixel with four arms, palette colors
   -- chosen to read against the dark background.
-  gfx.pixel(x, y, gfx.COLOR_WHITE)
-  gfx.pixel(x - 2, y, gfx.COLOR_LIGHT_GRAY)
-  gfx.pixel(x + 2, y, gfx.COLOR_LIGHT_GRAY)
-  gfx.pixel(x, y - 2, gfx.COLOR_LIGHT_GRAY)
-  gfx.pixel(x, y + 2, gfx.COLOR_LIGHT_GRAY)
+  gfx.px(x, y, gfx.COLOR_WHITE)
+  gfx.px(x - 2, y, gfx.COLOR_LIGHT_GRAY)
+  gfx.px(x + 2, y, gfx.COLOR_LIGHT_GRAY)
+  gfx.px(x, y - 2, gfx.COLOR_LIGHT_GRAY)
+  gfx.px(x, y + 2, gfx.COLOR_LIGHT_GRAY)
 end
 
 function _draw(_dt)
   gfx.clear(gfx.COLOR_DARK_BLUE)
 
   for _, s in ipairs(State.sparks) do
-    gfx.pixel(s.x, s.y, s.color)
+    gfx.px(s.x, s.y, s.color)
   end
 
   local mx, my = input.mouse()

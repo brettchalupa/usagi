@@ -171,7 +171,7 @@ function _draw(_dt)
   for i = 1, 30 do
     local x = (i * 23) % usagi.GAME_W
     local y = (i * 17) % (usagi.GAME_H - MSG_H - 24)
-    gfx.pixel(x, y, gfx.COLOR_DARK_GRAY)
+    gfx.px(x, y, gfx.COLOR_DARK_GRAY)
   end
 
   -- Hint

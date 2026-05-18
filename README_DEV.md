@@ -221,11 +221,11 @@ gfx.line(x1, y1, x2, y2, color)
 gfx.line_ex(x1, y1, x2, y2, thickness, color)
 gfx.tri(x1, y1, x2, y2, x3, y3, color)
 gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)
-gfx.pixel(x, y, color)
-gfx.px(x, y) -- read screen pixel: r, g, b, palette_index
+gfx.px(x, y, color)
+gfx.get_px(x, y) -- read screen pixel: r, g, b, palette_index
 gfx.spr(index, x, y)
 gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)
-gfx.spr_px(index, x, y) -- read sprite-sheet pixel: r, g, b, palette_index
+gfx.get_spr_px(index, x, y) -- read sprite-sheet pixel: r, g, b, palette_index
 gfx.sspr(sx, sy, sw, sh, dx, dy)
 gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha)
 gfx.shader_set(name)
@@ -467,15 +467,15 @@ palette indices 0-15; use the named constants.
   points. Vertex order doesn't matter; the winding is corrected for you so
   arrows, spaceship nosecones, and the like just draw regardless of how you laid
   out the points.
-- `gfx.pixel(x, y, color)` — set a single pixel.
-- `gfx.px(x, y)` returns `(r, g, b, palette_index)` for the pixel at `(x, y)` on
-  the most recently rendered frame. `palette_index` is the 1-based slot for an
-  exact RGB match or `nil` for off-palette colors. All four returns are `nil`
-  for off-screen coordinates and on the very first frame (before anything has
-  been drawn). Reads reflect the previous frame's finished image, so they don't
-  see in-progress draws inside the current `_draw`. The classic use is
-  collision-by-color: paint walls into the framebuffer with a known color, then
-  consult `gfx.px` on the proposed destination in `_update`.
+- `gfx.px(x, y, color)` — set a single pixel.
+- `gfx.get_px(x, y)` returns `(r, g, b, palette_index)` for the pixel at
+  `(x, y)` on the most recently rendered frame. `palette_index` is the 1-based
+  slot for an exact RGB match or `nil` for off-palette colors. All four returns
+  are `nil` for off-screen coordinates and on the very first frame (before
+  anything has been drawn). Reads reflect the previous frame's finished image,
+  so they don't see in-progress draws inside the current `_draw`. The classic
+  use is collision-by-color: paint walls into the framebuffer with a known
+  color, then consult `gfx.get_px` on the proposed destination in `_update`.
 - `gfx.text(text, x, y, color)` — bundled monogram font (5×7 pixel font, 12 px
   line height; see Credits below). Renders the engine's default Latin/Cyrillic/
   Greek glyph set, or your custom font if a `font.png` is present at the project
@@ -510,13 +510,13 @@ palette indices 0-15; use the named constants.
     through unchanged. Multiplicative semantics, so this can't produce a
     full-white silhouette: for that, use a shader or draw a colored rect on top.
   - `alpha` (number) — opacity in `0..1`. `1.0` is opaque, `0.0` is invisible.
-- `gfx.spr_px(index, x, y)` returns `(r, g, b, palette_index)` for a pixel
+- `gfx.get_spr_px(index, x, y)` returns `(r, g, b, palette_index)` for a pixel
   inside the `index` sprite cell on `sprites.png`. `index` is 1-based (same
   shape as `gfx.spr`); `(x, y)` is the offset inside the cell, with `(0, 0)` as
   that cell's top-left. All four returns are `nil` for an out-of-range index,
   out-of-cell coordinates, a project with no `sprites.png`, or a fully
   transparent source pixel (`gfx.spr` draws alpha-keyed, so a transparent pixel
-  reads as "nothing here" rather than as its backing RGB). Unlike `gfx.px`,
+  reads as "nothing here" rather than as its backing RGB). Unlike `gfx.get_px`,
   sprite reads are deterministic and unaffected by draw order: useful for
   pixel-perfect sprite collision and for levels where you paint the layout into
   the sheet and scan it at startup to spawn entities.

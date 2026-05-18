@@ -120,14 +120,14 @@ function _draw(_dt)
   gfx.clear(gfx.COLOR_BLACK)
 
   -- Starfield: closer State.stars are brighter and fatter. Distant State.stars get
-  -- a single-pixel `gfx.pixel`; near State.stars upgrade to a 2x2 rect_fill.
+  -- a single-pixel `gfx.px`; near State.stars upgrade to a 2x2 rect_fill.
   for _, s in ipairs(State.stars) do
     local sx, sy, sz = project(s.x, s.y, s.z)
     if sx >= -2 and sx < W + 2 and sy >= -2 and sy < H + 2 then
       if sz < 1.4 then
         gfx.rect_fill(sx, sy, 2, 2, star_color(sz))
       else
-        gfx.pixel(sx, sy, star_color(sz))
+        gfx.px(sx, sy, star_color(sz))
       end
     end
   end

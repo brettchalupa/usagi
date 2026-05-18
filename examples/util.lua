@@ -165,7 +165,7 @@ function _draw(_dt)
 
   -- Spinner: dot orbiting a fixed center via vec_from_angle + wrap.
   local sp = util.vec_from_angle(State.spinner, 8)
-  gfx.pixel(util.round(300 + sp.x), util.round(20 + sp.y), gfx.COLOR_GREEN)
+  gfx.px(util.round(300 + sp.x), util.round(20 + sp.y), gfx.COLOR_GREEN)
   gfx.text("WRAP", 286, 4, gfx.COLOR_LIGHT_GRAY)
 
   -- HUD: distance text uses vec_dist; danger flag uses vec_dist_sq.

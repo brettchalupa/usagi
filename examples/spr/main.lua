@@ -130,9 +130,9 @@ function _draw(_dt)
   gfx.sspr(0, 32, 32, 32, 240, 100)
 
   -- Ship exhaust particle emitter: each spark is one pixel via
-  -- gfx.pixel, the engine's single-pixel draw.
+  -- gfx.px, the engine's single-pixel draw.
   for _, s in ipairs(State.sparks) do
-    gfx.pixel(s.x, s.y, s.color)
+    gfx.px(s.x, s.y, s.color)
   end
 
   gfx.text("LEFT/RIGHT to flip ship   BTN1 to flash tint", 4, usagi.GAME_H - 10, gfx.COLOR_WHITE)
