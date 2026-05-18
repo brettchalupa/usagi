@@ -544,9 +544,9 @@ struct Session {
     last_clear: std::cell::Cell<i32>,
 
     /// Engine-level pause overlay. While `pause.open` is true, `_update`
-    /// and `_draw` are skipped and the RT renders a black "PAUSED"
-    /// screen instead. Music keeps streaming so background tracks don't
-    /// stutter when the player taps in and out.
+    /// is skipped but `_draw` still runs each frame; the pause overlay
+    /// renders on top of whatever `_draw` produced. The current music track
+    /// is paused on menu open and resumed on close.
     pause: PauseMenu,
     /// Shared cells backing the Lua `input.*` API: the latest input
     /// snapshot, current cursor visibility, and any pending visibility
