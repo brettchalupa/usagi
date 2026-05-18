@@ -135,7 +135,8 @@ pub fn draw_error_overlay(
     screen_h: i32,
 ) {
     const PADDING: i32 = 12;
-    const TITLE_SIZE: f32 = 18.0;
+    // Integer multiple of MONOGRAM_SIZE so the upscale stays clean.
+    const TITLE_SIZE: f32 = (crate::font::MONOGRAM_SIZE * 2) as f32;
     const MSG_SIZE: f32 = TITLE_SIZE;
     const FOOTER_SIZE: f32 = TITLE_SIZE;
     const LINE_H: f32 = MSG_SIZE + 4.0;

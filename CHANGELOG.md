@@ -46,6 +46,10 @@ Fixes:
   `usagi.menu_item`, `sfx.play`, `music.play`, `gfx.shader_set`, etc.) no longer
   crashes on Windows. Bytes outside ASCII render as the U+FFFD replacement
   character instead of erroring at the FFI boundary.
+- Error overlay text renders cleanly on Windows setups where the bundled font
+  was previously upscaled at a fractional ratio and came out blurred / curly.
+  The overlay now draws at an integer multiple of the bundled monogram's native
+  size. [See #212](https://github.com/brettchalupa/usagi/issues/212)
 
 ## v0.8.0 - May 14, 2026
 
