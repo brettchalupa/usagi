@@ -61,30 +61,44 @@ const ICON_RES_PX: &[u32] = &[16, 32, 48, 64, 128, 256];
 
 /// GLFW copies the pixel data during `SetWindowIcons`, so the scaled
 /// buffers can drop on return.
+///
+/// macOS skipped entirely: Cocoa doesn't support per-window icons,
+/// and calling `SetWindowIcons` there only produces a noisy GLFW
+/// warning ("Cocoa: Regular windows do not have icons on macOS"). The
+/// `.app` bundle's `Resources/AppIcon.icns` (generated at
+/// `usagi export --target macos` time via `resolve_icns_for_export`)
+/// is the supported path on macOS.
 #[cfg(not(target_os = "emscripten"))]
 fn apply_multires(rl: &mut RaylibHandle, src: &Image) {
-    let src_w = src.width() as u32;
-    let src_h = src.height() as u32;
-    if src_w == 0 || src_h == 0 {
-        return;
+    #[cfg(target_os = "macos")]
+    {
+        let _ = (rl, src);
     }
-    let src_rgba = image_to_rgba(src);
-    let mut buffers: Vec<Vec<u8>> = ICON_RES_PX
-        .iter()
-        .map(|&size| scale_nearest(&src_rgba, src_w, src_h, size, size))
-        .collect();
-    let mut images: Vec<sola_raylib::ffi::Image> = buffers
-        .iter_mut()
-        .zip(ICON_RES_PX.iter())
-        .map(|(buf, &size)| sola_raylib::ffi::Image {
-            data: buf.as_mut_ptr().cast(),
-            width: size as i32,
-            height: size as i32,
-            mipmaps: 1,
-            format: sola_raylib::ffi::PixelFormat::PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 as i32,
-        })
-        .collect();
-    rl.set_window_icons(&mut images);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let src_w = src.width() as u32;
+        let src_h = src.height() as u32;
+        if src_w == 0 || src_h == 0 {
+            return;
+        }
+        let src_rgba = image_to_rgba(src);
+        let mut buffers: Vec<Vec<u8>> = ICON_RES_PX
+            .iter()
+            .map(|&size| scale_nearest(&src_rgba, src_w, src_h, size, size))
+            .collect();
+        let mut images: Vec<sola_raylib::ffi::Image> = buffers
+            .iter_mut()
+            .zip(ICON_RES_PX.iter())
+            .map(|(buf, &size)| sola_raylib::ffi::Image {
+                data: buf.as_mut_ptr().cast(),
+                width: size as i32,
+                height: size as i32,
+                mipmaps: 1,
+                format: sola_raylib::ffi::PixelFormat::PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 as i32,
+            })
+            .collect();
+        rl.set_window_icons(&mut images);
+    }
 }
 
 /// Loads `sprites_bytes` and extracts the `sprite_size`-pixel-square

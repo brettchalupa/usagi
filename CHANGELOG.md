@@ -37,6 +37,10 @@ Fixes:
 - GIF recordings now use 255 colors instead of the default Pico-8 color palette,
   fixing an issue where exported GIF colors were wrong.
   [See #222](https://github.com/brettchalupa/usagi/issues/222)
+- macOS no longer prints the GLFW "regular windows do not have icons on macOS"
+  warning at startup. Cocoa never honored the per-window icon anyway, so the
+  call was a known no-op; the `.app` bundle's `AppIcon.icns` is the path that
+  matters there, and it's still generated at `usagi export --target macos` time.
 
 ## v0.8.0 - May 14, 2026
 
