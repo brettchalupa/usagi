@@ -11,8 +11,9 @@ Usagi is more flexible than Pico-8 while being simpler than Love2D.
 > Almost v1.0.0 and stable. Don't expect much breakage between v0.8.0 and
 > v1.0.0.
 
-Made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to the public
-domain.
+Usagi is free software made by [Brett Chalupa](https://brettmakesgames.com) and
+dedicated to the public domain.
+[Support development of the engine by buying me a coffee.](https://www.buymeacoffee.com/brettchalupa)
 
 **Links:** [usagiengine.com](https://usagiengine.com),
 [Discord](https://usagiengine.com/discord),

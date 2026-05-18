@@ -9,8 +9,9 @@ clear, consistent, and familiar.
 **NOTE:** Usagi is almost v1.0.0 and is pretty stable! Don't expect much
 breakage between v0.8.0 and v1.0.0.
 
-Usagi is made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to
-the public domain.
+Usagi is free software made by [Brett Chalupa](https://brettmakesgames.com) and
+dedicated to the public domain.
+[Support development of the engine by buying me a coffee.](https://www.buymeacoffee.com/brettchalupa)
 
 Key links:
 
