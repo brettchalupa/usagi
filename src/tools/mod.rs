@@ -81,9 +81,19 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     // `color_palette::State::new`) to show the user's custom palette
     // in its swatches.
 
+    // Same log-level handling as the game session: raylib defaults
+    // to LOG_INFO and floods the terminal with GLFW/GL/audio init
+    // chatter. Drop to LOG_WARNING so real failures still surface.
+    // `USAGI_VERBOSE=1` brings the full log back for debugging.
+    let log_level = if std::env::var_os("USAGI_VERBOSE").is_some() {
+        TraceLogLevel::LOG_INFO
+    } else {
+        TraceLogLevel::LOG_WARNING
+    };
     let (mut rl, thread) = sola_raylib::init()
         .size(WINDOW_W as i32, WINDOW_H as i32)
         .title("Usagi Tools")
+        .log_level(log_level)
         .vsync()
         .highdpi()
         .resizable()
