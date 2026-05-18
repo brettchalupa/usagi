@@ -219,6 +219,8 @@ gfx.circ_fill(x, y, r, color)
 gfx.circ_ex(x, y, r, thickness, color)
 gfx.line(x1, y1, x2, y2, color)
 gfx.line_ex(x1, y1, x2, y2, thickness, color)
+gfx.tri(x1, y1, x2, y2, x3, y3, color)
+gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)
 gfx.pixel(x, y, color)
 gfx.px(x, y) -- read screen pixel: r, g, b, palette_index
 gfx.spr(index, x, y)
@@ -459,6 +461,12 @@ palette indices 0-15; use the named constants.
   `(x2, y2)`.
 - `gfx.line_ex(x1, y1, x2, y2, thickness, color)` — line with a custom thickness
   in pixels.
+- `gfx.tri(x1, y1, x2, y2, x3, y3, color)` — 1-pixel triangle outline from three
+  points. For a thicker outline, draw three `gfx.line_ex` calls.
+- `gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)` — filled triangle from three
+  points. Vertex order doesn't matter; the winding is corrected for you so
+  arrows, spaceship nosecones, and the like just draw regardless of how you laid
+  out the points.
 - `gfx.pixel(x, y, color)` — set a single pixel.
 - `gfx.px(x, y)` returns `(r, g, b, palette_index)` for the pixel at `(x, y)` on
   the most recently rendered frame. `palette_index` is the 1-based slot for an

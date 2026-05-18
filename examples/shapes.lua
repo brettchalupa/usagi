@@ -82,21 +82,26 @@ function _draw(_dt)
   gfx.line(12, 176, 60, 160, gfx.COLOR_DARK_PURPLE) -- diagonal up
   gfx.line(64, 160, 112, 176, gfx.COLOR_PINK)       -- diagonal down
 
-  -- Right column: a small composed scene exercising all five primitives
+  -- Right column: a small composed scene exercising every primitive
   -- together, so users can see them combine.
   gfx.text("composed", 168, 18, gfx.COLOR_LIGHT_GRAY)
   -- ground + sky band
   gfx.rect_fill(168, 28, 148, 100, gfx.COLOR_DARK_BLUE)
   gfx.rect_fill(168, 110, 148, 18, gfx.COLOR_DARK_GREEN)
+  -- distant mountains via `gfx.tri_fill`. The two triangles use
+  -- opposite vertex orderings on purpose so the winding-correction
+  -- path inside `tri_fill` gets exercised; both should render
+  -- regardless of how the points are ordered.
+  gfx.tri_fill(176, 110, 220, 70, 256, 110, gfx.COLOR_DARK_PURPLE) -- CCW-ish
+  gfx.tri_fill(244, 110, 308, 110, 280, 78, gfx.COLOR_INDIGO)      -- reversed order
   -- sun
   gfx.circ_fill(296, 46, 10, gfx.COLOR_YELLOW)
   gfx.circ(296, 46, 14, gfx.COLOR_ORANGE)
   -- moon
   gfx.circ_fill(186, 46, 6, gfx.COLOR_LIGHT_GRAY)
-  -- house body + roof + door + window
+  -- house body + roof (gfx.tri outline) + door + window
   gfx.rect_fill(212, 80, 40, 30, gfx.COLOR_BROWN)
-  gfx.line(212, 80, 232, 64, gfx.COLOR_RED)
-  gfx.line(232, 64, 252, 80, gfx.COLOR_RED)
+  gfx.tri(212, 80, 232, 64, 252, 80, gfx.COLOR_RED)
   gfx.rect_fill(228, 92, 8, 18, gfx.COLOR_DARK_GRAY)
   gfx.rect(216, 86, 8, 8, gfx.COLOR_PEACH)
   gfx.rect(240, 86, 8, 8, gfx.COLOR_PEACH)

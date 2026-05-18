@@ -639,6 +639,14 @@ mod tests {
                 scope.create_function(|_, _a: (f32, f32, f32, f32, f32, i32)| Ok(()))?,
             )?;
             gfx.set(
+                "tri",
+                scope.create_function(|_, _a: (f32, f32, f32, f32, f32, f32, i32)| Ok(()))?,
+            )?;
+            gfx.set(
+                "tri_fill",
+                scope.create_function(|_, _a: (f32, f32, f32, f32, f32, f32, i32)| Ok(()))?,
+            )?;
+            gfx.set(
                 "text",
                 scope.create_function(|_, _a: (LuaString, f32, f32, i32)| Ok(()))?,
             )?;
@@ -752,6 +760,8 @@ mod tests {
                 gfx.rect_ex(10, 20, 30, 40, 2, gfx.COLOR_RED)
                 gfx.circ_ex(50, 50, 8, 2, gfx.COLOR_GREEN)
                 gfx.line_ex(0, 0, 100, 100, 3, gfx.COLOR_WHITE)
+                gfx.tri(10, 10, 30, 10, 20, 30, gfx.COLOR_RED)
+                gfx.tri_fill(10, 10, 30, 10, 20, 30, gfx.COLOR_BLUE)
                 gfx.text("hi", 0, 0, gfx.COLOR_WHITE)
                 gfx.text_ex("hi", 0, 0, 2, math.pi / 4, gfx.COLOR_WHITE, 1.0)
                 gfx.spr(1, usagi.GAME_W / 2, usagi.GAME_H / 2)
