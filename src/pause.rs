@@ -317,7 +317,7 @@ impl PauseMenu {
             0,
             res.w as i32,
             res.h as i32,
-            palette::color(Pal::Black).alpha(0.8),
+            palette::engine_color(Pal::Black).alpha(0.8),
         );
         let border_padding = 4;
         d.draw_rectangle_lines(
@@ -325,7 +325,7 @@ impl PauseMenu {
             border_padding,
             res.w as i32 - border_padding * 2,
             res.h as i32 - border_padding * 2,
-            palette::color(Pal::White),
+            palette::engine_color(Pal::White),
         );
 
         let size = crate::font::MONOGRAM_SIZE as f32;
@@ -347,7 +347,7 @@ impl PauseMenu {
             Vector2::new(title_x, title_y),
             size,
             0.0,
-            palette::color(Pal::White),
+            palette::engine_color(Pal::White),
         );
 
         let body_y = title_y + size + 8.0;
@@ -387,7 +387,12 @@ fn draw_indicator<D: RaylibDraw>(d: &mut D, time: f32, item_x: f32, center_y: f3
     let speed = 6.0_f32;
     let osc = (time * speed).sin() * amplitude;
     let cx = item_x - 8.0 + osc;
-    d.draw_circle(cx as i32, center_y as i32, 2.0, palette::color(Pal::White));
+    d.draw_circle(
+        cx as i32,
+        center_y as i32,
+        2.0,
+        palette::engine_color(Pal::White),
+    );
 }
 
 #[cfg(test)]

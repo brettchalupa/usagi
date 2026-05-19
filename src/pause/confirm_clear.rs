@@ -50,7 +50,7 @@ impl PauseMenu {
             Vector2::new(prompt_x, y),
             size,
             0.0,
-            palette::color(Pal::White),
+            palette::engine_color(Pal::White),
         );
         y += line_h * 1.5;
 
@@ -62,7 +62,7 @@ impl PauseMenu {
                 Vector2::new(item_x, y),
                 size,
                 0.0,
-                palette::color(Pal::White),
+                palette::engine_color(Pal::White),
             );
             if i == self.confirm_selected {
                 draw_indicator(d, self.time, item_x, y + size * 0.5);

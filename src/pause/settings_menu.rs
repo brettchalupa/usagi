@@ -103,7 +103,7 @@ impl PauseMenu {
                 Vector2::new(item_x, y),
                 size,
                 0.0,
-                palette::color(Pal::White),
+                palette::engine_color(Pal::White),
             );
             match i {
                 SETTINGS_ITEM_MUSIC => {

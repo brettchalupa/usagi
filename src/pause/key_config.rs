@@ -120,7 +120,7 @@ impl PauseMenu {
     ) {
         let size = crate::font::MONOGRAM_SIZE as f32;
         let line_h = size + 2.0;
-        let color = palette::color(Pal::White);
+        let color = palette::engine_color(Pal::White);
 
         let Some(state) = self.key_config.as_ref() else {
             // Defensive: if state ever desyncs, show a clear message
@@ -179,7 +179,7 @@ impl PauseMenu {
                     y as i32 - 1,
                     widest as i32 + 8,
                     line_h as i32,
-                    palette::color(Pal::White).alpha(0.25),
+                    palette::engine_color(Pal::White).alpha(0.25),
                 );
             }
             d.draw_text_ex(font, &line, Vector2::new(item_x, y), size, 0.0, color);

@@ -41,7 +41,7 @@ pub(super) fn draw_volume_bars<D: RaylibDraw>(
     let cell_top = y + (crate::font::MONOGRAM_SIZE as f32 - cell_h) * 0.5;
     let filled = volume_bars_filled(v);
     let total = VOLUME_STEPS as usize;
-    let color = palette::color(Pal::White);
+    let color = palette::engine_color(Pal::White);
     for i in 0..total {
         let cx = x + (i as f32) * (cell_w + gap);
         if i < filled {

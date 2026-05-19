@@ -33,8 +33,8 @@ impl PauseMenu {
         res: crate::config::Resolution,
     ) {
         let size = crate::font::MONOGRAM_SIZE as f32;
-        let white = palette::color(Pal::White);
-        let black = palette::color(Pal::Black);
+        let white = palette::engine_color(Pal::White);
+        let black = palette::engine_color(Pal::Black);
 
         // BTN cells are larger than D-pad cells so a centered "1"/"2"/
         // "3" digit fits without clipping. Cluster centers above the

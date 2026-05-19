@@ -170,6 +170,19 @@ pub fn color(c: impl Into<i32>) -> Color {
     ACTIVE.with(|p| p.borrow().lookup(idx))
 }
 
+/// Resolves `c` through the built-in Pico-8 palette regardless of
+/// whatever the user has loaded as the active palette. Engine UI
+/// (pause menu and its sub-views) calls this instead of `color` so a
+/// custom `palette.png` can't remap "white" to whatever the user put
+/// at slot 8 and break menu legibility. Mirrors the font story —
+/// engine UI uses the bundled monogram font, never a user `font.png`.
+pub fn engine_color(c: impl Into<i32>) -> Color {
+    thread_local! {
+        static ENGINE: Palette = Palette::pico8();
+    }
+    ENGINE.with(|p| p.lookup(c.into()))
+}
+
 /// Reverse lookup: returns the 1-based slot index of the active
 /// palette's exact RGB match, or `None` if the color isn't in the
 /// palette. Used by the screen and sprite pixel-read APIs so games
