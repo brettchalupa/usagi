@@ -202,3 +202,4 @@ examples:
     just example level_from_json
     just example localization
     just example to_json
+    just example bunnymark

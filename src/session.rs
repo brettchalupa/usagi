@@ -725,7 +725,15 @@ impl Session {
         // Use incremental garbage collection. Generational let the heap grow
         // unbounded under per-frame allocation, so lua_close at exit would have
         // to sweep multi-GiB of dead objects and stalled for minutes.
-        lua.gc_inc(0, 0, 0);
+        //
+        // Pass Lua 5.5's own defaults explicitly (`LUAI_GCPAUSE` 250 /
+        // `LUAI_GCMUL` 200 / `LUAI_GCSTEPSIZE` ~11 KB). Earlier Lua versions
+        // treated `0` as "skip this param, keep the default", but Lua 5.5
+        // unconditionally writes each value via `LUA_GCPARAM`, so `(0, 0, 0)`
+        // collapses the pause threshold to 0% and makes the collector
+        // re-scan the whole heap on every allocation, visible as a ~3x
+        // framerate drop in allocation-heavy games.
+        lua.gc_inc(250, 200, 11200);
         setup_api(&lua, dev)?;
         install_require(&lua, vfs.clone())
             .map_err(|e| crate::Error::Cli(format!("installing require: {e}")))?;
