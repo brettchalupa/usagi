@@ -36,6 +36,11 @@ Features:
   the `read_text` + `string.gmatch` pattern for simple CSV grids, since the
   engine doesn't ship a CSV parser).
   [See #218](https://github.com/brettchalupa/usagi/issues/218)
+- New `usagi.to_json(t)` returns a Lua table as a pretty-printed JSON string.
+  Shares the shape validator with `usagi.save`, so keys must be all strings or a
+  dense `1..n` integer array (functions, userdata, NaN, and cycles still error).
+  Useful for devtools, structured stdout logs, and any other place you want JSON
+  without writing to the save file. See `examples/to_json.lua`.
 - New `gfx.tri(x1, y1, x2, y2, x3, y3, color)` and
   `gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)` for drawing triangle outlines
   and filled triangles from three points. Filled-triangle vertex order is

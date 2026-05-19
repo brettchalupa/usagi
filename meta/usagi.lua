@@ -591,6 +591,18 @@ function usagi.read_json(path) end
 ---@return string
 function usagi.read_text(path) end
 
+---Serializes a Lua table to a pretty-printed JSON string. Shares its
+---shape validator with `usagi.save`, so the same rules apply: keys
+---must be all strings or a dense `1..n` integer array; functions,
+---userdata, NaN, and cycles raise an error. Useful for devtools
+---overlays, structured logs, and any place you want JSON without
+---going through the save file. Pair with `usagi.read_json` for a
+---read/encode story; `usagi.dump` is the cycle-tolerant
+---pretty-printer for ad-hoc debugging.
+---@param t table   table to serialize
+---@return string json  pretty-printed JSON
+function usagi.to_json(t) end
+
 ---Register a custom row on the pause menu's Top view, between
 ---Continue and Settings. Up to 3 items can be registered; calls past
 ---the cap raise a Lua error. Items auto-clear before each `_init`

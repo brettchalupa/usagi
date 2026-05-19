@@ -53,14 +53,15 @@ const SAVE_FILE_TMP: &str = "save.json.tmp";
 /// string. Validates the table shape up front so the user gets a clear
 /// "JSON can't hold this" message instead of a cryptic serde error or,
 /// worse, silent data loss when mlua treats a sparse near-array as its
-/// dense prefix.
+/// dense prefix. Shared by `usagi.save` (which then writes the result
+/// to disk) and `usagi.to_json` (which just returns it).
 pub fn lua_to_json(lua: &Lua, value: Value) -> mlua::Result<String> {
     if let Value::Table(ref t) = value {
-        validate_save_table(t)?;
+        validate_json_table(t)?;
     }
     let json: serde_json::Value = lua.from_value(value)?;
     serde_json::to_string_pretty(&json)
-        .map_err(|e| mlua::Error::external(format!("save: serialize: {e}")))
+        .map_err(|e| mlua::Error::external(format!("JSON: serialize: {e}")))
 }
 
 /// Walks a Lua table (and its nested tables) and rejects shapes that
@@ -68,8 +69,10 @@ pub fn lua_to_json(lua: &Lua, value: Value) -> mlua::Result<String> {
 /// dense `1..n` array, mixed string+integer keys, and non-string /
 /// non-integer keys. The error message points at the workaround
 /// (`tostring(k)` for maps, fill `1..n` for arrays) instead of the raw
-/// serde "expected a string key" wording.
-fn validate_save_table(table: &mlua::Table) -> mlua::Result<()> {
+/// serde "expected a string key" wording. Prefix is `JSON:` rather
+/// than `usagi.save:` because the same validator backs `usagi.to_json`;
+/// the constraint is a JSON property, not a save-specific one.
+fn validate_json_table(table: &mlua::Table) -> mlua::Result<()> {
     let mut int_keys: Vec<i64> = Vec::new();
     let mut string_count: usize = 0;
     let mut nested: Vec<mlua::Table> = Vec::new();
@@ -85,7 +88,7 @@ fn validate_save_table(table: &mlua::Table) -> mlua::Result<()> {
             }
             other => {
                 return Err(mlua::Error::external(format!(
-                    "usagi.save: table key must be a string or 1..n integer; got {}. \
+                    "JSON: table key must be a string or 1..n integer; got {}. \
                      JSON only supports string keys (and 1..n arrays).",
                     other.type_name()
                 )));
@@ -97,7 +100,7 @@ fn validate_save_table(table: &mlua::Table) -> mlua::Result<()> {
     }
     if string_count > 0 && !int_keys.is_empty() {
         return Err(mlua::Error::external(
-            "usagi.save: table mixes string and integer keys. JSON tables hold either a \
+            "JSON: table mixes string and integer keys. JSON tables hold either a \
              map (all string keys) or a dense 1..n array, not both. \
              Convert integer keys with tostring(k) to save as a map.",
         ));
@@ -108,14 +111,14 @@ fn validate_save_table(table: &mlua::Table) -> mlua::Result<()> {
         let dense_1_to_n = int_keys[0] == 1 && int_keys[(n - 1) as usize] == n;
         if !dense_1_to_n {
             return Err(mlua::Error::external(format!(
-                "usagi.save: integer-keyed table must be a dense 1..n array (no gaps, starting at 1); \
+                "JSON: integer-keyed table must be a dense 1..n array (no gaps, starting at 1); \
                  got keys {int_keys:?}. \
                  Convert the keys with tostring(k) to save as a map, or fill 1..n for an array.",
             )));
         }
     }
     for t in nested {
-        validate_save_table(&t)?;
+        validate_json_table(&t)?;
     }
     Ok(())
 }
