@@ -1342,7 +1342,7 @@ dependencies = [
 
 [[package]]
 name = "usagi"
-version = "1.0.0-dev"
+version = "1.0.0"
 dependencies = [
  "clap",
  "directories",
