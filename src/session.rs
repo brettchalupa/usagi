@@ -26,6 +26,17 @@ use sola_raylib::prelude::*;
 use std::rc::Rc;
 use std::time::SystemTime;
 
+/// Lua 5.5 GC tuning. Lua's own defaults from `lstate.c:375-377`
+/// (`LUAI_GCPAUSE` 250, `LUAI_GCMUL` 200, `LUAI_GCSTEPSIZE` 200 *
+/// sizeof(Table) ~= 11 KB on 64-bit). Pulled out as named constants so
+/// the verbose-mode startup snapshot can echo them back; passing `0`
+/// for any of these in Lua 5.5 collapses the heap-growth threshold
+/// and runs the collector on every allocation. See the call site for
+/// the full history.
+const GC_PAUSE: std::os::raw::c_int = 250;
+const GC_STEPMUL: std::os::raw::c_int = 200;
+const GC_STEPSIZE: std::os::raw::c_int = 11200;
+
 /// Argument tuple for `gfx.sspr_ex`: `(sx, sy, sw, sh, dx, dy, dw, dh,
 /// flip_x, flip_y, rotation_rad, tint_idx, alpha)`. Aliased so the
 /// closure signature stays readable.
@@ -705,6 +716,11 @@ struct Session {
     vfs: Rc<dyn VirtualFs>,
     reload: bool,
 
+    /// Verbose-mode per-frame sampler. Pushes one entry per `frame()`
+    /// call and flushes a summary line once a second when
+    /// `USAGI_VERBOSE=1`. Inert otherwise.
+    diag: crate::diag::Sampler,
+
     // Raylib handle last: drops after every GPU resource above, so
     // `CloseWindow` runs only once textures/render targets are unloaded.
     thread: RaylibThread,
@@ -733,7 +749,7 @@ impl Session {
         // collapses the pause threshold to 0% and makes the collector
         // re-scan the whole heap on every allocation, visible as a ~3x
         // framerate drop in allocation-heavy games.
-        lua.gc_inc(250, 200, 11200);
+        lua.gc_inc(GC_PAUSE, GC_STEPMUL, GC_STEPSIZE);
         setup_api(&lua, dev)?;
         install_require(&lua, vfs.clone())
             .map_err(|e| crate::Error::Cli(format!("installing require: {e}")))?;
@@ -829,11 +845,15 @@ impl Session {
             .vsync()
             .title(project_name.display());
         // raylib defaults to LOG_INFO, which prints a screenful of
-        // GLFW/GL/audio init details every boot. Drop to LOG_WARNING
-        // so real signal (asset load failures, gamepad anomalies, GL
-        // fallbacks) still surfaces but the routine chatter doesn't.
-        // `USAGI_VERBOSE=1` brings the full log back for debugging.
-        let log_level = if std::env::var_os("USAGI_VERBOSE").is_some() {
+        // GLFW/GL/audio init details every boot plus a TEXTURE log line
+        // every frame from the per-frame RT pixel read. Drop to
+        // LOG_WARNING so real signal (asset load failures, gamepad
+        // anomalies, GL fallbacks) still surfaces but the routine
+        // chatter doesn't. `USAGI_RAYLIB_VERBOSE=1` brings the full
+        // raylib log back. Kept separate from `USAGI_VERBOSE` (which
+        // controls our diagnostics) so users who want frame-budget /
+        // heap output don't get drowned in raylib's per-frame log.
+        let log_level = if std::env::var_os("USAGI_RAYLIB_VERBOSE").is_some() {
             TraceLogLevel::LOG_INFO
         } else {
             TraceLogLevel::LOG_WARNING
@@ -1053,6 +1073,7 @@ impl Session {
             shader,
             vfs,
             reload,
+            diag: crate::diag::Sampler::new(),
             thread,
             rl,
         })
@@ -1191,7 +1212,45 @@ impl Session {
         self.screen_pixels = crate::pixels::Pixels::from_render_texture(&self.rt);
 
         self.blit_and_overlay(screen_w, screen_h);
+        // Cheap when USAGI_VERBOSE is off: the sampler short-circuits
+        // before touching mlua's allocator. Passing `&self.lua` rather
+        // than a pre-fetched `used_memory()` keeps the off-path at a
+        // single bool check.
+        self.diag.record(dt, &self.lua);
         true
+    }
+
+    /// Emits the verbose-mode startup snapshot. One-shot, called from
+    /// `run()` after `Session::new` finishes (so `_init` has executed
+    /// and the Lua heap reflects steady-state). No-op when
+    /// `USAGI_VERBOSE` isn't set.
+    fn emit_startup_snapshot(&self) {
+        if !crate::msg::dbg_enabled() {
+            return;
+        }
+        let script_name = self.vfs.script_name();
+        let snap = crate::diag::StartupSnapshot {
+            build_profile: crate::diag::StartupSnapshot::build_profile(),
+            platform: crate::api::current_platform(),
+            gc_pause: GC_PAUSE,
+            gc_stepmul: GC_STEPMUL,
+            gc_stepsize: GC_STEPSIZE,
+            game_w: self.config.resolution.w,
+            game_h: self.config.resolution.h,
+            pixel_perfect: self.config.pixel_perfect,
+            sprite_size: self.config.sprite_size,
+            pause_menu: self.config.pause_menu,
+            // `palette_mtime` is only populated when a `palette.png`
+            // exists in the project; the default Pico-8 palette has no
+            // mtime.
+            palette_custom: self.palette_mtime.is_some(),
+            // `user_font` aliases `font` when no `font.png` is present.
+            // Compare addresses to distinguish "bundled" from "custom".
+            font_custom: !std::ptr::eq(self.user_font as *const _, self.font as *const _),
+            script_name: &script_name,
+            lua_heap_bytes: self.lua.used_memory(),
+        };
+        snap.emit();
     }
 
     /// Renders the pause overlay onto the RT in place of `_draw`. Split
@@ -2356,6 +2415,10 @@ impl Session {
 /// resets state via `_init()`.
 pub fn run(vfs: Rc<dyn VirtualFs>, dev: bool) -> crate::Result<()> {
     let session = Session::new(vfs, dev)?;
+    // Pinned env summary under USAGI_VERBOSE=1. After `Session::new`
+    // returns so `_init` has run and the heap-after-init reading is
+    // steady-state.
+    session.emit_startup_snapshot();
 
     #[cfg(target_os = "emscripten")]
     {
@@ -2416,6 +2479,79 @@ fn run_emscripten(session: Box<Session>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Encoded form of `0` for any GC param in Lua 5.5. Lua's
+    /// `luaO_codeparam` maps `0% → 0`, and that byte makes
+    /// `luaO_applyparam` return `0` for any input — which is what
+    /// drives the over-collection / framerate regression. None of our
+    /// constants should ever encode to this.
+    const GC_PARAM_ZERO_ENCODED: i32 = 0;
+
+    #[test]
+    fn gc_constants_never_encode_to_zero() {
+        // The Lua 5.5 GC params are sticky: a `0` from us turns into a
+        // `0%` heap-growth threshold (PAUSE), zero step work
+        // (STEPMUL), or a single-byte step (STEPSIZE). All three
+        // cripple the collector. This test is a code-level guard so a
+        // future "just zero them out" refactor fails at `cargo test`
+        // rather than as a perf regression in someone's published game.
+        assert_ne!(
+            GC_PAUSE, GC_PARAM_ZERO_ENCODED,
+            "GC_PAUSE = 0 causes per-allocation full collection"
+        );
+        assert_ne!(
+            GC_STEPMUL, GC_PARAM_ZERO_ENCODED,
+            "GC_STEPMUL = 0 stalls incremental progress"
+        );
+        assert_ne!(
+            GC_STEPSIZE, GC_PARAM_ZERO_ENCODED,
+            "GC_STEPSIZE = 0 reduces each step to a single byte"
+        );
+    }
+
+    #[test]
+    fn gc_params_are_meaningfully_faster_than_zero_zero_zero() {
+        // Behavioral check that complements `gc_constants_never_encode_to_zero`:
+        // run an allocation-heavy Lua workload under our params and under the
+        // broken `(0, 0, 0)` settings, and assert ours finishes at least 1.5x
+        // faster. In practice the ratio is 3-5x; the threshold is loose to
+        // tolerate CI jitter. Headless: no window, no raylib, just the Lua VM.
+        fn alloc_loop_time(lua: &Lua) -> std::time::Duration {
+            // Short-lived tables in a tight loop: `_` is reassigned each
+            // iteration so the previous table is immediately unreachable. With
+            // PAUSE=0 the collector chases every allocation; with the engine's
+            // tuned params the loop runs to completion before the GC kicks in.
+            let start = std::time::Instant::now();
+            lua.load(
+                r#"
+                for i = 1, 20000 do
+                    local _ = { x = i, y = -i, label = "row" }
+                end
+                "#,
+            )
+            .exec()
+            .unwrap();
+            start.elapsed()
+        }
+
+        let lua_ours = Lua::new();
+        lua_ours.gc_inc(GC_PAUSE, GC_STEPMUL, GC_STEPSIZE);
+        let lua_broken = Lua::new();
+        lua_broken.gc_inc(0, 0, 0);
+
+        // Warm-up: load the JIT-less interpreter caches so the first measured
+        // run isn't penalized vs the second.
+        let _ = alloc_loop_time(&lua_ours);
+        let _ = alloc_loop_time(&lua_broken);
+
+        let ours = alloc_loop_time(&lua_ours);
+        let broken = alloc_loop_time(&lua_broken);
+
+        assert!(
+            broken > ours.mul_f32(1.5),
+            "with the engine's tuned GC params the workload should be at least 1.5x faster than gc_inc(0,0,0); got ours={ours:?}, broken={broken:?}"
+        );
+    }
 
     #[test]
     fn usagi_quit_flips_the_shared_flag() {

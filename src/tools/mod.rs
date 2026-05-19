@@ -84,8 +84,8 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     // Same log-level handling as the game session: raylib defaults
     // to LOG_INFO and floods the terminal with GLFW/GL/audio init
     // chatter. Drop to LOG_WARNING so real failures still surface.
-    // `USAGI_VERBOSE=1` brings the full log back for debugging.
-    let log_level = if std::env::var_os("USAGI_VERBOSE").is_some() {
+    // `USAGI_RAYLIB_VERBOSE=1` brings the full raylib log back.
+    let log_level = if std::env::var_os("USAGI_RAYLIB_VERBOSE").is_some() {
         TraceLogLevel::LOG_INFO
     } else {
         TraceLogLevel::LOG_WARNING
