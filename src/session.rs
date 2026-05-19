@@ -436,12 +436,14 @@ fn register_music_api(
     Ok(())
 }
 
-/// Installs `usagi.read_json(path)` and `usagi.read_text(path)`.
-/// Paths are forward-slash relative to the project's `data/` dir;
-/// `safe_rel_path` (in vfs.rs) rejects backslashes, absolute paths,
-/// and `..` segments so users can't escape `data/` by accident. Each
-/// call reads fresh from the vfs (no caching) so hot-reload via the
-/// data-mtime watcher Just Works on top-level reads.
+/// Installs `usagi.read_json(path)`, `usagi.read_text(path)`, and
+/// `usagi.to_json(t)`. The two readers resolve paths forward-slash
+/// relative to the project's `data/` dir; `safe_rel_path` (in vfs.rs)
+/// rejects backslashes, absolute paths, and `..` segments so users
+/// can't escape `data/` by accident. Each call reads fresh from the
+/// vfs (no caching) so hot-reload via the data-mtime watcher Just
+/// Works on top-level reads. `to_json` is a pure encoder, sharing the
+/// validator with `usagi.save` so the same shape rules apply.
 fn register_data_api(lua: &Lua, vfs: Rc<dyn VirtualFs>) -> LuaResult<()> {
     let usagi: LuaTable = lua.globals().get("usagi")?;
 
@@ -484,6 +486,10 @@ fn register_data_api(lua: &Lua, vfs: Rc<dyn VirtualFs>) -> LuaResult<()> {
         "read_text",
         wrap(lua, read_text, "usagi.read_text", &["string"])?,
     )?;
+
+    let to_json =
+        lua.create_function(|lua, value: mlua::Value| crate::save::lua_to_json(lua, value))?;
+    usagi.set("to_json", wrap(lua, to_json, "usagi.to_json", &["table"])?)?;
 
     Ok(())
 }

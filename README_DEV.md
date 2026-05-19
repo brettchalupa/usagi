@@ -195,6 +195,7 @@ usagi.save(t)
 usagi.load()
 usagi.read_json(path) -- read data/<path> as a Lua table
 usagi.read_text(path) -- read data/<path> as a string
+usagi.to_json(t) -- serialize a Lua table to a JSON string (same shape rules as usagi.save)
 usagi.menu_item(label, callback) -- up to 3; callback `return true` keeps menu open
 usagi.clear_menu_items()
 usagi.toggle_fullscreen() -- flips fullscreen, returns the new state as bool
@@ -1063,6 +1064,30 @@ from the bundle.
 
 For CSV, use `read_text` + Lua splitting. A 3-line `string.gmatch` covers the
 simple-grid case (see `examples/level_from_csv/`).
+
+### Encoding a Lua table as JSON
+
+`usagi.to_json(t)` returns a pretty-printed JSON string for any Lua table. It
+shares the validator with `usagi.save`, so the same shape rules apply: keys are
+all strings or a dense `1..n` integer array; functions, userdata, NaN, and
+cycles raise an error with a clear message.
+
+Useful when you want JSON without going through the save file: in-game devtools
+overlays, structured stdout logs, ad-hoc state inspection, or feeding data into
+another tool. Pair with `usagi.read_json` if you ever want to round-trip; reach
+for `usagi.dump` instead when you want a Lua table you could `requier` or
+forgiving pretty-print that tolerates cycles and mixed-key tables.
+
+```lua
+local payload = { score = 200, run = { seed = 42, deaths = 1 } }
+print(usagi.to_json(payload))
+-- {
+--   "score": 200,
+--   "run": { "seed": 42, "deaths": 1 }
+-- }
+```
+
+See `examples/to_json.lua` for a runnable demo.
 
 ### Effects: hitstop, screen shake, flash, slow-mo
 
