@@ -2,14 +2,9 @@
 
 # Usagi - Simple 2D Game Engine for Rapid Prototyping
 
-Usagi is a small 2D game engine for making pixel art games in **Lua** 5.5, with
-live reload, one-command cross-platform export, and a pause menu with input
+Usagi is a 2D game engine for making pixel art games in **Lua** 5.5. It features
+live reload, single-command cross-platform export, and a pause menu with input
 remapping built in.
-
-Usagi is more flexible than Pico-8 while being simpler than Love2D.
-
-> Almost v1.0.0 and stable. Don't expect much breakage between v0.8.0 and
-> v1.0.0.
 
 Usagi is free software made by [Brett Chalupa](https://brettmakesgames.com) and
 dedicated to the public domain.
@@ -19,9 +14,7 @@ dedicated to the public domain.
 [Discord](https://usagiengine.com/discord),
 [r/UsagiEngine](https://reddit.com/r/UsagiEngine),
 [Quickstart video](https://www.youtube.com/watch?v=0i1wIm6c6Rw),
-[v0.8 overview](https://www.youtube.com/watch?v=-_5yTiRNvo4),
-[v0.1-v0.6 overview video](https://www.youtube.com/watch?v=wYIGB91i8Lc),
-[v0.1 intro video](https://www.youtube.com/watch?v=byp3rKd626M).
+[YouTube Playlist](https://www.youtube.com/playlist?list=PL0qDutCc8IQhkbS53etm9xV06XgEb4BEN),
 
 ## Install
 
@@ -43,25 +36,26 @@ Windows), and adds it to `PATH`.
 
 Manual download:
 [GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest) or
-[itch.io](https://brettchalupa.itch.io/usagi). Latest release: **v0.8.0**.
+[itch.io](https://brettchalupa.itch.io/usagi)
+
+Latest release: **v0.8.0**.
+
 [View the changelog.](https://usagiengine.com/changelog)
 
 ## Features
 
 - **Live reload.** `usagi dev` watches your code and assets; saves apply without
-  losing game state. Tweak a sprite in your editor and see it in place. Hit
-  [Reset](#reset) when you want a clean slate.
+  losing game state. Tweak a sprite in your editor and see it update instantly.
 - **One-command export.** `usagi export` packages your game for Linux, macOS,
   Windows, and the web.
 - **Pause menu, free.** Built-in pause menu with sfx and music volume,
-  fullscreen toggle, and per-game keyboard + gamepad remapping for BTN1, BTN2,
-  BTN3.
+  fullscreen toggle, and per-game keyboard + gamepad remapping.
 - **Easy save data.** One function to save and load your game state as a Lua
   table.
 - **Small, fixed API.** You can't do everything, but you've got what you need to
   make a great 2D game.
 - **Constraints to inspire creativity.** 320x180 default resolution, 16x16
-  sprite grid, a single `sprites.png` for textures. Override with `_config()`.
+  default sprite grid, a single `sprites.png` for textures.
 
 Bring your own sound effects, sprite editor, and music tools.
 
@@ -110,9 +104,6 @@ Pico-8's token limit, or if you want something simpler than Love2D.
 It is **not** a fantasy console or a Love2D replacement. It doesn't target
 mobile or VR, and it isn't built for medium-to-large polished games.
 
-If you make a prototype that you want to turn into a full game, fork the engine
-and customize it. That's the benefit of open source.
-
 **Why Lua:** small, widely used in game tooling, and powerful enough to stay out
 of your way.
 
@@ -130,6 +121,9 @@ my_game/
   palette.png        -- optional: custom palette (1px tall, one color per pixel)
   font.png           -- optional: custom font (bake with `usagi font bake`)
   enemies.lua        -- optional: require "enemies"
+  data/
+    level.json       -- optional: JSON data, loadable with `usagi.read_json("level.json")
+    dialog.txt       -- optional: text data, loadable with `usagi.read_text("dialog.txt")
   scenes/
     main_menu.lua    -- optional: require "scenes.main_menu" - source code can be in folders
   sfx/               -- optional: .wav files, file stems become sfx names
@@ -178,6 +172,8 @@ imports kept as globals are `Player = require("player")`. The shipped
 at file scope is flagged as an accidental missing `local`. Engine API (`gfx`,
 `input`, `sfx`, `music`, `usagi`) stays lowercase and is exempt from the lint
 via `meta/usagi.lua`.
+
+[View the Lua 5.5 docs for full language reference.](https://www.lua.org/manual/5.5/)
 
 ### Cheatsheet
 
@@ -351,8 +347,8 @@ Limitations: the rewrite is line-anchored, so `if cond then x += 1 end` is left
 as-is (use longhand). The LHS is duplicated verbatim, so `t[f()] += 1` calls
 `f()` twice.
 
-The shipped `.luarc.json` declares these as nonstandard symbols so the
-lua-language-server does not underline them as syntax errors.
+The included `.luarc.json` from `usagi init` declares these as nonstandard
+symbols so the lua-language-server does not underline them as syntax errors.
 
 ### Callbacks
 
@@ -372,8 +368,7 @@ Supported fields:
 - `name`: display name. Drives the window title bar, the macOS `.app` bundle
   directory (`Sprite Example.app`), the Info.plist `CFBundleName` /
   `CFBundleDisplayName`, and (after slugging to ASCII kebab-case) the archive
-  filenames + Linux/Windows binary names produced by `usagi
-export`. Defaults to
+  filenames + Linux/Windows binary names produced by `usagi export`. Defaults to
   the project directory name (`examples/spr/main.lua` → "spr"); falls back to
   "Usagi" if no path is available.
 - `pixel_perfect` (default `false`): when `true`, the game renders at integer
@@ -387,13 +382,14 @@ export`. Defaults to
 - `game_id`: reverse-DNS string like `com.brettmakesgames.snake`, namespaces
   save data and the macOS bundle identifier. Optional.
 - `icon`: 1-based tile index into `sprites.png`, used as the window icon and (on
-  `usagi export --target macos`) the `.app` icon.
+  `usagi export --target macos`) the `.app` icon. Optional, defaults to Usagi
+  bunny.
 - `sprite_size` (default `16`): side length, in pixels, of one cell in
   `sprites.png`. Drives `gfx.spr` indexing, the tilepicker tool's grid, and the
   window-icon slicer. Your `sprites.png` must use a multiple of this value on
   both axes; the window icon falls back to the default when the layout doesn't
   fit. The value also flows into `usagi.SPRITE_SIZE` so Lua code can read the
-  active cell size.
+  active cell size. Optional.
 - `game_width` (default `320`) and `game_height` (default `180`): override the
   game's render resolution. The internal render target is sized to these
   dimensions; the window upscales to fit, preserving aspect ratio. Tested range
@@ -404,7 +400,7 @@ export`. Defaults to
   relative to the screen. The web export templates the canvas backing-store and
   aspect ratio from the configured resolution, so non-16:9 / non-default games
   ship correctly with the default shell (no `--web-shell` needed) and embed
-  cleanly in itch at any iframe size.
+  cleanly in itch at any iframe size. Optional.
 - `pause_menu` (default `true`): when `true`, the engine intercepts Esc / P /
   Enter / gamepad Start to open the built-in pause overlay. Set to `false` and
   those keys flow through to user code so the game can roll its own menu with
@@ -412,7 +408,7 @@ export`. Defaults to
   `input.key_*` APIs. Disabling also turns off the keyboard remap UI, the Input
   Tester, and gamepad-driven menu nav (sub-views of the same overlay), and
   `usagi.menu_item` registrations no longer render. Suitable for keyboard-driven
-  prototypes.
+  prototypes. Optional.
 
 ```lua
 function _config()
@@ -431,11 +427,9 @@ end
 
 `icon` (optional) is a 1-based tile index into your `sprites.png`, same indexing
 as `gfx.spr`. Omitted, the embedded Usagi bunny is used. The chosen tile is
-applied to the game window on Linux/Windows (Cocoa ignores per-window icons on
-macOS, so the title bar there always shows the system default). At
-`usagi export --target macos` time the same tile is scaled up and packed into
-`Resources/AppIcon.icns` inside the `.app`, which is what the macOS Dock/Finder
-pick up.
+applied to the game window on Linux/Windows. At `usagi export --target macos`
+time the same tile is scaled up and packed into `Resources/AppIcon.icns` inside
+the `.app`, which is what the macOS Dock/Finder pick up.
 
 `_config()` runs before the runtime is fully alive (the window doesn't exist
 yet), so its return value is **read once at startup and cached**. Editing
@@ -554,9 +548,8 @@ a thin wrapper.
 
 #### Custom palettes (`palette.png`)
 
-Drop a `palette.png` at your project root to override the engine's default
-Pico-8 palette. Pixels are read in **row-major** order (left-to-right,
-top-to-bottom):
+Put a `palette.png` at your project root to override the engine's default Pico-8
+palette. Pixels are read in **row-major** order (left-to-right, top-to-bottom):
 
 - **Any rectangular shape.** A 16x1 strip, 16x2 grid (32 colors), or 4x4 (16
   colors) all work. Color count = `width × height`. Multi-row is fine for
@@ -577,11 +570,11 @@ Behavior:
   in Lua for non-default palettes.
 - Bundled into `usagi export` automatically when present.
 
-**Recommended pattern: name your own slots.** The built-in `gfx.COLOR_*`
-constants are named after Pico-8's slot ordering (slot 9 = `COLOR_RED`). With a
-custom palette, slot 9 might be a navy blue or a teal. The names don't match the
-colors anymore. Define your own constants once at the top of your project and
-use them everywhere:
+**Recommended pattern: name your own slots when using a custom color palette.**
+The built-in `gfx.COLOR_*` constants are named after Pico-8's slot ordering
+(slot 9 = `COLOR_RED`). With a custom palette, slot 9 might be a navy blue or a
+teal. The names don't match the colors anymore. Define your own constants once
+at the top of your project and use them everywhere:
 
 ```lua
 -- e.g. for sweetie16
@@ -606,9 +599,9 @@ for a runnable demo (ships sweetie16, uses a `COLOR` table for its named slots).
 
 #### Custom fonts (`font.png`)
 
-Drop a `font.png` at your project root to override the bundled monogram font
-used by `gfx.text` / `gfx.text_ex` / `usagi.measure_text`. The PNG is a baked
-glyph atlas with metadata embedded as a zTXt chunk (see "Baking" below).
+Put a `font.png` at your project root to override the bundled monogram font used
+by `gfx.text` / `gfx.text_ex` / `usagi.measure_text`. The PNG is a baked glyph
+atlas with metadata embedded as a zTXt chunk (see "Baking" below).
 
 Scope of the override is intentionally narrow:
 
@@ -630,7 +623,7 @@ usagi font bake <font.ttf> <size>
 Examples:
 
 ```bash
-# Drop into the current project (writes font.png in CWD by default)
+# Drop into the current project (writes font.png in current working directory by default)
 usagi font bake my_font.ttf 12
 
 # Skip the kanji block for a font that covers it
@@ -809,7 +802,7 @@ gfx.text("Press " .. btn .. " to jump", 10, 10, gfx.COLOR_WHITE)
   the latest `set_mouse_visible` call synchronously, so toggling reads
   consistently: `input.set_mouse_visible(not input.mouse_visible())`.
 
-#### Direct keyboard (escape hatch)
+#### Direct keyboard (if you really need it)
 
 For dev hotkeys (toggling debug overlays, screenshotting, F-key shortcuts) and
 for keyboard-and-mouse-only games, you can read raw keyboard state by key:
@@ -1023,7 +1016,7 @@ Engine-level info.
 
 Drop arbitrary game data (levels, dialog, tunable configs) under a `data/`
 directory at your project root. `usagi export` bundles the whole tree, so the
-same paths resolve identically in dev and in shipped builds.
+same paths resolve identically in dev and in exported builds.
 
 - `usagi.read_json(path)` — reads `data/<path>` as JSON and returns a Lua table.
   JSON arrays come back as 1-indexed Lua arrays; JSON objects come back as
@@ -1059,8 +1052,8 @@ end
 Hot reload: any save to a file under `data/` triggers the same script re-run
 that a `.lua` save does. State globals (capitalized vars set in `_init`) are
 preserved across reloads; if you want a true reset, press F5. Bundled builds
-have no mtimes, so hot reload is a dev-only convenience; shipped games read once
-from the bundle.
+have no mtimes, so hot reload is a dev-only convenience; exported games read
+once from the bundle.
 
 For CSV, use `read_text` + Lua splitting. A 3-line `string.gmatch` covers the
 simple-grid case (see `examples/level_from_csv/`).
@@ -1075,7 +1068,7 @@ cycles raise an error with a clear message.
 Useful when you want JSON without going through the save file: in-game devtools
 overlays, structured stdout logs, ad-hoc state inspection, or feeding data into
 another tool. Pair with `usagi.read_json` if you ever want to round-trip; reach
-for `usagi.dump` instead when you want a Lua table you could `requier` or
+for `usagi.dump` instead when you want a Lua table you could `require` or
 forgiving pretty-print that tolerates cycles and mixed-key tables.
 
 ```lua
@@ -1160,7 +1153,7 @@ end
 ```
 
 **Cross-platform shader files.** Desktop targets compile GLSL `#version 330`;
-the web target uses GLSL ES `#version 100` (WebGL 1 / GLES 2). Ship two files
+the web target uses GLSL ES `#version 100` (WebGL 1 / GLES 2). Include two files
 alongside each other to support both:
 
 - `shaders/<name>.fs`: desktop, `#version 330`, `in`/`out`, `texture(...)`,
@@ -1169,7 +1162,7 @@ alongside each other to support both:
   `varying`, `texture2D(...)`, `gl_FragColor` output.
 
 Web prefers `_es.fs` and falls back to `.fs`; desktop is the reverse. If only
-one is shipped, every platform that loads it runs that one. The `fragTexCoord`,
+one is included, every platform that loads it runs that one. The `fragTexCoord`,
 `fragColor`, and `texture0` inputs are provided by raylib on both targets. See
 `examples/shader/` for a runnable CRT effect plus a Game Boy palette swap with
 both variants of each.
@@ -1178,8 +1171,8 @@ both variants of each.
 in-place. Cached uniforms are replayed onto the new shader. Compile errors print
 to the terminal and keep the previous shader live.
 
-**Bundling.** `usagi export` walks `shaders/` and ships every `.fs` / `.vs` in
-the bundle, so shaders work the same in `usagi dev`, `usagi run`, `.usagi`
+**Bundling.** `usagi export` walks `shaders/` and includes every `.fs` / `.vs`
+in the bundle, so shaders work the same in `usagi dev`, `usagi run`, `.usagi`
 files, and fused exes on every platform.
 
 **Captures don't include the shader.** F8 / Cmd+F screenshots and F9 / Cmd+G GIF
@@ -1197,9 +1190,8 @@ Shaders resources:
 
 ### Indexing
 
-Sequence-style APIs (`gfx.spr`, and any future sound/tile indexing) are
-**1-based** to match Lua conventions (`ipairs`, `t[1]`, `string.sub`).
-`gfx.spr(1, ...)` draws the top-left sprite.
+Sequence-style APIs (`gfx.spr`) are _1-based_* to match Lua conventions
+(`ipairs`, `t[1]`, `string.sub`). `gfx.spr(1, ...)` draws the top-left sprite.
 
 Enum-like constants (palette colors, key codes) keep their conventional
 numbering. `gfx.COLOR_RED` is 8 because that's its Pico-8 number, not because
@@ -1241,15 +1233,8 @@ end
 spr(0, 20, 30)
 ```
 
-## Live Reload
+## Shortcuts
 
-Usagi watches the running script file and re-executes it when you save. The new
-`_update` and `_draw` take effect on the next frame — your current game state is
-**preserved** across the reload so you can tweak logic mid-play without losing
-progress.
-
-- `_init()` is **not** called on a save-triggered reload.
-- See [Reset](#reset) for the hotkeys and exactly what resets.
 - Press **~** (grave/tilde) to toggle the FPS overlay. Hidden by default in
   `dev`.
 - Press **Alt+Enter** to toggle borderless fullscreen. Persists in
@@ -1278,7 +1263,47 @@ progress.
   the same per-game OS data dir as `save.json`; on web they're routed through
   `localStorage` under `usagi.settings.<game_id>`.
 
+### Writing Reload-Friendly Scripts
+
+All Lua code chunks re-execute on save, so any top-level `local` bindings get
+re-bound on auto reload. A `local State` at module scope would get reset to a
+fresh table on every save and obliterate the running game; it has to be a
+global. The pattern:
+
+- **Mutable game state** → a single capitalized global, conventionally `State`,
+  assigned only inside `_init`. `_init` runs once at startup and on
+  [Reset](#reset), so the table outlives reloads. Saved edits keep your
+  in-progress game intact.
+- **Constants** → file-scope `local`. Re-binding to the same value each reload
+  is harmless.
+- **Required modules** → either file-scope `local Foo = require("foo")`, or a
+  capitalized global `Foo = require("foo")` if you want `Foo` reachable from
+  every file without re-requiring. Both work; the global form is convenient for
+  engine-wide tables like `Player`, `Enemy`.
+
+General advice: if you want something to persist across the live reload, put it
+into `State`. If you're tuning something and want to see it change
+automatically, leave it inline.
+
+The `.luarc.json` from `usagi init` enables the `lowercase-global` diagnostic to
+catch the most common footgun: forgetting `local` and accidentally creating a
+global named `score`, `timer`, etc. Capitalize anything you actually mean to
+make global; lowercase top-level assignments will warn.
+
+See
+[`examples/hello_usagi.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/hello_usagi.lua)
+and
+[`examples/input.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/input.lua)
+for some examples.
+
 ### Reset
+
+Usagi watches the running script file and re-executes it when you save. The new
+`_update` and `_draw` take effect on the next frame. Your current game state can
+be **preserved** across the reload so you can tweak logic mid-play without
+losing progress.
+
+- `_init()` is **not** called on a save-triggered live reload.
 
 Press **F5** (or **Ctrl+R** / **Cmd+R**) for a hard reset. The pause menu's
 **Reset Game** item does the same thing. Reset re-runs `_init()` so anything you
@@ -1306,33 +1331,8 @@ What a reset leaves alone:
   locals and globals you assign elsewhere persist across reset unless `_init`
   overwrites them.
 
-### Writing Reload-Friendly Scripts
-
-The chunk re-executes on save, so any top-level `local` bindings get re-bound
-each time. A `local State` at module scope would get reset to a fresh table on
-every save and obliterate the running game; it has to be a global. The pattern:
-
-- **Mutable game state** → a single capitalized global, conventionally `State`,
-  assigned only inside `_init`. `_init` runs once at startup and on
-  [Reset](#reset), so the table outlives reloads. Saved edits keep your
-  in-progress game intact.
-- **Constants** → file-scope `local`. Re-binding to the same value each reload
-  is harmless.
-- **Required modules** → either file-scope `local Foo = require("foo")`, or a
-  capitalized global `Foo = require("foo")` if you want `Foo` reachable from
-  every file without re-requiring. Both work; the global form is convenient for
-  engine-wide tables like `Player`, `Enemy`.
-
-The shipped `.luarc.json` enables the `lowercase-global` diagnostic to catch the
-most common footgun: forgetting `local` and accidentally creating a global named
-`score`, `timer`, etc. Capitalize anything you actually mean to make global;
-lowercase top-level assignments will warn.
-
-See
-[`examples/hello_usagi.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/hello_usagi.lua)
-and
-[`examples/input.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/input.lua)
-for the layout.
+You can also make use of `usagi.IS_DEV` to set up your `State` on a reset to
+keep you within a given scene or setup you want to refine quickly.
 
 ## Examples
 
@@ -1358,8 +1358,8 @@ tools. The path is optional; pass a project directory (or a `.lua` file) to load
 its `sprites.png` and `sfx/` assets. Without a path the tools open with empty
 state.
 
-Switch tools via the tab buttons or with **1** (Jukebox), **2** (TilePicker), or
-**3** (SaveInspector).
+Switch tools via the tab buttons or with **1** (Jukebox), **2** (TilePicker),
+**3** (SaveInspector), **4** (ColorPalette).
 
 Jukebox and TilePicker live-reload their assets: drop a new WAV in `sfx/` or
 save a new `sprites.png` and the tools pick it up on the next frame.
@@ -1410,8 +1410,8 @@ inspecting state between runs without leaving the editor.
 
 ### ColorPalette
 
-Shows swatches for each of the 16 colors with the ability to click to copy the
-Lua value to your clipboard.
+Shows swatches for each of the 16 default colors or your custom `palette.png`)
+with the ability to click to copy the Lua value to your clipboard.
 
 ### Bring Your Own Tools
 
@@ -1456,7 +1456,7 @@ $ usagi export examples/snake --target bundle
 
 ### Cross-Platform Templates
 
-Non-host platforms come from "runtime templates" published alongside each
+Non-host platforms come from "runtime templates" published alongside each Usagi
 release. The CLI fetches them on first use, caches them per-OS, and verifies
 each archive against its `sha256` sidecar before extracting.
 
