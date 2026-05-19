@@ -107,7 +107,7 @@ Fixes:
   incremental garbage collection, which keeps the heap bounded during play so
   closing doesn't stall sweeping accumulated dead objects on exit.
   [See #232](https://github.com/brettchalupa/usagi/issues/232)
-- Pause menu now alwyas uses the engine's color palette (Pico-8) so that custom
+- Pause menu now always uses the engine's color palette (Pico-8) so that custom
   color palettes don't inadvertently lead to illegible pause menu colors.
 
 ## v0.8.0 - May 14, 2026
