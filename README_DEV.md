@@ -569,6 +569,7 @@ Behavior:
   `gfx.COLOR_RED` (slot 9) and higher will be magenta. Define your own constants
   in Lua for non-default palettes.
 - Bundled into `usagi export` automatically when present.
+- Custom color palettes do not apply to the Pause menu colors.
 
 **Recommended pattern: name your own slots when using a custom color palette.**
 The built-in `gfx.COLOR_*` constants are named after Pico-8's slot ordering
