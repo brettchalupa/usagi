@@ -81,6 +81,10 @@ Fixes:
   or mixed string/integer keys now error up front and point at the workaround.
   JSON only supports maps with string keys or dense `1..n` arrays.
   [See #220](https://github.com/brettchalupa/usagi/issues/220)
+- Fixed slow shutdown after long sessions: switched Lua from generational to
+  incremental garbage collection, which keeps the heap bounded during play so
+  closing doesn't stall sweeping accumulated dead objects on exit.
+  [See #232](https://github.com/brettchalupa/usagi/issues/232)
 
 ## v0.8.0 - May 14, 2026
 
@@ -105,8 +109,7 @@ Features:
 - Custom color palettes via `palette.png`. Drop a PNG at your project root and
   Usagi swaps the default Pico-8 palette for yours. Pixels read in row-major
   order (left-to-right, top-to-bottom) so any rectangular shape works. 16x1
-  strips, 16x2 grids, 4x4 grids, etc. Color count = `width ×
-  height`.
+  strips, 16x2 grids, 4x4 grids, etc. Color count = `width × height`.
   lospec.com's "1px cells" exports are the canonical source. Hot-reloads like
   `sprites.png`, ships in `usagi export` bundles. The `gfx.COLOR_*` constants
   stay as slot indices, so they keep resolving through the same slots, but the

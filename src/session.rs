@@ -716,9 +716,10 @@ impl Session {
         let reload = dev && vfs.supports_reload();
 
         let lua = Lua::new();
-        // Generational GC fits game workloads (lots of short-lived per-frame
-        // allocations, small set of long-lived state).
-        lua.gc_gen(0, 0);
+        // Use incremental garbage collection. Generational let the heap grow
+        // unbounded under per-frame allocation, so lua_close at exit would have
+        // to sweep multi-GiB of dead objects and stalled for minutes.
+        lua.gc_inc(0, 0, 0);
         setup_api(&lua, dev)?;
         install_require(&lua, vfs.clone())
             .map_err(|e| crate::Error::Cli(format!("installing require: {e}")))?;
