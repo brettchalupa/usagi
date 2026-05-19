@@ -8,12 +8,13 @@
 --
 --   covered: cls, rect, rectfill, circ, circfill, line, print, pset,
 --            spr (with flip args), sspr (with stretch + flip args), btn,
---            btnp, flr, ceil, abs, min, max, mid, sqrt, cos, sin, rnd,
---            srand, time, t
+--            btnp, flr, ceil, abs, min, max, mid, sqrt, sgn, cos, sin,
+--            atan2, rnd, srand, time, t, add, del, foreach, count, all,
+--            sub, chr, ord, tostr, tonum
 --
 --   missing: music, palette swap (pal/palt), camera, clip, fillp,
 --            peek/poke, map, mget/mset, sfx (index-keyed; usagi sfx are
---            name-keyed), atan2.
+--            name-keyed).
 --
 -- Notable behaviors preserved from Pico-8:
 --   * `spr(0)` draws the first sprite (Pico-8 is 0-based; usagi is
@@ -146,6 +147,16 @@ min = math.min
 max = math.max
 sqrt = math.sqrt
 
+-- Pico-8 `sgn(0)` returns 1 (zero is considered positive); usagi's
+-- `util.sign(0)` returns 0. Keep Pico-8 semantics so cart code that
+-- multiplies by `sgn(vx)` for facing direction never collapses to 0.
+sgn = function(x)
+  if x < 0 then
+    return -1
+  end
+  return 1
+end
+
 mid = function(a, b, c)
   if a > b then
     a, b = b, a
@@ -169,6 +180,13 @@ sin = function(x)
   return -math.sin(x * TAU)
 end
 
+-- Pico-8 `atan2(dx, dy)` returns the angle of (dx, dy) in turns
+-- (0..1), screen-Y-down. Match that by negating dy and dividing radians
+-- by TAU. The `% 1` folds the negative-radian range into 0..1.
+atan2 = function(dx, dy)
+  return (math.atan(-dy, dx) / TAU) % 1
+end
+
 rnd = function(x)
   if x == nil then
     return math.random()
@@ -189,5 +207,65 @@ time = function()
   return usagi.elapsed
 end
 t = time
+
+-- Pico-8 table helpers. Pure Lua, no engine state — same semantics as
+-- the Pico-8 manual: `add` appends (or inserts at i) and returns v;
+-- `del` removes the first matching value; `foreach` iterates 1..#t;
+-- `count` returns length, or the count of a specific value; `all`
+-- returns a stateful iterator usable as `for v in all(t) do ... end`.
+add = function(t, v, i)
+  if i then
+    table.insert(t, i, v)
+  else
+    t[#t + 1] = v
+  end
+  return v
+end
+
+del = function(t, v)
+  for i = 1, #t do
+    if t[i] == v then
+      table.remove(t, i)
+      return v
+    end
+  end
+  return nil
+end
+
+foreach = function(t, f)
+  for i = 1, #t do
+    f(t[i])
+  end
+end
+
+count = function(t, v)
+  if v == nil then
+    return #t
+  end
+  local n = 0
+  for i = 1, #t do
+    if t[i] == v then
+      n = n + 1
+    end
+  end
+  return n
+end
+
+all = function(t)
+  local i = 0
+  return function()
+    i = i + 1
+    return t[i]
+  end
+end
+
+-- Pico-8 string helpers. `sub`/`chr`/`ord` are 1:1 with Lua's
+-- string library; `tostr`/`tonum` are name-only aliases (Pico-8's
+-- optional hex flag on `tostr` is not emulated).
+sub = string.sub
+chr = string.char
+ord = string.byte
+tostr = tostring
+tonum = tonumber
 
 return {}
