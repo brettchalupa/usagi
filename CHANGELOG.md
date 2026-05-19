@@ -5,6 +5,8 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
+## v1.0.0 - May 19, 2026
+
 Breaking:
 
 - Pixel API renamed for consistency with the other shorthand primitives (`rect`,

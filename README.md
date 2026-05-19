@@ -2,29 +2,19 @@
 
 # Usagi - Simple 2D Game Engine for Rapid Prototyping
 
-Usagi is a simple 2D game engine for quickly making games with **Lua** 5.5. It
-features live-reloading as you change your game code and assets. Its API is
-clear, consistent, and familiar.
-
-**NOTE:** Usagi is almost v1.0.0 and is pretty stable! Don't expect much
-breakage between v0.8.0 and v1.0.0.
+Usagi is a 2D game engine for making pixel art games in **Lua** 5.5. It features
+live reload, single-command cross-platform export, and a pause menu with input
+remapping built in.
 
 Usagi is free software made by [Brett Chalupa](https://brettmakesgames.com) and
 dedicated to the public domain.
 [Support development of the engine by buying me a coffee.](https://www.buymeacoffee.com/brettchalupa)
 
-Key links:
-
-- Website: [usagiengine.com](https://usagiengine.com)
-- Discord: [usagiengine.com/discord](https://usagiengine.com/discord)
-- Reddit: [reddit.com/r/UsagiEngine](https://reddit.com/r/UsagiEngine)
-
-Videos:
-
-- [Quickstart Guide](https://www.youtube.com/watch?v=0i1wIm6c6Rw)
-- [v0.8 overview](https://www.youtube.com/watch?v=-_5yTiRNvo4)
-- [v0.1 to v0.6 overview](https://www.youtube.com/watch?v=wYIGB91i8Lc)
-- [Introduction with initial release of v0.1](https://www.youtube.com/watch?v=byp3rKd626M)
+**Links:** [usagiengine.com](https://usagiengine.com),
+[Discord](https://usagiengine.com/discord),
+[r/UsagiEngine](https://reddit.com/r/UsagiEngine),
+[Quickstart video](https://www.youtube.com/watch?v=0i1wIm6c6Rw),
+[YouTube Playlist](https://www.youtube.com/playlist?list=PL0qDutCc8IQhkbS53etm9xV06XgEb4BEN),
 
 ## Install
 
@@ -42,55 +32,49 @@ irm https://usagiengine.com/install.ps1 | iex
 
 The installer fetches the latest release from GitHub, verifies its SHA-256
 checksum, installs `usagi` to `~/.usagi/bin/` (or `%USERPROFILE%\.usagi\bin\` on
-Windows), and sets up `PATH`.
+Windows), and adds it to `PATH`.
 
-**Latest Usagi release:** v0.8.0
-
-Or download manually from
+Manual download:
 [GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest) or
-[itch.io](https://brettchalupa.itch.io/usagi).
+[itch.io](https://brettchalupa.itch.io/usagi)
+
+Latest release: **v1.0.0**.
 
 [View the changelog.](https://usagiengine.com/changelog)
 
-## Features / Bugs
+## Features
 
-Usagi embraces a few constraints inspired by Pico-8 and Pyxel to help focus on
-prototyping rather than making polished high-resolution graphics. These may
-change in the future or be configurable.
+- **Live reload.** `usagi dev` watches your code and assets; saves apply without
+  losing game state. Tweak a sprite in your editor and see it update instantly.
+- **One-command export.** `usagi export` packages your game for Linux, macOS,
+  Windows, and the web.
+- **Pause menu, free.** Built-in pause menu with sfx and music volume,
+  fullscreen toggle, and per-game keyboard + gamepad remapping.
+- **Easy save data.** One function to save and load your game state as a Lua
+  table.
+- **Small, fixed API.** You can't do everything, but you've got what you need to
+  make a great 2D game.
+- **Constraints to inspire creativity.** 320x180 default resolution, 16x16
+  default sprite grid, a single `sprites.png` for textures.
 
-- **Live Reload**: when you run `usagi dev`, your game automatically updates
-  with your newest code and assets, enabling rapid development
-- **Cross Platform Export**: run `usagi export` and your game is exported for
-  Linux, macOS, Windows, and web
-- **Default Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely
-  to common monitor sizes; override with `_config()`
-- **One Spritesheet**: `sprites.png` is the only image file for textures that
-  can be loaded
-- **Small API**: you can't do everything with Usagi, but there's enough to make
-  simple 2D games
-- **Default Sprite Size**: 16px by 16px - using `gfx.spr` uses the index based
-  on this sized sprite; you can draw larger sprites with `gfx.sspr`; override
-  with `_config()`
-- **3 Action Buttons**: Embrace modernity with 3 different action buttons!
-- **Pico-8 Colors**: the color palette for drawing are the same as Pico-8 (but
-  with constants for easy reference)
-- **Pause Menu with Settings and Input Mapping**: don't spend your time coding a
-  pause menu and settings, focus on your game instead! Usagi comes with a Pause
-  menu with sound effect and music volume, fullscreen toggle, and per-game
-  keyboard and gamepad remapping for BTN1/BTN2/BTN3 (Input > Configure Keys /
-  Configure Gamepad)
-- **Easy Save Data**: use a single function to save and load your game data via
-  a Lua table
-
-Bring your own sound effects, sprite editor, and music.
+Bring your own sound effects, sprite editor, and music tools.
 
 ## Hello, Usagi
 
-You now have the `usagi` CLI that you can run from your shell (`usagi.exe` on
-Windows).
+Bootstrap a project and start it in dev mode:
 
-Starting development is as simple as creating `main.lua`, running `usagi dev`,
-and coding:
+```sh
+usagi init my_game
+cd my_game
+usagi dev
+```
+
+`init` writes `main.lua` (with `_init` / `_update` / `_draw` stubs),
+`.luarc.json` for Lua LSP support, `.gitignore`, `meta/usagi.lua` (API type
+stubs), and `USAGI.md` (a copy of these docs).
+
+Edit `main.lua`, save, and the running game picks up the change without
+restarting or losing state. Drawing "Hello, Usagi!" looks like:
 
 ```lua
 function _draw(_dt)
@@ -99,68 +83,36 @@ function _draw(_dt)
 end
 ```
 
-You can quickly bootstrap a new project and start it in dev mode:
-
-```sh
-usagi init my_game
-cd my_game
-usagi dev
-```
-
-`init` writes `main.lua` (with stubbed `_init` / `_update` / `_draw` functions),
-`.luarc.json` for Lua LSP support, `.gitignore`, `meta/usagi.lua` (API type
-stubs), and `USAGI.md` (a copy of these docs).
-
-Edit `main.lua` and save. The Usagi runtime automatically reloads, so your
-changes show up live without losing game state.
-
-In most traditional game development environments, you would need to restart
-your game's executable after making changes. Usagi lets you focus on coding and
-making art without losing the current game state, allowing for much faster
-iteration cycles.
-
-Need to revise a sprite quickly? Just open `sprites.png` in your sprite editor,
-change it, save it, and see it update in the context of your game.
-
 ## Updating Usagi
 
-Replace the `usagi` binary with a newer release from your preferred download
-source. You can also run `usagi update` to fetch the latest version if there is
-one.
-
-To refresh engine-owned files in a project (the LSP type stubs and the embedded
-docs), run: `usagi refresh`. It updates `meta/usagi.lua`, `.luarc.json`, and
-`USAGI.md`. Does **not** update `main.lua`. Use this after `usagi update` to get
-the docs and LSP integration for the `usagi -V` you're using.
+Replace the `usagi` binary with a newer release, or run `usagi update` to fetch
+the latest. Then run `usagi refresh` inside a project to refresh the LSP type
+stubs and embedded docs (`meta/usagi.lua`, `.luarc.json`, `USAGI.md`). It won't
+touch `main.lua`.
 
 ## Feedback and Issues
 
-[Create a new GitHub issue](https://github.com/brettchalupa/usagi/issues/new/choose)
-to share feedback on the engine, make requests, and report bugs. Be sure to
-search to see if there's already an existing issue.
+Open a [GitHub issue](https://github.com/brettchalupa/usagi/issues/new/choose)
+for feedback, requests, and bugs. Search first to avoid duplicates.
 
-## Project Goal
+## Goals and non-goals
 
-Usagi does not aim to be anything more than a rapid development engine for
-simple, pixel art games. It doesn't intend to support mobile platforms or mobile
-or VR. It doesn't aim to replace Love2D or Pico-8 or Picotron. It's not a
-fantasy console. It's a command-line program and suite of tools to help you make
-games quickly.
+Usagi is for rapid 2D pixel-art prototyping in Lua. It's a great fit if you want
+to quickly try out an idea, if you're new to game programming, if you've hit
+Pico-8's token limit, or if you want something simpler than Love2D.
 
-Usagi is great for those learning game programming. And for those who to use
-something more flexible than Pico-8/Picotron but more constrained than Love2D.
+It is **not** a fantasy console or a Love2D replacement. It doesn't target
+mobile or VR, and it isn't built for medium-to-large polished games.
 
-**Why Lua:** Lua is a widely-used language in game programming, and it's quite
-simple yet surprisingly powerful, making it a good fit for Usagi.
-
-If you want to build a medium-to-large polished game, Usagi would not be a good
-fit.
+**Why Lua:** small, widely used in game tooling, and powerful enough to stay out
+of your way.
 
 ## Project Layout
 
 An Usagi game is either a single `.lua` file or a directory with a `main.lua` in
 it. Additional `.lua` files anywhere under the project root can be loaded with
-stock Lua's `require`. Optional assets live alongside:
+stock Lua's `require`. Optional assets live alongside the source code. Here's
+what a folder structure could look like for a multi-file project:
 
 ```
 my_game/
@@ -169,6 +121,9 @@ my_game/
   palette.png        -- optional: custom palette (1px tall, one color per pixel)
   font.png           -- optional: custom font (bake with `usagi font bake`)
   enemies.lua        -- optional: require "enemies"
+  data/
+    level.json       -- optional: JSON data, loadable with `usagi.read_json("level.json")
+    dialog.txt       -- optional: text data, loadable with `usagi.read_text("dialog.txt")
   scenes/
     main_menu.lua    -- optional: require "scenes.main_menu" - source code can be in folders
   sfx/               -- optional: .wav files, file stems become sfx names
@@ -183,7 +138,7 @@ my_game/
 ```
 
 `require "name"` resolves to `name.lua` in the project root, falling back to
-`name/init.lua` if the first miss. Dotted names (`require "world.tiles"`) become
+`name/init.lua` if that misses. Dotted names (`require "world.tiles"`) become
 slash-separated paths. The same lookup works inside a fused / exported build, so
 multi-file projects ship as a single binary or `.usagi` with no extra config.
 
@@ -192,7 +147,7 @@ Run with:
 - `usagi init path/to/new_game` bootstraps a project (main.lua stub,
   `.luarc.json`, `.gitignore`, LSP stubs, `USAGI.md` docs).
 - `usagi dev path/to/my_game` for live-reload development (script, sprites, and
-  sfx reload on save; F5 resets state).
+  sfx reload on save; [Reset](#reset) re-runs `_init`).
 - `usagi run path/to/my_game` to run without live-reload.
 - `usagi tools [path]` opens the Usagi tools window (jukebox, tile picker). See
   the **Tools** section below.
@@ -200,7 +155,7 @@ Run with:
   Linux, macOS, Windows, and the web, plus a portable `.usagi` bundle. See the
   **Export** section below.
 
-Can you also run Usagi commands without the path to have it run in the current
+You can also run Usagi commands without a path to have them run in the current
 directory, like `usagi dev` or `usagi export`.
 
 ## Lua API
@@ -210,13 +165,15 @@ signatures.
 
 **Style**: for Lua, 2 spaces indent with `snake_case` for locals, function
 names, and table fields. `SCREAMING_SNAKE_CASE` for file-scope constants
-(`local TICK = 0.12`, `gfx.COLOR_*`). Cross-frame globals are **`Capitalized`**
-— the canonical game-state container is `State`, set inside `_init`; module
+(`local TICK = 0.12`, `gfx.COLOR_*`). Cross-frame globals are **`Capitalized`**.
+The canonical game-state container is `State`, set inside `_init`. Module
 imports kept as globals are `Player = require("player")`. The shipped
 `.luarc.json` enables `lowercase-global`, so any unguarded lowercase assignment
 at file scope is flagged as an accidental missing `local`. Engine API (`gfx`,
 `input`, `sfx`, `music`, `usagi`) stays lowercase and is exempt from the lint
 via `meta/usagi.lua`.
+
+[View the Lua 5.5 docs for full language reference.](https://www.lua.org/manual/5.5/)
 
 ### Cheatsheet
 
@@ -232,6 +189,9 @@ usagi.elapsed
 usagi.measure_text(text)
 usagi.save(t)
 usagi.load()
+usagi.read_json(path) -- read data/<path> as a Lua table
+usagi.read_text(path) -- read data/<path> as a string
+usagi.to_json(t) -- serialize a Lua table to a JSON string (same shape rules as usagi.save)
 usagi.menu_item(label, callback) -- up to 3; callback `return true` keeps menu open
 usagi.clear_menu_items()
 usagi.toggle_fullscreen() -- flips fullscreen, returns the new state as bool
@@ -249,7 +209,7 @@ _draw(dt)
 
 gfx.clear(color)
 gfx.text(text, x, y, color)
-gfx.text_ex(text, x, y, scale, rotation, color)
+gfx.text_ex(text, x, y, scale, rotation, color, alpha)
 gfx.rect(x, y, w, h, color)
 gfx.rect_fill(x, y, w, h, color)
 gfx.rect_ex(x, y, w, h, thickness, color)
@@ -258,11 +218,13 @@ gfx.circ_fill(x, y, r, color)
 gfx.circ_ex(x, y, r, thickness, color)
 gfx.line(x1, y1, x2, y2, color)
 gfx.line_ex(x1, y1, x2, y2, thickness, color)
-gfx.pixel(x, y, color)
-gfx.px(x, y)                  -- read screen pixel: r, g, b, palette_index
+gfx.tri(x1, y1, x2, y2, x3, y3, color)
+gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)
+gfx.px(x, y, color)
+gfx.get_px(x, y) -- read screen pixel: r, g, b, palette_index
 gfx.spr(index, x, y)
 gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)
-gfx.spr_px(index, x, y)       -- read sprite-sheet pixel: r, g, b, palette_index
+gfx.get_spr_px(index, x, y) -- read sprite-sheet pixel: r, g, b, palette_index
 gfx.sspr(sx, sy, sw, sh, dx, dy)
 gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha)
 gfx.shader_set(name)
@@ -274,6 +236,9 @@ gfx.COLOR_BLACK, gfx.COLOR_DARK_BLUE, gfx.COLOR_DARK_PURPLE, gfx.COLOR_DARK_GREE
 gfx.COLOR_BROWN, gfx.COLOR_DARK_GRAY, gfx.COLOR_LIGHT_GRAY, gfx.COLOR_WHITE
 gfx.COLOR_RED,   gfx.COLOR_ORANGE,    gfx.COLOR_YELLOW,     gfx.COLOR_GREEN
 gfx.COLOR_BLUE,  gfx.COLOR_INDIGO,    gfx.COLOR_PINK,       gfx.COLOR_PEACH
+
+-- Off-palette pure (255,255,255). Identity tint for spr_ex / sspr_ex.
+gfx.COLOR_TRUE_WHITE
 
 -- Sound
 
@@ -331,7 +296,7 @@ effect.hitstop(time)
 effect.screen_shake(time, intensity)
 effect.flash(time, color)
 effect.slow_mo(time, scale)
-effect.stop()                         -- stop all running effects
+effect.stop() -- stop all running effects
 
 -- Util -- math
 
@@ -380,17 +345,17 @@ State.timer += dt
 
 Limitations: the rewrite is line-anchored, so `if cond then x += 1 end` is left
 as-is (use longhand). The LHS is duplicated verbatim, so `t[f()] += 1` calls
-`f()` twice — same gotcha as PICO-8's preprocessor.
+`f()` twice.
 
-The shipped `.luarc.json` declares these as nonstandard symbols so the
-lua-language-server stops underlining them as syntax errors.
+The included `.luarc.json` from `usagi init` declares these as nonstandard
+symbols so the lua-language-server does not underline them as syntax errors.
 
 ### Callbacks
 
 Define any of these as globals for Usagi to call them:
 
-- `_init()` — once at start, and when the user presses **F5**. Initialize
-  `State` (and any other cross-frame globals) here.
+- `_init()` — once at start, and on [Reset](#reset). Initialize `State` (and any
+  other cross-frame globals) here.
 - `_update(dt)` — each frame, before draw. `dt` is seconds since last frame.
 - `_draw(dt)` — each frame, after update. `dt` same as above.
 - `_config()` — optional. Called **once at startup, before the window opens**;
@@ -403,8 +368,7 @@ Supported fields:
 - `name`: display name. Drives the window title bar, the macOS `.app` bundle
   directory (`Sprite Example.app`), the Info.plist `CFBundleName` /
   `CFBundleDisplayName`, and (after slugging to ASCII kebab-case) the archive
-  filenames + Linux/Windows binary names produced by `usagi
-export`. Defaults to
+  filenames + Linux/Windows binary names produced by `usagi export`. Defaults to
   the project directory name (`examples/spr/main.lua` → "spr"); falls back to
   "Usagi" if no path is available.
 - `pixel_perfect` (default `false`): when `true`, the game renders at integer
@@ -413,21 +377,22 @@ export`. Defaults to
   the window while preserving the game's aspect ratio, so bars only appear on
   the axis with extra room, never distorting the image. The default is `false`
   because at common fullscreen resolutions (720p, 1080p, 4K) the game's 320×180
-  native size lands on an integer multiple anyway, and in windowed mode it looks
-  good still.
+  native size lands on an integer multiple anyway, and it still looks good in
+  windowed mode.
 - `game_id`: reverse-DNS string like `com.brettmakesgames.snake`, namespaces
   save data and the macOS bundle identifier. Optional.
 - `icon`: 1-based tile index into `sprites.png`, used as the window icon and (on
-  `usagi export --target macos`) the `.app` icon.
+  `usagi export --target macos`) the `.app` icon. Optional, defaults to Usagi
+  bunny.
 - `sprite_size` (default `16`): side length, in pixels, of one cell in
   `sprites.png`. Drives `gfx.spr` indexing, the tilepicker tool's grid, and the
   window-icon slicer. Your `sprites.png` must use a multiple of this value on
   both axes; the window icon falls back to the default when the layout doesn't
   fit. The value also flows into `usagi.SPRITE_SIZE` so Lua code can read the
-  active cell size.
+  active cell size. Optional.
 - `game_width` (default `320`) and `game_height` (default `180`): override the
   game's render resolution. The internal render target is sized to these
-  dimensions; the window upscales to fit, preserving aspect ratio. Tested band
+  dimensions; the window upscales to fit, preserving aspect ratio. Tested range
   is roughly 320x180 to 640x360. Outside that, the pause-menu and tools UI are
   pixel-fixed and may overflow at very small sizes or look sparse at very large
   ones. Sprite size (`usagi.SPRITE_SIZE`, 16) and the bundled font (5x7) don't
@@ -435,7 +400,15 @@ export`. Defaults to
   relative to the screen. The web export templates the canvas backing-store and
   aspect ratio from the configured resolution, so non-16:9 / non-default games
   ship correctly with the default shell (no `--web-shell` needed) and embed
-  cleanly in itch at any iframe size.
+  cleanly in itch at any iframe size. Optional.
+- `pause_menu` (default `true`): when `true`, the engine intercepts Esc / P /
+  Enter / gamepad Start to open the built-in pause overlay. Set to `false` and
+  those keys flow through to user code so the game can roll its own menu with
+  `usagi.menu_item`, `usagi.toggle_fullscreen`, `usagi.quit`, and the
+  `input.key_*` APIs. Disabling also turns off the keyboard remap UI, the Input
+  Tester, and gamepad-driven menu nav (sub-views of the same overlay), and
+  `usagi.menu_item` registrations no longer render. Suitable for keyboard-driven
+  prototypes. Optional.
 
 ```lua
 function _config()
@@ -447,17 +420,16 @@ function _config()
     -- game_width = 480,   -- optional; default 320
     -- game_height = 270,  -- optional; default 180
     -- sprite_size = 32,   -- optional; default 16
+    -- pause_menu = false, -- optional; default true
   }
 end
 ```
 
 `icon` (optional) is a 1-based tile index into your `sprites.png`, same indexing
 as `gfx.spr`. Omitted, the embedded Usagi bunny is used. The chosen tile is
-applied to the game window on Linux/Windows (Cocoa ignores per-window icons on
-macOS, so the title bar there always shows the system default). At
-`usagi export --target macos` time the same tile is scaled up and packed into
-`Resources/AppIcon.icns` inside the `.app`, which is what the macOS Dock/Finder
-pick up.
+applied to the game window on Linux/Windows. At `usagi export --target macos`
+time the same tile is scaled up and packed into `Resources/AppIcon.icns` inside
+the `.app`, which is what the macOS Dock/Finder pick up.
 
 `_config()` runs before the runtime is fully alive (the window doesn't exist
 yet), so its return value is **read once at startup and cached**. Editing
@@ -467,7 +439,7 @@ config field on save; restart the session to pick up changes.
 ### `gfx`
 
 Draws to the screen. Positions are in game-space pixels (320×180). Colors are
-palette indices 0-15; use the named constants.
+palette slot indices `1..16`; use the named constants.
 
 - `gfx.clear(color)` — fill the screen.
 - `gfx.rect(x, y, w, h, color)` — 1-pixel rectangle outline.
@@ -486,15 +458,21 @@ palette indices 0-15; use the named constants.
   `(x2, y2)`.
 - `gfx.line_ex(x1, y1, x2, y2, thickness, color)` — line with a custom thickness
   in pixels.
-- `gfx.pixel(x, y, color)` — set a single pixel.
-- `gfx.px(x, y)` returns `(r, g, b, palette_index)` for the pixel at `(x, y)` on
-  the most recently rendered frame. `palette_index` is the 1-based slot for an
-  exact RGB match or `nil` for off-palette colors. All four returns are `nil`
-  for off-screen coordinates and on the very first frame (before anything has
-  been drawn). Reads reflect the previous frame's finished image, so they don't
-  see in-progress draws inside the current `_draw`. The classic use is
-  collision-by-color: paint walls into the framebuffer with a known color, then
-  consult `gfx.px` on the proposed destination in `_update`.
+- `gfx.tri(x1, y1, x2, y2, x3, y3, color)` — 1-pixel triangle outline from three
+  points. For a thicker outline, draw three `gfx.line_ex` calls.
+- `gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)` — filled triangle from three
+  points. Vertex order doesn't matter; the winding is corrected for you so
+  arrows, spaceship nosecones, and the like just draw regardless of how you laid
+  out the points.
+- `gfx.px(x, y, color)` — set a single pixel.
+- `gfx.get_px(x, y)` returns `(r, g, b, palette_index)` for the pixel at
+  `(x, y)` on the most recently rendered frame. `palette_index` is the 1-based
+  slot for an exact RGB match or `nil` for off-palette colors. All four returns
+  are `nil` for off-screen coordinates and on the very first frame (before
+  anything has been drawn). Reads reflect the previous frame's finished image,
+  so they don't see in-progress draws inside the current `_draw`. The classic
+  use is collision-by-color: paint walls into the framebuffer with a known
+  color, then consult `gfx.get_px` on the proposed destination in `_update`.
 - `gfx.text(text, x, y, color)` — bundled monogram font (5×7 pixel font, 12 px
   line height; see Credits below). Renders the engine's default Latin/Cyrillic/
   Greek glyph set, or your custom font if a `font.png` is present at the project
@@ -502,14 +480,16 @@ palette indices 0-15; use the named constants.
   `usagi.measure_text` — it lives on `usagi` rather than `gfx` because
   measurement is a pure utility (no render side-effect) and is callable from any
   callback, including `_init`.
-- `gfx.text_ex(text, x, y, scale, rotation, color)` — extended `text`:
+- `gfx.text_ex(text, x, y, scale, rotation, color, alpha)` — extended `text`:
   - `scale` (number) — font-size multiplier. **Use integers** (`1`, `2`, `3`)
     for crisp text since atlas-baked fonts use POINT filtering and integer
     scales preserve the pixel-art look. Fractional values blur.
   - `rotation` (number) — radians. `0` is no rotation. Use `math.rad(45)` for
     literal-degree values. Rotation pivots around the **center** of the
     unrotated bounding box; `(x, y)` stays the top-left when `rotation = 0`.
-    Useful for juice — wiggling subtitles, tilted labels, score popups.
+    Useful for juice: wiggling subtitles, tilted labels, score popups.
+  - `alpha` (number) — opacity in `0..1`. `1.0` is opaque, `0.0` is invisible.
+    Use for fade-in/out, dimmed UI, ghosted previews.
 - `gfx.spr(index, x, y)` — draw the 16×16 sprite at `index` (1 = top-left) from
   `sprites.png`. Native size, no flips, no rotation, no tint, full opacity.
 - `gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)` — extended
@@ -518,19 +498,22 @@ palette indices 0-15; use the named constants.
   - `rotation` (number) — radians. `0` is no rotation. Use `math.rad(45)` for
     literal-degree values. Rotation pivots around the **center** of the sprite;
     `(x, y)` stays the top-left of the unrotated bounding box.
-  - `tint` (palette color) — multiplied over the sprite. `gfx.COLOR_WHITE` is
-    the identity (no recolor). Other colors recolor the sprite (e.g.
-    `gfx.COLOR_RED` for a hit flash). Multiplicative semantics, so this can't
-    produce a full-white silhouette — for that, use a shader or draw a colored
-    rect on top.
+  - `tint` (palette color) — multiplied over the sprite. `gfx.COLOR_TRUE_WHITE`
+    is the identity (no recolor). Other colors recolor the sprite (e.g.
+    `gfx.COLOR_RED` for a hit flash). Note that `gfx.COLOR_WHITE` is the Pico-8
+    palette white (`255,241,232`), which is _slightly_ warm and will shift
+    colors a touch; use it intentionally for a paper-aged look, or use
+    `gfx.COLOR_TRUE_WHITE` (off-palette pure white) when you want pixels to pass
+    through unchanged. Multiplicative semantics, so this can't produce a
+    full-white silhouette: for that, use a shader or draw a colored rect on top.
   - `alpha` (number) — opacity in `0..1`. `1.0` is opaque, `0.0` is invisible.
-- `gfx.spr_px(index, x, y)` returns `(r, g, b, palette_index)` for a pixel
+- `gfx.get_spr_px(index, x, y)` returns `(r, g, b, palette_index)` for a pixel
   inside the `index` sprite cell on `sprites.png`. `index` is 1-based (same
   shape as `gfx.spr`); `(x, y)` is the offset inside the cell, with `(0, 0)` as
   that cell's top-left. All four returns are `nil` for an out-of-range index,
   out-of-cell coordinates, a project with no `sprites.png`, or a fully
   transparent source pixel (`gfx.spr` draws alpha-keyed, so a transparent pixel
-  reads as "nothing here" rather than as its backing RGB). Unlike `gfx.px`,
+  reads as "nothing here" rather than as its backing RGB). Unlike `gfx.get_px`,
   sprite reads are deterministic and unaffected by draw order: useful for
   pixel-perfect sprite collision and for levels where you paint the layout into
   the sheet and scan it at startup to spawn entities.
@@ -544,11 +527,19 @@ palette indices 0-15; use the named constants.
   `COLOR_BROWN`, `COLOR_DARK_GRAY`, `COLOR_LIGHT_GRAY`, `COLOR_WHITE`,
   `COLOR_RED`, `COLOR_ORANGE`, `COLOR_YELLOW`, `COLOR_GREEN`, `COLOR_BLUE`,
   `COLOR_INDIGO`, `COLOR_PINK`, `COLOR_PEACH` — palette slot indices `1..16`,
-  matching `gfx.spr` and Lua's array convention (`0` is an out-of-range sentinel
-  that renders magenta). The RGB at each slot is the default Pico-8 palette
-  unless a `palette.png` overrides it (see below). The constants are slot
-  indices, not RGB promises: if you swap palettes, `gfx.COLOR_RED` still
-  resolves through slot 9, but its actual color depends on the active palette.
+  matching `gfx.spr` and Lua's array convention. The RGB at each slot is the
+  default Pico-8 palette unless a `palette.png` overrides it (see below). The
+  constants are slot indices, not RGB promises: if you swap palettes,
+  `gfx.COLOR_RED` still resolves through slot 9, but its actual color depends on
+  the active palette.
+- `gfx.COLOR_TRUE_WHITE` — slot `0`, pure `(255, 255, 255)`. Off-palette: stays
+  pure white even when a `palette.png` is loaded. Use as the identity tint for
+  `gfx.spr_ex` / `gfx.sspr_ex` when you want sprites to draw with their source
+  colors untouched. The Pico-8 `gfx.COLOR_WHITE` is slightly warm
+  (`255, 241, 232`) and will tint sprites a touch peachy if you pass it as the
+  tint, fine if you want that look, but `gfx.COLOR_TRUE_WHITE` is the no-op.
+  (Indices below `0` or above the active palette's length render as magenta as
+  an obvious "unknown color" sentinel.)
 
 The `_ex` variants pack every power-arg into one fixed signature instead of
 trailing optionals. With a single `_ex` per primitive there's exactly one
@@ -557,9 +548,8 @@ a thin wrapper.
 
 #### Custom palettes (`palette.png`)
 
-Drop a `palette.png` at your project root to override the engine's default
-Pico-8 palette. Pixels are read in **row-major** order (left-to-right,
-top-to-bottom):
+Put a `palette.png` at your project root to override the engine's default Pico-8
+palette. Pixels are read in **row-major** order (left-to-right, top-to-bottom):
 
 - **Any rectangular shape.** A 16x1 strip, 16x2 grid (32 colors), or 4x4 (16
   colors) all work. Color count = `width × height`. Multi-row is fine for
@@ -579,12 +569,13 @@ Behavior:
   `gfx.COLOR_RED` (slot 9) and higher will be magenta. Define your own constants
   in Lua for non-default palettes.
 - Bundled into `usagi export` automatically when present.
+- Custom color palettes do not apply to the Pause menu colors.
 
-**Recommended pattern: name your own slots.** The built-in `gfx.COLOR_*`
-constants are named after Pico-8's slot ordering (slot 9 = `COLOR_RED`). With a
-custom palette, slot 9 might be a navy blue or a teal. The names don't match the
-colors anymore. Define your own constants once at the top of your project and
-use them everywhere:
+**Recommended pattern: name your own slots when using a custom color palette.**
+The built-in `gfx.COLOR_*` constants are named after Pico-8's slot ordering
+(slot 9 = `COLOR_RED`). With a custom palette, slot 9 might be a navy blue or a
+teal. The names don't match the colors anymore. Define your own constants once
+at the top of your project and use them everywhere:
 
 ```lua
 -- e.g. for sweetie16
@@ -609,9 +600,9 @@ for a runnable demo (ships sweetie16, uses a `COLOR` table for its named slots).
 
 #### Custom fonts (`font.png`)
 
-Drop a `font.png` at your project root to override the bundled monogram font
-used by `gfx.text` / `gfx.text_ex` / `usagi.measure_text`. The PNG is a baked
-glyph atlas with metadata embedded as a zTXt chunk (see "Baking" below).
+Put a `font.png` at your project root to override the bundled monogram font used
+by `gfx.text` / `gfx.text_ex` / `usagi.measure_text`. The PNG is a baked glyph
+atlas with metadata embedded as a zTXt chunk (see "Baking" below).
 
 Scope of the override is intentionally narrow:
 
@@ -633,7 +624,7 @@ usagi font bake <font.ttf> <size>
 Examples:
 
 ```bash
-# Drop into the current project (writes font.png in CWD by default)
+# Drop into the current project (writes font.png in current working directory by default)
 usagi font bake my_font.ttf 12
 
 # Skip the kanji block for a font that covers it
@@ -688,7 +679,7 @@ differs from the source size:
 ```lua
 -- Draw sprite index 1 (16×16) at 2x scale at (x, y).
 local sz = usagi.SPRITE_SIZE
-gfx.sspr_ex(0, 0, sz, sz, x, y, sz * 2, sz * 2, false, false, 0, gfx.COLOR_WHITE, 1.0)
+gfx.sspr_ex(0, 0, sz, sz, x, y, sz * 2, sz * 2, false, false, 0, gfx.COLOR_TRUE_WHITE, 1.0)
 ```
 
 If you find yourself reaching for variants often, wrap them. These three helpers
@@ -701,13 +692,13 @@ function sspr_scaled(sx, sy, sw, sh, dx, dy, scale)
   gfx.sspr_ex(
     sx, sy, sw, sh,
     dx, dy, sw * scale, sh * scale,
-    false, false, 0, gfx.COLOR_WHITE, 1.0
+    false, false, 0, gfx.COLOR_TRUE_WHITE, 1.0
   )
 end
 
 -- Sprite by 1-based index with rotation around its center, native size.
 function spr_rot(index, x, y, rotation)
-  gfx.spr_ex(index, x, y, false, false, rotation, gfx.COLOR_WHITE, 1.0)
+  gfx.spr_ex(index, x, y, false, false, rotation, gfx.COLOR_TRUE_WHITE, 1.0)
 end
 
 -- Sprite by 1-based index with a tint applied, native size.
@@ -812,7 +803,7 @@ gfx.text("Press " .. btn .. " to jump", 10, 10, gfx.COLOR_WHITE)
   the latest `set_mouse_visible` call synchronously, so toggling reads
   consistently: `input.set_mouse_visible(not input.mouse_visible())`.
 
-#### Direct keyboard (escape hatch)
+#### Direct keyboard (if you really need it)
 
 For dev hotkeys (toggling debug overlays, screenshotting, F-key shortcuts) and
 for keyboard-and-mouse-only games, you can read raw keyboard state by key:
@@ -839,14 +830,14 @@ function keys `F1`–`F12`, `SPACE`, `ENTER`, `ESCAPE`, `TAB`, `BACKSPACE`,
 `LCTRL`, `RCTRL`, `LALT`, `RALT`), and punctuation (`BACKTICK`, `MINUS`,
 `EQUAL`, `LBRACKET`, `RBRACKET`, `BACKSLASH`, `SEMICOLON`, `APOSTROPHE`,
 `COMMA`, `PERIOD`, `SLASH`). Numpad and the navigation cluster
-(Insert/Home/End/PgUp/PgDn) aren't exposed yet.
+(Insert/Home/End/PgUp/PgDn) aren't exposed.
 [Open an issue](https://github.com/brettchalupa/usagi/issues/new) or submit a PR
 if you need them.
 
 Raw gamepad reads (analog sticks, triggers, individual face buttons by index)
 are intentionally not exposed. The abstract `input.held(input.BTN1)` family
 covers gamepad input; if you need finer-grained control than that, you've likely
-outgrown Usagi.
+outgrown Usagi. Fork the engine or use Love2D!
 
 ### `sfx`
 
@@ -920,8 +911,8 @@ instead of a confusing nil-arithmetic explosion deep inside the helper.
   values outside `[0, 1]` extrapolate.
 - `util.wrap(v, lo, hi)` — wraps `v` into `[lo, hi)`. Cycle-safe for negatives.
 - `util.flash(t, hz)` — boolean from time, toggles `hz` times per second.
-- `util.remap(v, start_a, end_a, start_b, end_b)` — Converts the value `v` from
-  the range [`start_a`; `end_a`] into the range [`start_b`; `end_b`]
+- `util.remap(v, start_a, end_a, start_b, end_b)` — maps `v` from
+  `[start_a, end_a]` to `[start_b, end_b]`.
 
 **Vectors:**
 
@@ -950,7 +941,8 @@ Engine-level info.
 
 - `usagi.GAME_W`, `usagi.GAME_H` — game render dimensions (320, 180).
 - `usagi.SPRITE_SIZE` — side length, in pixels, of one cell in `sprites.png`
-  (currently 16). Use it for tile-grid math instead of hardcoding 16:
+  (default 16, set via `_config().sprite_size`). Use it for tile-grid math
+  instead of hardcoding 16:
   `gfx.spr(idx, col * usagi.SPRITE_SIZE, row * usagi.SPRITE_SIZE)`.
 - `usagi.IS_DEV` — `true` when running under `usagi dev`; `false` under
   `usagi run` and inside exported binaries. Useful for gating debug overlays,
@@ -964,8 +956,8 @@ Engine-level info.
 
 - `usagi.elapsed` — wall-clock seconds since the session started, updated once
   per frame before `_update`. Frame-stable (every read in one frame returns the
-  same value). Doesn't reset on F5; track your own counter from `_init` if you
-  need a per-run timer.
+  same value). Survives [Reset](#reset); track your own counter from `_init` if
+  you need a per-run timer.
 - `usagi.measure_text(text)` — returns two values, `width, height` in pixels,
   for `text` rendered in the bundled font. Pure utility (no rendering); call it
   from `_init` to pre-compute layouts, or from `_update` / `_draw` for dynamic
@@ -984,7 +976,7 @@ Engine-level info.
 
   ```lua
   function _config()
-    return { title = "My Game", game_id = "com.you.mygame" }
+    return { name = "My Game", game_id = "com.you.mygame" }
   end
 
   function _init()
@@ -1013,6 +1005,83 @@ Engine-level info.
   leaves the previous save intact. JSON values must be representable: tables,
   strings, numbers, booleans, nil. Functions, userdata, NaN, and circular tables
   raise an error.
+
+  **Table keys must be either all strings (a map) or a dense `1..n` integer
+  array.** JSON has no integer-keyed map type, so sparse integer keys like
+  `{[6]=1, [7]=2}` and gaps like `{[1]="x", [3]="z"}` raise a clear error
+  instead of silently truncating. If you want a map indexed by integers,
+  stringify the keys (`{[tostring(level)] = time}`); if you want a list, fill
+  `1..n`.
+
+### Loading game data: JSON and text
+
+Drop arbitrary game data (levels, dialog, tunable configs) under a `data/`
+directory at your project root. `usagi export` bundles the whole tree, so the
+same paths resolve identically in dev and in exported builds.
+
+- `usagi.read_json(path)` — reads `data/<path>` as JSON and returns a Lua table.
+  JSON arrays come back as 1-indexed Lua arrays; JSON objects come back as
+  tables with string keys. Errors loudly on malformed JSON, missing file, or
+  non-UTF-8 bytes.
+- `usagi.read_text(path)` — reads `data/<path>` as a UTF-8 string. Use for
+  hand-rolled formats: CSV grids, dialog scripts, anything you want to parse
+  yourself in Lua.
+
+Paths are forward-slash relative to `data/`. Nested subdirs are fine
+(`data/levels/01.json` → `usagi.read_json("levels/01.json")`). Backslashes,
+absolute paths, and `..` segments are rejected at the vfs boundary so a
+malicious or buggy path can't escape `data/`.
+
+```lua
+function _config()
+  return { name = "Tile Demo" }
+end
+
+-- Read at the top of the chunk so live reload picks up edits to the JSON
+-- without needing F5. The script re-runs whenever any data file mtime
+-- changes, the same way it does for any .lua file.
+local levels = usagi.read_json("levels.json")
+local intro  = usagi.read_text("dialog/intro.txt")
+
+function _draw(_dt)
+  gfx.clear(gfx.COLOR_BLACK)
+  gfx.text(intro, 4, 4, gfx.COLOR_WHITE)
+  -- ... iterate `levels` ...
+end
+```
+
+Hot reload: any save to a file under `data/` triggers the same script re-run
+that a `.lua` save does. State globals (capitalized vars set in `_init`) are
+preserved across reloads; if you want a true reset, press F5. Bundled builds
+have no mtimes, so hot reload is a dev-only convenience; exported games read
+once from the bundle.
+
+For CSV, use `read_text` + Lua splitting. A 3-line `string.gmatch` covers the
+simple-grid case (see `examples/level_from_csv/`).
+
+### Encoding a Lua table as JSON
+
+`usagi.to_json(t)` returns a pretty-printed JSON string for any Lua table. It
+shares the validator with `usagi.save`, so the same shape rules apply: keys are
+all strings or a dense `1..n` integer array; functions, userdata, NaN, and
+cycles raise an error with a clear message.
+
+Useful when you want JSON without going through the save file: in-game devtools
+overlays, structured stdout logs, ad-hoc state inspection, or feeding data into
+another tool. Pair with `usagi.read_json` if you ever want to round-trip; reach
+for `usagi.dump` instead when you want a Lua table you could `require` or
+forgiving pretty-print that tolerates cycles and mixed-key tables.
+
+```lua
+local payload = { score = 200, run = { seed = 42, deaths = 1 } }
+print(usagi.to_json(payload))
+-- {
+--   "score": 200,
+--   "run": { "seed": 42, "deaths": 1 }
+-- }
+```
+
+See `examples/to_json.lua` for a runnable demo.
 
 ### Effects: hitstop, screen shake, flash, slow-mo
 
@@ -1057,13 +1126,12 @@ See
 [`examples/effect.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/effect.lua)
 for a runnable demo (one key per primitive plus a combo button).
 
-### Shaders (advanced, experimental)
+### Shaders (advanced)
 
 Post-process GLSL fragment shaders run as the final pass when the game's render
 target is blitted to the window. Use them for CRT effects, palette swaps,
 vignettes, color grading, and so on.
 
-**Status:** experimental. The API surface and dual-file convention may change.
 Captures have a known limitation (see below).
 
 API:
@@ -1086,7 +1154,7 @@ end
 ```
 
 **Cross-platform shader files.** Desktop targets compile GLSL `#version 330`;
-the web target uses GLSL ES `#version 100` (WebGL 1 / GLES 2). Ship two files
+the web target uses GLSL ES `#version 100` (WebGL 1 / GLES 2). Include two files
 alongside each other to support both:
 
 - `shaders/<name>.fs`: desktop, `#version 330`, `in`/`out`, `texture(...)`,
@@ -1095,7 +1163,7 @@ alongside each other to support both:
   `varying`, `texture2D(...)`, `gl_FragColor` output.
 
 Web prefers `_es.fs` and falls back to `.fs`; desktop is the reverse. If only
-one is shipped, every platform that loads it runs that one. The `fragTexCoord`,
+one is included, every platform that loads it runs that one. The `fragTexCoord`,
 `fragColor`, and `texture0` inputs are provided by raylib on both targets. See
 `examples/shader/` for a runnable CRT effect plus a Game Boy palette swap with
 both variants of each.
@@ -1104,8 +1172,8 @@ both variants of each.
 in-place. Cached uniforms are replayed onto the new shader. Compile errors print
 to the terminal and keep the previous shader live.
 
-**Bundling.** `usagi export` walks `shaders/` and ships every `.fs` / `.vs` in
-the bundle, so shaders work the same in `usagi dev`, `usagi run`, `.usagi`
+**Bundling.** `usagi export` walks `shaders/` and includes every `.fs` / `.vs`
+in the bundle, so shaders work the same in `usagi dev`, `usagi run`, `.usagi`
 files, and fused exes on every platform.
 
 **Captures don't include the shader.** F8 / Cmd+F screenshots and F9 / Cmd+G GIF
@@ -1123,13 +1191,13 @@ Shaders resources:
 
 ### Indexing
 
-Sequence-style APIs (`gfx.spr`, and any future sound/tile indexing) are
-**1-based** to match Lua conventions (`ipairs`, `t[1]`, `string.sub`).
-`gfx.spr(1, ...)` draws the top-left sprite.
+Sequence-style APIs (`gfx.spr`) are _1-based_ to match Lua conventions
+(`ipairs`, `t[1]`, `string.sub`). `gfx.spr(1, ...)` draws the top-left sprite.
 
-Enum-like constants (palette colors, key codes) keep their conventional
-numbering. `gfx.COLOR_RED` is 8 because that's its Pico-8 number, not because
-it's the 9th color.
+Palette constants are 1-based too: `gfx.COLOR_BLACK` is `1`, `gfx.COLOR_RED` is
+`9`. Pico-8's familiar `0..15` numbering is shifted up by one across the board
+so slot indices double as Lua array indices. Slot `0` and any index above the
+active palette's length render as a magenta sentinel.
 
 ### Randomness
 
@@ -1167,25 +1235,18 @@ end
 spr(0, 20, 30)
 ```
 
-## Live Reload
+## Shortcuts
 
-Usagi watches the running script file and re-executes it when you save. The new
-`_update` and `_draw` take effect on the next frame — your current game state is
-**preserved** across the reload so you can tweak logic mid-play without losing
-progress.
-
-- `_init()` is **not** called on a save-triggered reload.
-- Press **F5** (or **Ctrl+R** / **Cmd+R**) for a hard reset: Usagi runs
-  `_init()` to reinitialize state.
 - Press **~** (grave/tilde) to toggle the FPS overlay. Hidden by default in
   `dev`.
 - Press **Alt+Enter** to toggle borderless fullscreen. Persists in
   `settings.json` and applies before the first frame on the next launch. No Lua
   or `_config` surface by design; the player owns this setting.
 - Press **Esc**, **P**, or gamepad **Start** to pause. The same keys (plus
-  **BTN2**) close the menu. While paused, `_update` and `_draw` are skipped and
-  the screen shows a black "PAUSED" overlay; music keeps streaming.
-- Press **Shift+Esc** in dev mode to quit the game
+  **BTN2**) close the menu. While paused, `_update` is skipped but `_draw` still
+  runs each frame, with the pause overlay rendered on top. Music pauses on menu
+  open and resumes on close.
+- Press **Shift+Esc** in dev mode to quit the game.
 - The engine keeps the last ~5 seconds of gameplay in memory at all times. Press
   **F9** or **Cmd/Ctrl + G** to write that buffer out as a GIF in your user
   Downloads dir, named `<game>-YYYYMMDD-HHMMSS.gif` (where `<game>` is the short
@@ -1206,13 +1267,15 @@ progress.
 
 ### Writing Reload-Friendly Scripts
 
-The chunk re-executes on save, so any top-level `local` bindings get re-bound
-each time. A `local State` at module scope would get reset to a fresh table on
-every save and obliterate the running game; it has to be a global. The pattern:
+All Lua code chunks re-execute on save, so any top-level `local` bindings get
+re-bound on auto reload. A `local State` at module scope would get reset to a
+fresh table on every save and obliterate the running game; it has to be a
+global. The pattern:
 
 - **Mutable game state** → a single capitalized global, conventionally `State`,
-  assigned only inside `_init`. `_init` runs once at startup and on F5, so the
-  table outlives reloads. Saved edits keep your in-progress game intact.
+  assigned only inside `_init`. `_init` runs once at startup and on
+  [Reset](#reset), so the table outlives reloads. Saved edits keep your
+  in-progress game intact.
 - **Constants** → file-scope `local`. Re-binding to the same value each reload
   is harmless.
 - **Required modules** → either file-scope `local Foo = require("foo")`, or a
@@ -1220,16 +1283,58 @@ every save and obliterate the running game; it has to be a global. The pattern:
   every file without re-requiring. Both work; the global form is convenient for
   engine-wide tables like `Player`, `Enemy`.
 
-The shipped `.luarc.json` enables the `lowercase-global` diagnostic to catch the
-most common footgun: forgetting `local` and accidentally creating a global named
-`score`, `timer`, etc. Capitalize anything you actually mean to make global;
-lowercase top-level assignments will warn.
+General advice: if you want something to persist across the live reload, put it
+into `State`. If you're tuning something and want to see it change
+automatically, leave it inline.
+
+The `.luarc.json` from `usagi init` enables the `lowercase-global` diagnostic to
+catch the most common footgun: forgetting `local` and accidentally creating a
+global named `score`, `timer`, etc. Capitalize anything you actually mean to
+make global; lowercase top-level assignments will warn.
 
 See
 [`examples/hello_usagi.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/hello_usagi.lua)
 and
 [`examples/input.lua`](https://github.com/brettchalupa/usagi/blob/main/examples/input.lua)
-for the layout.
+for some examples.
+
+### Reset
+
+Usagi watches the running script file and re-executes it when you save. The new
+`_update` and `_draw` take effect on the next frame. Your current game state can
+be **preserved** across the reload so you can tweak logic mid-play without
+losing progress.
+
+- `_init()` is **not** called on a save-triggered live reload.
+
+Press **F5** (or **Ctrl+R** / **Cmd+R**) for a hard reset. The pause menu's
+**Reset Game** item does the same thing. Reset re-runs `_init()` so anything you
+build there starts from scratch, while leaving the rest of the session alone.
+
+What a reset clears:
+
+- `State` and any other globals you assign in `_init`, since `_init` re-runs.
+- In-flight engine effects: `effect.flash`, `effect.screen_shake`,
+  `effect.hitstop`, `effect.slow_mo`. Cleared before `_init` runs so a fresh
+  game can register new ones.
+- `usagi.menu_item` registrations from Lua. Re-register them inside `_init` if
+  you use them.
+
+What a reset leaves alone:
+
+- `usagi.elapsed` keeps counting from session start. Track your own counter from
+  `_init` for a per-run timer.
+- Music and sfx currently playing. Stop them in `_init` if you want silence on
+  reset.
+- On-disk state: save data, pause-menu volumes, fullscreen setting, and keyboard
+  / gamepad remaps.
+- Loaded assets (`sprites.png`, sfx, music).
+- Any Lua state outside `_init`. The VM itself is not torn down, so file-scope
+  locals and globals you assign elsewhere persist across reset unless `_init`
+  overwrites them.
+
+You can also make use of `usagi.IS_DEV` to set up your `State` on a reset to
+keep you within a given scene or setup you want to refine quickly.
 
 ## Examples
 
@@ -1239,6 +1344,15 @@ There are a variety of examples exercising the full Usagi API that you can
 browse and adapt. Their source is all public domain, so do with them what you
 want.
 
+[Bomberfrog: Alpha](https://github.com/brettchalupa/bomberfrog/tree/alpha.1) is
+a finished shoot-em-up made with Usagi that you can reference or use as a
+starting point for your own game. It includes scene switching, dev-only
+functionality, score tracking, and more.
+
+[SokoWorld](https://github.com/brettchalupa/sokoworld) is a Sokoban puzzle game
+made with Usagi with custom level parsing code, scene switching, and save data
+tracking.
+
 ## Tools
 
 `usagi tools [path]` opens a 1280×720 window with a tab bar for the available
@@ -1246,8 +1360,8 @@ tools. The path is optional; pass a project directory (or a `.lua` file) to load
 its `sprites.png` and `sfx/` assets. Without a path the tools open with empty
 state.
 
-Switch tools via the tab buttons or with **1** (Jukebox), **2** (TilePicker), or
-**3** (SaveInspector).
+Switch tools via the tab buttons or with **1** (Jukebox), **2** (TilePicker),
+**3** (SaveInspector), **4** (ColorPalette).
 
 Jukebox and TilePicker live-reload their assets: drop a new WAV in `sfx/` or
 save a new `sprites.png` and the tools pick it up on the next frame.
@@ -1289,8 +1403,7 @@ Reads the project's `_config().game_id` and shows the current `save.json`
 contents alongside the resolved file path. Useful for debugging save formats and
 inspecting state between runs without leaving the editor.
 
-- Rendered as written since engine output is already formatted, so no
-  reformatting happens here.
+- Save JSON is shown raw; the engine already pretty-prints it on write.
 - **R** or the **Refresh** button rereads the file from disk; the inspector
   doesn't auto-poll, so hit refresh after the running game has saved.
 - **Clear** deletes the save file. The next `usagi.load()` returns `nil`.
@@ -1299,15 +1412,15 @@ inspecting state between runs without leaving the editor.
 
 ### ColorPalette
 
-Shows swatches for each of the 16 colors with the ability to click to copy the
-Lua value to your clipboard.
+Shows swatches for each of the 16 default colors or your custom `palette.png`
+with the ability to click to copy the Lua value to your clipboard.
 
 ### Bring Your Own Tools
 
-Usagi does not (at least yet) include a sprite editor, sound effect generator,
-or music tracker. You can find assets to use on
-[opengameart.org](https://opengameart.org/) and [itch.io](https://itch.io) or
-make your own. Here are some tools worth checking out that work well with Usagi:
+Usagi doesn't include a sprite editor, sound effect generator, or music tracker.
+You can find assets to use on [opengameart.org](https://opengameart.org/) and
+[itch.io](https://itch.io) or make your own. Here are some tools worth checking
+out that work well with Usagi:
 
 - **Sprite Editors**:
   - [Aseprite](https://www.aseprite.org/): an excellent pixel art editor
@@ -1343,9 +1456,9 @@ $ usagi export examples/snake --target windows
 $ usagi export examples/snake --target bundle
 ```
 
-### Cross-platform Templates
+### Cross-Platform Templates
 
-Non-host platforms come from "runtime templates" published alongside each
+Non-host platforms come from "runtime templates" published alongside each Usagi
 release. The CLI fetches them on first use, caches them per-OS, and verifies
 each archive against its `sha256` sidecar before extracting.
 
@@ -1381,7 +1494,7 @@ automatically. Override per-build with `--web-shell PATH`.
   windows zip names it `<name>.exe`). The web zip is unzip-and-serve.
 - `<name>` is the project directory name (or the script's stem for flat `.lua`
   files). `-o <path>` overrides the output location.
-- Live-reload is disabled in exported artifacts; F5 still resets state via
+- Live-reload is disabled in exported artifacts; [Reset](#reset) still re-runs
   `_init()`.
 - The fuse format is simple and additive: a magic footer at the end of the exe
   points back to an appended bundle. A `.usagi` file is the same bundle bytes
@@ -1425,8 +1538,58 @@ Asserting your assumptions, especially in `_init` and at function boundaries,
 collapses that distance: the failure points at the real bug instead of at the
 chain reaction it caused.
 
-Set the env var `USAGI_VERBOSE=1` to get full log output, including Raylib's
-logs.
+### Verbose mode (`USAGI_VERBOSE=1`)
+
+Set `USAGI_VERBOSE=1` in your shell to turn on two extra streams:
+
+- **Startup snapshot.** A one-shot summary printed right after `_init`: build
+  profile (debug / release), platform, Lua GC params, resolution, sprite size,
+  whether the pause menu / a custom palette / a custom font are in use, the
+  script path, and Lua heap size after `_init`. Useful to paste into bug
+  reports.
+- **Per-second frame summary.** A rolling line emitted once per second with
+  frame time stats (`avg / p50 / p99 / max` ms), the count of frames over the
+  16.7 ms budget, and the current Lua heap in KB. Designed to catch the class of
+  regression where everything still _runs_ but slower (e.g. a GC tuning slip-up
+  that turned 16 ms frames into 43 ms frames silently).
+
+Raylib's own boot chatter (GL info, audio device, gamepad detection) and its
+per-frame TEXTURE log are gated separately on `USAGI_RAYLIB_VERBOSE=1`. Kept
+distinct so the diagnostics stream doesn't get buried under raylib's per-frame
+output. Set both when you need everything:
+
+```
+USAGI_VERBOSE=1 USAGI_RAYLIB_VERBOSE=1 usagi dev path/to/game
+```
+
+Example output for a healthy 60 FPS game:
+
+```
+[usagi] -- startup snapshot --
+[usagi] build release on linux
+[usagi] gc inc pause=250 stepmul=200 stepsize=11200
+[usagi] resolution 320x180 pixel-perfect=off sprite-size=16
+[usagi] pause-menu=on palette=pico-8 font=bundled
+[usagi] script=examples/hello_usagi.lua lua-heap-after-init=80 KB
+[usagi] -- end startup snapshot --
+[usagi] frame avg 16.67ms (p50 16.67 / p99 16.67 / max 16.67); over-budget 0/61; lua heap 164 KB
+```
+
+A regression of the "still runs but slower" shape would show:
+
+```
+[usagi] frame avg 43.21ms (p50 43.00 / p99 48.10 / max 51.20); over-budget 61/61; lua heap 12 KB
+```
+
+`avg` jumped 2-3×, `over-budget` is at the cap, and `lua heap` is pinned near
+zero (the GC is sweeping every allocation, so nothing survives the frame).
+
+`examples/diagnostics` is purpose-built for this: short-lived table allocs in
+`_update` with controls to scale the rate, plus a burst button. Run it as
+`USAGI_VERBOSE=1 just example diagnostics` and watch the terminal.
+
+Output is zero overhead when the env var is not set: the formatting macros
+short-circuit before touching the format args.
 
 Set `NO_COLOR=1` (any value, presence is what's checked) to suppress the ANSI
 color escapes on `usagi`'s own log lines. Useful when piping output to a file or
@@ -1457,8 +1620,13 @@ the current session with `$env:NO_COLOR = "1"`, or persistently via
 
 ## Credits
 
-Usagi is built with [Rust](https://rust-lang.org/) and
-[sola-raylib](https://crates.io/crates/sola-raylib).
+Usagi is built with [Rust](https://rust-lang.org/).
+
+- **Raylib and the sola-raylib Rust bindings** — Usagi is powered by
+  [Raylib](https://raylib.com), which does so much of the heavy lifting, from
+  handling input to rendering to sound.
+
+- **mlua** — the Rust bindings for Lua are essential for Usagi to work.
 
 - **monogram-extended** — the bundled font (`assets/monogram.png`, a single PNG
   with glyph metadata in a zTXt chunk) used by `gfx.text` (when no custom font
@@ -1468,8 +1636,7 @@ Usagi is built with [Rust](https://rust-lang.org/) and
   [datagoblin](https://datagoblin.itch.io/monogram), released under Creative
   Commons Zero (CC0). Source TTF lives at `assets/monogram-extended.ttf`; to
   rebake, run
-  `cargo run -- font bake assets/monogram-extended.ttf 15 --out
-  assets/monogram.png`.
+  `cargo run -- font bake assets/monogram-extended.ttf 15 --out assets/monogram.png`.
 
 - **Silver** — used by the `examples/custom_font` demo to showcase the custom
   font drop-in (`font.png` at the project root). A 5×9-ish pixel font with broad
@@ -1483,6 +1650,13 @@ Usagi is built with [Rust](https://rust-lang.org/) and
   pixel fonts render correctly at their design size). Vendored and statically
   linked via the `freetype-rs` crate's `bundled` feature; no system install
   required at user-side. Licensed under the FreeType License (BSD-style).
+
+The full list of every transitive Rust crate Usagi depends on, with each
+license's text, lives at
+[usagiengine.com/third-parties](https://usagiengine.com/third-parties) (also
+bundled in every release archive as `THIRD_PARTY_LICENSES.md` next to the
+binary). Regenerate with `just licenses` after touching dependencies; CI fails
+if it drifts.
 
 ## (Un)license
 
