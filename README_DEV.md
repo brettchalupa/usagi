@@ -439,7 +439,7 @@ config field on save; restart the session to pick up changes.
 ### `gfx`
 
 Draws to the screen. Positions are in game-space pixels (320×180). Colors are
-palette indices 0-15; use the named constants.
+palette slot indices `1..16`; use the named constants.
 
 - `gfx.clear(color)` — fill the screen.
 - `gfx.rect(x, y, w, h, color)` — 1-pixel rectangle outline.
@@ -975,7 +975,7 @@ Engine-level info.
 
   ```lua
   function _config()
-    return { title = "My Game", game_id = "com.you.mygame" }
+    return { name = "My Game", game_id = "com.you.mygame" }
   end
 
   function _init()
@@ -1190,12 +1190,13 @@ Shaders resources:
 
 ### Indexing
 
-Sequence-style APIs (`gfx.spr`) are _1-based_* to match Lua conventions
+Sequence-style APIs (`gfx.spr`) are _1-based_ to match Lua conventions
 (`ipairs`, `t[1]`, `string.sub`). `gfx.spr(1, ...)` draws the top-left sprite.
 
-Enum-like constants (palette colors, key codes) keep their conventional
-numbering. `gfx.COLOR_RED` is 8 because that's its Pico-8 number, not because
-it's the 9th color.
+Palette constants are 1-based too: `gfx.COLOR_BLACK` is `1`, `gfx.COLOR_RED` is
+`9`. Pico-8's familiar `0..15` numbering is shifted up by one across the board
+so slot indices double as Lua array indices. Slot `0` and any index above the
+active palette's length render as a magenta sentinel.
 
 ### Randomness
 
@@ -1312,9 +1313,9 @@ build there starts from scratch, while leaving the rest of the session alone.
 What a reset clears:
 
 - `State` and any other globals you assign in `_init`, since `_init` re-runs.
-- In-flight engine effects: `effect.flash`, `effect.shake`, `effect.hitstop`,
-  `effect.slow_mo`. Cleared before `_init` runs so a fresh game can register new
-  ones.
+- In-flight engine effects: `effect.flash`, `effect.screen_shake`,
+  `effect.hitstop`, `effect.slow_mo`. Cleared before `_init` runs so a fresh
+  game can register new ones.
 - `usagi.menu_item` registrations from Lua. Re-register them inside `_init` if
   you use them.
 
@@ -1343,7 +1344,7 @@ browse and adapt. Their source is all public domain, so do with them what you
 want.
 
 [Bomberfrog: Alpha](https://github.com/brettchalupa/bomberfrog/tree/alpha.1) is
-a finished shoot-em-up made with Usagi that you can reference or using as a
+a finished shoot-em-up made with Usagi that you can reference or use as a
 starting point for your own game. It includes scene switching, dev-only
 functionality, score tracking, and more.
 
@@ -1410,7 +1411,7 @@ inspecting state between runs without leaving the editor.
 
 ### ColorPalette
 
-Shows swatches for each of the 16 default colors or your custom `palette.png`)
+Shows swatches for each of the 16 default colors or your custom `palette.png`
 with the ability to click to copy the Lua value to your clipboard.
 
 ### Bring Your Own Tools
