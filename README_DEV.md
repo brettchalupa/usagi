@@ -1538,8 +1538,58 @@ Asserting your assumptions, especially in `_init` and at function boundaries,
 collapses that distance: the failure points at the real bug instead of at the
 chain reaction it caused.
 
-Set the env var `USAGI_VERBOSE=1` to get full log output, including Raylib's
-logs.
+### Verbose mode (`USAGI_VERBOSE=1`)
+
+Set `USAGI_VERBOSE=1` in your shell to turn on two extra streams:
+
+- **Startup snapshot.** A one-shot summary printed right after `_init`: build
+  profile (debug / release), platform, Lua GC params, resolution, sprite size,
+  whether the pause menu / a custom palette / a custom font are in use, the
+  script path, and Lua heap size after `_init`. Useful to paste into bug
+  reports.
+- **Per-second frame summary.** A rolling line emitted once per second with
+  frame time stats (`avg / p50 / p99 / max` ms), the count of frames over the
+  16.7 ms budget, and the current Lua heap in KB. Designed to catch the class of
+  regression where everything still _runs_ but slower (e.g. a GC tuning slip-up
+  that turned 16 ms frames into 43 ms frames silently).
+
+Raylib's own boot chatter (GL info, audio device, gamepad detection) and its
+per-frame TEXTURE log are gated separately on `USAGI_RAYLIB_VERBOSE=1`. Kept
+distinct so the diagnostics stream doesn't get buried under raylib's per-frame
+output. Set both when you need everything:
+
+```
+USAGI_VERBOSE=1 USAGI_RAYLIB_VERBOSE=1 usagi dev path/to/game
+```
+
+Example output for a healthy 60 FPS game:
+
+```
+[usagi] -- startup snapshot --
+[usagi] build release on linux
+[usagi] gc inc pause=250 stepmul=200 stepsize=11200
+[usagi] resolution 320x180 pixel-perfect=off sprite-size=16
+[usagi] pause-menu=on palette=pico-8 font=bundled
+[usagi] script=examples/hello_usagi.lua lua-heap-after-init=80 KB
+[usagi] -- end startup snapshot --
+[usagi] frame avg 16.67ms (p50 16.67 / p99 16.67 / max 16.67); over-budget 0/61; lua heap 164 KB
+```
+
+A regression of the "still runs but slower" shape would show:
+
+```
+[usagi] frame avg 43.21ms (p50 43.00 / p99 48.10 / max 51.20); over-budget 61/61; lua heap 12 KB
+```
+
+`avg` jumped 2-3×, `over-budget` is at the cap, and `lua heap` is pinned near
+zero (the GC is sweeping every allocation, so nothing survives the frame).
+
+`examples/diagnostics` is purpose-built for this: short-lived table allocs in
+`_update` with controls to scale the rate, plus a burst button. Run it as
+`USAGI_VERBOSE=1 just example diagnostics` and watch the terminal.
+
+Output is zero overhead when the env var is not set: the formatting macros
+short-circuit before touching the format args.
 
 Set `NO_COLOR=1` (any value, presence is what's checked) to suppress the ANSI
 color escapes on `usagi`'s own log lines. Useful when piping output to a file or

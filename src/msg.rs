@@ -26,6 +26,14 @@ const DIM: &str = "\x1b[2m";
 const GREEN: &str = "\x1b[32m";
 const YELLOW: &str = "\x1b[33m";
 const RED: &str = "\x1b[31m";
+const CYAN: &str = "\x1b[36m";
+
+/// True when `USAGI_VERBOSE` is set in the environment. Gates `msg::dbg!`
+/// output so verbose-only diagnostics (per-second frame budget, Lua
+/// heap size, startup snapshot) cost nothing when not requested.
+pub fn dbg_enabled() -> bool {
+    std::env::var_os("USAGI_VERBOSE").is_some()
+}
 
 fn no_color_env() -> bool {
     std::env::var_os("NO_COLOR").is_some()
@@ -74,6 +82,16 @@ pub fn __err_impl(args: std::fmt::Arguments) {
     }
 }
 
+/// Hidden helper called by the `dbg!` macro. Caller is expected to
+/// gate on `dbg_enabled()` before formatting, so this always writes.
+pub fn __dbg_impl(args: std::fmt::Arguments) {
+    if color_stdout() {
+        println!("{DIM}{PREFIX}{RESET} {CYAN}{args}{RESET}");
+    } else {
+        println!("{PREFIX} {args}");
+    }
+}
+
 /// `msg::info!("reloaded {}", path)` — stdout, green message.
 #[macro_export]
 macro_rules! __msg_info {
@@ -94,3 +112,16 @@ macro_rules! __msg_err {
     ($($arg:tt)*) => { $crate::msg::__err_impl(format_args!($($arg)*)) };
 }
 pub use __msg_err as err;
+
+/// `msg::dbg!("lua heap {kb} KB")` — stdout, cyan message, only emitted
+/// when `USAGI_VERBOSE=1`. The gate short-circuits before `format_args!`
+/// runs, so the macro is free at non-verbose call sites.
+#[macro_export]
+macro_rules! __msg_dbg {
+    ($($arg:tt)*) => {
+        if $crate::msg::dbg_enabled() {
+            $crate::msg::__dbg_impl(format_args!($($arg)*));
+        }
+    };
+}
+pub use __msg_dbg as dbg;

@@ -61,6 +61,21 @@ Features:
 - The credit for the open source code that Usagi depends on is now included in
   the engine's archive, detailing the various licenses. These are also viewable
   at https://usagiengine.com/third-parties.
+- `USAGI_VERBOSE=1` now emits a one-shot startup snapshot at boot (build
+  profile, platform, GC params, resolution, sprite size, pause-menu / palette /
+  font source, script path, Lua heap after `_init`) plus a per-second frame
+  summary line (avg / p50 / p99 / max frame time in ms, count of frames over the
+  16.7 ms budget, current Lua heap KB). The frame summary catches silent perf
+  regressions of the "still runs but slower" shape; the snapshot pins the env
+  for bug reports. Zero overhead when the env var is not set.
+- New `examples/diagnostics` to exercise both: short-lived table allocs in
+  `_update` with controls to scale the rate, plus a one-shot burst button to
+  provoke a GC cycle. Run as `USAGI_VERBOSE=1 just example diagnostics` and
+  watch the terminal.
+- Raylib's own boot chatter and per-frame TEXTURE log are now gated on a
+  separate `USAGI_RAYLIB_VERBOSE=1`, so the diagnostics stream stays readable.
+  Previously both shared `USAGI_VERBOSE=1` and raylib's per-frame log buried the
+  frame summary. Set both env vars when you need everything.
 
 Fixes:
 
