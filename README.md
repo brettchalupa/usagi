@@ -10,13 +10,13 @@ Usagi is free software made by [Brett Chalupa](https://brettmakesgames.com) and
 dedicated to the public domain.
 [Support development of the engine by buying me a coffee.](https://www.buymeacoffee.com/brettchalupa)
 
+<video controls crossorigin="anonymous" type="video/mp4" src="https://assets.brettchalupa.com/usagi.mp4"></video>
+
 **Links:** [usagiengine.com](https://usagiengine.com),
 [Discord](https://usagiengine.com/discord),
 [r/UsagiEngine](https://reddit.com/r/UsagiEngine),
 [Quickstart video](https://www.youtube.com/watch?v=0i1wIm6c6Rw),
 [YouTube Playlist](https://www.youtube.com/playlist?list=PL0qDutCc8IQhkbS53etm9xV06XgEb4BEN)
-
-![Rotating cube demo](/website/demo.gif)
 
 ## Install
 
@@ -43,6 +43,8 @@ Manual download:
 Latest release: **v1.0.0**.
 
 [View the changelog.](https://usagiengine.com/changelog)
+
+![Rotating cube demo](/website/demo.gif)
 
 ## Features
 
