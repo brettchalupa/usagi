@@ -1359,6 +1359,8 @@ tracking.
 
 ## Tools
 
+![Usagi tools window showing the TilePicker selected with monster sprites by Hexany Ives](./website/tools.png)
+
 `usagi tools [path]` opens a 1280×720 window with a tab bar for the available
 tools. The path is optional; pass a project directory (or a `.lua` file) to load
 its `sprites.png` and `sfx/` assets. Without a path the tools open with empty

@@ -143,6 +143,9 @@ async function handler(req: Request): Promise<Response> {
     if (url.pathname === "/website/menu.png") {
       return serveFile(req, "./menu.png");
     }
+    if (url.pathname === "/website/tools.png") {
+      return serveFile(req, "./tools.png");
+    }
     if (url.pathname === "/og.png") {
       return serveFile(req, "./og.png");
     }
