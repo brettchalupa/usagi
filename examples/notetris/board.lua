@@ -67,8 +67,14 @@ function M.detect_full_rows(board)
 end
 
 function M.remove_rows(board, rows)
+  -- `rows` is sorted ascending. Remove from the largest index downward so
+  -- pending indices aren't shifted, then prepend the empties in a second
+  -- pass: inserting at 1 inside the removal loop shifts the rows we still
+  -- need to delete and leaves some originally-full rows in the board.
   for i = #rows, 1, -1 do
     table.remove(board, rows[i])
+  end
+  for _ = 1, #rows do
     local row = {}
     for c = 1, COLS do
       row[c] = 0
