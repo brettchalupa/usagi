@@ -14,7 +14,7 @@ dedicated to the public domain.
 [Discord](https://usagiengine.com/discord),
 [r/UsagiEngine](https://reddit.com/r/UsagiEngine),
 [Quickstart video](https://www.youtube.com/watch?v=0i1wIm6c6Rw),
-[YouTube Playlist](https://www.youtube.com/playlist?list=PL0qDutCc8IQhkbS53etm9xV06XgEb4BEN),
+[YouTube Playlist](https://www.youtube.com/playlist?list=PL0qDutCc8IQhkbS53etm9xV06XgEb4BEN)
 
 ## Install
 

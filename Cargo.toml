@@ -1,6 +1,6 @@
 [package]
 name = "usagi"
-version = "1.0.0"
+version = "1.0.1-dev"
 edition = "2024"
 license = "Unlicense"
 authors = ["Brett Chalupa <brett@brettchalupa.com>"]
