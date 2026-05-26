@@ -1626,6 +1626,11 @@ the current session with `$env:NO_COLOR = "1"`, or persistently via
 - Playdate SDK
 - DragonRuby Game Toolkit (DRGTK)
 
+## Engine Assets
+
+[Download the Usagi Engine logo assets](https://chalupa.storageshare.net/s/Gp9Nzfy9dt7takH)
+if you need them for any reason.
+
 ## Credits
 
 Usagi is built with [Rust](https://rust-lang.org/).
