@@ -2069,7 +2069,10 @@ impl Session {
                             lua,
                             text_ex,
                             "gfx.text_ex",
-                            &["string", "number", "number", "number", "number", "number"],
+                            &[
+                                "string", "number", "number", "number", "number", "number",
+                                "number",
+                            ],
                         )?,
                     )?;
                     gfx_tbl.set(

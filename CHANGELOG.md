@@ -10,6 +10,13 @@ Fixes:
 - Calling `usagi.read_json` or `usagi.read_text` at the top of `main.lua` no
   longer breaks `usagi tools` and `usagi export`; see
   [#264](https://github.com/brettchalupa/usagi/issues/264)
+- `gfx.text_ex` called with 6 args (missing the required `alpha` introduced in
+  v1.0.0) no longer aborts the process on Windows; the error surfaces on the
+  in-game overlay like other malformed calls. As part of the fix, short-arg
+  calls to any wrapped engine API now report the missing argument by index ("bad
+  argument #N to '...' (T expected, got nil)") rather than a confusing "bad
+  argument #1 to 'type'" message.
+  [#259](https://github.com/brettchalupa/usagi/issues/259)
 
 ## v1.0.0 - May 19, 2026
 

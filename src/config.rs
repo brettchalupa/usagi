@@ -192,9 +192,6 @@ impl Config {
         if install_require(&lua, vfs.clone()).is_err() {
             return Self::default();
         }
-        // Match the live session: register the data readers before
-        // running the chunk so projects that read JSON/text at the
-        // top level don't fail this export-time config probe.
         if register_data_api(&lua, vfs.clone()).is_err() {
             return Self::default();
         }

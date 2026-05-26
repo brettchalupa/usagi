@@ -27,8 +27,17 @@ return function(raw, name, ...)
   local n = select("#", ...)
   local types = {...}
   return function(...)
+    local got_n = select("#", ...)
     for i = 1, n do
       local expected = types[i]
+      -- Short-arg check before `type()` so the error names the missing
+      -- index instead of complaining about `type()`'s own contract.
+      if i > got_n then
+        error(string.format(
+          "bad argument #%d to '%s' (%s expected, got nil)",
+          i, name, expected
+        ), 2)
+      end
       if expected ~= "any" then
         local got = type(select(i, ...))
         if got ~= expected then
@@ -61,6 +70,10 @@ pub fn install_wrap_helper(lua: &Lua) -> LuaResult<()> {
 /// returned function lives in Lua, so when validation fails it raises a
 /// Lua error that unwinds through Lua/C frames only — see
 /// [`WRAP_HELPER_LUA`] for the rationale.
+///
+/// `types.len()` must equal `raw`'s tuple arity. A shorter list lets
+/// nil slip past validation into mlua's converter, which then raises
+/// via `lua_error` through Rust frames and aborts on Windows MSVC.
 pub fn wrap(lua: &Lua, raw: LuaFunction, name: &str, types: &[&str]) -> LuaResult<LuaFunction> {
     let wrap_fn: LuaFunction = lua.globals().get("_usagi_wrap")?;
     let mut args: Vec<LuaValue> = Vec::with_capacity(types.len() + 2);
@@ -223,12 +236,8 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
 /// Works on top-level reads. `to_json` is a pure encoder, sharing the
 /// validator with `usagi.save` so the same shape rules apply.
 ///
-/// Registered separately from `setup_api` because the readers need a
-/// vfs handle. The live session calls this between `install_require`
-/// and `load_script` so top-level `usagi.read_json` calls in
-/// `main.lua` resolve; headless callers (`tools::save_inspector`,
-/// `config::read_for_export`) must do the same to avoid a nil-call
-/// error when projects read data at the top level.
+/// Call between `install_require` and `load_script` so top-level
+/// `usagi.read_json` calls in `main.lua` resolve.
 pub fn register_data_api(lua: &Lua, vfs: Rc<dyn VirtualFs>) -> LuaResult<()> {
     let usagi: LuaTable = lua.globals().get("usagi")?;
 
@@ -425,13 +434,10 @@ mod tests {
         assert_eq!(usagi.get::<f64>("elapsed").unwrap(), 0.0);
     }
 
-    /// Headless callers (`tools::save_inspector::read_game_id`,
-    /// `config::read_for_export`) must register the data API before
-    /// `load_script`, otherwise a project that calls `usagi.read_json`
-    /// at the top level (the recommended hot-reload pattern) hits a
-    /// nil-call error in those VMs. Pins the contract that
-    /// `setup_api` + `register_data_api` is enough to execute a chunk
-    /// that reads data at the top level.
+    /// Top-level `usagi.read_json` must resolve when the chunk runs, so
+    /// every headless caller has to register the data API before
+    /// `load_script`. Pre-1.0 regressions in either path break tools
+    /// silently.
     #[test]
     fn register_data_api_supports_top_level_read_json() {
         use crate::assets::load_script;
@@ -503,6 +509,44 @@ mod tests {
             .exec()
             .expect_err("string arg must be rejected");
         assert!(err.to_string().contains("test.double"));
+    }
+
+    /// A short-arg call must be rejected by wrap with a message naming
+    /// the missing index. If wrap lets it through, mlua's converter
+    /// raises Err mid-Rust and longjmps through Rust frames, which
+    /// process-aborts on Windows MSVC.
+    #[test]
+    fn wrap_rejects_short_arg_call_at_missing_index() {
+        let lua = Lua::new();
+        install_wrap_helper(&lua).unwrap();
+
+        let raw = lua
+            .create_function(|_, _a: (LuaString, f32, f32, f32, f32, i32, f32)| Ok(()))
+            .unwrap();
+        let wrapped = wrap(
+            &lua,
+            raw,
+            "test.text_ex",
+            &[
+                "string", "number", "number", "number", "number", "number", "number",
+            ],
+        )
+        .unwrap();
+        lua.globals().set("text_ex", wrapped).unwrap();
+
+        lua.load("text_ex('hi', 0, 0, 1, 0, 1, 1)").exec().unwrap();
+
+        let err = lua
+            .load("text_ex('hi', 0, 0, 1, 0, 1)")
+            .exec()
+            .expect_err("short-arg call must be rejected by wrap");
+        let s = err.to_string();
+        assert!(
+            s.contains("test.text_ex")
+                && s.contains("argument #7")
+                && s.contains("number expected"),
+            "expected wrap-style short-arg rejection, got: {s}"
+        );
     }
 
     #[test]
