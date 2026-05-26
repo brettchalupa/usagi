@@ -7,7 +7,7 @@
 //! browser between frames). Avoiding a blocking native loop on emscripten
 //! is what lets us drop ASYNCIFY entirely.
 
-use crate::api::{record_err, register_shader_api, setup_api, wrap};
+use crate::api::{record_err, register_data_api, register_shader_api, setup_api, wrap};
 use crate::assets::{
     MusicLibrary, SfxLibrary, SpriteSheet, clear_user_modules, install_require, load_script,
 };
@@ -443,64 +443,6 @@ fn register_music_api(
         "mutate",
         wrap(lua, mutate, "music.mutate", &["number", "number", "number"])?,
     )?;
-
-    Ok(())
-}
-
-/// Installs `usagi.read_json(path)`, `usagi.read_text(path)`, and
-/// `usagi.to_json(t)`. The two readers resolve paths forward-slash
-/// relative to the project's `data/` dir; `safe_rel_path` (in vfs.rs)
-/// rejects backslashes, absolute paths, and `..` segments so users
-/// can't escape `data/` by accident. Each call reads fresh from the
-/// vfs (no caching) so hot-reload via the data-mtime watcher Just
-/// Works on top-level reads. `to_json` is a pure encoder, sharing the
-/// validator with `usagi.save` so the same shape rules apply.
-fn register_data_api(lua: &Lua, vfs: Rc<dyn VirtualFs>) -> LuaResult<()> {
-    let usagi: LuaTable = lua.globals().get("usagi")?;
-
-    let vfs_for_json = vfs.clone();
-    let read_json = lua.create_function(move |lua, path: mlua::String| {
-        let path = path.to_str()?.to_string();
-        let key = format!("data/{path}");
-        let bytes = vfs_for_json.read_file(&key).ok_or_else(|| {
-            mlua::Error::external(format!(
-                "usagi.read_json: data/{path} not found (use forward slashes; no \\, no .., no leading /)"
-            ))
-        })?;
-        let s = std::str::from_utf8(&bytes).map_err(|e| {
-            mlua::Error::external(format!("usagi.read_json: data/{path} is not UTF-8: {e}"))
-        })?;
-        crate::save::json_to_lua(lua, s).map_err(|e| {
-            mlua::Error::external(format!("usagi.read_json: data/{path}: {e}"))
-        })
-    })?;
-    usagi.set(
-        "read_json",
-        wrap(lua, read_json, "usagi.read_json", &["string"])?,
-    )?;
-
-    let vfs_for_text = vfs;
-    let read_text = lua.create_function(move |_, path: mlua::String| {
-        let path = path.to_str()?.to_string();
-        let key = format!("data/{path}");
-        let bytes = vfs_for_text.read_file(&key).ok_or_else(|| {
-            mlua::Error::external(format!(
-                "usagi.read_text: data/{path} not found (use forward slashes; no \\, no .., no leading /)"
-            ))
-        })?;
-        let s = std::str::from_utf8(&bytes).map_err(|e| {
-            mlua::Error::external(format!("usagi.read_text: data/{path} is not UTF-8: {e}"))
-        })?;
-        Ok(s.to_string())
-    })?;
-    usagi.set(
-        "read_text",
-        wrap(lua, read_text, "usagi.read_text", &["string"])?,
-    )?;
-
-    let to_json =
-        lua.create_function(|lua, value: mlua::Value| crate::save::lua_to_json(lua, value))?;
-    usagi.set("to_json", wrap(lua, to_json, "usagi.to_json", &["table"])?)?;
 
     Ok(())
 }

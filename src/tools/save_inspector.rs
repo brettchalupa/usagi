@@ -131,7 +131,12 @@ fn read_game_id(vfs: &FsBacked) -> Result<Option<crate::game_id::GameId>, String
     // install_require needs Rc<dyn VirtualFs>; the tools' FsBacked
     // isn't shared so we clone into an Rc just for this Lua instance.
     let rc: std::rc::Rc<dyn crate::vfs::VirtualFs> = std::rc::Rc::new(vfs.clone());
-    crate::assets::install_require(&lua, rc).map_err(|e| format!("install_require: {e}"))?;
+    crate::assets::install_require(&lua, rc.clone())
+        .map_err(|e| format!("install_require: {e}"))?;
+    // Register `usagi.read_json` / `read_text` / `to_json` before
+    // running the chunk so projects that read data at the top level
+    // (the recommended hot-reload pattern) don't blow up the tools VM.
+    crate::api::register_data_api(&lua, rc).map_err(|e| format!("register_data_api: {e}"))?;
     crate::assets::load_script(&lua, vfs).map_err(|e| format!("load_script: {e}"))?;
     let cfg_fn: mlua::Function = match lua.globals().get("_config") {
         Ok(f) => f,

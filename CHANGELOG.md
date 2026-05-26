@@ -5,6 +5,12 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
+Fixes:
+
+- Calling `usagi.read_json` or `usagi.read_text` at the top of `main.lua` no
+  longer breaks `usagi tools` and `usagi export`; see
+  [#264](https://github.com/brettchalupa/usagi/issues/264)
+
 ## v1.0.0 - May 19, 2026
 
 Breaking:

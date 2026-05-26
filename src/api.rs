@@ -8,6 +8,7 @@ use crate::input::{
     KEY_TABLE, MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT,
 };
 use crate::shader::{ShaderManager, ShaderValue};
+use crate::vfs::VirtualFs;
 use mlua::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -213,6 +214,71 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     Ok(())
 }
 
+/// Installs `usagi.read_json(path)`, `usagi.read_text(path)`, and
+/// `usagi.to_json(t)`. The two readers resolve paths forward-slash
+/// relative to the project's `data/` dir; `safe_rel_path` (in vfs.rs)
+/// rejects backslashes, absolute paths, and `..` segments so users
+/// can't escape `data/` by accident. Each call reads fresh from the
+/// vfs (no caching) so hot-reload via the data-mtime watcher Just
+/// Works on top-level reads. `to_json` is a pure encoder, sharing the
+/// validator with `usagi.save` so the same shape rules apply.
+///
+/// Registered separately from `setup_api` because the readers need a
+/// vfs handle. The live session calls this between `install_require`
+/// and `load_script` so top-level `usagi.read_json` calls in
+/// `main.lua` resolve; headless callers (`tools::save_inspector`,
+/// `config::read_for_export`) must do the same to avoid a nil-call
+/// error when projects read data at the top level.
+pub fn register_data_api(lua: &Lua, vfs: Rc<dyn VirtualFs>) -> LuaResult<()> {
+    let usagi: LuaTable = lua.globals().get("usagi")?;
+
+    let vfs_for_json = vfs.clone();
+    let read_json = lua.create_function(move |lua, path: LuaString| {
+        let path = path.to_str()?.to_string();
+        let key = format!("data/{path}");
+        let bytes = vfs_for_json.read_file(&key).ok_or_else(|| {
+            mlua::Error::external(format!(
+                "usagi.read_json: data/{path} not found (use forward slashes; no \\, no .., no leading /)"
+            ))
+        })?;
+        let s = std::str::from_utf8(&bytes).map_err(|e| {
+            mlua::Error::external(format!("usagi.read_json: data/{path} is not UTF-8: {e}"))
+        })?;
+        crate::save::json_to_lua(lua, s).map_err(|e| {
+            mlua::Error::external(format!("usagi.read_json: data/{path}: {e}"))
+        })
+    })?;
+    usagi.set(
+        "read_json",
+        wrap(lua, read_json, "usagi.read_json", &["string"])?,
+    )?;
+
+    let vfs_for_text = vfs;
+    let read_text = lua.create_function(move |_, path: LuaString| {
+        let path = path.to_str()?.to_string();
+        let key = format!("data/{path}");
+        let bytes = vfs_for_text.read_file(&key).ok_or_else(|| {
+            mlua::Error::external(format!(
+                "usagi.read_text: data/{path} not found (use forward slashes; no \\, no .., no leading /)"
+            ))
+        })?;
+        let s = std::str::from_utf8(&bytes).map_err(|e| {
+            mlua::Error::external(format!("usagi.read_text: data/{path} is not UTF-8: {e}"))
+        })?;
+        Ok(s.to_string())
+    })?;
+    usagi.set(
+        "read_text",
+        wrap(lua, read_text, "usagi.read_text", &["string"])?,
+    )?;
+
+    let to_json =
+        lua.create_function(|lua, value: LuaValue| crate::save::lua_to_json(lua, value))?;
+    usagi.set("to_json", wrap(lua, to_json, "usagi.to_json", &["table"])?)?;
+
+    Ok(())
+}
+
 /// Installs the `gfx.shader_set` / `gfx.shader_uniform` Lua bindings
 /// against a shared `ShaderManager`. Calls only enqueue requests; the
 /// session drains them once per frame where `&mut RaylibHandle` is in
@@ -357,6 +423,41 @@ mod tests {
             DEFAULT_SPRITE_SIZE
         );
         assert_eq!(usagi.get::<f64>("elapsed").unwrap(), 0.0);
+    }
+
+    /// Headless callers (`tools::save_inspector::read_game_id`,
+    /// `config::read_for_export`) must register the data API before
+    /// `load_script`, otherwise a project that calls `usagi.read_json`
+    /// at the top level (the recommended hot-reload pattern) hits a
+    /// nil-call error in those VMs. Pins the contract that
+    /// `setup_api` + `register_data_api` is enough to execute a chunk
+    /// that reads data at the top level.
+    #[test]
+    fn register_data_api_supports_top_level_read_json() {
+        use crate::assets::load_script;
+        use crate::vfs::FsBacked;
+        use std::fs;
+
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        fs::create_dir(root.join("data")).unwrap();
+        fs::write(root.join("data").join("test.json"), r#"{"word":"bird"}"#).unwrap();
+        let script = root.join("main.lua");
+        fs::write(
+            &script,
+            "data = usagi.read_json(\"test.json\")\nfunction _config() return { game_id = \"t.t.t\" } end\n",
+        )
+        .unwrap();
+
+        let vfs: Rc<dyn VirtualFs> = Rc::new(FsBacked::from_script_path(&script));
+        register_data_api(&lua, vfs.clone()).unwrap();
+        load_script(&lua, vfs.as_ref()).unwrap();
+
+        let data: LuaTable = lua.globals().get("data").unwrap();
+        assert_eq!(data.get::<String>("word").unwrap(), "bird");
     }
 
     #[test]

@@ -179,7 +179,7 @@ impl Config {
     /// project file.
     #[cfg(not(target_os = "emscripten"))]
     pub fn read_for_export(script_path: &std::path::Path) -> Self {
-        use crate::api::setup_api;
+        use crate::api::{register_data_api, setup_api};
         use crate::assets::{install_require, load_script};
         use crate::vfs::{FsBacked, VirtualFs};
         use std::rc::Rc;
@@ -190,6 +190,12 @@ impl Config {
             return Self::default();
         }
         if install_require(&lua, vfs.clone()).is_err() {
+            return Self::default();
+        }
+        // Match the live session: register the data readers before
+        // running the chunk so projects that read JSON/text at the
+        // top level don't fail this export-time config probe.
+        if register_data_api(&lua, vfs.clone()).is_err() {
             return Self::default();
         }
         if load_script(&lua, vfs.as_ref()).is_err() {
