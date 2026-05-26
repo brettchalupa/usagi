@@ -126,7 +126,10 @@ fn script_aware_vfs(project_path: &str) -> Result<FsBacked, String> {
 
 fn read_game_id(vfs: &FsBacked) -> Result<Option<crate::game_id::GameId>, String> {
     use mlua::{Lua, Table as LuaTable};
-    let lua = Lua::new();
+    // unsafe_new for parity with the runtime: user `_config()` may touch
+    // `debug.*` and we don't want the save inspector to be the one place
+    // that crashes on it. See session.rs.
+    let lua = unsafe { Lua::unsafe_new() };
     crate::api::setup_api(&lua, false).map_err(|e| format!("setup_api: {e}"))?;
     // install_require needs Rc<dyn VirtualFs>; the tools' FsBacked
     // isn't shared so we clone into an Rc just for this Lua instance.

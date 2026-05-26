@@ -679,7 +679,13 @@ impl Session {
 
         let reload = dev && vfs.supports_reload();
 
-        let lua = Lua::new();
+        // Unsafe mode opens the full standard library, including `debug`.
+        // User scripts (logging, traceback rendering, third-party debuggers
+        // like debugger.lua) rely on it. mlua's safe mode refuses to load
+        // `debug` because its setupvalue/setlocal/sethook surface lets Lua
+        // corrupt host state; Usagi treats game scripts as trusted, so the
+        // tradeoff lands on the dev-ergonomics side.
+        let lua = unsafe { Lua::unsafe_new() };
         // Use incremental garbage collection. Generational let the heap grow
         // unbounded under per-frame allocation, so lua_close at exit would have
         // to sweep multi-GiB of dead objects and stalled for minutes.

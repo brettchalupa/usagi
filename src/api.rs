@@ -1251,4 +1251,23 @@ mod tests {
         let p: String = usagi.get("PLATFORM").unwrap();
         assert_eq!(p, current_platform());
     }
+
+    #[test]
+    fn debug_library_is_available_on_unsafe_lua() {
+        // session/config/save_inspector build their Lua via `unsafe_new`
+        // so user code can call `debug.getinfo` / `debug.traceback` for
+        // logging and third-party debuggers. Lock that in.
+        let lua = unsafe { Lua::unsafe_new() };
+        setup_api(&lua, false).unwrap();
+        let info: LuaTable = lua
+            .load("return debug.getinfo(1, 'l')")
+            .eval()
+            .expect("debug.getinfo should be callable");
+        assert!(info.get::<i64>("currentline").is_ok());
+        let trace: String = lua
+            .load("return debug.traceback('hi')")
+            .eval()
+            .expect("debug.traceback should be callable");
+        assert!(trace.contains("hi"));
+    }
 }

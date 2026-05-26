@@ -5,6 +5,15 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
+Features:
+
+- Lua's standard `debug` library is now available in user code. Use
+  `debug.getinfo` / `debug.traceback` for logger line numbers, and embed
+  step-debuggers like debugger.lua. Note that this exposes the full library,
+  including `debug.setlocal` / `debug.setupvalue` / `debug.sethook`. Those can
+  corrupt the VM if misused, so treat them with care.
+  [#267](https://github.com/brettchalupa/usagi/issues/267)
+
 Fixes:
 
 - Calling `usagi.read_json` or `usagi.read_text` at the top of `main.lua` no

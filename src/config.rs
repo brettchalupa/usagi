@@ -185,7 +185,9 @@ impl Config {
         use std::rc::Rc;
 
         let vfs: Rc<dyn VirtualFs> = Rc::new(FsBacked::from_script_path(script_path));
-        let lua = Lua::new();
+        // Match the runtime: unsafe_new so user `_config()` code can use
+        // `debug.*` without crashing the export step. See session.rs.
+        let lua = unsafe { Lua::unsafe_new() };
         if setup_api(&lua, false).is_err() {
             return Self::default();
         }
