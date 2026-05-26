@@ -1,4 +1,5 @@
 function _config()
+  ---@type Usagi.Config
   return { name = "Game", game_id = "com.usagiengine.YOURGAMENAME" }
 end
 

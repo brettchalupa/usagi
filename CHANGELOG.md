@@ -17,6 +17,8 @@ Fixes:
   argument #N to '...' (T expected, got nil)") rather than a confusing "bad
   argument #1 to 'type'" message.
   [#259](https://github.com/brettchalupa/usagi/issues/259)
+- Type annotation for `_config()` table to help with autocomplete; see
+  [#255](https://github.com/brettchalupa/usagi/issues/255)
 
 ## v1.0.0 - May 19, 2026
 
