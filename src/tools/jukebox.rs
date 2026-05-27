@@ -2,10 +2,9 @@
 //! and music streams from `<project>/music/` (manual play/stop).
 
 use super::{HINT_Y, PANEL_H, PANEL_W, PANEL_X, PANEL_Y};
-use crate::assets::MusicLibrary;
+use crate::assets::{MusicLibrary, SfxLibrary};
 use crate::tools::theme;
 use sola_raylib::prelude::*;
-use std::collections::HashMap;
 use std::path::Path;
 
 /// Which list keyboard nav (up/down/W/S/space/enter) targets. Tab toggles;
@@ -34,9 +33,9 @@ pub(super) struct State {
 }
 
 impl State {
-    pub fn new(sounds: &HashMap<String, Sound<'_>>, music_names: Vec<String>) -> Self {
+    pub fn new(sfx: &SfxLibrary<'_>, music_names: Vec<String>) -> Self {
         Self {
-            names: sorted_names(sounds),
+            names: sfx.sorted_names(),
             scroll: 0,
             active: -1,
             focus: -1,
@@ -49,8 +48,8 @@ impl State {
         }
     }
 
-    pub fn refresh_names(&mut self, sounds: &HashMap<String, Sound<'_>>) {
-        self.names = sorted_names(sounds);
+    pub fn refresh_names(&mut self, sfx: &SfxLibrary<'_>) {
+        self.names = sfx.sorted_names();
         let n = self.names.len() as i32;
         if self.active >= n {
             self.active = if n > 0 { n - 1 } else { -1 };
@@ -67,16 +66,10 @@ impl State {
     }
 }
 
-fn sorted_names(sounds: &HashMap<String, Sound<'_>>) -> Vec<String> {
-    let mut names: Vec<String> = sounds.keys().cloned().collect();
-    names.sort();
-    names
-}
-
 pub(super) fn handle_input(
     rl: &RaylibHandle,
     state: &mut State,
-    sounds: &HashMap<String, Sound<'_>>,
+    sfx: &SfxLibrary<'_>,
     music: &mut MusicLibrary<'_>,
 ) {
     if rl.is_key_pressed(KeyboardKey::KEY_TAB) {
@@ -114,9 +107,8 @@ pub(super) fn handle_input(
             if activate
                 && state.active >= 0
                 && let Some(name) = state.names.get(state.active as usize)
-                && let Some(sound) = sounds.get(name)
             {
-                sound.play();
+                sfx.play(name);
             }
         }
         FocusList::Music => {
@@ -150,13 +142,13 @@ pub(super) fn handle_input(
 
 /// Plays the active sound if the selection changed since the last call.
 /// Called after draw so mouse-click selections in list_view_ex are covered.
-pub(super) fn auto_play(state: &mut State, sounds: &HashMap<String, Sound<'_>>) {
+pub(super) fn auto_play(state: &mut State, sfx: &SfxLibrary<'_>) {
     if state.active >= 0
         && state.active != state.last_played
         && let Some(name) = state.names.get(state.active as usize)
-        && let Some(sound) = sounds.get(name)
+        && sfx.contains(name)
     {
-        sound.play();
+        sfx.play(name);
         state.last_played = state.active;
     }
 }
@@ -166,7 +158,7 @@ pub(super) fn draw(
     d: &mut RaylibDrawHandle,
     font: &Font,
     state: &mut State,
-    sounds: &HashMap<String, Sound<'_>>,
+    sfx: &SfxLibrary<'_>,
     music: &mut MusicLibrary<'_>,
     project_path: Option<&str>,
     sfx_dir: Option<&Path>,
@@ -274,9 +266,9 @@ pub(super) fn draw(
     if d.gui_button(Rectangle::new(left_x, buttons_y, 140.0, 40.0), "Play")
         && state.active >= 0
         && let Some(name) = state.names.get(state.active as usize)
-        && let Some(sound) = sounds.get(name)
+        && sfx.contains(name)
     {
-        sound.play();
+        sfx.play(name);
     }
     if state.active >= 0
         && let Some(name) = state.names.get(state.active as usize)

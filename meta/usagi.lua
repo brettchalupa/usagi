@@ -261,7 +261,8 @@ sfx = {}
 
 ---Plays a sound effect by name. Names are file stems from the `sfx/`
 ---directory next to the game's main .lua (e.g. `sfx/jump.wav` → "jump").
----Unknown names silently no-op. Calling while already playing restarts.
+---Unknown names silently no-op. Each sfx has a pool of 8 voices that
+---overlap; the 9th simultaneous play steals the oldest.
 ---@param name string  file stem of a `.wav` under `sfx/`
 function sfx.play(name) end
 

@@ -131,7 +131,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
 
     let mut state = State {
         active: Tool::Jukebox,
-        jukebox: jukebox::State::new(&sfx.sounds, music_lib.track_names()),
+        jukebox: jukebox::State::new(&sfx, music_lib.track_names()),
         tilepicker: tilepicker::State::new(project_config.sprite_size),
         save_inspector: save_inspector::State::new(project_path),
         color_palette: color_palette::State::new(
@@ -157,7 +157,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         if let (Some(a), Some(v)) = (&audio, &vfs)
             && sfx.reload_if_changed(a, v)
         {
-            state.jukebox.refresh_names(&sfx.sounds);
+            state.jukebox.refresh_names(&sfx);
             crate::msg::info!("jukebox reloaded sfx ({} sound(s))", sfx.len());
         }
 
@@ -203,9 +203,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
 
         let tex = sprites.as_ref().and_then(|s| s.texture());
         match state.active {
-            Tool::Jukebox => {
-                jukebox::handle_input(&rl, &mut state.jukebox, &sfx.sounds, &mut music_lib)
-            }
+            Tool::Jukebox => jukebox::handle_input(&rl, &mut state.jukebox, &sfx, &mut music_lib),
             Tool::TilePicker => {
                 if let Some(msg) = tilepicker::handle_input(&mut rl, &mut state.tilepicker, tex, dt)
                 {
@@ -266,7 +264,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
                     &mut d,
                     &font,
                     &mut state.jukebox,
-                    &sfx.sounds,
+                    &sfx,
                     &mut music_lib,
                     project_path,
                     sfx_dir_display.as_deref(),
@@ -299,7 +297,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         // Auto-play on selection change (covers mouse click into the
         // list_view which we can't intercept until after the draw returns).
         if state.active == Tool::Jukebox {
-            jukebox::auto_play(&mut state.jukebox, &sfx.sounds);
+            jukebox::auto_play(&mut state.jukebox, &sfx);
         }
     }
 

@@ -6,9 +6,13 @@ use crate::preprocess::preprocess;
 use crate::vfs::VirtualFs;
 use mlua::prelude::*;
 use sola_raylib::prelude::*;
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::SystemTime;
+
+/// Per-sfx voice pool size. Overflow steals round-robin.
+const SFX_VOICES_PER_SOUND: usize = 8;
 
 /// Executes the VFS's script on the given Lua VM. Redefines the
 /// `_init` / `_update` / `_draw` globals each call; used for both initial
@@ -205,22 +209,77 @@ impl SpriteSheet {
     }
 }
 
-fn load_sound<'a>(audio: &'a RaylibAudio, stem: &str, bytes: &[u8]) -> Option<Sound<'a>> {
+fn load_voices<'a>(audio: &'a RaylibAudio, stem: &str, bytes: &[u8]) -> Option<Vec<Sound<'a>>> {
     let wave = audio
         .new_wave_from_memory(".wav", bytes)
         .map_err(|e| crate::msg::err!("failed to decode sfx '{stem}': {e}"))
         .ok()?;
-    audio
-        .new_sound_from_wave(&wave)
-        .map_err(|e| crate::msg::err!("failed to create sfx '{stem}': {e}"))
-        .ok()
+    let mut voices = Vec::with_capacity(SFX_VOICES_PER_SOUND);
+    for i in 0..SFX_VOICES_PER_SOUND {
+        match audio.new_sound_from_wave(&wave) {
+            Ok(s) => voices.push(s),
+            Err(e) => {
+                if i == 0 {
+                    crate::msg::err!("failed to create sfx '{stem}': {e}");
+                    return None;
+                }
+                crate::msg::err!(
+                    "sfx '{stem}': only allocated {got}/{want} voices: {e}",
+                    got = i,
+                    want = SFX_VOICES_PER_SOUND,
+                );
+                break;
+            }
+        }
+    }
+    Some(voices)
+}
+
+pub struct VoicePool<'a> {
+    voices: Vec<Sound<'a>>,
+    next_steal: Cell<usize>,
+}
+
+impl<'a> VoicePool<'a> {
+    fn new(voices: Vec<Sound<'a>>) -> Self {
+        Self {
+            voices,
+            next_steal: Cell::new(0),
+        }
+    }
+
+    fn pick(&self) -> Option<&Sound<'a>> {
+        if let Some(idle) = self.voices.iter().find(|s| !s.is_playing()) {
+            return Some(idle);
+        }
+        if self.voices.is_empty() {
+            return None;
+        }
+        let idx = self.next_steal.get() % self.voices.len();
+        self.next_steal.set(idx + 1);
+        self.voices.get(idx)
+    }
+
+    fn play(&self, volume: f32, pitch: f32, pan: f32) {
+        let Some(voice) = self.pick() else { return };
+        voice.set_volume(volume);
+        voice.set_pitch(pitch);
+        voice.set_pan(pan);
+        voice.play();
+    }
+
+    fn set_volume(&self, v: f32) {
+        for voice in &self.voices {
+            voice.set_volume(v);
+        }
+    }
 }
 
 /// Owns the loaded sounds + a manifest of their mtimes. `reload_if_changed`
 /// rebuilds the whole library whenever the vfs's sfx manifest differs
 /// from the one we loaded with. The lifetime is tied to `RaylibAudio`.
 pub struct SfxLibrary<'a> {
-    pub sounds: HashMap<String, Sound<'a>>,
+    pools: HashMap<String, VoicePool<'a>>,
     manifest: HashMap<String, SystemTime>,
     /// Per-library output volume in `0.0..=1.0`. Applied to every loaded
     /// sound and re-applied across hot reloads so user-selected levels
@@ -231,23 +290,23 @@ pub struct SfxLibrary<'a> {
 impl<'a> SfxLibrary<'a> {
     pub fn empty() -> Self {
         Self {
-            sounds: HashMap::new(),
+            pools: HashMap::new(),
             manifest: HashMap::new(),
             volume: 1.0,
         }
     }
 
     pub fn load(audio: &'a RaylibAudio, vfs: &dyn VirtualFs) -> Self {
-        let mut sounds = HashMap::new();
+        let mut pools = HashMap::new();
         for stem in vfs.sfx_stems() {
             if let Some(bytes) = vfs.read_sfx(&stem)
-                && let Some(sound) = load_sound(audio, &stem, &bytes)
+                && let Some(voices) = load_voices(audio, &stem, &bytes)
             {
-                sounds.insert(stem, sound);
+                pools.insert(stem, VoicePool::new(voices));
             }
         }
         Self {
-            sounds,
+            pools,
             manifest: vfs.sfx_manifest(),
             volume: 1.0,
         }
@@ -268,14 +327,8 @@ impl<'a> SfxLibrary<'a> {
     }
 
     pub fn play(&self, name: &str) {
-        if let Some(sound) = self.sounds.get(name) {
-            // Reset to defaults in case a prior `play_with` left
-            // custom pitch/pan on this Sound. Volume is the library
-            // setting (user-controlled via pause menu).
-            sound.set_volume(self.volume);
-            sound.set_pitch(1.0);
-            sound.set_pan(0.0);
-            sound.play();
+        if let Some(pool) = self.pools.get(name) {
+            pool.play(self.volume, 1.0, 0.0);
         }
     }
 
@@ -284,17 +337,24 @@ impl<'a> SfxLibrary<'a> {
     /// is a raw multiplier (`1.0` = identity); pan is `-1..1` with
     /// `-1` left, `0` center, `1` right this is same range raylib uses.
     pub fn play_with(&self, name: &str, volume: f32, pitch: f32, pan: f32) {
-        if let Some(sound) = self.sounds.get(name) {
+        if let Some(pool) = self.pools.get(name) {
             let v = volume.clamp(0.0, 1.0) * self.volume;
-            sound.set_volume(v);
-            sound.set_pitch(pitch.max(0.01));
-            sound.set_pan(pan.clamp(-1.0, 1.0));
-            sound.play();
+            pool.play(v, pitch.max(0.01), pan.clamp(-1.0, 1.0));
         }
     }
 
     pub fn len(&self) -> usize {
-        self.sounds.len()
+        self.pools.len()
+    }
+
+    pub fn sorted_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.pools.keys().cloned().collect();
+        names.sort();
+        names
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.pools.contains_key(name)
     }
 
     /// Sets the output volume for every loaded sfx. Stored on the
@@ -302,8 +362,8 @@ impl<'a> SfxLibrary<'a> {
     pub fn set_volume(&mut self, v: f32) {
         let v = v.clamp(0.0, 1.0);
         self.volume = v;
-        for sound in self.sounds.values() {
-            sound.set_volume(v);
+        for pool in self.pools.values() {
+            pool.set_volume(v);
         }
     }
 }
