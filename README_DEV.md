@@ -1490,6 +1490,33 @@ Override the template source explicitly:
 - `--template-url https://example.com/usagi-...` to fetch from an arbitrary URL.
   Verification still runs (the URL must have a sibling `.sha256`).
 
+### Building for Unsupported Platforms
+
+Usagi publishes binaries for Linux x86_64, macOS aarch64, Windows x86_64, and
+web (wasm). If you're on a platform outside that set (macOS Intel, FreeBSD,
+aarch64 Linux, etc.) the official downloads won't work, but you can build the
+engine from source and export games for yourself:
+
+1. Grab the source for the release you want. Either clone the repo and
+   `git checkout v<version>` or download the source archive from the
+   [release page](https://github.com/brettchalupa/usagi/releases).
+2. Build with `cargo build --release`. See
+   [DEVELOPING.md](DEVELOPING.md#dependencies) for platform prerequisites
+   (Windows in particular needs vcpkg + zlib).
+3. Use the resulting binary at `target/release/usagi` to develop and export:
+
+   ```sh
+   target/release/usagi export path/to/game
+   ```
+
+On a host outside the published set, `usagi export` (default `--target all`)
+also produces a host-fuse zip named `<slug>-<os>-<arch>.zip` alongside the four
+published-platform zips. Use `--target host` if you want only that zip without
+fetching the cross-platform templates.
+
+The host zip only runs on the same OS/arch you built on; to ship to multiple
+unsupported platforms, build the engine on each one.
+
 ### Web Shell
 
 The web export ships a default HTML page that hosts the canvas. To use a custom

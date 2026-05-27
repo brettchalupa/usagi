@@ -7,6 +7,15 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
+- `usagi export --target host` fuses against the running binary regardless of OS
+  or architecture. This lets devs on platforms outside the published-template
+  set (e.g., macOS Intel, FreeBSD, aarch64 Linux) build the engine from source
+  and export for themselves. Output filename is `<slug>-<os>-<arch>.zip`. On
+  unsupported hosts, the default `--target all` also produces this zip alongside
+  the four published-platform builds, so the dev doesn't have to know about the
+  flag. See
+  [Building for unsupported platforms](README.md#building-for-unsupported-platforms)
+  in the README. [#273](https://github.com/brettchalupa/usagi/issues/273)
 - Lua's standard `debug` library is now available in user code. Use
   `debug.getinfo` / `debug.traceback` for logger line numbers, and embed
   step-debuggers like debugger.lua. Note that this exposes the full library,
