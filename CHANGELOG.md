@@ -28,6 +28,9 @@ Fixes:
   [#259](https://github.com/brettchalupa/usagi/issues/259)
 - Type annotation for `_config()` table to help with autocomplete; see
   [#255](https://github.com/brettchalupa/usagi/issues/255)
+- `sfx.play(name)` called repeatedly no longer cuts off the playing copy. Each
+  sfx now has a pool of 8 voices that overlap; the 9th simultaneous play steals
+  the oldest. [#258](https://github.com/brettchalupa/usagi/issues/258)
 
 ## v1.0.0 - May 19, 2026
 

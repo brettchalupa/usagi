@@ -847,8 +847,9 @@ outgrown Usagi. Fork the engine or use Love2D!
 
 ### `sfx`
 
-- `sfx.play(name)` — play `sfx/<name>.wav`. Unknown names silently no-op.
-  Playing a sound while it's already playing restarts it.
+- `sfx.play(name)` — play `sfx/<name>.wav`. Unknown names silently no-op. Each
+  sfx has a pool of 8 voices that overlap; the 9th simultaneous play steals the
+  oldest.
 - `sfx.play_ex(name, volume, pitch, pan)` — fire-and-forget with per-call
   params. Useful for varied one-shot effects without needing to commit extra
   `.wav` files. All three params required:
