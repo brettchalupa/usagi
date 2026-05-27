@@ -25,6 +25,12 @@ pub enum ExportTarget {
     Windows,
     /// Web export packaged as `<name>-web.zip` (index.html + usagi.{js,wasm} + game.usagi).
     Web,
+    /// Fuse against the running binary regardless of host platform.
+    /// Lets devs on platforms outside the published-template set
+    /// (macOS Intel, FreeBSD, aarch64 Linux without a published template)
+    /// produce a runnable export for themselves. Output is named
+    /// `<name>-<os>-<arch>.zip`.
+    Host,
 }
 
 /// Top-level entry from `Command::Export`. Validates flag combinations,
@@ -111,6 +117,13 @@ pub fn run(
             let target_kind = template_target.expect("validated above");
             export_one_target(&bundle, &project_name, target_kind, &opts, &out_path)
         }
+        ExportTarget::Host => export_from_host_exe(
+            &bundle,
+            &project_name,
+            host_packaging_target(),
+            &opts,
+            &out_path,
+        ),
     }
 }
 
@@ -172,6 +185,20 @@ fn export_all(
             Ok(()) => succeeded += 1,
             Err(e) => {
                 crate::msg::warn!("skipping {target:?}: {e}");
+                last_err = Some(e);
+            }
+        }
+    }
+    // On hosts outside the published set (macOS Intel, FreeBSD, aarch64
+    // Linux), also fuse a host-only zip so the dev gets a runnable
+    // export for their own machine without having to know about
+    // `--target host`.
+    if templates::Target::host().is_none() {
+        let zip = out_dir.join(format!("{slug}-{}.zip", host_platform_string()));
+        match export_from_host_exe(bundle, project_name, host_packaging_target(), &inner, &zip) {
+            Ok(()) => succeeded += 1,
+            Err(e) => {
+                crate::msg::warn!("skipping host: {e}");
                 last_err = Some(e);
             }
         }
@@ -547,6 +574,22 @@ fn default_output_path(
         ExportTarget::Macos => PathBuf::from(format!("{slug}-macos.zip")),
         ExportTarget::Windows => PathBuf::from(format!("{slug}-windows.zip")),
         ExportTarget::Web => PathBuf::from(format!("{slug}-web.zip")),
+        ExportTarget::Host => PathBuf::from(format!("{slug}-{}.zip", host_platform_string())),
+    }
+}
+
+fn host_platform_string() -> String {
+    format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
+}
+
+fn host_packaging_target() -> templates::Target {
+    if cfg!(target_os = "macos") {
+        templates::Target::Macos
+    } else if cfg!(target_os = "windows") {
+        templates::Target::Windows
+    } else {
+        // Flat-binary-in-a-zip layout, also right for FreeBSD etc.
+        templates::Target::Linux
     }
 }
 
@@ -838,6 +881,15 @@ mod tests {
         assert!(!target_produces_web(ExportTarget::Linux));
         assert!(!target_produces_web(ExportTarget::Macos));
         assert!(!target_produces_web(ExportTarget::Windows));
+        assert!(!target_produces_web(ExportTarget::Host));
+    }
+
+    #[test]
+    fn host_platform_string_matches_env() {
+        let s = host_platform_string();
+        assert!(s.contains('-'), "expected <os>-<arch>, got {s}");
+        assert!(s.starts_with(std::env::consts::OS));
+        assert!(s.ends_with(std::env::consts::ARCH));
     }
 
     #[test]
