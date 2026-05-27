@@ -18,20 +18,27 @@ use std::path::{Path, PathBuf};
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Target {
     Linux,
+    LinuxAarch64,
     Macos,
     Windows,
     Wasm,
 }
 
 impl Target {
-    pub const ALL: [Target; 4] = [Target::Linux, Target::Macos, Target::Windows, Target::Wasm];
+    pub const ALL: [Target; 5] = [
+        Target::Linux,
+        Target::LinuxAarch64,
+        Target::Macos,
+        Target::Windows,
+        Target::Wasm,
+    ];
 
     /// Short, user-facing name. Used for `--target` values, output zip
-    /// basenames, and the cache key. A future `--target linux-arm` would
-    /// be a new enum variant rather than a different `as_str` for `Linux`.
+    /// basenames, and the cache key.
     pub fn as_str(self) -> &'static str {
         match self {
             Target::Linux => "linux",
+            Target::LinuxAarch64 => "linux-aarch64",
             Target::Macos => "macos",
             Target::Windows => "windows",
             // User-facing label is "web" since that's the familiar term
@@ -43,12 +50,11 @@ impl Target {
 
     /// Full platform string used in release-artifact filenames and the
     /// auto-fetch URL (`usagi-<ver>-<platform>.<ext>`). Carries the
-    /// architecture so future multi-arch builds drop in without renaming:
-    /// a Raspberry Pi binary would add a `Target::LinuxArm` => "linux-aarch64"
-    /// row alongside this one.
+    /// architecture so multi-arch builds for the same OS stay distinct.
     pub fn platform_str(self) -> &'static str {
         match self {
             Target::Linux => "linux-x86_64",
+            Target::LinuxAarch64 => "linux-aarch64",
             Target::Macos => "macos-aarch64",
             Target::Windows => "windows-x86_64",
             Target::Wasm => "wasm",
@@ -69,6 +75,8 @@ impl Target {
     pub fn host() -> Option<Target> {
         if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
             Some(Target::Linux)
+        } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+            Some(Target::LinuxAarch64)
         } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
             Some(Target::Macos)
         } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
@@ -346,7 +354,7 @@ pub fn extract(archive: &Path, dest: &Path) -> Result<()> {
 /// Walks the extracted tree so the archive's layout can be flat or nested.
 pub fn locate(dir: &Path, target: Target) -> Result<Runtime> {
     match target {
-        Target::Linux | Target::Macos => Ok(Runtime::Native {
+        Target::Linux | Target::LinuxAarch64 | Target::Macos => Ok(Runtime::Native {
             exe: find_file(dir, "usagi")?,
         }),
         Target::Windows => Ok(Runtime::Native {
@@ -727,6 +735,8 @@ mod tests {
         let host = Target::host();
         if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
             assert_eq!(host, Some(Target::Linux));
+        } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+            assert_eq!(host, Some(Target::LinuxAarch64));
         } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
             assert_eq!(host, Some(Target::Macos));
         } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
