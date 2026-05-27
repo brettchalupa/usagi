@@ -251,20 +251,18 @@ pub(super) fn draw(
     // Action row. raylib_rs's GuiButton doesn't expose a "disabled"
     // mode, so we just no-op when there's nothing to act on.
     let btn_y = y + 8.0;
-    if d.gui_button(Rectangle::new(30.0, btn_y, 140.0, 40.0), "Refresh [R]") && have_id {
+    if d.gui_button(Rectangle::new(30.0, btn_y, 180.0, 40.0), "Refresh [R]") && have_id {
         state.refresh();
         toast = Some("Refreshed.".into());
     }
-    if d.gui_button(Rectangle::new(180.0, btn_y, 140.0, 40.0), "Clear") && have_save {
+    if d.gui_button(Rectangle::new(220.0, btn_y, 140.0, 40.0), "Clear") && have_save {
         match state.clear() {
             Ok(()) => toast = Some("Save cleared.".into()),
             Err(msg) => toast = Some(format!("Clear failed: {msg}")),
         }
     }
-    if d.gui_button(
-        Rectangle::new(330.0, btn_y, 280.0, 40.0),
-        "Open in File Manager [F]",
-    ) && let Some(p) = state.path.as_deref()
+    if d.gui_button(Rectangle::new(370.0, btn_y, 240.0, 40.0), "Open Folder [F]")
+        && let Some(p) = state.path.as_deref()
     {
         match open_in_file_manager(p) {
             Ok(()) => toast = Some("Opened in file manager.".into()),

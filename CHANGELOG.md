@@ -45,6 +45,10 @@ Fixes:
 - `sfx.play(name)` called repeatedly no longer cuts off the playing copy. Each
   sfx now has a pool of 8 voices that overlap; the 9th simultaneous play steals
   the oldest. [#258](https://github.com/brettchalupa/usagi/issues/258)
+- `usagi tools` UI now scales when the window is resized. Renders to a 1280x720
+  canvas and blits scaled (with letterbox bars) to fit any window size. Launches
+  at the largest integer canvas multiple that fits the current monitor.
+  [#269](https://github.com/brettchalupa/usagi/issues/269)
 
 ## v1.0.0 - May 19, 2026
 
