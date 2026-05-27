@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # All three runners are pinned. `*-latest` rolls underneath the
+        # All runners are pinned. `*-latest` rolls underneath the
         # `Swatinem/rust-cache` key (rustc + Cargo.lock hash, no runner
         # fingerprint), so a new VS/Xcode silently invalidates the
         # cached cmake build dirs and CI breaks until the cache is
@@ -25,7 +25,8 @@ jobs:
         # you bump these versions on purpose. ubuntu-22.04 also gives a
         # binary that runs on older distros (RHEL 9, Debian stable);
         # ubuntu-latest's gcc 13 had a Mesa FBO regression.
-        os: [ubuntu-22.04, macos-15, windows-2022]
+        # `ubuntu-22.04-arm` is GitHub's free aarch64 Linux runner.
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15, windows-2022]
     steps:
       - uses: actions/checkout@v4
 

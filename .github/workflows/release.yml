@@ -23,6 +23,10 @@ jobs:
             os: ubuntu-22.04
             ext: ""
             archive: tar.gz
+          - name: linux-aarch64
+            os: ubuntu-22.04-arm
+            ext: ""
+            archive: tar.gz
           - name: macos-aarch64
             os: macos-15
             ext: ""

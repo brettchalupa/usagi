@@ -13,12 +13,16 @@ use std::path::{Path, PathBuf};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
 pub enum ExportTarget {
-    /// All four platform zips plus the portable `.usagi` bundle.
+    /// All platform zips plus the portable `.usagi` bundle.
     All,
     /// Portable `.usagi` bundle file (run with `usagi run`).
     Bundle,
     /// Linux x86_64 fused exe, packaged as `<name>-linux.zip`.
     Linux,
+    /// Linux aarch64 (ARM64) fused exe, packaged as `<name>-linux-aarch64.zip`.
+    /// For Raspberry Pi, ARM SBCs, ARM Linux handhelds, ARM cloud VMs.
+    #[value(name = "linux-aarch64")]
+    LinuxAarch64,
     /// macOS aarch64 fused exe, packaged as `<name>-macos.zip`.
     Macos,
     /// Windows x86_64 fused exe, packaged as `<name>-windows.zip`.
@@ -113,7 +117,11 @@ pub fn run(
     match target {
         ExportTarget::All => export_all(&bundle, &project_name, &out_path, &opts),
         ExportTarget::Bundle => write_bundle(&bundle, &out_path),
-        ExportTarget::Linux | ExportTarget::Macos | ExportTarget::Windows | ExportTarget::Web => {
+        ExportTarget::Linux
+        | ExportTarget::LinuxAarch64
+        | ExportTarget::Macos
+        | ExportTarget::Windows
+        | ExportTarget::Web => {
             let target_kind = template_target.expect("validated above");
             export_one_target(&bundle, &project_name, target_kind, &opts, &out_path)
         }
@@ -513,6 +521,7 @@ fn target_produces_web(target: ExportTarget) -> bool {
 fn template_target_for(target: ExportTarget) -> Option<templates::Target> {
     match target {
         ExportTarget::Linux => Some(templates::Target::Linux),
+        ExportTarget::LinuxAarch64 => Some(templates::Target::LinuxAarch64),
         ExportTarget::Macos => Some(templates::Target::Macos),
         ExportTarget::Windows => Some(templates::Target::Windows),
         ExportTarget::Web => Some(templates::Target::Wasm),
@@ -571,6 +580,7 @@ fn default_output_path(
         ExportTarget::All => PathBuf::from("export"),
         ExportTarget::Bundle => PathBuf::from(format!("{slug}.usagi")),
         ExportTarget::Linux => PathBuf::from(format!("{slug}-linux.zip")),
+        ExportTarget::LinuxAarch64 => PathBuf::from(format!("{slug}-linux-aarch64.zip")),
         ExportTarget::Macos => PathBuf::from(format!("{slug}-macos.zip")),
         ExportTarget::Windows => PathBuf::from(format!("{slug}-windows.zip")),
         ExportTarget::Web => PathBuf::from(format!("{slug}-web.zip")),
@@ -879,6 +889,7 @@ mod tests {
         assert!(target_produces_web(ExportTarget::Web));
         assert!(!target_produces_web(ExportTarget::Bundle));
         assert!(!target_produces_web(ExportTarget::Linux));
+        assert!(!target_produces_web(ExportTarget::LinuxAarch64));
         assert!(!target_produces_web(ExportTarget::Macos));
         assert!(!target_produces_web(ExportTarget::Windows));
         assert!(!target_produces_web(ExportTarget::Host));

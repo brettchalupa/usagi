@@ -1449,11 +1449,12 @@ platform plus a portable bundle:
 $ usagi export examples/snake
 $ tree export
 export
-├── snake-linux.zip      # Linux x86_64 fused exe
-├── snake-macos.zip      # macOS arm64 fused exe
-├── snake-windows.zip    # Windows x86_64 fused exe
-├── snake-web.zip        # web export: index.html + usagi.{js,wasm} + game.usagi
-└── snake.usagi          # portable bundle (usagi run snake.usagi)
+├── snake-linux.zip          # Linux x86_64 fused exe
+├── snake-linux-aarch64.zip  # Linux arm64 fused exe (Pi, ARM SBCs, ARM handhelds)
+├── snake-macos.zip          # macOS arm64 fused exe
+├── snake-windows.zip        # Windows x86_64 fused exe
+├── snake-web.zip            # web export: index.html + usagi.{js,wasm} + game.usagi
+└── snake.usagi              # portable bundle (usagi run snake.usagi)
 ```
 
 Or pick one with `--target`:
@@ -1492,10 +1493,10 @@ Override the template source explicitly:
 
 ### Building for Unsupported Platforms
 
-Usagi publishes binaries for Linux x86_64, macOS aarch64, Windows x86_64, and
-web (wasm). If you're on a platform outside that set (macOS Intel, FreeBSD,
-aarch64 Linux, etc.) the official downloads won't work, but you can build the
-engine from source and export games for yourself:
+Usagi publishes binaries for Linux x86_64, Linux aarch64, macOS aarch64, Windows
+x86_64, and web (wasm). If you're on a platform outside that set (macOS Intel,
+FreeBSD, etc.) the official downloads won't work, but you can build the engine
+from source and export games for yourself:
 
 1. Grab the source for the release you want. Either clone the repo and
    `git checkout v<version>` or download the source archive from the
