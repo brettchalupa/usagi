@@ -57,7 +57,7 @@ async function handler(req: Request): Promise<Response> {
       });
     }
     if (url.pathname.toLowerCase().replace(/\/$/, "") === "/discord") {
-      return Response.redirect("https://discord.gg/a92ZjE4NUx", 302);
+      return Response.redirect("https://discord.gg/rmKAx3d3Ww", 302);
     }
     if (url.pathname.toLowerCase().replace(/\/$/, "") === "/changelog") {
       const markdown = await Deno.readTextFile("../CHANGELOG.md");
