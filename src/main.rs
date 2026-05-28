@@ -221,11 +221,19 @@ enum FontCmd {
         /// directory so the result is immediately a project drop-in.
         #[arg(short, long, default_value = "font.png")]
         out: String,
-        /// Skip the CJK Unified Ideographs block. Default is to
-        /// include it; the cmap filter drops codepoints the font
-        /// doesn't cover, so enabling it costs nothing for fonts
-        /// without kanji/hanzi/hanja.
-        #[arg(long)]
+        /// Which scripts to include, comma-separated. Use `all`
+        /// (default) for every supported script, `none` to start
+        /// empty, or any combination of: latin, latin-ext, greek,
+        /// cyrillic, punct, cjk-punct, hiragana, katakana, hangul
+        /// (alias: korean), cjk (alias: han), halfwidth. Prefix a
+        /// name with `-` to subtract, e.g. `--scripts all,-cjk` to
+        /// drop the Han ideographs. The cmap filter drops codepoints
+        /// the font doesn't cover, so unused scripts cost nothing.
+        #[arg(long, default_value = "all", conflicts_with = "no_cjk")]
+        scripts: String,
+        /// Deprecated alias for `--scripts all,-cjk`. Will be removed
+        /// in a future major release.
+        #[arg(long, hide_short_help = true)]
         no_cjk: bool,
     },
 }
@@ -334,14 +342,24 @@ fn run_font_cmd(cmd: FontCmd) -> Result<()> {
             ttf,
             size,
             out,
+            scripts,
             no_cjk,
-        } => font_bake::run(
-            std::path::Path::new(&ttf),
-            size,
-            std::path::Path::new(&out),
-            !no_cjk,
-        )
-        .map_err(crate::Error::Cli),
+        } => {
+            let spec = if no_cjk {
+                eprintln!("warning: --no-cjk is deprecated; use --scripts all,-cjk instead");
+                "all,-cjk".to_string()
+            } else {
+                scripts
+            };
+            let selected = font_bake::parse_scripts(&spec).map_err(crate::Error::Cli)?;
+            font_bake::run(
+                std::path::Path::new(&ttf),
+                size,
+                std::path::Path::new(&out),
+                &selected,
+            )
+            .map_err(crate::Error::Cli)
+        }
     }
 }
 

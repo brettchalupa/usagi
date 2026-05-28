@@ -27,9 +27,25 @@ Features:
   including `debug.setlocal` / `debug.setupvalue` / `debug.sethook`. Those can
   corrupt the VM if misused, so treat them with care.
   [#267](https://github.com/brettchalupa/usagi/issues/267)
+- `usagi font bake` gained a `--scripts` flag for picking which Unicode blocks
+  to include. Pass a comma-separated list of names, with `all` (default) and
+  `none` as special values and a `-` prefix for subtraction. Known scripts:
+  `latin`, `latin-ext`, `greek`, `cyrillic`, `punct`, `cjk-punct`, `hiragana`,
+  `katakana`, `hangul` (alias: `korean`), `cjk` (alias: `han`), `halfwidth`.
+  Examples: `--scripts all,-cjk` to drop Han ideographs, or
+  `--scripts latin,korean` for a Korean-only atlas. The `--no-cjk` flag is now
+  deprecated and prints a warning; it stays as an alias for `--scripts all,-cjk`
+  and will be removed in a future major release.
+  [#287](https://github.com/brettchalupa/usagi/issues/287)
 
 Fixes:
 
+- `usagi font bake` now includes Hangul (Korean) and Latin Extended Additional
+  (Vietnamese precomposed forms) by default. Previously these blocks were
+  excluded, so even a font with full Korean or Vietnamese coverage produced an
+  atlas where every Hangul or Vietnamese codepoint rendered as `?`. The
+  `examples/custom_font` demo now includes a Korean line to verify coverage end
+  to end. [#287](https://github.com/brettchalupa/usagi/issues/287)
 - Calling `usagi.read_json` or `usagi.read_text` at the top of `main.lua` no
   longer breaks `usagi tools` and `usagi export`; see
   [#264](https://github.com/brettchalupa/usagi/issues/264)

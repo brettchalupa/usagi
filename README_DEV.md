@@ -633,7 +633,10 @@ Examples:
 usagi font bake my_font.ttf 12
 
 # Skip the kanji block for a font that covers it
-usagi font bake misaki_gothic.ttf 8 --no-cjk
+usagi font bake misaki_gothic.ttf 8 --scripts all,-cjk
+
+# Korean-only atlas (smaller output for a game that doesn't need other scripts)
+usagi font bake silver.ttf 18 --scripts latin,latin-ext,punct,korean
 
 # Write to a specific path
 usagi font bake silver.ttf 18 --out my_proj/font.png
@@ -646,13 +649,22 @@ Behavior:
   sizes goes through FreeType's outline scaler and looks slightly fuzzy. Common
   sizes: monogram at `15`, Silver at `18`, Misaki Gothic at `8`, Geist Pixel at
   `16`.
-- The CJK Unified Ideographs block (~21k codepoints) is included by default.
-  Codepoints the font doesn't cover are skipped via the font's cmap, so this
-  costs nothing for non-CJK fonts. Pass `--no-cjk` if you want to skip the block
-  even when present.
+- By default every supported script is included (Latin, Latin-ext, Greek,
+  Cyrillic, punctuation, CJK punctuation, Hiragana, Katakana, Hangul,
+  Halfwidth/Fullwidth Forms, and CJK Unified Ideographs). Codepoints the font
+  doesn't cover are skipped via the font's cmap, so unused scripts cost nothing.
+- Use `--scripts` to narrow or expand the set. Pass a comma-separated list of
+  names; `all` (default) and `none` are special values, and a `-` prefix
+  subtracts. Known names: `latin`, `latin-ext`, `greek`, `cyrillic`, `punct`,
+  `cjk-punct`, `hiragana`, `katakana`, `hangul` (alias: `korean`), `cjk` (alias:
+  `han`), `halfwidth`. Examples: `--scripts all,-cjk` to drop the Han ideographs
+  (~21k codepoints), or `--scripts latin,korean` for a focused atlas.
+- `--no-cjk` is a deprecated alias for `--scripts all,-cjk`. It still works but
+  prints a warning and will be removed in a future major release.
 - Output is a single `font.png` with metadata in a zTXt chunk. Drop it next to
   your `main.lua` and the engine picks it up automatically.
-- Bakes are reproducible: the same TTF + size yields byte-identical output.
+- Bakes are reproducible: the same TTF + scripts + size yields byte-identical
+  output.
 
 Behavior of the project drop-in:
 
@@ -672,8 +684,8 @@ usagi font bake Silver.ttf 18
 
 See
 [`examples/custom_font`](https://github.com/brettchalupa/usagi/tree/main/examples/custom_font)
-for a working Silver-based demo that renders English, Cyrillic, Greek, and
-Japanese on the same screen.
+for a working Silver-based demo that renders English, Cyrillic, Greek, Japanese,
+and Korean on the same screen.
 
 #### Scaling sprites
 
