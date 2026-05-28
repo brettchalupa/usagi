@@ -4,35 +4,175 @@
 
 use freetype::Library;
 use freetype::face::LoadFlag;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::BufWriter;
 use std::path::Path;
 
-/// Inclusive Unicode ranges always included in the bake. Codepoints
-/// the font doesn't cover are filtered via FreeType's cmap lookup.
-const RANGES: &[(u32, u32)] = &[
-    (0x0020, 0x007E), // Basic Latin
-    (0x00A0, 0x00FF), // Latin-1 Supplement
-    (0x0100, 0x017F), // Latin Extended-A
-    (0x0180, 0x024F), // Latin Extended-B
-    (0x0370, 0x03FF), // Greek and Coptic
-    (0x0400, 0x04FF), // Cyrillic
-    (0x2010, 0x205E), // General Punctuation
-    (0x3000, 0x303F), // CJK Symbols and Punctuation
-    (0x3040, 0x309F), // Hiragana
-    (0x30A0, 0x30FF), // Katakana
-    (0xFF00, 0xFFEF), // Halfwidth and Fullwidth Forms
+/// One named script group selectable via `--scripts`. Ranges are
+/// inclusive Unicode codepoint spans; codepoints the font doesn't
+/// cover are filtered later via FreeType's cmap lookup, so enabling a
+/// script the font lacks costs nothing.
+#[derive(Debug)]
+pub struct Script {
+    pub name: &'static str,
+    pub aliases: &'static [&'static str],
+    pub ranges: &'static [(u32, u32)],
+}
+
+/// All script groups the bake knows about. `--scripts all` includes
+/// every entry here. Order doesn't affect output (the packer re-sorts
+/// by glyph height) but keeping related blocks adjacent helps readers.
+pub const SCRIPTS: &[Script] = &[
+    Script {
+        name: "latin",
+        aliases: &[],
+        ranges: &[(0x0020, 0x007E)],
+    },
+    Script {
+        name: "latin-ext",
+        aliases: &[],
+        ranges: &[
+            (0x00A0, 0x00FF), // Latin-1 Supplement
+            (0x0100, 0x017F), // Latin Extended-A
+            (0x0180, 0x024F), // Latin Extended-B
+            (0x1E00, 0x1EFF), // Latin Extended Additional (Vietnamese precomposed)
+        ],
+    },
+    Script {
+        name: "greek",
+        aliases: &[],
+        ranges: &[(0x0370, 0x03FF)],
+    },
+    Script {
+        name: "cyrillic",
+        aliases: &[],
+        ranges: &[(0x0400, 0x04FF)],
+    },
+    Script {
+        name: "punct",
+        aliases: &[],
+        ranges: &[(0x2010, 0x205E)],
+    },
+    Script {
+        name: "cjk-punct",
+        aliases: &[],
+        ranges: &[(0x3000, 0x303F)],
+    },
+    Script {
+        name: "hiragana",
+        aliases: &[],
+        ranges: &[(0x3040, 0x309F)],
+    },
+    Script {
+        name: "katakana",
+        aliases: &[],
+        ranges: &[(0x30A0, 0x30FF)],
+    },
+    Script {
+        name: "hangul",
+        aliases: &["korean"],
+        ranges: &[
+            (0x1100, 0x11FF), // Hangul Jamo
+            (0x3130, 0x318F), // Hangul Compatibility Jamo
+            (0xAC00, 0xD7A3), // Hangul Syllables
+        ],
+    },
+    Script {
+        name: "halfwidth",
+        aliases: &[],
+        ranges: &[(0xFF00, 0xFFEF)],
+    },
+    Script {
+        name: "cjk",
+        aliases: &["han"],
+        ranges: &[(0x4E00, 0x9FFF)],
+    },
 ];
 
-/// Included by default; pass `--no-cjk` to skip. Adds the full CJK
-/// Unified Ideographs block; the cmap filter drops codepoints the
-/// font doesn't cover, so this is safe to enable for any font.
-const CJK_UNIFIED: (u32, u32) = (0x4E00, 0x9FFF);
+/// Parse a `--scripts` spec into the selected script set. Accepts a
+/// comma-separated list of script names (or their aliases), with two
+/// special tokens: `all` adds every known script, `none` clears the
+/// set. A leading `-` on a token subtracts that script from the
+/// current set. Whitespace around commas is allowed.
+///
+/// Examples: `all`, `none`, `latin,hangul`, `all,-cjk`, `none,korean`.
+pub fn parse_scripts(spec: &str) -> Result<Vec<&'static Script>, String> {
+    let tokens: Vec<&str> = spec
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    if tokens.is_empty() {
+        return Err("--scripts is empty; use 'all', 'none', or a comma-separated list".into());
+    }
+    let mut set: BTreeSet<&'static str> = BTreeSet::new();
+    for (i, tok) in tokens.iter().enumerate() {
+        let (subtract, name) = match tok.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, *tok),
+        };
+        if subtract && i == 0 {
+            return Err(format!(
+                "--scripts cannot start with a subtraction ('{tok}'); begin with 'all', 'none', or a script name"
+            ));
+        }
+        match name {
+            "all" => {
+                if subtract {
+                    return Err("--scripts: 'all' cannot be subtracted; use 'none' instead".into());
+                }
+                for s in SCRIPTS {
+                    set.insert(s.name);
+                }
+            }
+            "none" => {
+                if subtract {
+                    return Err("--scripts: 'none' cannot be subtracted".into());
+                }
+                set.clear();
+            }
+            _ => {
+                let resolved = SCRIPTS
+                    .iter()
+                    .find(|s| s.name == name || s.aliases.contains(&name))
+                    .ok_or_else(|| {
+                        format!(
+                            "--scripts: unknown script '{name}'. Known: {}",
+                            known_script_names()
+                        )
+                    })?;
+                if subtract {
+                    set.remove(resolved.name);
+                } else {
+                    set.insert(resolved.name);
+                }
+            }
+        }
+    }
+    Ok(SCRIPTS.iter().filter(|s| set.contains(s.name)).collect())
+}
+
+fn known_script_names() -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for s in SCRIPTS {
+        if s.aliases.is_empty() {
+            parts.push(s.name.to_string());
+        } else {
+            parts.push(format!("{} (alias: {})", s.name, s.aliases.join(", ")));
+        }
+    }
+    parts.join(", ")
+}
 
 const ATLAS_MAX_WIDTH: u32 = 512;
 
-pub fn run(ttf_path: &Path, size: u32, out_path: &Path, include_cjk: bool) -> Result<(), String> {
+pub fn run(
+    ttf_path: &Path,
+    size: u32,
+    out_path: &Path,
+    scripts: &[&'static Script],
+) -> Result<(), String> {
     let bytes = fs::read(ttf_path).map_err(|e| format!("reading {}: {e}", ttf_path.display()))?;
     let lib = Library::init().map_err(|e| format!("freetype init: {e}"))?;
     let face = lib
@@ -52,7 +192,7 @@ pub fn run(ttf_path: &Path, size: u32, out_path: &Path, include_cjk: bool) -> Re
     let mut glyphs: Vec<GlyphData> = Vec::new();
     let mut bitmaps: Vec<Bitmap> = Vec::new();
 
-    for cp in iter_codepoints(include_cjk) {
+    for cp in iter_codepoints(scripts) {
         // Filter unmapped codepoints up front so the atlas doesn't fill
         // with .notdef placeholders.
         if face.get_char_index(cp as usize).is_none() {
@@ -234,11 +374,11 @@ struct GlyphData {
     oy: i32,
 }
 
-fn iter_codepoints(include_cjk: bool) -> impl Iterator<Item = u32> {
-    let mut ranges: Vec<(u32, u32)> = RANGES.to_vec();
-    if include_cjk {
-        ranges.push(CJK_UNIFIED);
-    }
+fn iter_codepoints(scripts: &[&'static Script]) -> impl Iterator<Item = u32> {
+    let ranges: Vec<(u32, u32)> = scripts
+        .iter()
+        .flat_map(|s| s.ranges.iter().copied())
+        .collect();
     ranges.into_iter().flat_map(|(lo, hi)| lo..=hi)
 }
 
@@ -326,4 +466,94 @@ fn build_metadata_json(
     }
     s.push_str("}}");
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names(scripts: &[&Script]) -> Vec<&'static str> {
+        scripts.iter().map(|s| s.name).collect()
+    }
+
+    #[test]
+    fn parse_all_includes_every_script() {
+        let got = parse_scripts("all").unwrap();
+        assert_eq!(got.len(), SCRIPTS.len());
+    }
+
+    #[test]
+    fn parse_none_yields_empty_set() {
+        let got = parse_scripts("none").unwrap();
+        assert!(got.is_empty());
+    }
+
+    #[test]
+    fn parse_explicit_list() {
+        let got = parse_scripts("latin,hangul").unwrap();
+        assert_eq!(names(&got), vec!["latin", "hangul"]);
+    }
+
+    #[test]
+    fn parse_subtraction_drops_named_script() {
+        let got = parse_scripts("all,-cjk").unwrap();
+        assert!(!names(&got).contains(&"cjk"));
+        assert_eq!(got.len(), SCRIPTS.len() - 1);
+    }
+
+    #[test]
+    fn parse_resolves_aliases() {
+        let by_alias = parse_scripts("korean,han").unwrap();
+        assert_eq!(names(&by_alias), vec!["hangul", "cjk"]);
+    }
+
+    #[test]
+    fn parse_subtracts_by_alias() {
+        let got = parse_scripts("all,-korean,-han").unwrap();
+        let names = names(&got);
+        assert!(!names.contains(&"hangul"));
+        assert!(!names.contains(&"cjk"));
+    }
+
+    #[test]
+    fn parse_handles_whitespace_around_commas() {
+        let got = parse_scripts("  latin ,  hangul  ").unwrap();
+        assert_eq!(names(&got), vec!["latin", "hangul"]);
+    }
+
+    #[test]
+    fn parse_empty_spec_errors() {
+        assert!(parse_scripts("").is_err());
+        assert!(parse_scripts(" , , ").is_err());
+    }
+
+    #[test]
+    fn parse_unknown_script_errors_with_known_list() {
+        let err = parse_scripts("klingon").unwrap_err();
+        assert!(err.contains("klingon"));
+        assert!(err.contains("Known:"));
+    }
+
+    #[test]
+    fn parse_leading_subtraction_errors() {
+        let err = parse_scripts("-cjk").unwrap_err();
+        assert!(err.contains("cannot start with a subtraction"));
+    }
+
+    #[test]
+    fn parse_cannot_subtract_all() {
+        assert!(parse_scripts("all,-all").is_err());
+    }
+
+    #[test]
+    fn parse_none_resets_then_adds() {
+        let got = parse_scripts("all,none,latin").unwrap();
+        assert_eq!(names(&got), vec!["latin"]);
+    }
+
+    #[test]
+    fn parse_dedupes_repeated_entries() {
+        let got = parse_scripts("latin,latin,latin").unwrap();
+        assert_eq!(names(&got), vec!["latin"]);
+    }
 }

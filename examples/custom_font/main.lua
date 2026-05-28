@@ -15,7 +15,7 @@
 -- doesn't bloat exported games.
 
 function _config()
-  return { name = "Custom Font (Silver)" }
+  return { name = "Custom Font (Silver)", game_height = 192 }
 end
 
 function _draw(_dt)
@@ -29,7 +29,8 @@ function _draw(_dt)
   gfx.text("Здравствуй, мир!", 4, 78, gfx.COLOR_WHITE)
   gfx.text("Καλημέρα κόσμε", 4, 100, gfx.COLOR_WHITE)
   gfx.text("こんにちは、世界！", 4, 122, gfx.COLOR_WHITE)
+  gfx.text("안녕하세요, 세계!", 4, 144, gfx.COLOR_WHITE)
 
   -- Footer hint (rendered in Silver too, since gfx.text uses the user font).
-  gfx.text("press esc to pause", 4, 158, gfx.COLOR_DARK_GRAY)
+  gfx.text("press esc to pause", 4, 166, gfx.COLOR_DARK_GRAY)
 end
