@@ -127,6 +127,22 @@ See `justfile` for the full list of recipes.
 - `just serve-web` - build and serve the web build at <http://localhost:3535>
   (requires `emcc` on PATH; see [docs/web-build.md](docs/web-build.md))
 
+### Regenerating the loveify reference port
+
+`examples/loveify/notetris/` is the committed output of running `usagi loveify`
+against `examples/notetris/`. After any change to notetris itself or to the
+canonical Love shim files (`examples/loveify/usagi_shim.lua`,
+`examples/loveify/conf.lua`), regenerate the reference port so the committed
+snapshot stays current:
+
+```sh
+just loveify
+```
+
+Then `love examples/loveify/notetris` to smoke-test the port. The recipe wipes
+the destination first because `usagi loveify` refuses to overwrite an existing
+directory.
+
 ## Adding Lua API bindings
 
 Every Rust callback exposed to user Lua (anything registered with

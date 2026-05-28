@@ -19,6 +19,11 @@ fmt:
     cargo fmt
     deno fmt *.md **/*.md **/*.html
 
+# Regenerate examples/loveify/notetris/ from the canonical sources. Run after editing notetris or the Love shim.
+loveify:
+    rm -rf examples/loveify/notetris
+    cargo run -- loveify examples/notetris examples/loveify/notetris
+
 [doc("""
 Regenerate THIRD_PARTY_LICENSES.md from the current Cargo.lock. Requires
 `cargo install cargo-about --features cli`. CI fails if this output

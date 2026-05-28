@@ -25,6 +25,8 @@ mod font;
 mod font_bake;
 mod icon;
 mod input;
+#[cfg(not(target_os = "emscripten"))]
+mod loveify;
 mod msg;
 mod palette;
 mod pause;
@@ -200,6 +202,19 @@ enum Command {
         #[command(subcommand)]
         cmd: FontCmd,
     },
+    /// One-time port of an Usagi project to a Love2D 11.5 project.
+    /// Copies the source dir to a new destination, applying Lua source
+    /// transforms (compound assignment expansion) for LuaJIT compat,
+    /// drops in the Love shim runtime (`usagi-shim.lua`, `conf.lua`),
+    /// and includes the bundled monogram font when the source has no
+    /// custom `font.png`. Refuses to write if the destination already
+    /// exists.
+    Loveify {
+        /// Path to the source Usagi project (directory with main.lua).
+        src: String,
+        /// Path to the destination directory. Must not exist.
+        dst: String,
+    },
 }
 
 #[cfg(not(target_os = "emscripten"))]
@@ -293,6 +308,7 @@ fn main() -> ExitCode {
                 refresh::run(path.as_deref().unwrap_or("."), yes, dry_run)
             }
             Command::Font { cmd } => run_font_cmd(cmd),
+            Command::Loveify { src, dst } => loveify::run(&src, &dst).map_err(crate::Error::Cli),
         };
         finish(result)
     }

@@ -1549,6 +1549,76 @@ automatically. Override per-build with `--web-shell PATH`.
   points back to an appended bundle. A `.usagi` file is the same bundle bytes
   without the footer; it runs on any platform via `usagi run`.
 
+## Graduating to Love2D
+
+When a project outgrows Usagi (you want iOS / Android, four action buttons, the
+full Love2D module surface), there's a one-shot port path to
+[Love2D](https://love2d.org) 11.5.
+
+```sh
+usagi loveify path/to/your-game path/to/your-game-love
+cd path/to/your-game-love
+love .
+```
+
+`usagi loveify` walks the source dir, rewrites compound-assignment operators
+(`x += 1` → `x = x + (1)`) for LuaJIT compat, copies all assets verbatim, and
+drops in the Love shim runtime: `usagi_shim.lua` (~1800 lines of pure Lua that
+reimplements `gfx.*`, `input.*`, `sfx.*`, `music.*`, `usagi.*`, `util.*`,
+`effect.*`, and the custom font.png + palette.png paths against Love's APIs)
+plus a `conf.lua` (suppresses Love's default 800×600 window so your
+`_config().game_width / game_height` apply at boot). If your source has no
+custom `font.png`, the engine's bundled monogram font drops in too so `gfx.text`
+renders crisply out of the box. Refuses to overwrite an existing destination.
+
+This is meant to be a **one-time operation**. After porting, your game has
+"graduated" from Usagi: you keep your gameplay code, but you own the shim file
+and the project layout, and future changes happen in your fork, not by
+re-running `loveify`. Edit the shim, gut it, replace it with idiomatic Love
+code, take it whatever direction your game needs.
+
+**Use cases the port unlocks:**
+
+- iOS / Android, via [love-android](https://github.com/love2d/love-android) and
+  [love-iOS](https://github.com/love2d/love-ios).
+- Multiple sprite files
+- Render targets, and the rest of `love.graphics`.
+- Steam / Steamworks integration via Love bindings.
+- More than 3 action buttons, custom keymapping UI, etc.
+
+**What's intentionally not carried over.** You reimplement these in your fork:
+
+- **Pause menu** (`usagi.menu_item` / `clear_menu_items`). The Lua calls are
+  no-op stubs in the shim so a project that registers items doesn't fail to
+  load, but no overlay renders.
+- **Input remapping** (the keymap / pad-map override system from `usagi tools`).
+  Roll your own remap UI on top of the shim's default bindings.
+- **Shaders** (`gfx.shader_set` / `gfx.shader_uniform`). No-op stubs. Use Love's
+  native shader API directly (`love.graphics.newShader` and friends).
+- **Hot reload (F5).** Dev-loop feature that's Usagi-specific; shipped Love
+  games don't reload.
+- **FPS overlay.** Roll your own with `love.timer.getFPS()` and `gfx.text`.
+- **`usagi tools`, `usagi export`, `usagi font bake`.** Usagi CLI, not runtime
+  APIs. Use Love's own packaging (`love --fused`,
+  [love-release](https://github.com/MisterDA/love-release),
+  [makelove](https://github.com/pfirsich/makelove)).
+
+Web export with a loveified project is unverified. Love 11.5 doesn't ship a web
+target. You'd run the port through
+[love.js](https://github.com/Davidobot/love.js) or whatever the current best
+fork is. The shim has no web-specific code (it doesn't use threading or other
+modules that break under emscripten), so in theory it should work, but it hasn't
+been tested. Use `usagi export --target web` if web is the primary need.
+
+The shim source is well-commented pure Lua at `<your-project>/usagi_shim.lua`.
+When you `usagi loveify`, it's now your code! Open it, read it, edit it. The
+original canonical copy lives in
+[`examples/loveify/`](https://github.com/brettchalupa/usagi/tree/main/examples/loveify)
+in the Usagi repo. Updates to the shim ship with new Usagi releases; once you've
+ported, you're on your own copy and that's the intended outcome. You can keep
+using the Usagi API if you want, extend it, or move away from it. It's totally
+up to you.
+
 ## Debugging
 
 With live reload, the fastest debugging loop is usually `print`. Drop a `print`
