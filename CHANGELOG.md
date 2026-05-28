@@ -40,6 +40,15 @@ Features:
 
 Fixes:
 
+- `usagi` CLI output now renders colorized in Windows `cmd.exe`. The colorized
+  `[usagi]` log prefix relies on ANSI escape sequences; modern Windows 10+
+  conhost understands them but only after a process opts in via
+  `SetConsoleMode`. Windows Terminal and PowerShell inherit the opt-in from the
+  parent process, but bare `cmd.exe` does not, so previously the sequences
+  printed as raw bytes (`[32m[usagi][0m ...`). Usagi now opts in once at
+  startup; on truly pre-Win10 hosts where the opt-in fails, color is suppressed
+  and the plain `[usagi]` prefix path takes over.
+  [#286](https://github.com/brettchalupa/usagi/issues/286)
 - `usagi font bake` now includes Hangul (Korean) and Latin Extended Additional
   (Vietnamese precomposed forms) by default. Previously these blocks were
   excluded, so even a font with full Korean or Vietnamese coverage produced an
