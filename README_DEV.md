@@ -1549,7 +1549,7 @@ automatically. Override per-build with `--web-shell PATH`.
   points back to an appended bundle. A `.usagi` file is the same bundle bytes
   without the footer; it runs on any platform via `usagi run`.
 
-## Graduating to Love2D
+## Porting to Love2D
 
 When a project outgrows Usagi (you want iOS / Android, four action buttons, the
 full Love2D module surface), there's a one-shot port path to

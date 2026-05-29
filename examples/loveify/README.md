@@ -31,7 +31,7 @@ cd path/to/your-love-port
 love .
 ```
 
-See the "Graduating to Love2D" section of `README.md` at the Usagi repo root for
+See the "Porting to Love2D" section of `README.md` at the Usagi repo root for
 the full workflow.
 
 ## What's intentionally not in the shim
