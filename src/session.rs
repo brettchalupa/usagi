@@ -2326,9 +2326,8 @@ impl Session {
         }
         // Wrap the RT-to-window blit in `begin_shader_mode` when a
         // shader is active so the post-process runs at window
-        // resolution (smoother than game-res). The error overlay and
-        // REC indicator draw outside this scope so they're not warped
-        // by the effect.
+        // resolution (smoother than game-res). The error overlay draws
+        // outside this scope so they're not warped by the effect.
         {
             let mut sm = self.shader.borrow_mut();
             if let Some(shader) = sm.active_shader_mut() {
