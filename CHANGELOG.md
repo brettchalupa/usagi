@@ -50,6 +50,12 @@ Features:
 
 Fixes:
 
+- `meta/usagi.lua` (the LSP type stubs) now declares `gfx.COLOR_TRUE_WHITE`.
+  The constant has always existed at runtime (slot `0`, pure white), but the
+  stub omitted it, so editors flagged `gfx.COLOR_TRUE_WHITE` as undefined. The
+  stub's palette docstring also wrongly claimed slot `0` renders as a magenta
+  sentinel; it resolves to true white, and only indices above the active
+  palette's length render as magenta.
 - `usagi` CLI output now renders colorized in Windows `cmd.exe`. The colorized
   `[usagi]` log prefix relies on ANSI escape sequences; modern Windows 10+
   conhost understands them but only after a process opts in via

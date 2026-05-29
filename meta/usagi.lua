@@ -4,9 +4,11 @@
 
 ---Palette slot indices `1..16`, matching `gfx.spr` and Lua array
 ---convention. The RGB at each slot is the default Pico-8 palette
----unless a `palette.png` overrides it. Slot `0` and any index above
----the active palette's length render as a magenta sentinel.
+---unless a `palette.png` overrides it. Slot `0` is `COLOR_TRUE_WHITE`
+---(pure white regardless of palette); any index above the active
+---palette's length renders as a magenta sentinel.
 ---@class Usagi.Gfx
+---@field COLOR_TRUE_WHITE   integer  0
 ---@field COLOR_BLACK        integer  1
 ---@field COLOR_DARK_BLUE    integer  2
 ---@field COLOR_DARK_PURPLE  integer  3
