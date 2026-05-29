@@ -12,12 +12,20 @@
 //!
 //! ANSI escapes are written by hand here (no extra crate) since
 //! we control all the call sites and the styling is uniform.
-//! Modern Windows Terminal, PowerShell, cmd (Win10+), and every
-//! Unix terminal handle these correctly without extra setup; if
-//! pre-Win10 cmd ever becomes a target we can flip on virtual
-//! terminal processing once at startup.
+//!
+//! On Windows, conhost in Win10+ understands ANSI but only after a
+//! process opts in via `SetConsoleMode(handle,
+//! ENABLE_VIRTUAL_TERMINAL_PROCESSING)`. Windows Terminal and
+//! PowerShell inherit this from the parent process; bare cmd.exe
+//! does not, so without the opt-in our output rendered as raw
+//! escape bytes there. We lazily call into the `enable-ansi-support`
+//! crate the first time `color_stdout` / `color_stderr` is consulted
+//! and remember the result in a `OnceLock`. If the enable fails
+//! (truly pre-Win10), color output is suppressed and we fall back to
+//! the plain `[usagi]` prefix path.
 
 use std::io::IsTerminal;
+use std::sync::OnceLock;
 
 const PREFIX: &str = "[usagi]";
 
@@ -39,18 +47,37 @@ fn no_color_env() -> bool {
     std::env::var_os("NO_COLOR").is_some()
 }
 
+/// True when ANSI escape sequences can be written to the console.
+/// On Windows this lazily calls `enable_ansi_support::enable_ansi_support()`
+/// the first time it's consulted, enabling VT processing for the current
+/// process. Elsewhere it's unconditionally true (every Unix terminal we
+/// care about handles ANSI without setup).
+fn ansi_supported() -> bool {
+    static SUPPORTED: OnceLock<bool> = OnceLock::new();
+    *SUPPORTED.get_or_init(|| {
+        #[cfg(windows)]
+        {
+            enable_ansi_support::enable_ansi_support().is_ok()
+        }
+        #[cfg(not(windows))]
+        {
+            true
+        }
+    })
+}
+
 fn color_stdout() -> bool {
     if cfg!(target_os = "emscripten") {
         return false;
     }
-    !no_color_env() && std::io::stdout().is_terminal()
+    ansi_supported() && !no_color_env() && std::io::stdout().is_terminal()
 }
 
 fn color_stderr() -> bool {
     if cfg!(target_os = "emscripten") {
         return false;
     }
-    !no_color_env() && std::io::stderr().is_terminal()
+    ansi_supported() && !no_color_env() && std::io::stderr().is_terminal()
 }
 
 /// Hidden helper called by the `info!` macro. Writes the formatted

@@ -30,6 +30,15 @@ png = "0.17"
 # `ring`, which doesn't build for wasm32-unknown-emscripten. Gating the
 # whole export+templates dep chain keeps the wasm build green and the
 # wasm binary smaller.
+# Enables ANSI virtual-terminal processing on Windows so the colorized
+# `[usagi]` log prefix renders correctly in cmd.exe. Modern Win10+ conhost
+# supports VT sequences but only after a process opts in via
+# `SetConsoleMode(handle, ENABLE_VIRTUAL_TERMINAL_PROCESSING)`. Windows
+# Terminal and PowerShell inherit this from the parent; bare cmd.exe does
+# not. Called once lazily from `src/msg.rs`.
+[target.'cfg(windows)'.dependencies]
+enable-ansi-support = "0.3"
+
 [target.'cfg(not(target_os = "emscripten"))'.dependencies]
 # Archive extraction for `usagi export --template-path`. Pure-Rust gzip
 # (no system zlib needed); zip with only the deflate codec to keep size
