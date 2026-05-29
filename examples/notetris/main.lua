@@ -321,7 +321,10 @@ function _draw(_dt)
 
   effects.draw_popups(State.fx)
 
-  gfx.text("notetris", usagi.GAME_W - usagi.measure_text("notetris") - 10, 10, gfx.COLOR_WHITE)
+  local title_w = usagi.measure_text("notetris")
+  local title_x = usagi.GAME_W - title_w - 10
+  gfx.spr(1, title_x - 20, 8)
+  gfx.text("notetris", title_x, 10, gfx.COLOR_WHITE)
 
   local hold_x = 56
   gfx.text("hold", hold_x, 10, gfx.COLOR_LIGHT_GRAY)
@@ -355,7 +358,7 @@ function _draw(_dt)
     gfx.rect_fill(bx, box_y, cfg.BOARD_W, 44, gfx.COLOR_BLACK)
     gfx.rect(bx, box_y, cfg.BOARD_W, 44, gfx.COLOR_RED)
     gfx.text(msg, bx + (cfg.BOARD_W - w) / 2, box_y + 6, gfx.COLOR_RED)
-    local hint = "btn1: retry"
+    local hint = (input.mapping_for(input.BTN1) or "BTN1") .. ": retry"
     local w2 = usagi.measure_text(hint)
     gfx.text(hint, bx + (cfg.BOARD_W - w2) / 2, box_y + 24, gfx.COLOR_WHITE)
   end

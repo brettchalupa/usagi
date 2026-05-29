@@ -127,6 +127,15 @@ See `justfile` for the full list of recipes.
 - `just serve-web` - build and serve the web build at <http://localhost:3535>
   (requires `emcc` on PATH; see [docs/web-build.md](docs/web-build.md))
 
+### Testing the loveify commandRegenerating the loveify reference port
+
+Generate the gitignored notetris to test out that `usagi loveify` is working as
+expected:
+
+```sh
+just loveify
+```
+
 ## Adding Lua API bindings
 
 Every Rust callback exposed to user Lua (anything registered with

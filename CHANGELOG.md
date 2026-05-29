@@ -7,6 +7,16 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
+- New `usagi loveify <src> <dst>` subcommand: one-time port of an Usagi project
+  to a Love2D 11.5 project. Walks the source tree, rewrites compound-assignment
+  operators (`x += 1` → `x = x + (1)`) for LuaJIT compat, copies all assets
+  verbatim, and drops in the Love shim runtime (`usagi_shim.lua` + `conf.lua`)
+  plus the bundled monogram font when the source has no custom `font.png`.
+  Refuses to overwrite an existing destination. Intended as a graduation path
+  when a project needs iOS / Android, more action buttons, more robust APIs, or
+  other Love-only features. See the new "Graduating to Love2D" section in
+  README.md for the workflow and what's intentionally not carried over (pause
+  menu, input remapping, shader hooks, hot reload, FPS overlay).
 - Linux aarch64 is now a published export target. Released as
   `usagi-<ver>-linux-aarch64.tar.gz` and produced by
   `usagi export --target
