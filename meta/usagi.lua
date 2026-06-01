@@ -258,8 +258,78 @@ function gfx.shader_set(name) end
 ---@param value number|number[]                           float, or {x, y} / {x, y, z} / {x, y, z, w}
 function gfx.shader_uniform(name, value) end
 
+---Synthesized-sound API, mixed on the audio thread (low-latency, immune
+---to frame stalls). Waveform selectors for `sfx.synth`:
+---
+---- SINE:   pure tone; `param` = phase offset
+---- SAW:    bright/buzzy; `param` = peak offset (skew)
+---- SQUARE:   hollow/chiptune; `param` = pulse width (`0.5` = even square)
+---- NOISE:    hiss/percussion; `param` = softness (low-pass darkening)
+---- TRIANGLE: soft/rounded; `param` = phase offset
+---
+---Envelope (amplitude modulator) shapes:
+---
+---- AHD:  Attack→Hold→Decay to zero; a *timed* one-shot (self-terminating)
+---- ADSR: Attack→Decay→Sustain (held) →Release; sustains until `sfx.stop`
+---- DRUM: punchy percussive one-shot (fast attack, curved decay)
 ---@class Usagi.Sfx
+---@field SINE   integer  0
+---@field SAW    integer  1
+---@field SQUARE integer  2
+---@field NOISE  integer  3
+---@field TRIANGLE integer  4
+---@field AHD    integer  0
+---@field ADSR   integer  1
+---@field DRUM   integer  2
 sfx = {}
+
+sfx.SINE = 0
+sfx.SAW = 1
+sfx.SQUARE = 2
+sfx.NOISE = 3
+sfx.TRIANGLE = 4
+sfx.AHD = 0
+sfx.ADSR = 1
+sfx.DRUM = 2
+
+---Starts a synthesized voice and returns its **id**. Callable from
+---`_init`, `_update`, or `_draw`. A self-terminating shape (`AHD` / `DRUM`)
+---plays a fire-and-forget one-shot — ignore the id. An `ADSR` voice
+---sustains until you call `sfx.stop(id)`, so keep the id for held notes,
+---engine hums, sirens, charge-ups. Up to 16 voices play at once; a 17th
+---steals the quietest. Volume rides on top of the pause-menu sfx level.
+---@param opts { wave?: integer, freq?: number, volume?: number, param?: number, shape?: integer, attack?: number, hold?: number, decay?: number, sustain?: number, release?: number, slide?: number, slide_ms?: number }
+---  `wave` a `sfx.*` waveform (default SINE); `freq` Hz (default 440);
+---  `volume` `0..1` (default 1); `param` `0..1` waveform shape (default
+---  0.5); `shape` a `sfx.AHD/ADSR/DRUM` envelope (default AHD); `attack`
+---  `hold` `decay` `release` envelope times in ms; `sustain` `0..1` ADSR
+---  level (default 1); `slide` pitch bend in semitones (+up/-down) reached
+---  over `slide_ms` then held (default 0; `slide_ms` defaults to `decay`) —
+---  the arcade jump/coin/laser knob.
+---@return integer id  pass to `sfx.stop`
+function sfx.synth(opts) end
+
+---Releases the synth voice with this `id` (drops it into its envelope
+---release). A no-op if no live voice matches. Self-terminating one-shots
+---don't need this.
+---@param id integer  an id returned by `sfx.synth`
+function sfx.stop(id) end
+
+---Releases every active synth voice.
+function sfx.stop_all() end
+
+---Live-updates the frequency of a sounding voice. The pitch glides
+---click-free (the oscillator phase is continuous), so call it every frame
+---for portamento / vibrato / sirens. A no-op if the voice has ended.
+---@param id   integer  an id returned by `sfx.synth`
+---@param freq number   new frequency in Hz
+function sfx.set_freq(id, freq) end
+
+---Live-updates the volume of a sounding voice (swells / fades). Rides on
+---top of the pause-menu sfx level. A no-op if the voice has ended.
+---@param id     integer  an id returned by `sfx.synth`
+---@param volume number   `0..1`
+function sfx.set_volume(id, volume) end
 
 ---Plays a sound effect by name. Names are file stems from the `sfx/`
 ---directory next to the game's main .lua (e.g. `sfx/jump.wav` → "jump").

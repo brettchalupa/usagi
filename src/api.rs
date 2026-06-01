@@ -166,6 +166,20 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     lua.globals().set("input", input)?;
 
     let sfx = lua.create_table()?;
+    // Waveform selectors for sfx.synth. Integer constants mirror the
+    // engine's enum idiom (gfx.COLOR_*, input.BTN1) and match
+    // crate::synth::Waveform::from_i32.
+    sfx.set("SINE", 0)?;
+    sfx.set("SAW", 1)?;
+    sfx.set("SQUARE", 2)?;
+    sfx.set("NOISE", 3)?;
+    sfx.set("TRIANGLE", 4)?;
+    // Envelope (amplitude modulator) shapes for sfx.synth, matching
+    // crate::modulator::ModShape::from_i32. AHD / DRUM self-terminate
+    // (one-shots); ADSR sustains until sfx.stop(id).
+    sfx.set("AHD", 0)?;
+    sfx.set("ADSR", 1)?;
+    sfx.set("DRUM", 2)?;
     lua.globals().set("sfx", sfx)?;
 
     let music = lua.create_table()?;
@@ -417,9 +431,11 @@ mod tests {
         assert!(input.get::<u32>("MOUSE_RIGHT").is_ok());
         assert!(input.get::<u32>("MOUSE_MIDDLE").is_ok());
 
-        // sfx and music are registered but empty of fields at
-        // static-setup time — their per-frame closures live in the
-        // session loop.
+        // sfx exposes waveform constants at static-setup time, but its
+        // play/synth closures live in the session loop (per-frame scope),
+        // as do music's — so those are nil here.
+        assert_eq!(sfx.get::<i32>("SINE").unwrap(), 0);
+        assert_eq!(sfx.get::<i32>("NOISE").unwrap(), 3);
         assert!(sfx.get::<LuaValue>("play").unwrap().is_nil());
         assert!(music.get::<LuaValue>("play").unwrap().is_nil());
         assert!(music.get::<LuaValue>("loop").unwrap().is_nil());

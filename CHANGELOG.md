@@ -7,6 +7,20 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
+- New seamless looping synthesis — sustained tones with no `.wav` files.
+  `sfx.synth_loop(handle, volume, pitch, pan)` starts a continuous voice
+  from an `sfx.synth` handle (or live-updates its volume/pitch/pan, so
+  pitch glides are click-free); `sfx.synth_stop(handle)` ends it. Up to 8
+  voices at once. For held notes, hums, charge-ups, sirens. See
+  `examples/synth_loop.lua`.
+- New programmatic sound synthesis — make tones without shipping `.wav`
+  files. `sfx.oscillator(duration, type, frequency, volume, parameter)`
+  synthesizes and plays a tone in one call; `sfx.synth({...})` builds a
+  reusable handle you trigger later with `sfx.play`. Waveforms:
+  `sfx.SINE`, `sfx.SAW`, `sfx.SQUARE`, `sfx.NOISE`. Volume and the
+  per-waveform shape `parameter` are `0..1`. See `examples/oscillator.lua`.
+  [#297](https://github.com/brettchalupa/usagi/issues/297)
+
 - New `usagi loveify <src> <dst>` subcommand: one-time port of an Usagi project
   to a Love2D 11.5 project. Walks the source tree, rewrites compound-assignment
   operators (`x += 1` → `x = x + (1)`) for LuaJIT compat, copies all assets

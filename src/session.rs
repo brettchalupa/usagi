@@ -447,6 +447,104 @@ fn register_music_api(
     Ok(())
 }
 
+/// Installs the synthesized-sound API once at session startup. All three
+/// closures post events to the `'static` `audio_engine` (the audio-thread
+/// callback mixer), so they're callable from `_init`, `_update`, or `_draw`
+/// alike — there is no per-frame borrow to scope, unlike the file-backed
+/// `sfx.play` / `sfx.play_ex`.
+///
+/// - `sfx.synth(opts) -> id` starts a voice and returns its id. A
+///   self-terminating shape (AHD / DRUM) plays a one-shot; an ADSR voice
+///   sustains until `sfx.stop(id)`.
+/// - `sfx.stop(id)` drops the gate on that voice (release).
+/// - `sfx.stop_all()` releases every synth voice.
+fn register_synth_api(lua: &Lua) -> LuaResult<()> {
+    use crate::audio_engine::{Event, Patch, engine};
+    use crate::modulator::ModShape;
+
+    let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
+
+    let synth = lua.create_function(|_, opts: LuaTable| {
+        let wave: i32 = opts.get::<Option<i32>>("wave")?.unwrap_or(0);
+        let freq_hz: f32 = opts.get::<Option<f32>>("freq")?.unwrap_or(440.0);
+        let volume: f32 = opts.get::<Option<f32>>("volume")?.unwrap_or(1.0);
+        let param: f32 = opts.get::<Option<f32>>("param")?.unwrap_or(0.5);
+        let shape = ModShape::from_i32(opts.get::<Option<i32>>("shape")?.unwrap_or(0));
+        // Millisecond envelope times. Defaults give a short percussive
+        // blip (AHD) that still sounds good if the game sets nothing.
+        let attack_ms = opts.get::<Option<f32>>("attack")?.unwrap_or(4.0);
+        let hold_ms = opts.get::<Option<f32>>("hold")?.unwrap_or(0.0);
+        let decay_ms = opts.get::<Option<f32>>("decay")?.unwrap_or(120.0);
+        let sustain = opts.get::<Option<f32>>("sustain")?.unwrap_or(1.0);
+        let release_ms = opts.get::<Option<f32>>("release")?.unwrap_or(30.0);
+        // Pitch sweep: `slide` semitones over `slide_ms` (defaults to decay).
+        let slide_semitones = opts.get::<Option<f32>>("slide")?.unwrap_or(0.0);
+        let slide_ms = opts.get::<Option<f32>>("slide_ms")?.unwrap_or(decay_ms);
+
+        let id = engine().next_id();
+        // duration is unused by the mixer (the envelope drives length); a
+        // zero keeps the spec well-formed for the oscillator + noise seed.
+        let spec = crate::synth::SynthSpec::new(wave, freq_hz.round() as i32, 0, param);
+        engine().post(Event::NoteOn(Patch {
+            id,
+            spec,
+            freq_hz,
+            volume,
+            shape,
+            attack_ms,
+            hold_ms,
+            decay_ms,
+            sustain,
+            release_ms,
+            slide_semitones,
+            slide_ms,
+        }));
+        Ok(id)
+    })?;
+    sfx_tbl.set("synth", wrap(lua, synth, "sfx.synth", &["table"])?)?;
+
+    let stop = lua.create_function(|_, id: u32| {
+        engine().post(Event::NoteOff { id });
+        Ok(())
+    })?;
+    sfx_tbl.set("stop", wrap(lua, stop, "sfx.stop", &["number"])?)?;
+
+    let stop_all = lua.create_function(|_, ()| {
+        engine().post(Event::StopAll);
+        Ok(())
+    })?;
+    sfx_tbl.set("stop_all", wrap(lua, stop_all, "sfx.stop_all", &[])?)?;
+
+    // Live-update a sounding voice. freq glides click-free; volume swells.
+    let set_freq = lua.create_function(|_, (id, freq_hz): (u32, f32)| {
+        engine().post(Event::SetParam {
+            id,
+            freq_hz: Some(freq_hz),
+            volume: None,
+        });
+        Ok(())
+    })?;
+    sfx_tbl.set(
+        "set_freq",
+        wrap(lua, set_freq, "sfx.set_freq", &["number", "number"])?,
+    )?;
+
+    let set_volume = lua.create_function(|_, (id, volume): (u32, f32)| {
+        engine().post(Event::SetParam {
+            id,
+            freq_hz: None,
+            volume: Some(volume),
+        });
+        Ok(())
+    })?;
+    sfx_tbl.set(
+        "set_volume",
+        wrap(lua, set_volume, "sfx.set_volume", &["number", "number"])?,
+    )?;
+
+    Ok(())
+}
+
 /// Installs `usagi.save(t)` and `usagi.load()` against the resolved
 /// `game_id`. Resolution happens once at session creation via
 /// `GameId::resolve` (preferring `_config().game_id`, falling back to
@@ -943,6 +1041,20 @@ impl Session {
         register_music_api(&lua, &music)
             .map_err(|e| crate::Error::Cli(format!("registering music.* API: {e}")))?;
 
+        // Synthesized sound runs on the audio-thread callback mixer
+        // (`audio_engine`). Attach its master processor once the device is
+        // up; on web the same callback fires on the Web-Audio backend
+        // (validated in `proto-audio-latency/`). The engine is a `'static`
+        // singleton, so the synth API just posts events to it.
+        if let Some(a) = audio {
+            // SAFETY: `a` is leaked to `'static`, so it outlives the
+            // attachment; the device closes at process exit.
+            unsafe { crate::audio_engine::attach(a) };
+        }
+        crate::audio_engine::engine().set_master_volume(settings.sfx_volume);
+        register_synth_api(&lua)
+            .map_err(|e| crate::Error::Cli(format!("registering sfx.synth API: {e}")))?;
+
         let shader = Rc::new(std::cell::RefCell::new(ShaderManager::new()));
         register_shader_api(&lua, &shader)
             .map_err(|e| crate::Error::Cli(format!("registering gfx.shader_* API: {e}")))?;
@@ -1122,10 +1234,12 @@ impl Session {
         }
 
         if self.pause.just_opened() {
-            self.music.borrow_mut().pause()
+            self.music.borrow_mut().pause();
+            crate::audio_engine::engine().set_paused(true);
         }
         if self.pause.just_closed() {
-            self.music.borrow_mut().resume()
+            self.music.borrow_mut().resume();
+            crate::audio_engine::engine().set_paused(false);
         }
         self.music.borrow_mut().update();
 
@@ -1323,6 +1437,9 @@ impl Session {
     /// run doesn't freeze the new one.
     fn reset_game(&mut self) {
         self.effects.borrow_mut().reset();
+        // Release any held synth voices so a sustained tone from the
+        // previous run doesn't get stuck playing across the state wipe.
+        crate::audio_engine::engine().post(crate::audio_engine::Event::StopAll);
         // Wipe Lua-registered pause-menu items so the next `_init()`
         // starts from a clean slate. Scripts that register in `_init`
         // would otherwise accumulate duplicates across resets.
@@ -1470,6 +1587,7 @@ impl Session {
             self.settings.sfx_volume = s;
             self.music.borrow_mut().set_volume(m);
             self.sfx.set_volume(s);
+            crate::audio_engine::engine().set_master_volume(s);
             if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
                 crate::msg::err!("settings write failed: {e}");
             }
@@ -1537,6 +1655,7 @@ impl Session {
                 let v = v.clamp(0.0, 1.0);
                 self.settings.sfx_volume = v;
                 self.sfx.set_volume(v);
+                crate::audio_engine::engine().set_master_volume(v);
                 if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
                     crate::msg::err!("settings write failed: {e}");
                 }
@@ -1621,7 +1740,6 @@ impl Session {
                         &["string", "number", "number", "number"],
                     )?,
                 )?;
-
                 let gfx_tbl: LuaTable = lua.globals().get("gfx")?;
                 let get_px = scope.create_function(|_, (x, y): (f32, f32)| {
                     Ok(crate::pixels::read_screen(screen_pixels_ref, x, y))
