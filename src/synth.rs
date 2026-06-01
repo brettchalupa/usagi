@@ -4,7 +4,7 @@
 //! (waveform + shape param) plus a [`LoopOsc`] phase accumulator produce
 //! per-sample audio. The samples are summed and enveloped by the
 //! audio-thread callback mixer (`audio_engine`), which is what `sfx.synth`
-//! drives (see ADR 0002). Pure f32 math means it works on web (emscripten)
+//! drives. Pure f32 math means it works on web (emscripten)
 //! unchanged; nothing here touches the filesystem or a native toolchain.
 
 /// Output sample rate, Hz. Matches raylib's default device rate so no

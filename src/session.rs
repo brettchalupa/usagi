@@ -1043,9 +1043,8 @@ impl Session {
 
         // Synthesized sound runs on the audio-thread callback mixer
         // (`audio_engine`). Attach its master processor once the device is
-        // up; on web the same callback fires on the Web-Audio backend
-        // (validated in `proto-audio-latency/`). The engine is a `'static`
-        // singleton, so the synth API just posts events to it.
+        // up; on web the same callback fires on the Web-Audio backend.
+        // The engine is a `'static` singleton, so the synth API just posts events to it.
         if let Some(a) = audio {
             // SAFETY: `a` is leaked to `'static`, so it outlives the
             // attachment; the device closes at process exit.

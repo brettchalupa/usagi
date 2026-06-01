@@ -1,15 +1,14 @@
 //! Amplitude modulators (envelopes) for the audio-thread callback mixer.
 //!
-//! M8-style envelope shapes evaluated **per sample inside the audio
-//! callback** (see ADR 0002). A modulator is pure DSP: it owns no heap,
+//! Envelope shapes evaluated **per sample inside the audio
+//! callback**. A modulator is pure DSP: it owns no heap,
 //! takes no locks, and never panics, so it is safe to tick on the audio
 //! thread. One [`Envelope`] lives per voice; the callback calls
 //! [`Envelope::tick`] once per output frame to get the voice's current
 //! amplitude gain in `0.0..=1.0`, then multiplies the oscillator sample by
 //! it.
 //!
-//! Three shapes, amplitude-only for now (M8 also modulates pitch/filter;
-//! that is future work):
+//! Three shapes, amplitude-only for now:
 //!
 //! - **AHD** — Attack, Hold, Decay to zero. A fully *timed* one-shot
 //!   envelope: it runs to completion on its own, ignoring how long the

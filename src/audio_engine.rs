@@ -1,5 +1,5 @@
-//! Audio-thread callback mixer — the core of usagi's synthesized sound
-//! (ADR 0002). A single `'static` processor is attached to raylib's master
+//! Audio-thread callback mixer — the core of usagi's synthesized sound.
+//! A single `'static` processor is attached to raylib's master
 //! mix via `AttachAudioMixedProcessor`; it owns a fixed array of voices and
 //! synthesizes + sums them straight into the output buffer on the audio
 //! thread, every device buffer.
@@ -8,8 +8,7 @@
 //! (note-on with a full patch, note-off, stop-all) through a lock-free
 //! single-producer / single-consumer ring. The callback drains the ring at
 //! the top of each buffer, mutates its voices, then renders. This is what
-//! keeps one-shots low-latency and immune to frame-rate stalls (validated
-//! native + web in `proto-audio-latency/`).
+//! keeps one-shots low-latency and immune to frame-rate stalls.
 //!
 //! ## Threading model
 //!
