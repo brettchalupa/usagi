@@ -166,17 +166,14 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     lua.globals().set("input", input)?;
 
     let sfx = lua.create_table()?;
-    // Waveform selectors for sfx.synth. Integer constants mirror the
-    // engine's enum idiom (gfx.COLOR_*, input.BTN1) and match
-    // crate::synth::Waveform::from_i32.
+    // Waveform selectors for sfx.synth; match crate::synth::Waveform::from_i32.
     sfx.set("SINE", 0)?;
     sfx.set("SAW", 1)?;
     sfx.set("SQUARE", 2)?;
     sfx.set("NOISE", 3)?;
     sfx.set("TRIANGLE", 4)?;
-    // Envelope (amplitude modulator) shapes for sfx.synth, matching
-    // crate::modulator::ModShape::from_i32. AHD / DRUM self-terminate
-    // (one-shots); ADSR sustains until sfx.stop(id).
+    // Envelope shapes; match crate::modulator::ModShape::from_i32. AHD/DRUM
+    // self-terminate; ADSR sustains until sfx.stop(id).
     sfx.set("AHD", 0)?;
     sfx.set("ADSR", 1)?;
     sfx.set("DRUM", 2)?;

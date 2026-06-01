@@ -7,19 +7,20 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
-- New seamless looping synthesis — sustained tones with no `.wav` files.
-  `sfx.synth_loop(handle, volume, pitch, pan)` starts a continuous voice
-  from an `sfx.synth` handle (or live-updates its volume/pitch/pan, so
-  pitch glides are click-free); `sfx.synth_stop(handle)` ends it. Up to 8
-  voices at once. For held notes, hums, charge-ups, sirens. See
-  `examples/synth_loop.lua`.
-- New programmatic sound synthesis — make tones without shipping `.wav`
-  files. `sfx.oscillator(duration, type, frequency, volume, parameter)`
-  synthesizes and plays a tone in one call; `sfx.synth({...})` builds a
-  reusable handle you trigger later with `sfx.play`. Waveforms:
-  `sfx.SINE`, `sfx.SAW`, `sfx.SQUARE`, `sfx.NOISE`. Volume and the
-  per-waveform shape `parameter` are `0..1`. See `examples/oscillator.lua`.
+- New programmatic sound synthesis — make tones on the audio thread with no
+  `.wav` files. `sfx.synth(opts)` starts a voice and returns its `id`;
+  waveforms `sfx.SINE`, `sfx.SAW`, `sfx.SQUARE`, `sfx.NOISE`, `sfx.TRIANGLE`
+  and envelope shapes `sfx.AHD`, `sfx.ADSR`, `sfx.DRUM`. `AHD`/`DRUM` are
+  fire-and-forget one-shots; `ADSR` sustains until `sfx.stop(id)`
+  (`sfx.stop_all()` releases every voice). A per-sample pitch `slide` gives
+  the arcade jump/coin/laser shape. Volume and the per-waveform `param`
+  shape control are `0..1`. Up to 16 voices at once; a 17th steals the
+  quietest. See `examples/synth.lua` (a 3-voice instrument) and
+  `examples/jumper.lua` (a platformer with fully synthesized sfx + music).
   [#297](https://github.com/brettchalupa/usagi/issues/297)
+- New live voice control for synthesized sound: `sfx.set_freq(id, hz)` glides
+  a sounding voice's pitch click-free (portamento / vibrato / sirens) and
+  `sfx.set_volume(id, vol)` swells or fades it.
 
 - New `usagi loveify <src> <dst>` subcommand: one-time port of an Usagi project
   to a Love2D 11.5 project. Walks the source tree, rewrites compound-assignment

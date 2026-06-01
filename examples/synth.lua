@@ -71,9 +71,7 @@ function _update()
   for _, row in ipairs(State.rows) do
     if input.pressed(row.action) then
       row.id = sfx.synth({
-        -- 0.3 keeps headroom: three voices at full sustain sum to ~0.7,
-        -- so a 3-note chord won't clip the mix (clipping is heard as a
-        -- faint cycling/buzz as detuned peaks drift in and out of phase).
+        -- 0.3 keeps headroom so a 3-note chord won't clip the mix.
         wave = WAVES[row.wave],
         freq = midi_to_freq(row.midi),
         volume = 0.3,

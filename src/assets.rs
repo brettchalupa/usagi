@@ -209,10 +209,8 @@ impl SpriteSheet {
     }
 }
 
-/// Decodes `bytes` into a `Wave` and allocates `want` playback voices
-/// from it. `label` names the sound in error messages (a file stem for
-/// disk sfx, or a friendly description for synthesized tones whose
-/// handle is opaque).
+/// Decodes `bytes` into a `Wave` and allocates `want` playback voices from it.
+/// `label` names the sound in error messages.
 fn load_voices<'a>(
     audio: &'a RaylibAudio,
     label: &str,

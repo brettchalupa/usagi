@@ -1,38 +1,26 @@
-//! Amplitude modulators (envelopes) for the audio-thread callback mixer.
+//! Amplitude envelopes for the callback mixer. Pure DSP (no heap, no locks, no
+//! panic), ticked per sample on the audio thread. One [`Envelope`] per voice;
+//! [`Envelope::tick`] returns the current gain `0.0..=1.0` to scale the sample.
 //!
-//! Envelope shapes evaluated **per sample inside the audio
-//! callback**. A modulator is pure DSP: it owns no heap,
-//! takes no locks, and never panics, so it is safe to tick on the audio
-//! thread. One [`Envelope`] lives per voice; the callback calls
-//! [`Envelope::tick`] once per output frame to get the voice's current
-//! amplitude gain in `0.0..=1.0`, then multiplies the oscillator sample by
-//! it.
+//! Three shapes:
 //!
-//! Three shapes, amplitude-only for now:
+//! - AHD: Attack, Hold, Decay to zero. A timed one-shot, ignores hold length.
+//!   For fire-and-forget sfx (jump, shoot).
+//! - ADSR: Attack, Decay to Sustain (held while gated), Release. Gate drop
+//!   drives the release. For sustained / looping voices.
+//! - DRUM: percussive one-shot — fast attack, curved decay to zero. AHD but
+//!   punchier.
 //!
-//! - **AHD** — Attack, Hold, Decay to zero. A fully *timed* one-shot
-//!   envelope: it runs to completion on its own, ignoring how long the
-//!   note is held. The natural fit for fire-and-forget sfx (jump, shoot).
-//! - **ADSR** — Attack, Decay to a Sustain level, hold while the note is
-//!   gated, then Release. The note-off (gate drop) drives the release, so
-//!   this is the shape for sustained / looping voices.
-//! - **DRUM** — a percussive one-shot: near-instant attack to peak, then a
-//!   curved (fast-then-slow) decay to zero. Like AHD but punchier; ignores
-//!   gate length.
+//! All shapes honor an early gate drop: it cuts to release from the current
+//! level, so a stopped voice fades instead of clicking.
 //!
-//! All shapes also honor an early gate drop: releasing the note before the
-//! envelope finishes cuts to the release stage from the current level, so
-//! a stopped voice fades out instead of clicking.
-//!
-//! Times are authored in milliseconds (the Lua-facing unit) and converted
-//! to whole sample counts at construction against [`SAMPLE_RATE`], so
+//! Times are authored in ms and converted to sample counts at construction, so
 //! `tick` does only integer compares and a couple of multiplies.
 
 use crate::synth::SAMPLE_RATE;
 
-/// Envelope shape selector. Integer reprs mirror the Lua-side constants
-/// (`AHD=0`, `ADSR=1`, `DRUM=2`), matching the engine's enum idiom
-/// (`gfx.COLOR_*`, `sfx.SINE`).
+/// Envelope shape selector. Integer reprs mirror the Lua constants
+/// (`AHD=0`, `ADSR=1`, `DRUM=2`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModShape {
     Ahd,
@@ -41,9 +29,8 @@ pub enum ModShape {
 }
 
 impl ModShape {
-    /// Maps the Lua-side integer constant to a variant. Out-of-range
-    /// values fall back to `Ahd` (a safe self-terminating default),
-    /// matching the engine's forgiving "unknown value no-ops" stance.
+    /// Maps the Lua integer constant to a variant; out-of-range falls back to
+    /// `Ahd` (a safe self-terminating default).
     pub fn from_i32(v: i32) -> Self {
         match v {
             1 => ModShape::Adsr,
@@ -65,38 +52,31 @@ enum Stage {
     Done,
 }
 
-/// A per-voice amplitude envelope. Construct once at note-on, then call
-/// [`tick`](Envelope::tick) once per output sample. `Copy` and entirely
-/// stack-resident: a voice array can hold these inline with no allocation.
-///
-/// Stage durations are stored as whole sample counts; `0` means an instant
-/// transition (no divide-by-zero in `tick`).
+/// A per-voice amplitude envelope. Construct at note-on, then
+/// [`tick`](Envelope::tick) once per sample. `Copy`, stack-resident.
+/// Stage durations are sample counts; `0` is an instant transition.
 #[derive(Debug, Clone, Copy)]
 pub struct Envelope {
     shape: ModShape,
     attack: u32,
     hold: u32,
     decay: u32,
-    /// Sustain level in `0.0..=1.0` (ADSR only; ignored otherwise).
+    /// Sustain level in `0.0..=1.0` (ADSR only).
     sustain: f32,
     release: u32,
 
     stage: Stage,
     /// Samples elapsed in the current stage.
     t: u32,
-    /// Gain returned by the previous tick. Used as the starting level for
-    /// an early release so the fade-out begins exactly where the voice was.
+    /// Gain from the previous tick; the start level for an early release.
     level: f32,
-    /// Level captured when Release was entered, so release lerps from the
-    /// actual current gain (which differs if release came mid-attack).
+    /// Level captured when Release was entered, so release lerps from there.
     release_from: f32,
 }
 
 impl Envelope {
-    /// Builds an envelope from millisecond times and a sustain level.
-    /// `sustain` is clamped to `0.0..=1.0`; it only matters for
-    /// [`ModShape::Adsr`]. Times are clamped non-negative and rounded to
-    /// whole samples.
+    /// Builds an envelope from ms times and a sustain level. `sustain` is
+    /// clamped (ADSR only); times are clamped non-negative, rounded to samples.
     pub fn new(
         shape: ModShape,
         attack_ms: f32,
@@ -119,10 +99,8 @@ impl Envelope {
         }
     }
 
-    /// An already-finished envelope for an inactive voice slot. `const` so
-    /// a fixed voice array can be initialized at compile time; overwritten
-    /// by [`new`](Envelope::new) when the slot is claimed. Reports
-    /// [`is_done`](Envelope::is_done) immediately.
+    /// A finished envelope for an inactive voice slot. `const` for
+    /// compile-time array init; overwritten by [`new`](Envelope::new) on claim.
     pub const fn silent() -> Self {
         Self {
             shape: ModShape::Ahd,
@@ -138,27 +116,22 @@ impl Envelope {
         }
     }
 
-    /// The gain emitted by the most recent [`tick`](Envelope::tick) (or
-    /// `0.0` before the first). The mixer uses this to steal the quietest
-    /// voice when all slots are busy.
+    /// The gain from the most recent [`tick`](Envelope::tick) (`0.0` before the
+    /// first). Used by the mixer to steal the quietest voice.
     pub fn current_gain(&self) -> f32 {
         self.level
     }
 
-    /// True once the envelope has fully run out. A voice whose envelope is
-    /// finished contributes silence and can be reclaimed by the mixer.
+    /// True once the envelope has run out; its voice can be reclaimed.
     pub fn is_done(&self) -> bool {
         self.stage == Stage::Done
     }
 
-    /// Advances one sample and returns the amplitude gain `0.0..=1.0` for
-    /// this frame. `gate` is whether the note is still held: dropping it
-    /// (note-off) moves the envelope into Release from wherever it is. AHD
-    /// and DRUM self-terminate, so for them `gate` only matters as an early
-    /// cut; ADSR waits in Sustain until `gate` goes false.
+    /// Advances one sample and returns the gain `0.0..=1.0`. A `gate` drop
+    /// (note-off) moves into Release from wherever it is; AHD/DRUM self-
+    /// terminate regardless, ADSR waits in Sustain until the gate drops.
     pub fn tick(&mut self, gate: bool) -> f32 {
-        // A gate drop anywhere before Release cuts to the release stage,
-        // fading from the level we last emitted (no click).
+        // A gate drop before Release cuts to release from the last level.
         if !gate && !matches!(self.stage, Stage::Release | Stage::Done) {
             self.enter_release();
         }
@@ -167,12 +140,9 @@ impl Envelope {
             Stage::Attack => ramp_up(self.t, self.attack),
             Stage::Hold => 1.0,
             Stage::Decay => {
-                // Decay falls toward the floor. Only ADSR rests at a
-                // non-zero sustain; AHD/DRUM always decay to zero (their
-                // `sustain` field is unused, so the Patch's ADSR-oriented
-                // default must not leave them stuck at full amplitude and
-                // then hard-cut to silence — that was an audible click).
-                // DRUM curves the fall (squared) for a punchier tail.
+                // ADSR rests at `sustain`; AHD/DRUM decay to zero (a non-zero
+                // floor here would hard-cut to silence and click). DRUM squares
+                // the fall for a punchier tail.
                 let floor = if self.shape == ModShape::Adsr {
                     self.sustain
                 } else {
@@ -246,9 +216,7 @@ impl Envelope {
     }
 
     /// Enters Release, capturing the current level so the fade starts from
-    /// exactly where the voice is (whether that's full sustain or a partial
-    /// attack). A zero-length release lands on Done immediately via the
-    /// next `advance`.
+    /// wherever the voice is (full sustain or a partial attack).
     fn enter_release(&mut self) {
         self.release_from = self.level;
         self.goto(Stage::Release);

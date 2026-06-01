@@ -1,32 +1,16 @@
-//! Audio-thread callback mixer — the core of usagi's synthesized sound.
-//! A single `'static` processor is attached to raylib's master
-//! mix via `AttachAudioMixedProcessor`; it owns a fixed array of voices and
-//! synthesizes + sums them straight into the output buffer on the audio
-//! thread, every device buffer.
+//! Audio-thread callback mixer for synthesized sound. A `'static` processor
+//! attached to raylib's master mix via `AttachAudioMixedProcessor` owns a
+//! fixed voice array and sums them into the output buffer on the audio thread.
 //!
-//! The game thread never touches a voice. It only **posts events**
-//! (note-on with a full patch, note-off, stop-all) through a lock-free
-//! single-producer / single-consumer ring. The callback drains the ring at
-//! the top of each buffer, mutates its voices, then renders. This is what
-//! keeps one-shots low-latency and immune to frame-rate stalls.
+//! The game thread only posts events (note-on/off, set-param, stop-all) through
+//! a lock-free SPSC ring; the callback drains the ring per buffer, then renders.
 //!
-//! ## Threading model
+//! Threading: one producer (game thread, `engine().post`), one consumer (audio
+//! thread, [`mix`]). The voice array is touched only by the consumer, so it
+//! needs no locks. The `unsafe` rests on that invariant.
 //!
-//! - **Producer:** exactly one thread posts events — the game/main thread
-//!   (`engine().post(..)`). usagi drives Lua from a single thread, so this
-//!   holds.
-//! - **Consumer:** exactly one thread drains + renders — raylib's audio
-//!   thread, inside [`mix`]. The voice array is touched *only* there.
-//!
-//! Because of that 1:1 split the ring needs no locks, and the voices need
-//! no synchronization at all (one accessor thread). The `unsafe` rests on
-//! that invariant, not on the borrow checker.
-//!
-//! ## Real-time discipline (the callback)
-//!
-//! [`mix`] does **no heap allocation, takes no locks, and never panics**:
-//! fixed-size ring + fixed voice array, pure f32 math, soft-clip mix. An
-//! event posted when the ring is full is dropped, never blocks the producer.
+//! [`mix`] does no alloc, takes no locks, never panics: fixed ring + voice
+//! array, f32 math, soft-clip. A post to a full ring is dropped, never blocks.
 
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
@@ -34,30 +18,23 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use crate::modulator::{Envelope, ModShape};
 use crate::synth::{LoopOsc, SynthSpec};
 
-/// Maximum simultaneous synth voices. Beyond this the mixer steals the
-/// quietest voice. 16 is generous for chiptune-style sfx without making the
-/// per-frame voice sweep costly.
+/// Max simultaneous voices; a further note-on steals the quietest.
 pub const MAX_VOICES: usize = 16;
 
-/// Capacity of the game -> audio event ring. A frame posts at most a
-/// handful of events; 256 absorbs bursts (e.g. a chord) with margin. Must
-/// be a power of two for the wrap mask.
+/// Game -> audio event ring capacity. Power of two for the wrap mask; 256
+/// absorbs bursts (e.g. a chord) with margin.
 const RING_CAP: usize = 256;
 const RING_MASK: usize = RING_CAP - 1;
 
-/// A fully-resolved note-on patch: everything the audio thread needs to
-/// build and run a voice, all `Copy` so it crosses the ring without
-/// allocation. `id` ties a later note-off / param change back to this voice.
+/// A resolved note-on, `Copy` so it crosses the ring without allocation.
+/// `id` ties a later note-off / set-param back to this voice.
 #[derive(Debug, Clone, Copy)]
 pub struct Patch {
-    /// Unique voice id (from [`AudioEngine::next_id`]). A later
-    /// [`Event::NoteOff`] addresses the voice by this id.
     pub id: u32,
     pub spec: SynthSpec,
-    /// Starting frequency in Hz. Carried separately from `spec` so a glide
-    /// (future param change) can move it without re-keying the spec.
+    /// Base frequency in Hz; the slide bends around it, set-param retargets it.
     pub freq_hz: f32,
-    /// Playback amplitude `0.0..=1.0`, applied on top of the envelope.
+    /// Amplitude `0.0..=1.0`, applied on top of the envelope.
     pub volume: f32,
     pub shape: ModShape,
     pub attack_ms: f32,
@@ -65,34 +42,24 @@ pub struct Patch {
     pub decay_ms: f32,
     pub sustain: f32,
     pub release_ms: f32,
-    /// Pitch bend in semitones applied from note-on, reaching its full value
-    /// after `slide_ms` and then held. 0 = no sweep; positive bends up,
-    /// negative down. Evaluated per-sample in the callback (smooth, no 60fps
-    /// stair-step) — this is the arcade jump/coin/laser knob.
+    /// Pitch bend in semitones, reached over `slide_ms` from note-on then held
+    /// (+up/-down, 0 = none). Evaluated per-sample. The arcade jump/coin knob.
     pub slide_semitones: f32,
-    /// Window over which `slide_semitones` completes, in ms. Game-side the
-    /// default is the patch's `decay`.
+    /// Slide window in ms; defaults game-side to `decay_ms`.
     pub slide_ms: f32,
 }
 
-/// An event posted from the game thread to the audio thread. `Copy` +
-/// `'static`, no heap.
+/// An event from the game thread to the audio thread.
 #[derive(Debug, Clone, Copy)]
 pub enum Event {
     /// Start (or retrigger) the voice identified by `Patch::id`.
     NoteOn(Patch),
-    /// Drop the gate on the voice with this id, moving it to release. A
-    /// no-op if no live voice matches.
+    /// Drop the gate on this voice (-> release). No-op if no live match.
     NoteOff { id: u32 },
-    /// Live-update fields of the voice with this id; `None` fields are left
-    /// unchanged. `freq_hz` glides click-free (phase is continuous);
-    /// `volume` swells. A no-op if no live voice matches. Envelope/waveform
-    /// are not retargetable mid-voice (the envelope is a running state
-    /// machine), so they stay baked at note-on. Note: `freq_hz` is the
-    /// voice's *base* frequency, which any active pitch `slide` bends around
-    /// — retuning a still-sliding voice rebases the bend. In practice slide
-    /// is used on fire-and-forget one-shots and `set_freq` on un-slid
-    /// sustained voices, so the two don't overlap.
+    /// Live-update a voice; `None` fields stay put. `freq_hz` glides click-free
+    /// (continuous phase), `volume` swells. Envelope/waveform stay baked at
+    /// note-on. Retuning a still-sliding voice rebases the bend, but slide is
+    /// used on one-shots and set_freq on un-slid sustained voices.
     SetParam {
         id: u32,
         freq_hz: Option<f32>,
@@ -102,28 +69,24 @@ pub enum Event {
     StopAll,
 }
 
-/// One audio-thread-owned voice. Inactive voices contribute nothing and are
-/// free to claim.
+/// One audio-thread-owned voice. Inactive voices are free to claim.
 struct Voice {
     active: bool,
     id: u32,
     osc: LoopOsc,
     env: Envelope,
-    /// Base (un-slid) frequency. The per-sample pitch slide bends around
-    /// this, and `SetParam` retargets it.
+    /// Base (un-slid) frequency; the slide bends around it, set-param retargets.
     freq_hz: f32,
     /// Pitch slide depth in semitones (see [`Patch::slide_semitones`]).
     slide_semitones: f32,
-    /// Slide window in samples; the bend reaches full depth here, then holds.
-    /// 0 disables the slide.
+    /// Slide window in samples; 0 disables the slide.
     slide_samples: f32,
-    /// Samples elapsed since note-on, the slide's progress clock.
+    /// Samples since note-on; the slide's progress clock.
     age: f32,
     volume: f32,
-    /// Whether the note is still held. Note-off clears it, sending the
-    /// envelope into release; AHD/DRUM self-terminate regardless.
+    /// Note still held. Note-off clears it (-> release); AHD/DRUM self-terminate.
     gate: bool,
-    /// Monotonic claim order, for oldest-voice tie-breaking when stealing.
+    /// Monotonic claim order, for oldest-voice tie-break when stealing.
     seq: u64,
 }
 
@@ -164,8 +127,7 @@ impl EventRing {
         }
     }
 
-    /// Producer side. Returns `false` (dropping the event) if the ring is
-    /// full — the audio thread must never be blocked waiting for space.
+    /// Producer side. Returns `false` (dropping the event) if the ring is full.
     ///
     /// # Safety
     /// Must be called from the single producer thread only.
@@ -200,37 +162,30 @@ impl EventRing {
     }
 }
 
-/// The whole engine: the event ring plus the voice array. A single
-/// `'static` instance ([`engine`]) backs the master processor, since
-/// `AttachAudioMixedProcessor` passes no user pointer to the callback.
+/// The engine: event ring plus voice array. A single `'static` instance
+/// ([`engine`]) backs the master processor, since the callback gets no user
+/// pointer.
 pub struct AudioEngine {
     ring: EventRing,
-    /// Audio-thread-only. `UnsafeCell` because the callback mutates it
-    /// through a shared `&'static AudioEngine`; sound only because exactly
-    /// one thread (the audio thread) ever touches it.
+    /// Audio-thread-only; `UnsafeCell` since the callback mutates it through a
+    /// shared `&'static`. Sound because only the audio thread touches it.
     voices: UnsafeCell<[Voice; MAX_VOICES]>,
-    /// Monotonic counter for voice claim order (audio-thread-only).
+    /// Voice claim order (audio-thread-only).
     seq: UnsafeCell<u64>,
-    /// Master synth volume (pause-menu sfx level) as f32 bits. Read on the
-    /// audio thread, written on the game thread — an atomic so the two don't
-    /// tear. Applied on top of each voice's own volume in [`render`].
+    /// Master synth volume (pause-menu sfx level) as f32 bits. Written
+    /// game-thread, read audio-thread; atomic so it can't tear.
     master_vol_bits: AtomicU32,
-    /// Source of unique voice ids handed to the game thread by
-    /// [`next_id`](AudioEngine::next_id), so a one-shot can still be stopped
-    /// early and two concurrent voices never collide.
+    /// Source of unique voice ids handed to the game thread.
     next_id: AtomicU32,
-    /// Set once the processor is attached, so we don't double-attach.
+    /// Set once the processor is attached, to avoid double-attach.
     attached: AtomicBool,
-    /// When true, [`render`] emits silence and freezes voice state (envelopes
-    /// and slide age don't advance), so the engine-level pause overlay
-    /// silences sustained synth voices and resumes them exactly where they
-    /// left off. Written game-thread, read audio-thread.
+    /// While true, [`render`] emits silence and freezes voice state, so a
+    /// sustained voice resumes where it left off. Written game, read audio.
     paused: AtomicBool,
 }
 
-// SAFETY: cross-thread sharing is sound by construction — the ring is a
-// correct SPSC structure, and `voices`/`seq` are touched only by the audio
-// thread. See the module-level threading model.
+// SAFETY: the ring is a correct SPSC structure and `voices`/`seq` are touched
+// only by the audio thread. See the module-level threading model.
 unsafe impl Sync for AudioEngine {}
 
 impl AudioEngine {
@@ -246,56 +201,47 @@ impl AudioEngine {
         }
     }
 
-    /// Pauses (`true`) or resumes (`false`) synth output. While paused,
-    /// [`render`] adds silence and leaves all voice state untouched, so a
-    /// sustained voice picks up where it left off on resume. Game-thread side.
+    /// Pauses/resumes synth output; while paused, voice state is frozen.
     pub fn set_paused(&self, paused: bool) {
         self.paused.store(paused, Ordering::Relaxed);
     }
 
     /// Posts an event from the game thread. Returns `false` if the ring was
-    /// full and the event was dropped. Lock-free; safe to call every frame.
+    /// full and the event dropped. Lock-free; safe to call every frame.
     pub fn post(&self, ev: Event) -> bool {
         // SAFETY: usagi posts from a single thread (the game loop).
         unsafe { self.ring.push(ev) }
     }
 
     /// Sets the master synth volume `0.0..=1.0` (pause-menu sfx level).
-    /// Game-thread side; takes effect on the next audio buffer.
     pub fn set_master_volume(&self, v: f32) {
         self.master_vol_bits
             .store(v.clamp(0.0, 1.0).to_bits(), Ordering::Relaxed);
     }
 
-    /// Returns a fresh, never-reused voice id for the game thread to pass in
-    /// a [`Patch`] and later address with [`Event::NoteOff`].
+    /// Returns a fresh, never-reused voice id for the game thread.
     pub fn next_id(&self) -> u32 {
         self.next_id.fetch_add(1, Ordering::Relaxed)
     }
 
-    /// Renders `frames` stereo frames, **adding** the synth mix into the
-    /// interleaved f32 `buf` (`frames * 2` samples). Drains pending events
-    /// first, then sweeps voices per frame. Audio-thread only.
+    /// Renders `frames` stereo frames, adding the synth mix into the
+    /// interleaved f32 `buf` (`frames * 2` samples). Audio-thread only.
     ///
     /// # Safety
     /// Must be called from the single consumer (audio) thread only.
     unsafe fn render(&self, buf: &mut [f32], frames: usize) {
-        // Drain all queued events into voice state up front.
         // SAFETY: consumer-thread-only access to the ring and voices.
         while let Some(ev) = unsafe { self.ring.pop() } {
             unsafe { self.apply(ev) };
         }
 
-        // Paused: leave `buf` as-is (additive mix => silence) and don't touch
-        // voice state, so envelopes and slide age freeze and resume cleanly.
+        // Paused: leave `buf` as-is (additive => silence) and freeze voices.
         if self.paused.load(Ordering::Relaxed) {
             return;
         }
 
         let master = f32::from_bits(self.master_vol_bits.load(Ordering::Relaxed));
-        // Defensive: never index past the buffer. By contract `buf` is
-        // `frames * 2` stereo samples, but clamping keeps a mismatched
-        // host buffer from panicking the audio thread (RT-safety).
+        // Clamp so a mismatched host buffer can't panic the audio thread.
         let frames = frames.min(buf.len() / 2);
         let voices = unsafe { &mut *self.voices.get() };
         for frame in 0..frames {
@@ -305,9 +251,8 @@ impl AudioEngine {
                     continue;
                 }
                 let g = v.env.tick(v.gate);
-                // Per-sample pitch slide: bend `slide_semitones` over the
-                // first `slide_samples`, then hold. Linear in semitones =
-                // exponential in Hz, so it sounds like a steady glide.
+                // Per-sample slide over the first `slide_samples`, then hold.
+                // Linear in semitones = exponential in Hz = a steady glide.
                 let eff_freq = if v.slide_samples > 0.0 && v.slide_semitones != 0.0 {
                     let progress = (v.age / v.slide_samples).min(1.0);
                     v.freq_hz * 2.0f32.powf(v.slide_semitones / 12.0 * progress)
@@ -320,12 +265,9 @@ impl AudioEngine {
                     v.active = false;
                 }
             }
-            // Soft-clip (tanh) so a dense chord can't blow past full-scale
-            // and wrap. tanh has unit slope at 0, so quiet signals pass
-            // through ~transparently; it only bends as the sum nears the
-            // rail and asymptotes to +/-1 (still a hard bound). A plain
-            // clamp instead flat-topped peaks, and with detuned voices the
-            // clip engaged periodically -> an audible cycling buzz.
+            // tanh soft-clip: a dense chord can't wrap past full-scale, while
+            // quiet signals pass near-transparently (unit slope at 0). A plain
+            // clamp flat-topped peaks and buzzed with detuned voices.
             let s = (acc * master).tanh();
             buf[frame * 2] += s;
             buf[frame * 2 + 1] += s;
@@ -398,10 +340,8 @@ impl AudioEngine {
     }
 }
 
-/// Chooses a voice slot for a new note: the first inactive slot, else the
-/// quietest active voice (lowest current envelope gain), tie-broken by the
-/// oldest (smallest `seq`). Stealing the quietest minimizes the audible
-/// disruption of running out of voices.
+/// Picks a slot for a new note: first inactive slot, else the quietest active
+/// voice (lowest envelope gain), tie-broken by oldest `seq`.
 fn pick_slot(voices: &[Voice; MAX_VOICES]) -> usize {
     if let Some(i) = voices.iter().position(|v| !v.active) {
         return i;
@@ -429,16 +369,14 @@ pub fn engine() -> &'static AudioEngine {
 }
 
 /// The master mixed processor. raylib invokes this on the audio thread with
-/// the interleaved f32 stereo master buffer (`frames * 2` samples); we add
-/// the synth mix in place.
+/// the interleaved f32 stereo buffer (`frames * 2` samples); we add in place.
 ///
 /// # Safety
 /// Invoked by raylib on the audio thread only; `buffer` is valid for
 /// `frames * 2` f32 samples for the duration of the call.
 pub unsafe extern "C" fn mix(buffer: *mut std::ffi::c_void, frames: u32) {
     let buf = unsafe { std::slice::from_raw_parts_mut(buffer as *mut f32, frames as usize * 2) };
-    // SAFETY: raylib calls this on a single audio thread — the sole
-    // consumer of the ring and the only toucher of the voice array.
+    // SAFETY: raylib calls this on the single audio thread (sole consumer).
     unsafe { ENGINE.render(buf, frames as usize) };
 }
 

@@ -447,17 +447,11 @@ fn register_music_api(
     Ok(())
 }
 
-/// Installs the synthesized-sound API once at session startup. All three
-/// closures post events to the `'static` `audio_engine` (the audio-thread
-/// callback mixer), so they're callable from `_init`, `_update`, or `_draw`
-/// alike — there is no per-frame borrow to scope, unlike the file-backed
-/// `sfx.play` / `sfx.play_ex`.
-///
-/// - `sfx.synth(opts) -> id` starts a voice and returns its id. A
-///   self-terminating shape (AHD / DRUM) plays a one-shot; an ADSR voice
-///   sustains until `sfx.stop(id)`.
-/// - `sfx.stop(id)` drops the gate on that voice (release).
-/// - `sfx.stop_all()` releases every synth voice.
+/// Installs the synthesized-sound API at session startup. The closures post
+/// events to the `'static` `audio_engine`, so they're callable from any of
+/// `_init`/`_update`/`_draw` with no per-frame borrow to scope:
+/// `sfx.synth(opts) -> id` (AHD/DRUM one-shot, ADSR sustains until stop),
+/// `sfx.stop(id)`, `sfx.stop_all()`, `sfx.set_freq`, `sfx.set_volume`.
 fn register_synth_api(lua: &Lua) -> LuaResult<()> {
     use crate::audio_engine::{Event, Patch, engine};
     use crate::modulator::ModShape;
@@ -470,8 +464,7 @@ fn register_synth_api(lua: &Lua) -> LuaResult<()> {
         let volume: f32 = opts.get::<Option<f32>>("volume")?.unwrap_or(1.0);
         let param: f32 = opts.get::<Option<f32>>("param")?.unwrap_or(0.5);
         let shape = ModShape::from_i32(opts.get::<Option<i32>>("shape")?.unwrap_or(0));
-        // Millisecond envelope times. Defaults give a short percussive
-        // blip (AHD) that still sounds good if the game sets nothing.
+        // Envelope times (ms). Defaults give a short percussive blip (AHD).
         let attack_ms = opts.get::<Option<f32>>("attack")?.unwrap_or(4.0);
         let hold_ms = opts.get::<Option<f32>>("hold")?.unwrap_or(0.0);
         let decay_ms = opts.get::<Option<f32>>("decay")?.unwrap_or(120.0);
@@ -482,8 +475,7 @@ fn register_synth_api(lua: &Lua) -> LuaResult<()> {
         let slide_ms = opts.get::<Option<f32>>("slide_ms")?.unwrap_or(decay_ms);
 
         let id = engine().next_id();
-        // duration is unused by the mixer (the envelope drives length); a
-        // zero keeps the spec well-formed for the oscillator + noise seed.
+        // duration is unused by the mixer (the envelope drives length).
         let spec = crate::synth::SynthSpec::new(wave, freq_hz.round() as i32, 0, param);
         engine().post(Event::NoteOn(Patch {
             id,
@@ -1041,10 +1033,8 @@ impl Session {
         register_music_api(&lua, &music)
             .map_err(|e| crate::Error::Cli(format!("registering music.* API: {e}")))?;
 
-        // Synthesized sound runs on the audio-thread callback mixer
-        // (`audio_engine`). Attach its master processor once the device is
-        // up; on web the same callback fires on the Web-Audio backend.
-        // The engine is a `'static` singleton, so the synth API just posts events to it.
+        // Attach the synth mixer's master processor once the device is up
+        // (on web the same callback fires on the Web-Audio backend).
         if let Some(a) = audio {
             // SAFETY: `a` is leaked to `'static`, so it outlives the
             // attachment; the device closes at process exit.
@@ -1436,8 +1426,7 @@ impl Session {
     /// run doesn't freeze the new one.
     fn reset_game(&mut self) {
         self.effects.borrow_mut().reset();
-        // Release any held synth voices so a sustained tone from the
-        // previous run doesn't get stuck playing across the state wipe.
+        // Release held synth voices so a sustained tone doesn't survive the wipe.
         crate::audio_engine::engine().post(crate::audio_engine::Event::StopAll);
         // Wipe Lua-registered pause-menu items so the next `_init()`
         // starts from a clean slate. Scripts that register in `_init`

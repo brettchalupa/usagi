@@ -79,10 +79,9 @@ local BASS_STEPS = notes(BASS_NAMES)
 local STEP_SECONDS = 0.18 -- time per step (~133 BPM in 8ths)
 local STEPS_PER_BAR = 8
 
--- A sustained 2-note pad chord progression. Each entry is a chord (note
--- names, one sustained voice each) held for `bars`. The two ADSR voices are
--- started once and *retuned* on each chord change (a smooth glide), so the
--- pad never re-attacks -- it just shifts.
+-- A sustained pad chord progression, each chord held for `bars`. The ADSR
+-- voices start once and retune on each chord change, so the pad glides
+-- between chords instead of re-attacking.
 local PAD_PROG = {
   { names = { "A3", "C4", "E4" }, bars = 2 },
   { names = { "E3", "G3", "D4" }, bars = 2 },
@@ -93,9 +92,8 @@ for _, entry in ipairs(PAD_PROG) do
 end
 local PAD_VOLUME = 0.1 -- per voice; two voices + bass must not clip the mix
 
--- Flatten PAD_PROG into a per-step chord-index lookup so the pad rides the
--- same step clock as the bass -- one master clock means they can't drift.
--- PAD_BY_STEP[step] = which PAD_PROG entry is sounding on that step.
+-- Per-step chord-index lookup so the pad rides the same clock as the bass.
+-- PAD_BY_STEP[step] = which PAD_PROG entry sounds on that step.
 local PAD_BY_STEP = {}
 do
   local step = 1
@@ -109,9 +107,8 @@ end
 -- The whole song loops over the longer of bass / pad, in steps.
 local SONG_STEPS = math.max(#BASS_STEPS, #PAD_BY_STEP)
 
--- Per-instrument activity meters. Each one spikes to 1 when its instrument
--- sounds and decays back to 0, drawn as a pulsing bar (see draw_meters). The
--- order here is the draw order, top to bottom.
+-- Per-instrument activity meters: each spikes to 1 when its instrument sounds
+-- and decays to 0, drawn as a pulsing bar (see draw_meters). Listed top-down.
 local METERS = {
   { key = "pad",  label = "PAD",  color = gfx.COLOR_INDIGO },
   { key = "bass", label = "BASS", color = gfx.COLOR_ORANGE },
@@ -218,9 +215,8 @@ local function overlaps(px, py, pw, ph, r)
 end
 
 function _update(dt)
-  -- Master song clock: every STEP_SECONDS, fire the bass note for this step
-  -- and, if the pad's chord changed on this step, glide the pad voices.
-  -- Both read the same `step`, so they stay perfectly in sync.
+  -- Master song clock: every STEP_SECONDS fire this step's bass note and, on a
+  -- chord change, glide the pad. Both read the same `step`, so they stay synced.
   State.step_timer = State.step_timer + dt
   if State.step_timer >= STEP_SECONDS then
     State.step_timer = State.step_timer - STEP_SECONDS

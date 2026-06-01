@@ -1,19 +1,13 @@
-//! Oscillator primitives for synthesized sound.
-//!
-//! This module is the platform-agnostic generator core: a [`SynthSpec`]
-//! (waveform + shape param) plus a [`LoopOsc`] phase accumulator produce
-//! per-sample audio. The samples are summed and enveloped by the
-//! audio-thread callback mixer (`audio_engine`), which is what `sfx.synth`
-//! drives. Pure f32 math means it works on web (emscripten)
-//! unchanged; nothing here touches the filesystem or a native toolchain.
+//! Oscillator primitives for synthesized sound. A [`SynthSpec`] (waveform +
+//! shape param) plus a [`LoopOsc`] phase accumulator produce per-sample audio,
+//! summed and enveloped by the callback mixer (`audio_engine`). Pure f32 math,
+//! no filesystem or native toolchain, so it works on web unchanged.
 
-/// Output sample rate, Hz. Matches raylib's default device rate so no
-/// resampling happens on playback.
+/// Output sample rate, Hz. Matches raylib's device rate (no resampling).
 pub const SAMPLE_RATE: u32 = 44_100;
 
-/// Waveform selector. Integer reprs mirror the Lua-side `sfx.*`
-/// constants (`SINE=0 .. TRIANGLE=4`), matching the engine's enum idiom
-/// (`gfx.COLOR_*`, `input.BTN1`).
+/// Waveform selector. Integer reprs mirror the Lua `sfx.*` constants
+/// (`SINE=0 .. TRIANGLE=4`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Waveform {
     Sine,
@@ -24,10 +18,8 @@ pub enum Waveform {
 }
 
 impl Waveform {
-    /// Maps the Lua-side integer constant to a variant. Out-of-range
-    /// values fall back to `Sine` (a silent-ish safe default) rather
-    /// than erroring, matching the engine's forgiving "unknown name
-    /// no-ops" stance for sfx.
+    /// Maps the Lua integer constant to a variant; out-of-range falls back to
+    /// `Sine` rather than erroring (the engine's forgiving stance).
     pub fn from_i32(v: i32) -> Self {
         match v {
             1 => Waveform::Saw,
@@ -40,18 +32,15 @@ impl Waveform {
 }
 
 /// A waveform + shape request for building a [`LoopOsc`]. `param` is the
-/// per-waveform shape control (`0..1`): pulse width (square), peak skew
-/// (saw), softness (noise), phase offset (sine). `frequency_hz` seeds the
-/// noise RNG and is a nominal pitch; the live frequency is supplied per
-/// sample so a voice can glide. Volume and envelope live elsewhere (on the
-/// voice), not here.
+/// per-waveform shape control (`0..1`): pulse width (square), phase offset
+/// (saw/sine/triangle), softness (noise). `frequency_hz` seeds the noise RNG;
+/// the live pitch is supplied per sample so a voice can glide.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SynthSpec {
     pub wave: i32,
     pub frequency_hz: u32,
     pub duration_ms: u32,
-    /// param in milli-units (`0..=1000`) — integer so the spec stays
-    /// `Hash`/`Eq` without float comparison.
+    /// param in milli-units (`0..=1000`); integer so the spec stays `Hash`/`Eq`.
     pub param_milli: u16,
 }
 
@@ -69,9 +58,8 @@ impl SynthSpec {
         self.param_milli as f32 / 1000.0
     }
 
-    /// Deterministic non-zero RNG seed derived from the spec, so noise
-    /// tones that differ in any field get a distinct sequence while a
-    /// given spec always produces the same sequence (reproducible voices).
+    /// Deterministic non-zero RNG seed derived from the spec: distinct specs
+    /// get distinct sequences, a given spec is reproducible.
     fn noise_seed(&self) -> u32 {
         let mut h: u32 = 0x811C_9DC5; // FNV-ish mix
         for v in [
@@ -101,18 +89,13 @@ fn sample(wave: Waveform, t: f32, param: f32, rng: &mut u32) -> f32 {
             }
         }
         Waveform::Saw => {
-            // True sawtooth: a monotonic ramp -1 -> 1 with a sharp reset each
-            // cycle (rich, buzzy harmonics). `param` shifts the phase like
-            // sine so it stays a useful knob without rounding the shape -- the
-            // old "peak skew" turned param=0.5 into a symmetric triangle,
-            // which is why the saw sounded like a sine/triangle.
+            // Monotonic ramp -1 -> 1 with a sharp per-cycle reset; `param`
+            // offsets the phase.
             let p = (t + param).fract();
             2.0 * p - 1.0
         }
         Waveform::Triangle => {
-            // Symmetric triangle, softer/rounder than saw; `param` offsets
-            // the phase like sine. Rises -1->1 over the first half-cycle,
-            // falls back over the second.
+            // Symmetric triangle, softer than saw; `param` offsets the phase.
             let p = (t + param).fract();
             if p < 0.5 {
                 4.0 * p - 1.0
@@ -121,9 +104,8 @@ fn sample(wave: Waveform, t: f32, param: f32, rng: &mut u32) -> f32 {
             }
         }
         Waveform::Noise => {
-            // Raw white noise via xorshift. `param` (softness) is applied
-            // as a low-pass in `LoopOsc::next_sample`, which has the filter
-            // state — blending toward a sine here made the noise tonal.
+            // White noise via xorshift; `param` softness is low-passed in
+            // `LoopOsc::next_sample` (which holds the filter state).
             *rng ^= *rng << 13;
             *rng ^= *rng >> 17;
             *rng ^= *rng << 5;
@@ -132,11 +114,9 @@ fn sample(wave: Waveform, t: f32, param: f32, rng: &mut u32) -> f32 {
     }
 }
 
-/// A continuous, stateful oscillator. Advances a phase accumulator across
-/// [`next_sample`](LoopOsc::next_sample) calls so a held voice has no seam.
-/// Because phase is continuous, changing `freq_hz` (pitch glides) between
-/// samples never clicks. Noise keeps its `rng` state across calls so it
-/// doesn't repeat at a buffer boundary.
+/// A continuous, stateful oscillator. Its phase accumulator carries across
+/// [`next_sample`](LoopOsc::next_sample) calls, so a held voice has no seam and
+/// pitch glides don't click. Noise carries its `rng` state too.
 pub struct LoopOsc {
     wave: Waveform,
     param: f32,
@@ -148,9 +128,8 @@ pub struct LoopOsc {
 }
 
 impl LoopOsc {
-    /// A do-nothing oscillator for an inactive voice slot. `const` so a
-    /// fixed voice array can be initialized at compile time; the values are
-    /// overwritten by [`new`](LoopOsc::new) when the slot is claimed.
+    /// A do-nothing oscillator for an inactive voice slot. `const` for
+    /// compile-time array init; overwritten by [`new`](LoopOsc::new) on claim.
     pub const fn silent() -> Self {
         Self {
             wave: Waveform::Sine,
@@ -173,12 +152,9 @@ impl LoopOsc {
         }
     }
 
-    /// Generates one oscillator sample in `-1.0..=1.0` at `freq_hz` and
-    /// advances the phase. Amplitude is the caller's concern (the callback
-    /// mixer multiplies in the envelope gain), so this returns the raw
-    /// waveform. `freq_hz <= 0` emits silence without advancing phase, so a
-    /// paused voice doesn't drift. Called once per output frame by the
-    /// audio-thread callback mixer, which sums many voices per frame.
+    /// Generates one raw sample in `-1.0..=1.0` at `freq_hz` and advances the
+    /// phase (the mixer applies envelope gain). `freq_hz <= 0` emits silence
+    /// without advancing, so a paused voice doesn't drift.
     pub fn next_sample(&mut self, freq_hz: f32) -> f32 {
         if freq_hz <= 0.0 {
             return 0.0;
@@ -190,9 +166,8 @@ impl LoopOsc {
             self.phase -= self.phase.floor();
         }
         if self.wave == Waveform::Noise {
-            // One-pole low-pass: softness (`param`) darkens the noise
-            // toward a rumble while keeping it untuned. param 0 -> white
-            // (coeff 1, no smoothing); param 1 -> heavily smoothed.
+            // One-pole low-pass: `param` softness darkens the noise. param 0 ->
+            // white (no smoothing); param 1 -> heavily smoothed.
             let coeff = (1.0 - self.param).clamp(0.05, 1.0);
             self.lp += coeff * (s - self.lp);
             return self.lp;
