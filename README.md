@@ -23,7 +23,12 @@ dedicated to the public domain.
 **Linux, macOS:**
 
 ```sh
+# direct
 curl -fsSL https://usagiengine.com/install.sh | sh
+
+# homebrew
+brew tap brettchalupa/usagi https://github.com/brettchalupa/usagi
+brew install usagi
 ```
 
 **Windows (PowerShell):**
