@@ -27,7 +27,7 @@ dedicated to the public domain.
 curl -fsSL https://usagiengine.com/install.sh | sh
 
 # homebrew
-brew tap sneakycrow/usagi https://github.com/sneakycrow/usagi
+brew tap brettchalupa/usagi https://github.com/brettchalupa/usagi
 brew install usagi
 ```
 
