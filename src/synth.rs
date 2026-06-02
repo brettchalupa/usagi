@@ -18,16 +18,24 @@ pub enum Waveform {
 }
 
 impl Waveform {
+    /// Single source of truth for (name, int, variant) tuples. Used for Lua API
+    /// registration and `from_i32` derivation.
+    pub const LUA_CONSTS: &'static [(&'static str, i32, Waveform)] = &[
+        ("SINE", 0, Waveform::Sine),
+        ("SAW", 1, Waveform::Saw),
+        ("SQUARE", 2, Waveform::Square),
+        ("NOISE", 3, Waveform::Noise),
+        ("TRIANGLE", 4, Waveform::Triangle),
+    ];
+
     /// Maps the Lua integer constant to a variant; out-of-range falls back to
     /// `Sine` rather than erroring (the engine's forgiving stance).
     pub fn from_i32(v: i32) -> Self {
-        match v {
-            1 => Waveform::Saw,
-            2 => Waveform::Square,
-            3 => Waveform::Noise,
-            4 => Waveform::Triangle,
-            _ => Waveform::Sine,
-        }
+        Self::LUA_CONSTS
+            .iter()
+            .find(|(_, n, _)| *n == v)
+            .map(|(_, _, w)| *w)
+            .unwrap_or(Waveform::Sine)
     }
 }
 

@@ -29,14 +29,22 @@ pub enum ModShape {
 }
 
 impl ModShape {
+    /// Single source of truth for (name, int, variant) tuples. Used for Lua API
+    /// registration and `from_i32` derivation.
+    pub const LUA_CONSTS: &'static [(&'static str, i32, ModShape)] = &[
+        ("AHD", 0, ModShape::Ahd),
+        ("ADSR", 1, ModShape::Adsr),
+        ("DRUM", 2, ModShape::Drum),
+    ];
+
     /// Maps the Lua integer constant to a variant; out-of-range falls back to
     /// `Ahd` (a safe self-terminating default).
     pub fn from_i32(v: i32) -> Self {
-        match v {
-            1 => ModShape::Adsr,
-            2 => ModShape::Drum,
-            _ => ModShape::Ahd,
-        }
+        Self::LUA_CONSTS
+            .iter()
+            .find(|(_, n, _)| *n == v)
+            .map(|(_, _, s)| *s)
+            .unwrap_or(ModShape::Ahd)
     }
 }
 
@@ -97,6 +105,14 @@ impl Envelope {
             level: 0.0,
             release_from: 0.0,
         }
+    }
+
+    /// A ramp-and-hold contour: rises linearly `0 -> 1` over `attack_ms`, then
+    /// holds at `1.0` indefinitely. An ADSR with no decay and full sustain, so
+    /// it never self-terminates; callers tick it with `gate = true` so it never
+    /// enters release. The pitch-slide shape: bend over a window, then hold.
+    pub fn ramp_hold(attack_ms: f32) -> Self {
+        Self::new(ModShape::Adsr, attack_ms, 0.0, 0.0, 1.0, 0.0)
     }
 
     /// A finished envelope for an inactive voice slot. `const` for
@@ -363,6 +379,20 @@ mod tests {
         assert!(g.is_finite());
         run(&mut env, true, 4);
         assert!(env.is_done());
+    }
+
+    #[test]
+    fn ramp_hold_rises_then_holds_full_ignoring_gate() {
+        // 10ms ramp @ 44100 = 441 samples, then hold at 1.0 forever.
+        let mut env = Envelope::ramp_hold(10.0);
+        let first = env.tick(true);
+        assert!(first < 0.1, "starts near 0");
+        let mid = run(&mut env, true, 220); // ~halfway up the ramp
+        assert!(mid > 0.4 && mid < 0.6, "ramps linearly: {mid}");
+        // Held gated (as the mixer ticks it), it stays at full indefinitely.
+        let held = run(&mut env, true, 44_100);
+        assert!((held - 1.0).abs() < 1e-3, "holds at full: {held}");
+        assert!(!env.is_done());
     }
 
     #[test]

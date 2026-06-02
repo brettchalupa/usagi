@@ -1,0 +1,11 @@
+## Issue 01: Extract testable Patch::from_opts decode and group envelope params
+
+Refactored the synth option decoding from register_synth_api Lua closure into a pure, unit-tested Patch::from_opts function. Introduced EnvSpec struct to group five envelope parameters (attack_ms, hold_ms, decay_ms, sustain, release_ms) so they travel as a single value through Patch into Envelope::new, eliminating triple-spelling. The Lua closure now contains only table reads, the decode call, and the post—all default values and derived-param logic live in from_opts. Added three unit tests covering default decode, explicit overrides, and slide_ms defaulting to decay_ms. All existing tests pass, gates green, and examples sound identical.
+
+## Issue 02: Wrap the synth decode in a PatchOpts struct (cleanup)
+
+Replaced Patch::from_opts' 13-argument signature with a PatchOpts struct carrying Option fields for each parameter, then implemented PatchOpts::resolve to build the Patch. Moved the shape default (0 → AHD) into resolve so the closure applies zero policy—only table reads, struct construction, resolve call, and post remain. Removed the #[allow(clippy::too_many_arguments)] lint suppression since the interface is now shaped correctly. Renamed the three from_opts tests to resolve tests and verified they still cover defaults, overrides, and slide_ms reasoning. Gate green, zero behavior change.
+
+## Issue 03: Single source of truth for synth Lua enum constants
+
+Consolidated the scattered waveform and shape constant definitions into single-source slices on each enum. Added Waveform::LUA_CONSTS and ModShape::LUA_CONSTS as the authoritative (name, int, variant) tuples, then derived both from_i32 functions and api.rs registration from these slices, eliminating the four-location sync problem. Added a parity test that reads meta/usagi.lua and asserts the sfx.* = n lines match both slices exactly. Replaced hardcoded sfx.set calls in api.rs with loops over the constants. Result: adding a new waveform now requires one LUA_CONSTS row + one exhaustive sample() arm + one meta line (test-guarded); no silent sync paths remain. Gate green, zero behavior change.

@@ -26,6 +26,88 @@ pub const MAX_VOICES: usize = 16;
 const RING_CAP: usize = 256;
 const RING_MASK: usize = RING_CAP - 1;
 
+/// Envelope parameters (attack, hold, decay, sustain, release).
+#[derive(Debug, Clone, Copy)]
+pub struct EnvSpec {
+    pub attack_ms: f32,
+    pub hold_ms: f32,
+    pub decay_ms: f32,
+    pub sustain: f32,
+    pub release_ms: f32,
+}
+
+impl EnvSpec {
+    /// Default AHD shape: attack 4ms, hold 0ms, decay 120ms (percussive blip),
+    /// sustain 1.0, release 30ms.
+    pub fn default_ahd() -> Self {
+        Self {
+            attack_ms: 4.0,
+            hold_ms: 0.0,
+            decay_ms: 120.0,
+            sustain: 1.0,
+            release_ms: 30.0,
+        }
+    }
+}
+
+/// Synth options from the Lua API, each field optional; resolved into a Patch.
+#[derive(Debug, Clone, Copy)]
+pub struct PatchOpts {
+    pub wave: Option<i32>,
+    pub freq_hz: Option<f32>,
+    pub volume: Option<f32>,
+    pub param: Option<f32>,
+    pub shape: Option<i32>,
+    pub attack_ms: Option<f32>,
+    pub hold_ms: Option<f32>,
+    pub decay_ms: Option<f32>,
+    pub sustain: Option<f32>,
+    pub release_ms: Option<f32>,
+    pub slide_semitones: Option<f32>,
+    pub slide_ms: Option<f32>,
+}
+
+impl PatchOpts {
+    /// Resolves a PatchOpts into a fully-defaulted Patch. All unspecified fields
+    /// use engine defaults; shape defaults to 0 (AHD); out-of-range values are clamped.
+    pub fn resolve(self, id: u32) -> Patch {
+        let env_defaults = EnvSpec::default_ahd();
+        let env = EnvSpec {
+            attack_ms: self.attack_ms.unwrap_or(env_defaults.attack_ms),
+            hold_ms: self.hold_ms.unwrap_or(env_defaults.hold_ms),
+            decay_ms: self.decay_ms.unwrap_or(env_defaults.decay_ms),
+            sustain: self.sustain.unwrap_or(env_defaults.sustain),
+            release_ms: self.release_ms.unwrap_or(env_defaults.release_ms),
+        };
+
+        let slide_semitones = self.slide_semitones.unwrap_or(0.0);
+        let decay_ms_resolved = env.decay_ms;
+        let slide_ms = self.slide_ms.unwrap_or(decay_ms_resolved);
+
+        let wave_resolved = self.wave.unwrap_or(0);
+        let freq_hz_resolved = self.freq_hz.unwrap_or(440.0);
+        let volume_resolved = self.volume.unwrap_or(1.0);
+        let param_resolved = self.param.unwrap_or(0.5);
+        let shape_resolved = ModShape::from_i32(self.shape.unwrap_or(0));
+
+        Patch {
+            id,
+            spec: crate::synth::SynthSpec::new(
+                wave_resolved,
+                freq_hz_resolved.round() as i32,
+                0,
+                param_resolved,
+            ),
+            freq_hz: freq_hz_resolved,
+            volume: volume_resolved,
+            shape: shape_resolved,
+            env,
+            slide_semitones,
+            slide_ms,
+        }
+    }
+}
+
 /// A resolved note-on, `Copy` so it crosses the ring without allocation.
 /// `id` ties a later note-off / set-param back to this voice.
 #[derive(Debug, Clone, Copy)]
@@ -37,15 +119,11 @@ pub struct Patch {
     /// Amplitude `0.0..=1.0`, applied on top of the envelope.
     pub volume: f32,
     pub shape: ModShape,
-    pub attack_ms: f32,
-    pub hold_ms: f32,
-    pub decay_ms: f32,
-    pub sustain: f32,
-    pub release_ms: f32,
+    pub env: EnvSpec,
     /// Pitch bend in semitones, reached over `slide_ms` from note-on then held
     /// (+up/-down, 0 = none). Evaluated per-sample. The arcade jump/coin knob.
     pub slide_semitones: f32,
-    /// Slide window in ms; defaults game-side to `decay_ms`.
+    /// Slide window in ms; defaults to decay_ms if not specified.
     pub slide_ms: f32,
 }
 
@@ -74,15 +152,16 @@ struct Voice {
     active: bool,
     id: u32,
     osc: LoopOsc,
-    env: Envelope,
+    /// Amplitude envelope; drives the voice's gain and its lifetime.
+    amp: Envelope,
+    /// Pitch envelope: a ramp-and-hold whose `0..1` output scales
+    /// `slide_semitones` into a per-sample bend. `0` depth means no bend.
+    pitch: Envelope,
     /// Base (un-slid) frequency; the slide bends around it, set-param retargets.
     freq_hz: f32,
-    /// Pitch slide depth in semitones (see [`Patch::slide_semitones`]).
+    /// Pitch slide depth in semitones (see [`Patch::slide_semitones`]); `0`
+    /// when the patch requested no slide.
     slide_semitones: f32,
-    /// Slide window in samples; 0 disables the slide.
-    slide_samples: f32,
-    /// Samples since note-on; the slide's progress clock.
-    age: f32,
     volume: f32,
     /// Note still held. Note-off clears it (-> release); AHD/DRUM self-terminate.
     gate: bool,
@@ -96,15 +175,85 @@ impl Voice {
             active: false,
             id: 0,
             osc: LoopOsc::silent(),
-            env: Envelope::silent(),
+            amp: Envelope::silent(),
+            pitch: Envelope::silent(),
             freq_hz: 0.0,
             slide_semitones: 0.0,
-            slide_samples: 0.0,
-            age: 0.0,
             volume: 0.0,
             gate: false,
             seq: 0,
         }
+    }
+
+    /// Builds a live voice from a note-on patch. `seq` is the engine's claim
+    /// counter, for the oldest-voice steal tie-break. Owns the ms→samples
+    /// slide conversion and the volume clamp.
+    fn from_patch(p: &Patch, seq: u64) -> Self {
+        // The slide is off unless both a window and a depth were requested;
+        // zero the depth so `next_sample` skips the bend entirely.
+        let has_slide = p.slide_ms > 0.0 && p.slide_semitones != 0.0;
+        Self {
+            active: true,
+            id: p.id,
+            osc: LoopOsc::new(&p.spec),
+            amp: Envelope::new(
+                p.shape,
+                p.env.attack_ms,
+                p.env.hold_ms,
+                p.env.decay_ms,
+                p.env.sustain,
+                p.env.release_ms,
+            ),
+            pitch: Envelope::ramp_hold(p.slide_ms),
+            freq_hz: p.freq_hz,
+            slide_semitones: if has_slide { p.slide_semitones } else { 0.0 },
+            volume: p.volume.clamp(0.0, 1.0),
+            gate: true,
+            seq,
+        }
+    }
+
+    /// Renders the next enveloped, volume-scaled sample and advances the
+    /// voice. Self-clears `active` once the envelope finishes, so the mixer
+    /// never touches voice internals. Audio-thread only.
+    fn next_sample(&mut self) -> f32 {
+        let g = self.amp.tick(self.gate);
+        // Pitch envelope (ticked ungated: the bend holds through note-off)
+        // ramps `0..1`; scaled by depth it's the live semitone offset. Linear
+        // in semitones = exponential in Hz = a steady glide.
+        let eff_freq = if self.slide_semitones != 0.0 {
+            let semis = self.slide_semitones * self.pitch.tick(true);
+            self.freq_hz * 2.0f32.powf(semis / 12.0)
+        } else {
+            self.freq_hz
+        };
+        let s = self.osc.next_sample(eff_freq) * g * self.volume;
+        if self.amp.is_done() {
+            self.active = false;
+        }
+        s
+    }
+
+    /// Live-updates a sounding voice; `None` fields stay put.
+    fn set_param(&mut self, freq_hz: Option<f32>, volume: Option<f32>) {
+        if let Some(f) = freq_hz {
+            self.freq_hz = f;
+        }
+        if let Some(v) = volume {
+            self.volume = v.clamp(0.0, 1.0);
+        }
+    }
+
+    /// Drops the gate, sending the envelope into release.
+    fn release(&mut self) {
+        self.gate = false;
+    }
+
+    /// Steal priority: the current envelope gain (quietest voice is stolen
+    /// first). Volume is excluded so a held-but-turned-down voice isn't
+    /// preferentially evicted.
+    fn steal_score(&self) -> f32 {
+        self.amp.current_gain()
     }
 }
 
@@ -247,22 +396,8 @@ impl AudioEngine {
         for frame in 0..frames {
             let mut acc = 0.0f32;
             for v in voices.iter_mut() {
-                if !v.active {
-                    continue;
-                }
-                let g = v.env.tick(v.gate);
-                // Per-sample slide over the first `slide_samples`, then hold.
-                // Linear in semitones = exponential in Hz = a steady glide.
-                let eff_freq = if v.slide_samples > 0.0 && v.slide_semitones != 0.0 {
-                    let progress = (v.age / v.slide_samples).min(1.0);
-                    v.freq_hz * 2.0f32.powf(v.slide_semitones / 12.0 * progress)
-                } else {
-                    v.freq_hz
-                };
-                acc += v.osc.next_sample(eff_freq) * g * v.volume;
-                v.age += 1.0;
-                if v.env.is_done() {
-                    v.active = false;
+                if v.active {
+                    acc += v.next_sample();
                 }
             }
             // tanh soft-clip: a dense chord can't wrap past full-scale, while
@@ -285,31 +420,12 @@ impl AudioEngine {
                 let seq = unsafe { &mut *self.seq.get() };
                 *seq = seq.wrapping_add(1);
                 let slot = pick_slot(voices);
-                voices[slot] = Voice {
-                    active: true,
-                    id: p.id,
-                    osc: LoopOsc::new(&p.spec),
-                    env: Envelope::new(
-                        p.shape,
-                        p.attack_ms,
-                        p.hold_ms,
-                        p.decay_ms,
-                        p.sustain,
-                        p.release_ms,
-                    ),
-                    freq_hz: p.freq_hz,
-                    slide_semitones: p.slide_semitones,
-                    slide_samples: (p.slide_ms * 0.001 * crate::synth::SAMPLE_RATE as f32).max(0.0),
-                    age: 0.0,
-                    volume: p.volume.clamp(0.0, 1.0),
-                    gate: true,
-                    seq: *seq,
-                };
+                voices[slot] = Voice::from_patch(&p, *seq);
             }
             Event::NoteOff { id } => {
                 for v in voices.iter_mut() {
                     if v.active && v.id == id {
-                        v.gate = false;
+                        v.release();
                     }
                 }
             }
@@ -320,19 +436,14 @@ impl AudioEngine {
             } => {
                 for v in voices.iter_mut() {
                     if v.active && v.id == id {
-                        if let Some(f) = freq_hz {
-                            v.freq_hz = f;
-                        }
-                        if let Some(vol) = volume {
-                            v.volume = vol.clamp(0.0, 1.0);
-                        }
+                        v.set_param(freq_hz, volume);
                     }
                 }
             }
             Event::StopAll => {
                 for v in voices.iter_mut() {
                     if v.active {
-                        v.gate = false;
+                        v.release();
                     }
                 }
             }
@@ -350,7 +461,7 @@ fn pick_slot(voices: &[Voice; MAX_VOICES]) -> usize {
     let mut best_gain = f32::INFINITY;
     let mut best_seq = u64::MAX;
     for (i, v) in voices.iter().enumerate() {
-        let g = v.env.current_gain();
+        let g = v.steal_score();
         if g < best_gain || (g == best_gain && v.seq < best_seq) {
             best = i;
             best_gain = g;
@@ -401,11 +512,13 @@ mod tests {
             freq_hz: 440.0,
             volume: vol,
             shape: ModShape::Adsr,
-            attack_ms: 1.0,
-            hold_ms: 0.0,
-            decay_ms: 1.0,
-            sustain: 0.8,
-            release_ms: 5.0,
+            env: EnvSpec {
+                attack_ms: 1.0,
+                hold_ms: 0.0,
+                decay_ms: 1.0,
+                sustain: 0.8,
+                release_ms: 5.0,
+            },
             slide_semitones: 0.0,
             slide_ms: 0.0,
         }
@@ -414,6 +527,86 @@ mod tests {
     // Build a fresh engine (not the global) so tests don't share state.
     fn fresh() -> AudioEngine {
         AudioEngine::new()
+    }
+
+    #[test]
+    fn patch_resolve_applies_defaults() {
+        let opts = PatchOpts {
+            wave: None,    // defaults to 0
+            freq_hz: None, // defaults to 440
+            volume: None,  // defaults to 1.0
+            param: None,   // defaults to 0.5
+            shape: None,   // defaults to 0 (AHD)
+            attack_ms: None,
+            hold_ms: None,
+            decay_ms: None,
+            sustain: None,
+            release_ms: None,
+            slide_semitones: None,
+            slide_ms: None,
+        };
+        let p = opts.resolve(1);
+
+        assert_eq!(p.id, 1);
+        assert_eq!(p.freq_hz, 440.0);
+        assert_eq!(p.volume, 1.0);
+        assert_eq!(p.shape, ModShape::Ahd);
+        assert_eq!(p.env.attack_ms, 4.0);
+        assert_eq!(p.env.hold_ms, 0.0);
+        assert_eq!(p.env.decay_ms, 120.0);
+        assert_eq!(p.env.sustain, 1.0);
+        assert_eq!(p.env.release_ms, 30.0);
+        assert_eq!(p.slide_semitones, 0.0);
+        assert_eq!(p.slide_ms, 120.0); // defaults to decay_ms
+    }
+
+    #[test]
+    fn patch_resolve_overrides_defaults() {
+        let opts = PatchOpts {
+            wave: Some(2), // square
+            freq_hz: Some(880.0),
+            volume: Some(0.5),
+            param: Some(0.3),
+            shape: Some(1), // ADSR
+            attack_ms: Some(10.0),
+            hold_ms: Some(5.0),
+            decay_ms: Some(200.0),
+            sustain: Some(0.6),
+            release_ms: Some(50.0),
+            slide_semitones: Some(12.0),
+            slide_ms: Some(150.0),
+        };
+        let p = opts.resolve(2);
+
+        assert_eq!(p.env.attack_ms, 10.0);
+        assert_eq!(p.env.hold_ms, 5.0);
+        assert_eq!(p.env.decay_ms, 200.0);
+        assert_eq!(p.env.sustain, 0.6);
+        assert_eq!(p.env.release_ms, 50.0);
+        assert_eq!(p.slide_semitones, 12.0);
+        assert_eq!(p.slide_ms, 150.0);
+    }
+
+    #[test]
+    fn patch_resolve_slide_ms_defaults_to_decay() {
+        let opts = PatchOpts {
+            wave: None,
+            freq_hz: None,
+            volume: None,
+            param: None,
+            shape: None,
+            attack_ms: None,
+            hold_ms: None,
+            decay_ms: Some(250.0),
+            sustain: None,
+            release_ms: None,
+            slide_semitones: Some(5.0),
+            slide_ms: None, // not specified
+        };
+        let p = opts.resolve(3);
+
+        assert_eq!(p.env.decay_ms, 250.0);
+        assert_eq!(p.slide_ms, 250.0); // should default to decay
     }
 
     #[test]
@@ -555,11 +748,13 @@ mod tests {
                 freq_hz: *f,
                 volume: 0.5,
                 shape: ModShape::Adsr,
-                attack_ms: 8.0,
-                hold_ms: 0.0,
-                decay_ms: 140.0,
-                sustain: 0.8,
-                release_ms: 120.0,
+                env: EnvSpec {
+                    attack_ms: 8.0,
+                    hold_ms: 0.0,
+                    decay_ms: 140.0,
+                    sustain: 0.8,
+                    release_ms: 120.0,
+                },
                 slide_semitones: 0.0,
                 slide_ms: 0.0,
             }));
@@ -586,11 +781,13 @@ mod tests {
             freq_hz: 220.0,
             volume: 0.3,
             shape: ModShape::Adsr,
-            attack_ms: 1.0,
-            hold_ms: 0.0,
-            decay_ms: 1.0,
-            sustain: 1.0,
-            release_ms: 5.0,
+            env: EnvSpec {
+                attack_ms: 1.0,
+                hold_ms: 0.0,
+                decay_ms: 1.0,
+                sustain: 1.0,
+                release_ms: 5.0,
+            },
             slide_semitones: 0.0,
             slide_ms: 0.0,
         }));
@@ -615,11 +812,13 @@ mod tests {
             freq_hz: 220.0,
             volume: 1.0,
             shape: ModShape::Adsr,
-            attack_ms: 0.0,
-            hold_ms: 0.0,
-            decay_ms: 0.0,
-            sustain: 1.0,
-            release_ms: 5.0,
+            env: EnvSpec {
+                attack_ms: 0.0,
+                hold_ms: 0.0,
+                decay_ms: 0.0,
+                sustain: 1.0,
+                release_ms: 5.0,
+            },
             slide_semitones: 24.0, // +2 octaves -> ~4x frequency
             slide_ms: 100.0,
         }));

@@ -453,44 +453,29 @@ fn register_music_api(
 /// `sfx.synth(opts) -> id` (AHD/DRUM one-shot, ADSR sustains until stop),
 /// `sfx.stop(id)`, `sfx.stop_all()`, `sfx.set_freq`, `sfx.set_volume`.
 fn register_synth_api(lua: &Lua) -> LuaResult<()> {
-    use crate::audio_engine::{Event, Patch, engine};
-    use crate::modulator::ModShape;
+    use crate::audio_engine::{Event, PatchOpts, engine};
 
     let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
 
     let synth = lua.create_function(|_, opts: LuaTable| {
-        let wave: i32 = opts.get::<Option<i32>>("wave")?.unwrap_or(0);
-        let freq_hz: f32 = opts.get::<Option<f32>>("freq")?.unwrap_or(440.0);
-        let volume: f32 = opts.get::<Option<f32>>("volume")?.unwrap_or(1.0);
-        let param: f32 = opts.get::<Option<f32>>("param")?.unwrap_or(0.5);
-        let shape = ModShape::from_i32(opts.get::<Option<i32>>("shape")?.unwrap_or(0));
-        // Envelope times (ms). Defaults give a short percussive blip (AHD).
-        let attack_ms = opts.get::<Option<f32>>("attack")?.unwrap_or(4.0);
-        let hold_ms = opts.get::<Option<f32>>("hold")?.unwrap_or(0.0);
-        let decay_ms = opts.get::<Option<f32>>("decay")?.unwrap_or(120.0);
-        let sustain = opts.get::<Option<f32>>("sustain")?.unwrap_or(1.0);
-        let release_ms = opts.get::<Option<f32>>("release")?.unwrap_or(30.0);
-        // Pitch sweep: `slide` semitones over `slide_ms` (defaults to decay).
-        let slide_semitones = opts.get::<Option<f32>>("slide")?.unwrap_or(0.0);
-        let slide_ms = opts.get::<Option<f32>>("slide_ms")?.unwrap_or(decay_ms);
+        let patch_opts = PatchOpts {
+            wave: opts.get::<Option<i32>>("wave")?,
+            freq_hz: opts.get::<Option<f32>>("freq")?,
+            volume: opts.get::<Option<f32>>("volume")?,
+            param: opts.get::<Option<f32>>("param")?,
+            shape: opts.get::<Option<i32>>("shape")?,
+            attack_ms: opts.get::<Option<f32>>("attack")?,
+            hold_ms: opts.get::<Option<f32>>("hold")?,
+            decay_ms: opts.get::<Option<f32>>("decay")?,
+            sustain: opts.get::<Option<f32>>("sustain")?,
+            release_ms: opts.get::<Option<f32>>("release")?,
+            slide_semitones: opts.get::<Option<f32>>("slide")?,
+            slide_ms: opts.get::<Option<f32>>("slide_ms")?,
+        };
 
         let id = engine().next_id();
-        // duration is unused by the mixer (the envelope drives length).
-        let spec = crate::synth::SynthSpec::new(wave, freq_hz.round() as i32, 0, param);
-        engine().post(Event::NoteOn(Patch {
-            id,
-            spec,
-            freq_hz,
-            volume,
-            shape,
-            attack_ms,
-            hold_ms,
-            decay_ms,
-            sustain,
-            release_ms,
-            slide_semitones,
-            slide_ms,
-        }));
+        let patch = patch_opts.resolve(id);
+        engine().post(Event::NoteOn(patch));
         Ok(id)
     })?;
     sfx_tbl.set("synth", wrap(lua, synth, "sfx.synth", &["table"])?)?;
