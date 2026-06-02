@@ -25,10 +25,6 @@ dedicated to the public domain.
 ```sh
 # direct
 curl -fsSL https://usagiengine.com/install.sh | sh
-
-# homebrew
-brew tap brettchalupa/usagi https://github.com/brettchalupa/usagi
-brew install usagi
 ```
 
 **Windows (PowerShell):**
@@ -40,6 +36,13 @@ irm https://usagiengine.com/install.ps1 | iex
 The installer fetches the latest release from GitHub, verifies its SHA-256
 checksum, installs `usagi` to `~/.usagi/bin/` (or `%USERPROFILE%\.usagi\bin\` on
 Windows), and adds it to `PATH`.
+
+**Homebrew (package manager):**
+
+```
+brew tap brettchalupa/usagi https://github.com/brettchalupa/usagi
+brew install usagi
+```
 
 Manual download:
 [GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest) or
