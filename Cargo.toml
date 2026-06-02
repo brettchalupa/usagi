@@ -18,7 +18,7 @@ serde_json = "1"
 # Used for SHA-256 verification of downloaded templates against published
 # sidecars and game_id hash fallback.
 sha2 = "0.11"
-sola-raylib = { version = "6.1", features = ["noscreenshot"] }
+sola-raylib = { version = "6.2", features = ["noscreenshot"] }
 # Runtime PNG chunk parser. The engine reads the embedded zTXt glyph
 # metadata from `font.png` at startup, so `png` has to compile on every
 # target (including wasm). The bake-side encode path is only used by
