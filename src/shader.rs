@@ -178,7 +178,13 @@ impl ShaderManager {
             None => None,
         };
 
-        let shader = rl.load_shader_from_memory(thread, vs_src.as_deref(), Some(&fs_src));
+        let shader = match rl.load_shader_from_memory(thread, vs_src.as_deref(), Some(&fs_src)) {
+            Ok(shader) => shader,
+            Err(e) => {
+                crate::msg::err!("shader '{name}': failed to load: {e}");
+                return;
+            }
+        };
         if !shader.is_shader_valid() {
             crate::msg::err!("shader '{name}': compile/link failed (see GL log above)");
             // Drop the bad shader and keep whatever was active before
