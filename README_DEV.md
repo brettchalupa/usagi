@@ -263,6 +263,20 @@ music.stop()
 music.play_ex(name, volume, pitch, pan, loop)
 music.mutate(volume, pitch, pan)
 
+-- Synth (generated tones, no .wav)
+
+synth.sfx(opts)   -- start a voice on the SFX bus, returns id
+synth.music(opts) -- start a voice on the Music bus, returns id
+synth.stop(id)
+synth.stop_all()
+synth.set_freq(id, hz)
+synth.set_volume(id, vol)
+
+-- opts: wave, freq, volume, param, shape, attack, hold, decay,
+--       sustain, release, slide, slide_ms (all optional)
+synth.SINE, synth.SAW, synth.SQUARE, synth.NOISE, synth.TRIANGLE -- wave
+synth.AHD, synth.ADSR, synth.DRUM                                -- shape
+
 -- Input -- actions
 
 input.pressed(action)
@@ -1655,6 +1669,13 @@ code, take it whatever direction your game needs.
   Roll your own remap UI on top of the shim's default bindings.
 - **Shaders** (`gfx.shader_set` / `gfx.shader_uniform`). No-op stubs. Use Love's
   native shader API directly (`love.graphics.newShader` and friends).
+- **Synthesized sound** (`synth.*`). No-op stubs: `synth.sfx` / `synth.music`
+  return a voice id and every call is safe, but nothing sounds. Usagi mixes
+  synth voices on its audio thread, and a faithful real-time port (oscillators,
+  envelopes, pitch slide, live retune, two volume buses) is a sizable subsystem.
+  Reimplement with Love's audio APIs (`SoundData` +
+  `love.audio.newQueueableSource`), or bake the patches to `.wav` and use
+  `sfx.play`.
 - **Hot reload (F5).** Dev-loop feature that's Usagi-specific; shipped Love
   games don't reload.
 - **FPS overlay.** Roll your own with `love.timer.getFPS()` and `gfx.text`.
