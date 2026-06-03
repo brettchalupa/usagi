@@ -7,19 +7,19 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
-- New programmatic sound synthesis — make tones on the audio thread with no
-  `.wav` files. `sfx.synth(opts)` starts a voice and returns its `id`;
-  waveforms `sfx.SINE`, `sfx.SAW`, `sfx.SQUARE`, `sfx.NOISE`, `sfx.TRIANGLE`
-  and envelope shapes `sfx.AHD`, `sfx.ADSR`, `sfx.DRUM`. `AHD`/`DRUM` are
-  fire-and-forget one-shots; `ADSR` sustains until `sfx.stop(id)`
-  (`sfx.stop_all()` releases every voice). A per-sample pitch `slide` gives
-  the arcade jump/coin/laser shape. Volume and the per-waveform `param`
-  shape control are `0..1`. Up to 16 voices at once; a 17th steals the
-  quietest. See `examples/synth.lua` (a 3-voice instrument) and
-  `examples/jumper.lua` (a platformer with fully synthesized sfx + music).
+- New programmatic sound synthesis: make tones on the audio thread with no
+  `.wav` files. `sfx.synth(opts)` starts a voice and returns its `id`; waveforms
+  `sfx.SINE`, `sfx.SAW`, `sfx.SQUARE`, `sfx.NOISE`, `sfx.TRIANGLE` and envelope
+  shapes `sfx.AHD`, `sfx.ADSR`, `sfx.DRUM`. `AHD`/`DRUM` are fire-and-forget
+  one-shots; `ADSR` sustains until `sfx.stop(id)` (`sfx.stop_all()` releases
+  every voice). A per-sample pitch `slide` gives the arcade jump/coin/laser
+  shape. Volume and the per-waveform `param` shape control are `0..1`. Up to 16
+  voices at once; a 17th steals the quietest. See `examples/synth.lua` (a
+  3-voice instrument) and `examples/jumper.lua` (a platformer with fully
+  synthesized sfx + music).
   [#297](https://github.com/brettchalupa/usagi/issues/297)
-- New live voice control for synthesized sound: `sfx.set_freq(id, hz)` glides
-  a sounding voice's pitch click-free (portamento / vibrato / sirens) and
+- New live voice control for synthesized sound: `sfx.set_freq(id, hz)` glides a
+  sounding voice's pitch click-free (portamento / vibrato / sirens) and
   `sfx.set_volume(id, vol)` swells or fades it.
 
 - New `usagi loveify <src> <dst>` subcommand: one-time port of an Usagi project
@@ -65,12 +65,12 @@ Features:
 
 Fixes:
 
-- `meta/usagi.lua` (the LSP type stubs) now declares `gfx.COLOR_TRUE_WHITE`.
-  The constant has always existed at runtime (slot `0`, pure white), but the
-  stub omitted it, so editors flagged `gfx.COLOR_TRUE_WHITE` as undefined. The
-  stub's palette docstring also wrongly claimed slot `0` renders as a magenta
-  sentinel; it resolves to true white, and only indices above the active
-  palette's length render as magenta.
+- `meta/usagi.lua` (the LSP type stubs) now declares `gfx.COLOR_TRUE_WHITE`. The
+  constant has always existed at runtime (slot `0`, pure white), but the stub
+  omitted it, so editors flagged `gfx.COLOR_TRUE_WHITE` as undefined. The stub's
+  palette docstring also wrongly claimed slot `0` renders as a magenta sentinel;
+  it resolves to true white, and only indices above the active palette's length
+  render as magenta.
 - `usagi` CLI output now renders colorized in Windows `cmd.exe`. The colorized
   `[usagi]` log prefix relies on ANSI escape sequences; modern Windows 10+
   conhost understands them but only after a process opts in via

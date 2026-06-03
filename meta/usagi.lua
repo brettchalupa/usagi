@@ -294,7 +294,7 @@ sfx.DRUM = 2
 
 ---Starts a synthesized voice and returns its **id**. Callable from
 ---`_init`, `_update`, or `_draw`. A self-terminating shape (`AHD` / `DRUM`)
----plays a fire-and-forget one-shot — ignore the id. An `ADSR` voice
+---plays a fire-and-forget one-shot, so ignore the id. An `ADSR` voice
 ---sustains until you call `sfx.stop(id)`, so keep the id for held notes,
 ---engine hums, sirens, charge-ups. Up to 16 voices play at once; a 17th
 ---steals the quietest. Volume rides on top of the pause-menu sfx level.
@@ -304,7 +304,7 @@ sfx.DRUM = 2
 ---  0.5); `shape` a `sfx.AHD/ADSR/DRUM` envelope (default AHD); `attack`
 ---  `hold` `decay` `release` envelope times in ms; `sustain` `0..1` ADSR
 ---  level (default 1); `slide` pitch bend in semitones (+up/-down) reached
----  over `slide_ms` then held (default 0; `slide_ms` defaults to `decay`) —
+---  over `slide_ms` then held (default 0; `slide_ms` defaults to `decay`):
 ---  the arcade jump/coin/laser knob.
 ---@return integer id  pass to `sfx.stop`
 function sfx.synth(opts) end

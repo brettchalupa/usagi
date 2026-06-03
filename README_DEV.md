@@ -873,6 +873,42 @@ outgrown Usagi. Fork the engine or use Love2D!
   - `pan` (number) — stereo pan, `-1..1`. `-1` left, `0` center, `1` right.
     Clamped.
 
+#### Synthesized sound
+
+Tones generated and mixed on the audio thread, with no `.wav` files. The synth
+runs independently of the `.wav`-backed `sfx.play` pool but shares the
+pause-menu sfx volume. See `examples/synth.lua` (a 3-voice instrument) and
+`examples/jumper.lua` (a platformer scored entirely with synthesized sfx and
+music).
+
+- `sfx.synth(opts)` starts a voice and returns its `id`. All `opts` fields are
+  optional:
+  - `wave` (integer): waveform constant, one of `sfx.SINE` (default), `sfx.SAW`,
+    `sfx.SQUARE`, `sfx.NOISE`, `sfx.TRIANGLE`.
+  - `freq` (number): frequency in Hz (default `440`).
+  - `volume` (number): `0..1` on top of the pause-menu sfx volume (default `1`).
+  - `param` (number): `0..1` per-waveform shape control (default `0.5`). Pulse
+    width for square, phase offset for sine/saw/triangle, low-pass softness for
+    noise.
+  - `shape` (integer): envelope constant, one of `sfx.AHD` (default),
+    `sfx.ADSR`, `sfx.DRUM`. `AHD` and `DRUM` self-terminate (fire-and-forget
+    one-shots); `ADSR` sustains until `sfx.stop(id)`.
+  - `attack`, `hold`, `decay`, `release` (number): envelope times in ms.
+  - `sustain` (number): `0..1` ADSR sustain level (default `1`).
+  - `slide` (number): pitch bend in semitones (`+` up, `-` down) reached over
+    `slide_ms` then held (default `0`). The arcade jump/coin/laser knob.
+  - `slide_ms` (number): slide window in ms (defaults to `decay`).
+- `sfx.stop(id)` releases the voice with this `id` into its envelope release. A
+  no-op if no live voice matches; self-terminating one-shots do not need it.
+- `sfx.stop_all()` releases every active synth voice.
+- `sfx.set_freq(id, hz)` glides a sounding voice's pitch click-free (continuous
+  oscillator phase). Call it every frame for portamento, vibrato, or sirens.
+- `sfx.set_volume(id, vol)` swells or fades a sounding voice's volume (`0..1`).
+
+Up to 16 voices play at once; a 17th note-on steals the quietest. The synth is
+paused and resumed alongside music by the pause menu, and `stop_all` runs on
+game reset so a held tone never survives the wipe.
+
 ### `music`
 
 Background music streamed from disk (or the fused bundle). Only one track plays

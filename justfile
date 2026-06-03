@@ -180,6 +180,8 @@ examples:
     just example input_test
     just example spr
     just example sound
+    just example synth
+    just example jumper
     just example multifile
     just example operators
     just example snake

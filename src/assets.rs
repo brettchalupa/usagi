@@ -209,28 +209,25 @@ impl SpriteSheet {
     }
 }
 
-/// Decodes `bytes` into a `Wave` and allocates `want` playback voices from it.
-/// `label` names the sound in error messages.
-fn load_voices<'a>(
-    audio: &'a RaylibAudio,
-    label: &str,
-    bytes: &[u8],
-    want: usize,
-) -> Option<Vec<Sound<'a>>> {
+fn load_voices<'a>(audio: &'a RaylibAudio, stem: &str, bytes: &[u8]) -> Option<Vec<Sound<'a>>> {
     let wave = audio
         .new_wave_from_memory(".wav", bytes)
-        .map_err(|e| crate::msg::err!("failed to decode {label}: {e}"))
+        .map_err(|e| crate::msg::err!("failed to decode sfx '{stem}': {e}"))
         .ok()?;
-    let mut voices = Vec::with_capacity(want);
-    for i in 0..want {
+    let mut voices = Vec::with_capacity(SFX_VOICES_PER_SOUND);
+    for i in 0..SFX_VOICES_PER_SOUND {
         match audio.new_sound_from_wave(&wave) {
             Ok(s) => voices.push(s),
             Err(e) => {
                 if i == 0 {
-                    crate::msg::err!("failed to create {label}: {e}");
+                    crate::msg::err!("failed to create sfx '{stem}': {e}");
                     return None;
                 }
-                crate::msg::err!("{label}: only allocated {i}/{want} voices: {e}");
+                crate::msg::err!(
+                    "sfx '{stem}': only allocated {got}/{want} voices: {e}",
+                    got = i,
+                    want = SFX_VOICES_PER_SOUND,
+                );
                 break;
             }
         }
@@ -303,12 +300,7 @@ impl<'a> SfxLibrary<'a> {
         let mut pools = HashMap::new();
         for stem in vfs.sfx_stems() {
             if let Some(bytes) = vfs.read_sfx(&stem)
-                && let Some(voices) = load_voices(
-                    audio,
-                    &format!("sfx '{stem}'"),
-                    &bytes,
-                    SFX_VOICES_PER_SOUND,
-                )
+                && let Some(voices) = load_voices(audio, &stem, &bytes)
             {
                 pools.insert(stem, VoicePool::new(voices));
             }
@@ -345,10 +337,9 @@ impl<'a> SfxLibrary<'a> {
     /// is a raw multiplier (`1.0` = identity); pan is `-1..1` with
     /// `-1` left, `0` center, `1` right this is same range raylib uses.
     pub fn play_with(&self, name: &str, volume: f32, pitch: f32, pan: f32) {
-        let v = volume.clamp(0.0, 1.0) * self.volume;
-        let (pitch, pan) = (pitch.max(0.01), pan.clamp(-1.0, 1.0));
         if let Some(pool) = self.pools.get(name) {
-            pool.play(v, pitch, pan);
+            let v = volume.clamp(0.0, 1.0) * self.volume;
+            pool.play(v, pitch.max(0.01), pan.clamp(-1.0, 1.0));
         }
     }
 

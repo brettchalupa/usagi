@@ -428,7 +428,7 @@ mod tests {
 
         // sfx exposes waveform constants at static-setup time, but its
         // play/synth closures live in the session loop (per-frame scope),
-        // as do music's — so those are nil here.
+        // as do music's, so those are nil here.
         assert_eq!(sfx.get::<i32>("SINE").unwrap(), 0);
         assert_eq!(sfx.get::<i32>("NOISE").unwrap(), 3);
         assert!(sfx.get::<LuaValue>("play").unwrap().is_nil());

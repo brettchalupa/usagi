@@ -8,7 +8,7 @@
 //!   For fire-and-forget sfx (jump, shoot).
 //! - ADSR: Attack, Decay to Sustain (held while gated), Release. Gate drop
 //!   drives the release. For sustained / looping voices.
-//! - DRUM: percussive one-shot — fast attack, curved decay to zero. AHD but
+//! - DRUM: percussive one-shot, fast attack, curved decay to zero. AHD but
 //!   punchier.
 //!
 //! All shapes honor an early gate drop: it cuts to release from the current
