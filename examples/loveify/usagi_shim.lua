@@ -1578,43 +1578,6 @@ function music.mutate(volume, pitch, _pan)
   if pitch then current_music:setPitch(pitch) end
 end
 
--- synth module --------------------------------------------------------------
--- Usagi synthesizes tones on its audio thread (oscillators, envelopes, a pitch
--- slide, live retune, and two volume buses). Reproducing that faithfully under
--- Love would mean a real-time procedural mixer (Love can do it via SoundData +
--- love.audio.newQueueableSource fed from a thread), which is a sizable
--- subsystem and out of scope for this shim. So `synth` is a no-op here: the
--- calls are safe and `synth.sfx` / `synth.music` still return a voice id, but
--- no sound is produced. A port that needs synth audio should reimplement these
--- with Love's audio APIs, or bake the patches to .wav and use `sfx`. The
--- constants are kept so games that reference them at load time still work.
-
-local synth = {}
-
-synth.SINE = 0
-synth.SAW = 1
-synth.SQUARE = 2
-synth.NOISE = 3
-synth.TRIANGLE = 4
-synth.AHD = 0
-synth.ADSR = 1
-synth.DRUM = 2
-
-local synth_next_id = 0
-local function synth_new_id()
-  synth_next_id = synth_next_id + 1
-  return synth_next_id
-end
-
--- Both entry points return a voice id (matching the engine) so calling code
--- that stores the id for a later stop/set_freq keeps working; neither sounds.
-function synth.sfx(_opts) return synth_new_id() end
-function synth.music(_opts) return synth_new_id() end
-function synth.stop(_id) end
-function synth.stop_all() end
-function synth.set_freq(_id, _hz) end
-function synth.set_volume(_id, _vol) end
-
 -- effect module -----------------------------------------------------------
 -- Engine-level juice primitives. Stacking rule across all four:
 -- longer duration wins; for the magnitude param the latest call wins.
@@ -1700,7 +1663,6 @@ _G.util = util
 _G.input = input
 _G.sfx = sfx
 _G.music = music
-_G.synth = synth
 _G.effect = effect
 
 -- Callback wrapping ---------------------------------------------------------

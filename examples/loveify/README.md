@@ -77,13 +77,6 @@ you're on your own copy and that's the intended outcome.
 
 ## Known caveats
 
-- **`synth.*`** (programmatic sound synthesis) is a **no-op** in the shim:
-  `synth.sfx` / `synth.music` return a voice id and every other call is safe,
-  but no sound is produced. Usagi synthesizes tones on its audio thread, and a
-  faithful real-time port (oscillators, envelopes, pitch slide, live retune,
-  two volume buses) is a sizable subsystem beyond this shim's scope. Love can do
-  procedural audio via `SoundData` + `love.audio.newQueueableSource` if you need
-  it; otherwise bake your patches to `.wav` and use `sfx`.
 - **Pan on `sfx.play_ex` / `music.play_ex` / `music.mutate`** is silently
   ignored under Love 11.5 (no `setPan` API until Love 12).
 - **`gfx.get_px`** is lazy: once any code calls it, a `canvas:newImageData()`
