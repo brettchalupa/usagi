@@ -1,4 +1,4 @@
-# Developing usagi
+# Developing Usagi
 
 Guide to how to work on the engine.
 
@@ -287,6 +287,13 @@ the URL convention `${USAGI_TEMPLATE_BASE}/v<ver>/<file>`.
 
 1. `just push-itch`
 2. Publish a devlog with the changes
+
+### Update Homebrew
+
+Run `ruby scripts/update_homebrew.rb` (after the GitHub release is published) to
+refresh the version, download URLs, and sha256 values in `Formula/usagi.rb` from
+the release's `.sha256` sidecars. Pass a tag to target a specific release, or
+`--dry-run` to preview. Review the diff and commit.
 
 ### Post Release
 

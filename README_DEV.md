@@ -36,6 +36,13 @@ The installer fetches the latest release from GitHub, verifies its SHA-256
 checksum, installs `usagi` to `~/.usagi/bin/` (or `%USERPROFILE%\.usagi\bin\` on
 Windows), and adds it to `PATH`.
 
+**Homebrew (package manager):**
+
+```
+brew tap brettchalupa/usagi https://github.com/brettchalupa/usagi
+brew install usagi
+```
+
 Manual download:
 [GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest) or
 [itch.io](https://brettchalupa.itch.io/usagi)
