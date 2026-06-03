@@ -99,11 +99,13 @@ build-web-release:
     cargo run --release --quiet -- export examples/snake --target bundle -o target/web/game.usagi
 
 [doc("""
-Rebundle target/web/game.usagi from a different example without
-rebuilding the runtime. Refresh the browser tab to load the new game.
-Example: `just example-web spr`.
+Build the web runtime (via build-web) and bundle the named example into
+target/web/game.usagi. The runtime is rebuilt first so a Rust change can't
+leave a stale wasm running an old API; the cargo build no-ops when nothing
+changed, so repeat game-swaps stay cheap. Refresh the browser tab to load
+the new game. Example: `just example-web spr`.
 """)]
-example-web name:
+example-web name: build-web
     cargo run --quiet -- export examples/{{ name }} --target bundle -o target/web/game.usagi
     @echo "[usagi] target/web/game.usagi swapped to examples/{{ name }}"
 
