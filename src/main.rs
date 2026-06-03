@@ -14,6 +14,7 @@
 
 mod api;
 mod assets;
+mod audio_engine;
 mod bundle;
 mod cli;
 mod config;
@@ -27,6 +28,7 @@ mod icon;
 mod input;
 #[cfg(not(target_os = "emscripten"))]
 mod loveify;
+mod modulator;
 mod msg;
 mod palette;
 mod pause;
@@ -37,6 +39,7 @@ mod render;
 mod save;
 mod session;
 mod shader;
+mod synth;
 mod vfs;
 
 // `tools` don't run on web

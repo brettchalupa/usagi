@@ -7,6 +7,23 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
+- New programmatic sound synthesis in a `synth` namespace: make tones on the
+  audio thread with no `.wav` files. `synth.sfx(opts)` starts a voice on the sfx
+  volume bus and `synth.music(opts)` on the music bus (so the player's SFX and
+  Music sliders each attenuate the right sounds); both return a voice `id`.
+  Waveforms `synth.SINE`, `synth.SAW`, `synth.SQUARE`, `synth.NOISE`,
+  `synth.TRIANGLE` and envelope shapes `synth.AHD`, `synth.ADSR`, `synth.DRUM`.
+  `AHD`/`DRUM` are fire-and-forget one-shots; `ADSR` sustains until
+  `synth.stop(id)` (`synth.stop_all()` releases every voice). A per-sample pitch
+  `slide` gives the arcade jump/coin/laser shape. Volume and the per-waveform
+  `param` shape control are `0..1`. Up to 16 voices at once; a 17th steals the
+  quietest. See `examples/synth.lua` (a 3-voice instrument) and
+  `examples/jumper.lua` (a platformer with fully synthesized sfx + music).
+  [#297](https://github.com/brettchalupa/usagi/issues/297)
+- New live voice control for synthesized sound: `synth.set_freq(id, hz)` glides
+  a sounding voice's pitch click-free (portamento / vibrato / sirens) and
+  `synth.set_volume(id, vol)` swells or fades it.
+
 - New `usagi loveify <src> <dst>` subcommand: one-time port of an Usagi project
   to a Love2D 11.5 project. Walks the source tree, rewrites compound-assignment
   operators (`x += 1` → `x = x + (1)`) for LuaJIT compat, copies all assets

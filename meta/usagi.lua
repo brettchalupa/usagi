@@ -278,6 +278,99 @@ function sfx.play(name) end
 ---@param pan    number  stereo pan; `-1` left, `0` center, `1` right
 function sfx.play_ex(name, volume, pitch, pan) end
 
+---Synthesized-sound API, generated and mixed on the audio thread
+---(low-latency, immune to frame stalls). A voice can fire a one-shot effect
+---or sustain like a music tone, so it lives in its own `synth` namespace
+---rather than under `sfx`. Start a voice with `synth.sfx(opts)` (rides the
+---pause-menu SFX slider) or `synth.music(opts)` (rides the MUSIC slider) so a
+---player's volume sliders attenuate the right sounds; both take the same
+---`opts` and return a voice id.
+---
+---Waveform selectors:
+---
+---- SINE:     pure tone; `param` = phase offset
+---- SAW:      bright/buzzy; `param` = peak offset (skew)
+---- SQUARE:   hollow/chiptune; `param` = pulse width (`0.5` = even square)
+---- NOISE:    hiss/percussion; `param` = softness (low-pass darkening)
+---- TRIANGLE: soft/rounded; `param` = phase offset
+---
+---Envelope (amplitude) shapes:
+---
+---- AHD:  Attack→Hold→Decay to zero; a *timed* one-shot (self-terminating)
+---- ADSR: Attack→Decay→Sustain (held) →Release; sustains until `synth.stop`
+---- DRUM: punchy percussive one-shot (fast attack, curved decay)
+---@class Usagi.Synth
+---@field SINE     integer  0
+---@field SAW      integer  1
+---@field SQUARE   integer  2
+---@field NOISE    integer  3
+---@field TRIANGLE integer  4
+---@field AHD      integer  0
+---@field ADSR     integer  1
+---@field DRUM     integer  2
+synth = {}
+
+synth.SINE = 0
+synth.SAW = 1
+synth.SQUARE = 2
+synth.NOISE = 3
+synth.TRIANGLE = 4
+synth.AHD = 0
+synth.ADSR = 1
+synth.DRUM = 2
+
+---Starts a synthesized voice **on the sfx volume bus** and returns its **id**.
+---Use this for sound effects (jumps, coins, lasers); the voice rides the
+---pause-menu SFX slider. Callable from `_init`, `_update`, or `_draw`. A
+---self-terminating shape (`AHD` / `DRUM`) plays a fire-and-forget one-shot, so
+---ignore the id. An `ADSR` voice sustains until you call `synth.stop(id)`, so
+---keep the id for held notes, sirens, charge-ups. Up to 16 voices play at once
+---(shared across both buses); a 17th steals the quietest.
+---@param opts { wave?: integer, freq?: number, volume?: number, param?: number, shape?: integer, attack?: number, hold?: number, decay?: number, sustain?: number, release?: number, slide?: number, slide_ms?: number }
+---  `wave` a `synth.*` waveform (default SINE); `freq` Hz (default 440);
+---  `volume` `0..1` (default 1); `param` `0..1` waveform shape (default
+---  0.5); `shape` a `synth.AHD/ADSR/DRUM` envelope (default AHD); `attack`
+---  `hold` `decay` `release` envelope times in ms; `sustain` `0..1` ADSR
+---  level (default 1); `slide` pitch bend in semitones (+up/-down) reached
+---  over `slide_ms` then held (default 0; `slide_ms` defaults to `decay`):
+---  the arcade jump/coin/laser knob.
+---@return integer id  pass to `synth.stop`
+function synth.sfx(opts) end
+
+---Starts a synthesized voice **on the music volume bus** and returns its
+---**id**. Use this for synthesized music (bass lines, pads, arps); the voice
+---rides the pause-menu MUSIC slider, so a player lowering Music quiets it as
+---expected. Takes the same `opts` as `synth.sfx` (typically `shape = synth.ADSR`
+---for sustained tones); see `synth.sfx` for the field reference. Hold the id to
+---`synth.stop` or `synth.set_freq` the voice (e.g. retune a pad on a chord
+---change).
+---@param opts { wave?: integer, freq?: number, volume?: number, param?: number, shape?: integer, attack?: number, hold?: number, decay?: number, sustain?: number, release?: number, slide?: number, slide_ms?: number }
+---@return integer id  pass to `synth.stop`
+function synth.music(opts) end
+
+---Releases the synth voice with this `id` (drops it into its envelope
+---release). A no-op if no live voice matches. Self-terminating one-shots
+---don't need this.
+---@param id integer  an id returned by `synth.sfx` or `synth.music`
+function synth.stop(id) end
+
+---Releases every active synth voice.
+function synth.stop_all() end
+
+---Live-updates the frequency of a sounding voice. The pitch glides
+---click-free (the oscillator phase is continuous), so call it every frame
+---for portamento / vibrato / sirens. A no-op if the voice has ended.
+---@param id   integer  an id returned by `synth.sfx` or `synth.music`
+---@param freq number   new frequency in Hz
+function synth.set_freq(id, freq) end
+
+---Live-updates the volume of a sounding voice (swells / fades). Rides on top
+---of the voice's bus level (the SFX or MUSIC slider). A no-op if the voice has
+---ended.
+---@param id     integer  an id returned by `synth.sfx` or `synth.music`
+---@param volume number   `0..1`
+function synth.set_volume(id, volume) end
+
 ---@class Usagi.Music
 music = {}
 
