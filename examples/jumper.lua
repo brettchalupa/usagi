@@ -1,17 +1,20 @@
 -- A tiny platformer that shows the synth engine in actual gameplay: every
 -- sound is generated on the audio thread (no .wav files), and the arcade
 -- "blip" character comes from `slide` -- a per-sample pitch bend in
--- semitones (see sfx.synth in meta/usagi.lua).
+-- semitones (see synth.sfx in meta/usagi.lua).
 --
 --   LEFT / RIGHT : walk
 --   BTN1 (Z / A) : jump
 --
--- Land on platforms, grab the coins. Every sound is synthesized live:
---   jump  : square, slides UP   -> classic "boing"
---   land  : square slide DOWN + a noise burst -> a short thud
---   coin  : two quick blips a fifth apart -> pickup jingle
---   bass  : a step-sequenced square riff
---   pad   : a sustained saw chord progression (Am -> Em)
+-- Land on platforms, grab the coins. Every sound is synthesized live. The
+-- effects use synth.sfx (they ride the pause-menu SFX slider) and the music
+-- uses synth.music (rides the MUSIC slider), so a player's volume sliders
+-- attenuate the right sounds:
+--   jump  : synth.sfx,   square slides UP   -> classic "boing"
+--   land  : synth.sfx,   square slide DOWN + a noise burst -> a short thud
+--   coin  : synth.sfx,   two quick blips a fifth apart -> pickup jingle
+--   bass  : synth.music, a step-sequenced square riff
+--   pad   : synth.music, a sustained saw chord progression (Am -> Em)
 
 local GRAVITY = 520   -- px/s^2
 local MOVE_SPEED = 90 -- px/s
@@ -51,21 +54,21 @@ local function notes(names)
   return freqs
 end
 
--- One-shot synth sfx. Each is a single sfx.synth call; `slide` is what gives
+-- One-shot synth sfx. Each is a single synth.sfx call; `slide` is what gives
 -- them their arcade shape.
 local function sfx_jump()
-  sfx.synth({ wave = sfx.SQUARE, freq = 220, slide = 18, slide_ms = 90, volume = 0.35, decay = 110 })
+  synth.sfx({ wave = synth.SQUARE, freq = 220, slide = 18, slide_ms = 90, volume = 0.35, decay = 110 })
 end
 
 local function sfx_land()
-  sfx.synth({ wave = sfx.SQUARE, freq = 100, slide = -12, slide_ms = 70, volume = 0.2, decay = 80 })
-  sfx.synth({ wave = sfx.NOISE, freq = 180, volume = 0.25 })
+  synth.sfx({ wave = synth.SQUARE, freq = 100, slide = -12, slide_ms = 70, volume = 0.2, decay = 80 })
+  synth.sfx({ wave = synth.NOISE, freq = 180, volume = 0.25 })
 end
 
 local function sfx_coin()
   -- Two blips: root, then a fifth up a moment later -> a little jingle.
-  sfx.synth({ wave = sfx.SQUARE, freq = 880, slide = 0, volume = 0.3, decay = 70 })
-  sfx.synth({ wave = sfx.SQUARE, freq = 1320, slide = 7, slide_ms = 60, volume = 0.3, attack = 60, decay = 90 })
+  synth.sfx({ wave = synth.SQUARE, freq = 880, slide = 0, volume = 0.3, decay = 70 })
+  synth.sfx({ wave = synth.SQUARE, freq = 1320, slide = 7, slide_ms = 60, volume = 0.3, attack = 60, decay = 90 })
 end
 
 -- A bass riff as a step sequencer. Written as note names; "-" is a rest.
@@ -125,12 +128,12 @@ local function bump(key)
 end
 
 -- Play one bass note. AHD (default shape) self-terminates after attack+hold+
--- decay, so each step ends on its own -- no sfx.stop bookkeeping. `decay`
+-- decay, so each step ends on its own -- no synth.stop bookkeeping. `decay`
 -- sets how long the note rings.
 local function bass_note(freq)
   if freq <= 0 then return end -- rest
-  sfx.synth({
-    wave = sfx.SQUARE,
+  synth.music({
+    wave = synth.SQUARE,
     freq = freq,
     volume = 0.25,
     attack = 4,
@@ -196,9 +199,9 @@ function _init()
   State.pad_chord = PAD_BY_STEP[1]
   State.pad_voices = {}
   for i, freq in ipairs(PAD_PROG[State.pad_chord].chord) do
-    State.pad_voices[i] = sfx.synth({
-      wave = sfx.SAW,
-      shape = sfx.ADSR,
+    State.pad_voices[i] = synth.music({
+      wave = synth.SAW,
+      shape = synth.ADSR,
       freq = freq,
       volume = PAD_VOLUME,
       attack = 400, -- slow swell = pad
@@ -232,7 +235,7 @@ function _update(dt)
     if chord ~= State.pad_chord then
       State.pad_chord = chord
       for i, freq in ipairs(PAD_PROG[chord].chord) do
-        sfx.set_freq(State.pad_voices[i], freq)
+        synth.set_freq(State.pad_voices[i], freq)
       end
       bump("pad") -- flash only when the chord actually changes
     end

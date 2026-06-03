@@ -50,6 +50,16 @@ impl EnvSpec {
     }
 }
 
+/// Which master volume bus a voice rides, matching the two pause-menu sliders.
+/// A voice is tagged at note-on (via `synth.sfx` vs `synth.music`) and the mixer
+/// scales it by that bus's master before summing, so each slider behaves as the
+/// player expects regardless of how a game uses the synth.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Bus {
+    Sfx,
+    Music,
+}
+
 /// Synth options from the Lua API, each field optional; resolved into a Patch.
 #[derive(Debug, Clone, Copy)]
 pub struct PatchOpts {
@@ -68,9 +78,10 @@ pub struct PatchOpts {
 }
 
 impl PatchOpts {
-    /// Resolves a PatchOpts into a fully-defaulted Patch. All unspecified fields
-    /// use engine defaults; shape defaults to 0 (AHD); out-of-range values are clamped.
-    pub fn resolve(self, id: u32) -> Patch {
+    /// Resolves a PatchOpts into a fully-defaulted Patch on `bus`. All
+    /// unspecified fields use engine defaults; shape defaults to 0 (AHD);
+    /// out-of-range values are clamped.
+    pub fn resolve(self, id: u32, bus: Bus) -> Patch {
         let env_defaults = EnvSpec::default_ahd();
         let env = EnvSpec {
             attack_ms: self.attack_ms.unwrap_or(env_defaults.attack_ms),
@@ -104,6 +115,7 @@ impl PatchOpts {
             env,
             slide_semitones,
             slide_ms,
+            bus,
         }
     }
 }
@@ -125,6 +137,8 @@ pub struct Patch {
     pub slide_semitones: f32,
     /// Slide window in ms; defaults to decay_ms if not specified.
     pub slide_ms: f32,
+    /// Which master volume bus this voice rides (Sfx / Music slider).
+    pub bus: Bus,
 }
 
 /// An event from the game thread to the audio thread.
@@ -163,6 +177,8 @@ struct Voice {
     /// when the patch requested no slide.
     slide_semitones: f32,
     volume: f32,
+    /// Which master volume bus scales this voice (Sfx / Music slider).
+    bus: Bus,
     /// Note still held. Note-off clears it (-> release); AHD/DRUM self-terminate.
     gate: bool,
     /// Monotonic claim order, for oldest-voice tie-break when stealing.
@@ -180,6 +196,7 @@ impl Voice {
             freq_hz: 0.0,
             slide_semitones: 0.0,
             volume: 0.0,
+            bus: Bus::Sfx,
             gate: false,
             seq: 0,
         }
@@ -208,6 +225,7 @@ impl Voice {
             freq_hz: p.freq_hz,
             slide_semitones: if has_slide { p.slide_semitones } else { 0.0 },
             volume: p.volume.clamp(0.0, 1.0),
+            bus: p.bus,
             gate: true,
             seq,
         }
@@ -321,9 +339,11 @@ pub struct AudioEngine {
     voices: UnsafeCell<[Voice; MAX_VOICES]>,
     /// Voice claim order (audio-thread-only).
     seq: UnsafeCell<u64>,
-    /// Master synth volume (pause-menu sfx level) as f32 bits. Written
+    /// Master volume for the Sfx bus (pause-menu sfx level) as f32 bits. Written
     /// game-thread, read audio-thread; atomic so it can't tear.
-    master_vol_bits: AtomicU32,
+    sfx_vol_bits: AtomicU32,
+    /// Master volume for the Music bus (pause-menu music level) as f32 bits.
+    music_vol_bits: AtomicU32,
     /// Source of unique voice ids handed to the game thread.
     next_id: AtomicU32,
     /// Set once the processor is attached, to avoid double-attach.
@@ -343,7 +363,8 @@ impl AudioEngine {
             ring: EventRing::new(),
             voices: UnsafeCell::new([const { Voice::silent() }; MAX_VOICES]),
             seq: UnsafeCell::new(0),
-            master_vol_bits: AtomicU32::new(0x3f80_0000), // 1.0_f32 bits
+            sfx_vol_bits: AtomicU32::new(0x3f80_0000), // 1.0_f32 bits
+            music_vol_bits: AtomicU32::new(0x3f80_0000), // 1.0_f32 bits
             next_id: AtomicU32::new(1),
             attached: AtomicBool::new(false),
             paused: AtomicBool::new(false),
@@ -362,9 +383,15 @@ impl AudioEngine {
         unsafe { self.ring.push(ev) }
     }
 
-    /// Sets the master synth volume `0.0..=1.0` (pause-menu sfx level).
-    pub fn set_master_volume(&self, v: f32) {
-        self.master_vol_bits
+    /// Sets the Sfx-bus master volume `0.0..=1.0` (pause-menu sfx level).
+    pub fn set_sfx_volume(&self, v: f32) {
+        self.sfx_vol_bits
+            .store(v.clamp(0.0, 1.0).to_bits(), Ordering::Relaxed);
+    }
+
+    /// Sets the Music-bus master volume `0.0..=1.0` (pause-menu music level).
+    pub fn set_music_volume(&self, v: f32) {
+        self.music_vol_bits
             .store(v.clamp(0.0, 1.0).to_bits(), Ordering::Relaxed);
     }
 
@@ -389,7 +416,8 @@ impl AudioEngine {
             return;
         }
 
-        let master = f32::from_bits(self.master_vol_bits.load(Ordering::Relaxed));
+        let sfx_master = f32::from_bits(self.sfx_vol_bits.load(Ordering::Relaxed));
+        let music_master = f32::from_bits(self.music_vol_bits.load(Ordering::Relaxed));
         // Clamp so a mismatched host buffer can't panic the audio thread.
         let frames = frames.min(buf.len() / 2);
         let voices = unsafe { &mut *self.voices.get() };
@@ -397,13 +425,19 @@ impl AudioEngine {
             let mut acc = 0.0f32;
             for v in voices.iter_mut() {
                 if v.active {
-                    acc += v.next_sample();
+                    // Scale each voice by its bus master before summing, so the
+                    // Sfx and Music sliders attenuate the right voices.
+                    let bus_master = match v.bus {
+                        Bus::Sfx => sfx_master,
+                        Bus::Music => music_master,
+                    };
+                    acc += v.next_sample() * bus_master;
                 }
             }
             // tanh soft-clip: a dense chord can't wrap past full-scale, while
             // quiet signals pass near-transparently (unit slope at 0). A plain
             // clamp flat-topped peaks and buzzed with detuned voices.
-            let s = (acc * master).tanh();
+            let s = acc.tanh();
             buf[frame * 2] += s;
             buf[frame * 2 + 1] += s;
         }
@@ -521,6 +555,7 @@ mod tests {
             },
             slide_semitones: 0.0,
             slide_ms: 0.0,
+            bus: Bus::Sfx,
         }
     }
 
@@ -545,9 +580,10 @@ mod tests {
             slide_semitones: None,
             slide_ms: None,
         };
-        let p = opts.resolve(1);
+        let p = opts.resolve(1, Bus::Sfx);
 
         assert_eq!(p.id, 1);
+        assert_eq!(p.bus, Bus::Sfx);
         assert_eq!(p.freq_hz, 440.0);
         assert_eq!(p.volume, 1.0);
         assert_eq!(p.shape, ModShape::Ahd);
@@ -576,8 +612,9 @@ mod tests {
             slide_semitones: Some(12.0),
             slide_ms: Some(150.0),
         };
-        let p = opts.resolve(2);
+        let p = opts.resolve(2, Bus::Music);
 
+        assert_eq!(p.bus, Bus::Music); // bus propagates from the entry point
         assert_eq!(p.env.attack_ms, 10.0);
         assert_eq!(p.env.hold_ms, 5.0);
         assert_eq!(p.env.decay_ms, 200.0);
@@ -603,7 +640,7 @@ mod tests {
             slide_semitones: Some(5.0),
             slide_ms: None, // not specified
         };
-        let p = opts.resolve(3);
+        let p = opts.resolve(3, Bus::Sfx);
 
         assert_eq!(p.env.decay_ms, 250.0);
         assert_eq!(p.slide_ms, 250.0); // should default to decay
@@ -757,6 +794,7 @@ mod tests {
                 },
                 slide_semitones: 0.0,
                 slide_ms: 0.0,
+                bus: Bus::Sfx,
             }));
         }
         let n = 22_050;
@@ -790,6 +828,7 @@ mod tests {
             },
             slide_semitones: 0.0,
             slide_ms: 0.0,
+            bus: Bus::Sfx,
         }));
         let mut q = vec![0.0f32; 4410 * 2];
         unsafe { e2.render(&mut q, 4410) };
@@ -821,6 +860,7 @@ mod tests {
             },
             slide_semitones: 24.0, // +2 octaves -> ~4x frequency
             slide_ms: 100.0,
+            bus: Bus::Sfx,
         }));
         let n = 4410; // 100ms at 44.1k
         let mut buf = vec![0.0f32; n * 2];
@@ -883,5 +923,53 @@ mod tests {
         // We add, never overwrite: every sample stayed >= the prior content
         // minus full-scale, and the buffer changed somewhere.
         assert!(buf.iter().any(|&s| (s - 0.25).abs() > 1e-6));
+    }
+
+    #[test]
+    fn voice_rides_its_own_bus_master_not_the_other() {
+        let music_patch = || {
+            let mut p = patch(1, 1.0);
+            p.bus = Bus::Music;
+            p
+        };
+
+        // Music bus muted -> a lone Music voice is exact silence, even with the
+        // Sfx master wide open. (Proves it isn't reading the Sfx master.)
+        let e = fresh();
+        e.set_music_volume(0.0);
+        e.set_sfx_volume(1.0);
+        e.post(Event::NoteOn(music_patch()));
+        let mut buf = vec![0.0f32; 256 * 2];
+        unsafe { e.render(&mut buf, 256) };
+        assert!(
+            buf.iter().all(|&s| s == 0.0),
+            "muted music bus must silence a music voice"
+        );
+
+        // Music bus open, Sfx muted -> the same Music voice still sounds.
+        // (Proves it isn't routed through the Sfx master.)
+        let e2 = fresh();
+        e2.set_music_volume(1.0);
+        e2.set_sfx_volume(0.0);
+        e2.post(Event::NoteOn(music_patch()));
+        let mut buf2 = vec![0.0f32; 256 * 2];
+        unsafe { e2.render(&mut buf2, 256) };
+        assert!(
+            buf2.iter().any(|&s| s.abs() > 0.01),
+            "music voice should sound while its bus is up (sfx muted)"
+        );
+
+        // Symmetric check: an Sfx voice is silenced by the Sfx master while the
+        // Music master is open.
+        let e3 = fresh();
+        e3.set_sfx_volume(0.0);
+        e3.set_music_volume(1.0);
+        e3.post(Event::NoteOn(patch(1, 1.0))); // Sfx by default
+        let mut buf3 = vec![0.0f32; 256 * 2];
+        unsafe { e3.render(&mut buf3, 256) };
+        assert!(
+            buf3.iter().all(|&s| s == 0.0),
+            "muted sfx bus must silence an sfx voice"
+        );
     }
 }

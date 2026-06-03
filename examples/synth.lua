@@ -6,14 +6,14 @@
 --   1/2/3  : play row 1/2/3 -- hold to sustain (ADSR), tap for one-shots
 --            (AHD/DRUM). Press several at once for a chord.
 --
--- Editing the NOTE of a sounding row glides its pitch live (sfx.set_freq);
+-- Editing the NOTE of a sounding row glides its pitch live (synth.set_freq);
 -- waveform/envelope bake at note-on, so they're heard on the next press.
--- sfx.synth returns a voice id; sfx.stop releases a held one.
+-- synth.sfx returns a voice id; synth.stop releases a held one.
 
 local NOTE_NAMES = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" }
-local WAVES = { sfx.SINE, sfx.SAW, sfx.SQUARE, sfx.NOISE, sfx.TRIANGLE }
+local WAVES = { synth.SINE, synth.SAW, synth.SQUARE, synth.NOISE, synth.TRIANGLE }
 local WAVE_NAMES = { "SINE", "SAW", "SQUARE", "NOISE", "TRIANGLE" }
-local SHAPES = { sfx.AHD, sfx.ADSR, sfx.DRUM }
+local SHAPES = { synth.AHD, synth.ADSR, synth.DRUM }
 local SHAPE_NAMES = { "AHD", "ADSR", "DRUM" }
 
 local MIDI_MIN, MIDI_MAX = 36, 96 -- C2..C7
@@ -47,7 +47,7 @@ local function alter(delta)
   if State.cursor_col == 1 then
     row.midi = math.max(MIDI_MIN, math.min(MIDI_MAX, row.midi + delta))
     -- If this row is sounding, glide its pitch live (click-free).
-    if row.id then sfx.set_freq(row.id, midi_to_freq(row.midi)) end
+    if row.id then synth.set_freq(row.id, midi_to_freq(row.midi)) end
   elseif State.cursor_col == 2 then
     row.wave = (row.wave - 1 + delta) % #WAVES + 1
   else
@@ -70,7 +70,7 @@ function _update()
   -- key-up. ADSR sustains while held; AHD/DRUM self-terminate.
   for _, row in ipairs(State.rows) do
     if input.pressed(row.action) then
-      row.id = sfx.synth({
+      row.id = synth.sfx({
         -- 0.3 keeps headroom so a 3-note chord won't clip the mix.
         wave = WAVES[row.wave],
         freq = midi_to_freq(row.midi),
@@ -82,7 +82,7 @@ function _update()
         release = 120,
       })
     elseif input.released(row.action) and row.id then
-      sfx.stop(row.id)
+      synth.stop(row.id)
       row.id = nil
     end
   end

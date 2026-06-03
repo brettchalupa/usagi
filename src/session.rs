@@ -447,50 +447,66 @@ fn register_music_api(
     Ok(())
 }
 
+/// Reads a `synth.*` options table into a `PatchOpts`. Shared by `synth.sfx`
+/// and `synth.music`, which differ only in the bus the voice rides.
+fn read_patch_opts(opts: &LuaTable) -> LuaResult<crate::audio_engine::PatchOpts> {
+    Ok(crate::audio_engine::PatchOpts {
+        wave: opts.get::<Option<i32>>("wave")?,
+        freq_hz: opts.get::<Option<f32>>("freq")?,
+        volume: opts.get::<Option<f32>>("volume")?,
+        param: opts.get::<Option<f32>>("param")?,
+        shape: opts.get::<Option<i32>>("shape")?,
+        attack_ms: opts.get::<Option<f32>>("attack")?,
+        hold_ms: opts.get::<Option<f32>>("hold")?,
+        decay_ms: opts.get::<Option<f32>>("decay")?,
+        sustain: opts.get::<Option<f32>>("sustain")?,
+        release_ms: opts.get::<Option<f32>>("release")?,
+        slide_semitones: opts.get::<Option<f32>>("slide")?,
+        slide_ms: opts.get::<Option<f32>>("slide_ms")?,
+    })
+}
+
 /// Installs the synthesized-sound API at session startup. The closures post
 /// events to the `'static` `audio_engine`, so they're callable from any of
-/// `_init`/`_update`/`_draw` with no per-frame borrow to scope:
-/// `sfx.synth(opts) -> id` (AHD/DRUM one-shot, ADSR sustains until stop),
-/// `sfx.stop(id)`, `sfx.stop_all()`, `sfx.set_freq`, `sfx.set_volume`.
+/// `_init`/`_update`/`_draw` with no per-frame borrow to scope. A voice is
+/// started on one of two volume buses by the entry point used:
+/// `synth.sfx(opts) -> id` (rides the Sfx slider) or `synth.music(opts) -> id`
+/// (rides the Music slider); both take the same options and return a voice id
+/// (AHD/DRUM one-shot, ADSR sustains until stop). The id-based controls are
+/// bus-agnostic: `synth.stop(id)`, `synth.stop_all()`, `synth.set_freq`,
+/// `synth.set_volume`.
 fn register_synth_api(lua: &Lua) -> LuaResult<()> {
-    use crate::audio_engine::{Event, PatchOpts, engine};
+    use crate::audio_engine::{Bus, Event, engine};
 
-    let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
+    let synth_tbl: LuaTable = lua.globals().get("synth")?;
 
-    let synth = lua.create_function(|_, opts: LuaTable| {
-        let patch_opts = PatchOpts {
-            wave: opts.get::<Option<i32>>("wave")?,
-            freq_hz: opts.get::<Option<f32>>("freq")?,
-            volume: opts.get::<Option<f32>>("volume")?,
-            param: opts.get::<Option<f32>>("param")?,
-            shape: opts.get::<Option<i32>>("shape")?,
-            attack_ms: opts.get::<Option<f32>>("attack")?,
-            hold_ms: opts.get::<Option<f32>>("hold")?,
-            decay_ms: opts.get::<Option<f32>>("decay")?,
-            sustain: opts.get::<Option<f32>>("sustain")?,
-            release_ms: opts.get::<Option<f32>>("release")?,
-            slide_semitones: opts.get::<Option<f32>>("slide")?,
-            slide_ms: opts.get::<Option<f32>>("slide_ms")?,
-        };
-
+    let sfx = lua.create_function(|_, opts: LuaTable| {
         let id = engine().next_id();
-        let patch = patch_opts.resolve(id);
+        let patch = read_patch_opts(&opts)?.resolve(id, Bus::Sfx);
         engine().post(Event::NoteOn(patch));
         Ok(id)
     })?;
-    sfx_tbl.set("synth", wrap(lua, synth, "sfx.synth", &["table"])?)?;
+    synth_tbl.set("sfx", wrap(lua, sfx, "synth.sfx", &["table"])?)?;
+
+    let music = lua.create_function(|_, opts: LuaTable| {
+        let id = engine().next_id();
+        let patch = read_patch_opts(&opts)?.resolve(id, Bus::Music);
+        engine().post(Event::NoteOn(patch));
+        Ok(id)
+    })?;
+    synth_tbl.set("music", wrap(lua, music, "synth.music", &["table"])?)?;
 
     let stop = lua.create_function(|_, id: u32| {
         engine().post(Event::NoteOff { id });
         Ok(())
     })?;
-    sfx_tbl.set("stop", wrap(lua, stop, "sfx.stop", &["number"])?)?;
+    synth_tbl.set("stop", wrap(lua, stop, "synth.stop", &["number"])?)?;
 
     let stop_all = lua.create_function(|_, ()| {
         engine().post(Event::StopAll);
         Ok(())
     })?;
-    sfx_tbl.set("stop_all", wrap(lua, stop_all, "sfx.stop_all", &[])?)?;
+    synth_tbl.set("stop_all", wrap(lua, stop_all, "synth.stop_all", &[])?)?;
 
     // Live-update a sounding voice. freq glides click-free; volume swells.
     let set_freq = lua.create_function(|_, (id, freq_hz): (u32, f32)| {
@@ -501,9 +517,9 @@ fn register_synth_api(lua: &Lua) -> LuaResult<()> {
         });
         Ok(())
     })?;
-    sfx_tbl.set(
+    synth_tbl.set(
         "set_freq",
-        wrap(lua, set_freq, "sfx.set_freq", &["number", "number"])?,
+        wrap(lua, set_freq, "synth.set_freq", &["number", "number"])?,
     )?;
 
     let set_volume = lua.create_function(|_, (id, volume): (u32, f32)| {
@@ -514,9 +530,9 @@ fn register_synth_api(lua: &Lua) -> LuaResult<()> {
         });
         Ok(())
     })?;
-    sfx_tbl.set(
+    synth_tbl.set(
         "set_volume",
-        wrap(lua, set_volume, "sfx.set_volume", &["number", "number"])?,
+        wrap(lua, set_volume, "synth.set_volume", &["number", "number"])?,
     )?;
 
     Ok(())
@@ -1025,9 +1041,10 @@ impl Session {
             // attachment; the device closes at process exit.
             unsafe { crate::audio_engine::attach(a) };
         }
-        crate::audio_engine::engine().set_master_volume(settings.sfx_volume);
+        crate::audio_engine::engine().set_sfx_volume(settings.sfx_volume);
+        crate::audio_engine::engine().set_music_volume(settings.music_volume);
         register_synth_api(&lua)
-            .map_err(|e| crate::Error::Cli(format!("registering sfx.synth API: {e}")))?;
+            .map_err(|e| crate::Error::Cli(format!("registering synth.* API: {e}")))?;
 
         let shader = Rc::new(std::cell::RefCell::new(ShaderManager::new()));
         register_shader_api(&lua, &shader)
@@ -1560,7 +1577,8 @@ impl Session {
             self.settings.sfx_volume = s;
             self.music.borrow_mut().set_volume(m);
             self.sfx.set_volume(s);
-            crate::audio_engine::engine().set_master_volume(s);
+            crate::audio_engine::engine().set_sfx_volume(s);
+            crate::audio_engine::engine().set_music_volume(m);
             if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
                 crate::msg::err!("settings write failed: {e}");
             }
@@ -1620,6 +1638,7 @@ impl Session {
                 let v = v.clamp(0.0, 1.0);
                 self.settings.music_volume = v;
                 self.music.borrow_mut().set_volume(v);
+                crate::audio_engine::engine().set_music_volume(v);
                 if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
                     crate::msg::err!("settings write failed: {e}");
                 }
@@ -1628,7 +1647,7 @@ impl Session {
                 let v = v.clamp(0.0, 1.0);
                 self.settings.sfx_volume = v;
                 self.sfx.set_volume(v);
-                crate::audio_engine::engine().set_master_volume(v);
+                crate::audio_engine::engine().set_sfx_volume(v);
                 if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
                     crate::msg::err!("settings write failed: {e}");
                 }
