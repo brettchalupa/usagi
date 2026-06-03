@@ -880,59 +880,6 @@ outgrown Usagi. Fork the engine or use Love2D!
   - `pan` (number) — stereo pan, `-1..1`. `-1` left, `0` center, `1` right.
     Clamped.
 
-### `synth`
-
-Tones generated and mixed on the audio thread, with no `.wav` files. Lives in
-its own `synth` namespace (not `sfx`) because a voice can sustain like music as
-readily as it fires a one-shot effect; `examples/jumper.lua` uses it for both a
-bass riff and a sustained pad chord progression. The synth runs independently of
-the `.wav`-backed `sfx.play` pool. See also `examples/synth.lua` (a 3-voice
-instrument).
-
-A voice is started on one of two volume buses, matching the two pause-menu
-sliders, so the player's sliders attenuate the sounds they expect:
-
-- `synth.sfx(opts)` starts a voice on the **SFX** bus (the pause-menu SFX
-  slider). Use it for sound effects (jumps, coins, lasers).
-- `synth.music(opts)` starts a voice on the **Music** bus (the pause-menu Music
-  slider). Use it for synthesized music (bass lines, pads, arps).
-
-Both take the same `opts` and return a voice `id`. The choice of bus is the only
-difference; pick the one that matches how a player thinks of the sound, so the
-right slider controls it. All `opts` fields are optional:
-
-- `wave` (integer): waveform constant, one of `synth.SINE` (default),
-  `synth.SAW`, `synth.SQUARE`, `synth.NOISE`, `synth.TRIANGLE`.
-- `freq` (number): frequency in Hz (default `440`).
-- `volume` (number): `0..1` on top of the voice's bus volume (default `1`).
-- `param` (number): `0..1` per-waveform shape control (default `0.5`). Pulse
-  width for square, phase offset for sine/saw/triangle, low-pass softness for
-  noise.
-- `shape` (integer): envelope constant, one of `synth.AHD` (default),
-  `synth.ADSR`, `synth.DRUM`. `AHD` and `DRUM` self-terminate (fire-and-forget
-  one-shots); `ADSR` sustains until `synth.stop(id)`.
-- `attack`, `hold`, `decay`, `release` (number): envelope times in ms.
-- `sustain` (number): `0..1` ADSR sustain level (default `1`).
-- `slide` (number): pitch bend in semitones (`+` up, `-` down) reached over
-  `slide_ms` then held (default `0`). The arcade jump/coin/laser knob.
-- `slide_ms` (number): slide window in ms (defaults to `decay`).
-
-The id-based controls are bus-agnostic (they act on a voice by `id` regardless
-of which bus it plays on):
-
-- `synth.stop(id)` releases the voice with this `id` into its envelope release.
-  A no-op if no live voice matches; self-terminating one-shots do not need it.
-- `synth.stop_all()` releases every active synth voice (both buses).
-- `synth.set_freq(id, hz)` glides a sounding voice's pitch click-free
-  (continuous oscillator phase). Call it every frame for portamento, vibrato, or
-  sirens.
-- `synth.set_volume(id, vol)` swells or fades a sounding voice's volume
-  (`0..1`), on top of its bus volume.
-
-Up to 16 voices play at once across both buses; a 17th note-on steals the
-quietest. The synth is paused and resumed alongside music by the pause menu, and
-`synth.stop_all` runs on game reset so a held tone never survives the wipe.
-
 ### `music`
 
 Background music streamed from disk (or the fused bundle). Only one track plays

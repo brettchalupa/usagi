@@ -7,9 +7,7 @@ use crate::input::{
     ACTION_BTN1, ACTION_BTN2, ACTION_BTN3, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
     KEY_TABLE, MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT,
 };
-use crate::modulator::ModShape;
 use crate::shader::{ShaderManager, ShaderValue};
-use crate::synth::Waveform;
 use crate::vfs::VirtualFs;
 use mlua::prelude::*;
 use std::cell::RefCell;
@@ -172,19 +170,6 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
 
     let music = lua.create_table()?;
     lua.globals().set("music", music)?;
-
-    // Synthesized sound is its own namespace (not `sfx`) because a voice can
-    // sustain for music as readily as it fires a one-shot effect; its waveform
-    // and envelope constants live here, its play/stop closures in the session.
-    let synth = lua.create_table()?;
-    for (name, value, _) in Waveform::LUA_CONSTS {
-        synth.set(*name, *value)?;
-    }
-    // AHD/DRUM self-terminate; ADSR sustains until synth.stop(id).
-    for (name, value, _) in ModShape::LUA_CONSTS {
-        synth.set(*name, *value)?;
-    }
-    lua.globals().set("synth", synth)?;
 
     // `gfx` / `input` are top-level globals (see above). The `usagi` table is
     // reserved for engine-level info: runtime constants, current frame stats,
@@ -415,7 +400,6 @@ mod tests {
         let input: LuaTable = lua.globals().get("input").unwrap();
         let sfx: LuaTable = lua.globals().get("sfx").unwrap();
         let music: LuaTable = lua.globals().get("music").unwrap();
-        let synth: LuaTable = lua.globals().get("synth").unwrap();
         let usagi: LuaTable = lua.globals().get("usagi").unwrap();
 
         assert_eq!(gfx.get::<i32>("COLOR_TRUE_WHITE").unwrap(), 0);
@@ -433,12 +417,9 @@ mod tests {
         assert!(input.get::<u32>("MOUSE_RIGHT").is_ok());
         assert!(input.get::<u32>("MOUSE_MIDDLE").is_ok());
 
-        // synth exposes waveform constants at static-setup time, but its
-        // play/stop closures live in the session loop (per-frame scope), as do
-        // sfx's and music's, so those are nil here.
-        assert_eq!(synth.get::<i32>("SINE").unwrap(), 0);
-        assert_eq!(synth.get::<i32>("NOISE").unwrap(), 3);
-        assert!(synth.get::<LuaValue>("play").unwrap().is_nil());
+        // sfx and music are registered but empty of fields at
+        // static-setup time — their per-frame closures live in the
+        // session loop.
         assert!(sfx.get::<LuaValue>("play").unwrap().is_nil());
         assert!(music.get::<LuaValue>("play").unwrap().is_nil());
         assert!(music.get::<LuaValue>("loop").unwrap().is_nil());
@@ -1288,70 +1269,5 @@ mod tests {
             .eval()
             .expect("debug.traceback should be callable");
         assert!(trace.contains("hi"));
-    }
-
-    #[test]
-    fn synth_constants_parity_with_meta_usagi_lua() {
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-        let meta_path = std::path::Path::new(&manifest_dir).join("meta/usagi.lua");
-        let content = std::fs::read_to_string(&meta_path).unwrap();
-
-        let mut found_waveforms = std::collections::HashMap::new();
-        let mut found_shapes = std::collections::HashMap::new();
-
-        for line in content.lines() {
-            if let Some((key, val)) = line
-                .trim()
-                .strip_prefix("synth.")
-                .and_then(|rest| rest.split_once(" = "))
-                .and_then(|(k, v)| v.parse::<i32>().ok().map(|n| (k, n)))
-            {
-                let waveform_names = ["SINE", "SAW", "SQUARE", "NOISE", "TRIANGLE"];
-                let shape_names = ["AHD", "ADSR", "DRUM"];
-
-                if waveform_names.contains(&key) {
-                    found_waveforms.insert(key.to_string(), val);
-                } else if shape_names.contains(&key) {
-                    found_shapes.insert(key.to_string(), val);
-                }
-            }
-        }
-
-        for (name, value, _) in Waveform::LUA_CONSTS {
-            assert!(
-                found_waveforms.contains_key(*name),
-                "meta/usagi.lua missing synth.{} = ...",
-                name
-            );
-            assert_eq!(
-                found_waveforms[*name], *value,
-                "synth.{} mismatch: meta/usagi.lua says {}, Rust says {}",
-                name, found_waveforms[*name], value
-            );
-        }
-
-        for (name, value, _) in ModShape::LUA_CONSTS {
-            assert!(
-                found_shapes.contains_key(*name),
-                "meta/usagi.lua missing synth.{} = ...",
-                name
-            );
-            assert_eq!(
-                found_shapes[*name], *value,
-                "synth.{} mismatch: meta/usagi.lua says {}, Rust says {}",
-                name, found_shapes[*name], value
-            );
-        }
-
-        assert_eq!(
-            found_waveforms.len(),
-            Waveform::LUA_CONSTS.len(),
-            "extra waveforms in meta/usagi.lua not in Waveform::LUA_CONSTS"
-        );
-        assert_eq!(
-            found_shapes.len(),
-            ModShape::LUA_CONSTS.len(),
-            "extra shapes in meta/usagi.lua not in ModShape::LUA_CONSTS"
-        );
     }
 }
