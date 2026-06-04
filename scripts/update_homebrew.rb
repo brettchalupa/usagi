@@ -7,9 +7,6 @@
 #
 # Only the platforms already present (uncommented) in the formula are touched.
 # A platform whose asset is missing from the release is skipped with a warning,
-# so this is safe to run before every platform exists. To start shipping a new
-# platform (e.g. Linux arm64 in v1.1.0), uncomment its branch in the formula
-# first, then run this script to fill in the URL and sha256.
 #
 # Usage:
 #   scripts/update_homebrew.rb              # latest published GitHub release

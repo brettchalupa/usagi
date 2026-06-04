@@ -1,25 +1,20 @@
 class Usagi < Formula
   desc "Simple 2D Game Engine for Rapid Prototyping"
   homepage "https://usagiengine.com"
-  version "1.0.0"
+  version "1.1.0"
   license "Unlicense"
 
   # URLs and checksums are maintained by scripts/update_homebrew.rb — after a
   # release, run `ruby scripts/update_homebrew.rb` to refresh them from GitHub.
   if OS.mac? && Hardware::CPU.arm?
-    url "https://github.com/brettchalupa/usagi/releases/download/v1.0.0/usagi-1.0.0-macos-aarch64.tar.gz"
-    sha256 "f188e1c70a4bd6fa8b02510624b8f2c33999ba505d5f6426180b6f6c4bd22516"
+    url "https://github.com/brettchalupa/usagi/releases/download/v1.1.0/usagi-1.1.0-macos-aarch64.tar.gz"
+    sha256 "ba3d2371aae64c8dc681fa2ad7883459f3583ffe30d53cb52f4622da2f4b1a80"
   elsif OS.linux? && Hardware::CPU.intel?
-    url "https://github.com/brettchalupa/usagi/releases/download/v1.0.0/usagi-1.0.0-linux-x86_64.tar.gz"
-    sha256 "3976fa2de170110e43fb5c2c951d8fef6130325265cf61f8b505a8a6e69dbbca"
-  # NOTE TO SELF WHEN I MAKE v1.1.0 RELEASE: Linux arm64 ships starting
-  # v1.1.0. After that release, uncomment the branch below, then run `ruby
-  # scripts/update_homebrew.rb`. It fills in the URL and sha256 automatically.
-  # Leave it commented until the linux-aarch64 asset actually exists, or `brew
-  # install` on Linux arm64 404s.
-  # elsif OS.linux? && Hardware::CPU.arm?
-  #   url "https://github.com/brettchalupa/usagi/releases/download/v1.0.0/usagi-1.0.0-linux-aarch64.tar.gz"
-  #   sha256 ""
+    url "https://github.com/brettchalupa/usagi/releases/download/v1.1.0/usagi-1.1.0-linux-x86_64.tar.gz"
+    sha256 "dbab2917f7b808778a18efef2229a0491b4be20fc573c8573e1256d69c5eb64a"
+  elsif OS.linux? && Hardware::CPU.arm?
+    url "https://github.com/brettchalupa/usagi/releases/download/v1.1.0/usagi-1.1.0-linux-aarch64.tar.gz"
+    sha256 "9f4d08e59ef37680aaea452fb362ab51cf5e45dacd1d6cc1fbaff7e9bb05155f"
   else
     odie "usagi: no prebuilt binary for this platform yet (supported: macOS arm64, Linux x86_64)"
   end
