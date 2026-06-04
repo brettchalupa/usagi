@@ -56,6 +56,8 @@ Fixes:
   palette docstring also wrongly claimed slot `0` renders as a magenta sentinel;
   it resolves to true white, and only indices above the active palette's length
   render as magenta.
+- Added missing `util.remap` function to bundled type definitions in
+  `meta/usagi.lua`.
 - `usagi` CLI output now renders colorized in Windows `cmd.exe`. The colorized
   `[usagi]` log prefix relies on ANSI escape sequences; modern Windows 10+
   conhost understands them but only after a process opts in via

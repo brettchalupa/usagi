@@ -53,7 +53,6 @@ function gfx.text(text, x, y, color) end
 ---@param alpha    number   opacity in `0..1`; `1.0` is opaque
 function gfx.text_ex(text, x, y, scale, rotation, color, alpha) end
 
-
 ---Draws a rectangle outline.
 ---@param x     number  left edge in game-space pixels
 ---@param y     number  top edge in game-space pixels
@@ -745,6 +744,21 @@ function util.wrap(v, lo, hi) end
 ---@param hz number  toggles per second
 ---@return boolean
 function util.flash(t, hz) end
+
+---Remaps the value `v` from the range [start_a, end_a] into the
+---range [start_b, end_b]
+---Useful for converting between different value ranges, like
+---from [-1; 1] to [0; 1] or from [0; 1] to [0; 255]
+---Example: `util.remap(128, 0,256, 0,100)` will return 50,
+---because 128 is exactly at half of the range 0 - 256 and the
+---half of the second range (0 - 100) is 50
+---@param v number  value
+---@param start_a number
+---@param end_a number
+---@param start_b number
+---@param end_b number
+---@return number
+function util.remap(v, start_a, end_a, start_b, end_b) end
 
 ---Normalizes a `{x, y}` vector to unit length. Returns a new table;
 ---the input is unchanged. A zero vector returns `{x = 0, y = 0}`.
