@@ -124,6 +124,10 @@
             e.preventDefault();
         }
       });
+      // Allow right clicks in the game, don't show the default browser menu
+      window.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+      });
     </script>
     <div id="overlay" role="button" tabindex="0">
       <button id="start" disabled>Loading…</button>
