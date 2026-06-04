@@ -23,7 +23,6 @@ dedicated to the public domain.
 **Linux, macOS:**
 
 ```sh
-# direct
 curl -fsSL https://usagiengine.com/install.sh | sh
 ```
 
@@ -33,9 +32,9 @@ curl -fsSL https://usagiengine.com/install.sh | sh
 irm https://usagiengine.com/install.ps1 | iex
 ```
 
-The installer fetches the latest release from GitHub, verifies its SHA-256
-checksum, installs `usagi` to `~/.usagi/bin/` (or `%USERPROFILE%\.usagi\bin\` on
-Windows), and adds it to `PATH`.
+The installer fetches the latest release, verifies its SHA-256 checksum,
+installs `usagi` to `~/.usagi/bin/` (or `%USERPROFILE%\.usagi\bin\` on Windows),
+and adds it to `PATH`.
 
 **Homebrew (package manager):**
 
@@ -49,7 +48,7 @@ Manual download:
 [GitHub](https://github.com/brettchalupa/usagi/releases/latest) |
 [itch.io](https://brettchalupa.itch.io/usagi)
 
-Latest release: **v1.0.0**.
+Latest release: **v1.1.0**.
 
 [View the changelog.](https://usagiengine.com/changelog)
 
@@ -643,7 +642,10 @@ Examples:
 usagi font bake my_font.ttf 12
 
 # Skip the kanji block for a font that covers it
-usagi font bake misaki_gothic.ttf 8 --no-cjk
+usagi font bake misaki_gothic.ttf 8 --scripts all,-cjk
+
+# Korean-only atlas (smaller output for a game that doesn't need other scripts)
+usagi font bake silver.ttf 18 --scripts latin,latin-ext,punct,korean
 
 # Write to a specific path
 usagi font bake silver.ttf 18 --out my_proj/font.png
@@ -656,13 +658,22 @@ Behavior:
   sizes goes through FreeType's outline scaler and looks slightly fuzzy. Common
   sizes: monogram at `15`, Silver at `18`, Misaki Gothic at `8`, Geist Pixel at
   `16`.
-- The CJK Unified Ideographs block (~21k codepoints) is included by default.
-  Codepoints the font doesn't cover are skipped via the font's cmap, so this
-  costs nothing for non-CJK fonts. Pass `--no-cjk` if you want to skip the block
-  even when present.
+- By default every supported script is included (Latin, Latin-ext, Greek,
+  Cyrillic, punctuation, CJK punctuation, Hiragana, Katakana, Hangul,
+  Halfwidth/Fullwidth Forms, and CJK Unified Ideographs). Codepoints the font
+  doesn't cover are skipped via the font's cmap, so unused scripts cost nothing.
+- Use `--scripts` to narrow or expand the set. Pass a comma-separated list of
+  names; `all` (default) and `none` are special values, and a `-` prefix
+  subtracts. Known names: `latin`, `latin-ext`, `greek`, `cyrillic`, `punct`,
+  `cjk-punct`, `hiragana`, `katakana`, `hangul` (alias: `korean`), `cjk` (alias:
+  `han`), `halfwidth`. Examples: `--scripts all,-cjk` to drop the Han ideographs
+  (~21k codepoints), or `--scripts latin,korean` for a focused atlas.
+- `--no-cjk` is a deprecated alias for `--scripts all,-cjk`. It still works but
+  prints a warning and will be removed in a future major release.
 - Output is a single `font.png` with metadata in a zTXt chunk. Drop it next to
   your `main.lua` and the engine picks it up automatically.
-- Bakes are reproducible: the same TTF + size yields byte-identical output.
+- Bakes are reproducible: the same TTF + scripts + size yields byte-identical
+  output.
 
 Behavior of the project drop-in:
 
@@ -682,8 +693,8 @@ usagi font bake Silver.ttf 18
 
 See
 [`examples/custom_font`](https://github.com/brettchalupa/usagi/tree/main/examples/custom_font)
-for a working Silver-based demo that renders English, Cyrillic, Greek, and
-Japanese on the same screen.
+for a working Silver-based demo that renders English, Cyrillic, Greek, Japanese,
+and Korean on the same screen.
 
 #### Scaling sprites
 
@@ -854,8 +865,9 @@ outgrown Usagi. Fork the engine or use Love2D!
 
 ### `sfx`
 
-- `sfx.play(name)` — play `sfx/<name>.wav`. Unknown names silently no-op.
-  Playing a sound while it's already playing restarts it.
+- `sfx.play(name)` — play `sfx/<name>.wav`. Unknown names silently no-op. Each
+  sfx has a pool of 8 voices that overlap; the 9th simultaneous play steals the
+  oldest.
 - `sfx.play_ex(name, volume, pitch, pan)` — fire-and-forget with per-call
   params. Useful for varied one-shot effects without needing to commit extra
   `.wav` files. All three params required:
@@ -1456,11 +1468,12 @@ platform plus a portable bundle:
 $ usagi export examples/snake
 $ tree export
 export
-├── snake-linux.zip      # Linux x86_64 fused exe
-├── snake-macos.zip      # macOS arm64 fused exe
-├── snake-windows.zip    # Windows x86_64 fused exe
-├── snake-web.zip        # web export: index.html + usagi.{js,wasm} + game.usagi
-└── snake.usagi          # portable bundle (usagi run snake.usagi)
+├── snake-linux.zip          # Linux x86_64 fused exe
+├── snake-linux-aarch64.zip  # Linux arm64 fused exe (Pi, ARM SBCs, ARM handhelds)
+├── snake-macos.zip          # macOS arm64 fused exe
+├── snake-windows.zip        # Windows x86_64 fused exe
+├── snake-web.zip            # web export: index.html + usagi.{js,wasm} + game.usagi
+└── snake.usagi              # portable bundle (usagi run snake.usagi)
 ```
 
 Or pick one with `--target`:
@@ -1497,6 +1510,33 @@ Override the template source explicitly:
 - `--template-url https://example.com/usagi-...` to fetch from an arbitrary URL.
   Verification still runs (the URL must have a sibling `.sha256`).
 
+### Building for Unsupported Platforms
+
+Usagi publishes binaries for Linux x86_64, Linux aarch64, macOS aarch64, Windows
+x86_64, and web (wasm). If you're on a platform outside that set (macOS Intel,
+FreeBSD, etc.) the official downloads won't work, but you can build the engine
+from source and export games for yourself:
+
+1. Grab the source for the release you want. Either clone the repo and
+   `git checkout v<version>` or download the source archive from the
+   [release page](https://codeberg.org/brettchalupa/usagi/releases).
+2. Build with `cargo build --release`. See
+   [DEVELOPING.md](DEVELOPING.md#dependencies) for platform prerequisites
+   (Windows in particular needs vcpkg + zlib).
+3. Use the resulting binary at `target/release/usagi` to develop and export:
+
+   ```sh
+   target/release/usagi export path/to/game
+   ```
+
+On a host outside the published set, `usagi export` (default `--target all`)
+also produces a host-fuse zip named `<slug>-<os>-<arch>.zip` alongside the four
+published-platform zips. Use `--target host` if you want only that zip without
+fetching the cross-platform templates.
+
+The host zip only runs on the same OS/arch you built on; to ship to multiple
+unsupported platforms, build the engine on each one.
+
 ### Web Shell
 
 The web export ships a default HTML page that hosts the canvas. To use a custom
@@ -1514,6 +1554,76 @@ automatically. Override per-build with `--web-shell PATH`.
 - The fuse format is simple and additive: a magic footer at the end of the exe
   points back to an appended bundle. A `.usagi` file is the same bundle bytes
   without the footer; it runs on any platform via `usagi run`.
+
+## Porting to Love2D
+
+When a project outgrows Usagi (you want iOS / Android, four action buttons, the
+full Love2D module surface), there's a one-shot port path to
+[Love2D](https://love2d.org) 11.5.
+
+```sh
+usagi loveify path/to/your-game path/to/your-game-love
+cd path/to/your-game-love
+love .
+```
+
+`usagi loveify` walks the source dir, rewrites compound-assignment operators
+(`x += 1` → `x = x + (1)`) for LuaJIT compat, copies all assets verbatim, and
+drops in the Love shim runtime: `usagi_shim.lua` (~1800 lines of pure Lua that
+reimplements `gfx.*`, `input.*`, `sfx.*`, `music.*`, `usagi.*`, `util.*`,
+`effect.*`, and the custom font.png + palette.png paths against Love's APIs)
+plus a `conf.lua` (suppresses Love's default 800×600 window so your
+`_config().game_width / game_height` apply at boot). If your source has no
+custom `font.png`, the engine's bundled monogram font drops in too so `gfx.text`
+renders crisply out of the box. Refuses to overwrite an existing destination.
+
+This is meant to be a **one-time operation**. After porting, your game has
+"graduated" from Usagi: you keep your gameplay code, but you own the shim file
+and the project layout, and future changes happen in your fork, not by
+re-running `loveify`. Edit the shim, gut it, replace it with idiomatic Love
+code, take it whatever direction your game needs.
+
+**Use cases the port unlocks:**
+
+- iOS / Android, via [love-android](https://github.com/love2d/love-android) and
+  [love-iOS](https://github.com/love2d/love-ios).
+- Multiple sprite files
+- Render targets, and the rest of `love.graphics`.
+- Steam / Steamworks integration via Love bindings.
+- More than 3 action buttons, custom keymapping UI, etc.
+
+**What's intentionally not carried over.** You reimplement these in your fork:
+
+- **Pause menu** (`usagi.menu_item` / `clear_menu_items`). The Lua calls are
+  no-op stubs in the shim so a project that registers items doesn't fail to
+  load, but no overlay renders.
+- **Input remapping** (the keymap / pad-map override system from `usagi tools`).
+  Roll your own remap UI on top of the shim's default bindings.
+- **Shaders** (`gfx.shader_set` / `gfx.shader_uniform`). No-op stubs. Use Love's
+  native shader API directly (`love.graphics.newShader` and friends).
+- **Hot reload (F5).** Dev-loop feature that's Usagi-specific; shipped Love
+  games don't reload.
+- **FPS overlay.** Roll your own with `love.timer.getFPS()` and `gfx.text`.
+- **`usagi tools`, `usagi export`, `usagi font bake`.** Usagi CLI, not runtime
+  APIs. Use Love's own packaging (`love --fused`,
+  [love-release](https://github.com/MisterDA/love-release),
+  [makelove](https://github.com/pfirsich/makelove)).
+
+Web export with a loveified project is unverified. Love 11.5 doesn't ship a web
+target. You'd run the port through
+[love.js](https://github.com/Davidobot/love.js) or whatever the current best
+fork is. The shim has no web-specific code (it doesn't use threading or other
+modules that break under emscripten), so in theory it should work, but it hasn't
+been tested. Use `usagi export --target web` if web is the primary need.
+
+The shim source is well-commented pure Lua at `<your-project>/usagi_shim.lua`.
+When you `usagi loveify`, it's now your code! Open it, read it, edit it. The
+original canonical copy lives in
+[`examples/loveify/`](https://codeberg.org/brettchalupa/usagi/src/branch/main/examples/loveify)
+in the Usagi repo. Updates to the shim ship with new Usagi releases; once you've
+ported, you're on your own copy and that's the intended outcome. You can keep
+using the Usagi API if you want, extend it, or move away from it. It's totally
+up to you.
 
 ## Debugging
 
@@ -1632,6 +1742,11 @@ the current session with `$env:NO_COLOR = "1"`, or persistently via
 - Love2D
 - Playdate SDK
 - DragonRuby Game Toolkit (DRGTK)
+
+## Engine Assets
+
+[Download the Usagi Engine logo assets](https://chalupa.storageshare.net/s/Gp9Nzfy9dt7takH)
+if you need them for any reason.
 
 ## Credits
 

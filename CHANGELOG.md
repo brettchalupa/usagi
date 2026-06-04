@@ -5,6 +5,10 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
+No unreleased changes.
+
+## v1.1.0 - June 4, 2026
+
 Features:
 
 - New `usagi loveify <src> <dst>` subcommand: one-time port of an Usagi project
