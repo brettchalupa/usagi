@@ -17,7 +17,7 @@ test:
 
 fmt:
     cargo fmt
-    deno fmt *.md **/*.md **/*.html
+    deno fmt *.md **/*.md **/*.html book/* book/**/*
 
 push:
     git push origin

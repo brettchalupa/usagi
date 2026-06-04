@@ -32,19 +32,20 @@ curl -fsSL https://usagiengine.com/install.sh | sh
 irm https://usagiengine.com/install.ps1 | iex
 ```
 
-The installer fetches the latest release from GitHub, verifies its SHA-256
-checksum, installs `usagi` to `~/.usagi/bin/` (or `%USERPROFILE%\.usagi\bin\` on
-Windows), and adds it to `PATH`.
+The installer fetches the latest release, verifies its SHA-256 checksum,
+installs `usagi` to `~/.usagi/bin/` (or `%USERPROFILE%\.usagi\bin\` on Windows),
+and adds it to `PATH`.
 
 **Homebrew (package manager):**
 
 ```
-brew tap brettchalupa/usagi https://github.com/brettchalupa/usagi
+brew tap brettchalupa/usagi https://codeberg.org/brettchalupa/usagi
 brew install usagi
 ```
 
 Manual download:
-[GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest) or
+[Codeberg](https://codeberg.org/brettchalupa/usagi/releases/latest) |
+[GitHub](https://github.com/brettchalupa/usagi/releases/latest) |
 [itch.io](https://brettchalupa.itch.io/usagi)
 
 Latest release: **v1.0.0**.
@@ -105,8 +106,8 @@ touch `main.lua`.
 
 ## Feedback and Issues
 
-Open a [GitHub issue](https://github.com/brettchalupa/usagi/issues/new/choose)
-for feedback, requests, and bugs. Search first to avoid duplicates.
+Open an [issue](https://codeberg.org/brettchalupa/usagi/issues/new) for
+feedback, requests, and bugs. Search first to avoid duplicates.
 
 ## Goals and non-goals
 
@@ -856,8 +857,6 @@ function keys `F1`–`F12`, `SPACE`, `ENTER`, `ESCAPE`, `TAB`, `BACKSPACE`,
 `EQUAL`, `LBRACKET`, `RBRACKET`, `BACKSLASH`, `SEMICOLON`, `APOSTROPHE`,
 `COMMA`, `PERIOD`, `SLASH`). Numpad and the navigation cluster
 (Insert/Home/End/PgUp/PgDn) aren't exposed.
-[Open an issue](https://github.com/brettchalupa/usagi/issues/new) or submit a PR
-if you need them.
 
 Raw gamepad reads (analog sticks, triggers, individual face buttons by index)
 are intentionally not exposed. The abstract `input.held(input.BTN1)` family
@@ -1364,7 +1363,7 @@ keep you within a given scene or setup you want to refine quickly.
 
 ## Examples
 
-[View the examples on GitHub.](https://github.com/brettchalupa/usagi/tree/main/examples)
+[View the examples on Codeberg.](https://codeberg.org/brettchalupa/usagi/src/branch/main/examples)
 
 There are a variety of examples exercising the full Usagi API that you can
 browse and adapt. Their source is all public domain, so do with them what you
@@ -1520,7 +1519,7 @@ from source and export games for yourself:
 
 1. Grab the source for the release you want. Either clone the repo and
    `git checkout v<version>` or download the source archive from the
-   [release page](https://github.com/brettchalupa/usagi/releases).
+   [release page](https://codeberg.org/brettchalupa/usagi/releases).
 2. Build with `cargo build --release`. See
    [DEVELOPING.md](DEVELOPING.md#dependencies) for platform prerequisites
    (Windows in particular needs vcpkg + zlib).
@@ -1620,7 +1619,7 @@ been tested. Use `usagi export --target web` if web is the primary need.
 The shim source is well-commented pure Lua at `<your-project>/usagi_shim.lua`.
 When you `usagi loveify`, it's now your code! Open it, read it, edit it. The
 original canonical copy lives in
-[`examples/loveify/`](https://github.com/brettchalupa/usagi/tree/main/examples/loveify)
+[`examples/loveify/`](https://codeberg.org/brettchalupa/usagi/src/branch/main/examples/loveify)
 in the Usagi repo. Updates to the shim ship with new Usagi releases; once you've
 ported, you're on your own copy and that's the intended outcome. You can keep
 using the Usagi API if you want, extend it, or move away from it. It's totally

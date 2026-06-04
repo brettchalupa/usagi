@@ -5,4 +5,4 @@ language = "en"
 description = "A beginner-friendly guide to programming 2D games in Lua with Usagi Engine."
 
 [output.html]
-git-repository-url = "https://github.com/brettchalupa/usagi_book"
+git-repository-url = "https://codeberg.org/brettchalupa/usagi/src/branch/main/book"

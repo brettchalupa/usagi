@@ -40,12 +40,13 @@ Windows), and adds it to `PATH`.
 **Homebrew (package manager):**
 
 ```
-brew tap brettchalupa/usagi https://github.com/brettchalupa/usagi
+brew tap brettchalupa/usagi https://codeberg.org/brettchalupa/usagi
 brew install usagi
 ```
 
 Manual download:
-[GitHub Releases](https://github.com/brettchalupa/usagi/releases/latest) or
+[Codeberg](https://codeberg.org/brettchalupa/usagi/releases/latest) |
+[GitHub](https://github.com/brettchalupa/usagi/releases/latest) |
 [itch.io](https://brettchalupa.itch.io/usagi)
 
 Latest release: **v1.0.0**.
@@ -106,8 +107,8 @@ touch `main.lua`.
 
 ## Feedback and Issues
 
-Open a [GitHub issue](https://github.com/brettchalupa/usagi/issues/new/choose)
-for feedback, requests, and bugs. Search first to avoid duplicates.
+Open an [issue](https://codeberg.org/brettchalupa/usagi/issues/new) for
+feedback, requests, and bugs. Search first to avoid duplicates.
 
 ## Goals and non-goals
 
@@ -845,8 +846,6 @@ function keys `F1`–`F12`, `SPACE`, `ENTER`, `ESCAPE`, `TAB`, `BACKSPACE`,
 `EQUAL`, `LBRACKET`, `RBRACKET`, `BACKSLASH`, `SEMICOLON`, `APOSTROPHE`,
 `COMMA`, `PERIOD`, `SLASH`). Numpad and the navigation cluster
 (Insert/Home/End/PgUp/PgDn) aren't exposed.
-[Open an issue](https://github.com/brettchalupa/usagi/issues/new) or submit a PR
-if you need them.
 
 Raw gamepad reads (analog sticks, triggers, individual face buttons by index)
 are intentionally not exposed. The abstract `input.held(input.BTN1)` family
@@ -1352,7 +1351,7 @@ keep you within a given scene or setup you want to refine quickly.
 
 ## Examples
 
-[View the examples on GitHub.](https://github.com/brettchalupa/usagi/tree/main/examples)
+[View the examples on Codeberg.](https://codeberg.org/brettchalupa/usagi/src/branch/main/examples)
 
 There are a variety of examples exercising the full Usagi API that you can
 browse and adapt. Their source is all public domain, so do with them what you
