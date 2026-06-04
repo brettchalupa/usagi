@@ -265,6 +265,9 @@ Copy the Changelog notes and assets on the Releases page, then click Publish to
 make it public. Tags containing a hyphen (`v0.1.0-rc.1`) are flagged as
 prereleases following semver convention.
 
+Then copy and paste the release notes and the artifacts into the Codeberg
+release.
+
 ### Release Artifacts
 
 | File                               | Target                                               |
