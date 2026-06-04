@@ -12,3 +12,6 @@ export/
 
 # Don't duplicate the loveified notetris as it's basically the game
 examples/loveify/notetris
+
+# Local Netlify folder
+.netlify
