@@ -29,7 +29,7 @@ Read the full details on the `usagi loveify` command and shim:
 
 In summary, `usagi loveify` is a good fit if you want:
 
-- To integration with Steam
+- To integrate with Steam
 - Release your game on iOS and Android
 - Integrate networking
 - More advanced rendering and input functionality
