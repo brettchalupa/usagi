@@ -92,6 +92,9 @@ Fixes:
   canvas and blits scaled (with letterbox bars) to fit any window size. Launches
   at the largest integer canvas multiple that fits the current monitor.
   [#269](https://github.com/brettchalupa/usagi/issues/269)
+- Right clicking in web exports now works properly and does not show the
+  browser's right click menu. See
+  https://codeberg.org/brettchalupa/usagi/issues/13
 
 ## v1.0.0 - May 19, 2026
 
