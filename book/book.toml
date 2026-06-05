@@ -6,3 +6,4 @@ description = "A beginner-friendly guide to programming 2D games in Lua with Usa
 
 [output.html]
 git-repository-url = "https://codeberg.org/brettchalupa/usagi/src/branch/main/book"
+additional-css = ["theme/codeberg-icon.css"]
