@@ -5,7 +5,17 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
-No unreleased changes.
+Features:
+
+- `usagi font bake` gained five new script blocks, all included in
+  `--scripts all`: `box-drawing` (alias: `box`) for Box Drawing (U+2500–U+257F)
+  and Block Elements (U+2580–U+259F); `arrows` for U+2190–U+21FF; `math` (alias:
+  `math-ops`) for U+2200–U+22FF; `geometric` (alias: `shapes`) for
+  U+25A0–U+25FF; and `symbols` (alias: `misc-symbols`) for U+2600–U+26FF. Box
+  drawing was the motivating gap. Fonts that lack these glyphs are unaffected;
+  the cmap filter drops the codepoints they don't cover. To keep an atlas small,
+  subtract the blocks you don't need, e.g. `--scripts all,-symbols,-math`. See
+  https://codeberg.org/brettchalupa/usagi/issues/16
 
 ## v1.1.0 - June 4, 2026
 

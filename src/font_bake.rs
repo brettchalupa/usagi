@@ -55,6 +55,34 @@ pub const SCRIPTS: &[Script] = &[
         ranges: &[(0x2010, 0x205E)],
     },
     Script {
+        name: "arrows",
+        aliases: &[],
+        ranges: &[(0x2190, 0x21FF)],
+    },
+    Script {
+        name: "math",
+        aliases: &["math-ops"],
+        ranges: &[(0x2200, 0x22FF)],
+    },
+    Script {
+        name: "box-drawing",
+        aliases: &["box"],
+        ranges: &[
+            (0x2500, 0x257F), // Box Drawing
+            (0x2580, 0x259F), // Block Elements
+        ],
+    },
+    Script {
+        name: "geometric",
+        aliases: &["shapes"],
+        ranges: &[(0x25A0, 0x25FF)],
+    },
+    Script {
+        name: "symbols",
+        aliases: &["misc-symbols"],
+        ranges: &[(0x2600, 0x26FF)],
+    },
+    Script {
         name: "cjk-punct",
         aliases: &[],
         ranges: &[(0x3000, 0x303F)],

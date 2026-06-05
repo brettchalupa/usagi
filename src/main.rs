@@ -239,8 +239,11 @@ enum FontCmd {
         /// Which scripts to include, comma-separated. Use `all`
         /// (default) for every supported script, `none` to start
         /// empty, or any combination of: latin, latin-ext, greek,
-        /// cyrillic, punct, cjk-punct, hiragana, katakana, hangul
-        /// (alias: korean), cjk (alias: han), halfwidth. Prefix a
+        /// cyrillic, punct, arrows, math (alias: math-ops),
+        /// box-drawing (alias: box), geometric (alias: shapes),
+        /// symbols (alias: misc-symbols), cjk-punct, hiragana,
+        /// katakana, hangul (alias: korean), cjk (alias: han),
+        /// halfwidth. Prefix a
         /// name with `-` to subtract, e.g. `--scripts all,-cjk` to
         /// drop the Han ideographs. The cmap filter drops codepoints
         /// the font doesn't cover, so unused scripts cost nothing.

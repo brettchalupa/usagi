@@ -15,7 +15,7 @@
 -- doesn't bloat exported games.
 
 function _config()
-  return { name = "Custom Font (Silver)", game_height = 192 }
+  return { name = "Custom Font (Silver)", game_height = 256 }
 end
 
 function _draw(_dt)
@@ -31,6 +31,13 @@ function _draw(_dt)
   gfx.text("こんにちは、世界！", 4, 122, gfx.COLOR_WHITE)
   gfx.text("안녕하세요, 세계!", 4, 144, gfx.COLOR_WHITE)
 
+  -- Symbol blocks added in the box-drawing bake update. Silver covers
+  -- single-line box drawing, arrows, geometric shapes, card suits, and
+  -- math operators (it lacks the double-line box pieces like ╔═╗).
+  gfx.text("┌──┬──┐ ├──┼──┤ └──┴──┘", 4, 174, gfx.COLOR_GREEN)
+  gfx.text("← ↑ → ↓  ● ○ ■ □ ▲ ▶ ▼ ◀ ◆ ★", 4, 196, gfx.COLOR_ORANGE)
+  gfx.text("♥ ♦ ♣ ♠  × ÷ ≤ ≥ ≠ ± √ ∞", 4, 218, gfx.COLOR_PINK)
+
   -- Footer hint (rendered in Silver too, since gfx.text uses the user font).
-  gfx.text("press esc to pause", 4, 166, gfx.COLOR_DARK_GRAY)
+  gfx.text("press esc to pause", 4, 240, gfx.COLOR_DARK_GRAY)
 end

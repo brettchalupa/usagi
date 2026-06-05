@@ -659,15 +659,20 @@ Behavior:
   sizes: monogram at `15`, Silver at `18`, Misaki Gothic at `8`, Geist Pixel at
   `16`.
 - By default every supported script is included (Latin, Latin-ext, Greek,
-  Cyrillic, punctuation, CJK punctuation, Hiragana, Katakana, Hangul,
+  Cyrillic, punctuation, arrows, math operators, box drawing, geometric shapes,
+  miscellaneous symbols, CJK punctuation, Hiragana, Katakana, Hangul,
   Halfwidth/Fullwidth Forms, and CJK Unified Ideographs). Codepoints the font
   doesn't cover are skipped via the font's cmap, so unused scripts cost nothing.
 - Use `--scripts` to narrow or expand the set. Pass a comma-separated list of
   names; `all` (default) and `none` are special values, and a `-` prefix
   subtracts. Known names: `latin`, `latin-ext`, `greek`, `cyrillic`, `punct`,
-  `cjk-punct`, `hiragana`, `katakana`, `hangul` (alias: `korean`), `cjk` (alias:
-  `han`), `halfwidth`. Examples: `--scripts all,-cjk` to drop the Han ideographs
-  (~21k codepoints), or `--scripts latin,korean` for a focused atlas.
+  `arrows`, `math` (alias: `math-ops`), `box-drawing` (alias: `box`),
+  `geometric` (alias: `shapes`), `symbols` (alias: `misc-symbols`), `cjk-punct`,
+  `hiragana`, `katakana`, `hangul` (alias: `korean`), `cjk` (alias: `han`),
+  `halfwidth`. Examples: `--scripts all,-cjk` to drop the Han ideographs (~21k
+  codepoints), or `--scripts latin,korean` for a focused atlas. The
+  arrows/math/box-drawing/geometric/symbols blocks add only a few KB when the
+  font covers them; subtract any you don't need (e.g. `--scripts all,-symbols`).
 - `--no-cjk` is a deprecated alias for `--scripts all,-cjk`. It still works but
   prints a warning and will be removed in a future major release.
 - Output is a single `font.png` with metadata in a zTXt chunk. Drop it next to
