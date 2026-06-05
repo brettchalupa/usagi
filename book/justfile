@@ -1,9 +1,32 @@
+deno_org := "brettchalupa"
+deno_app := "usagi-book"
+
+# Staging dir outside the repo. The built book/ output is .gitignore'd, and
+# `deno deploy` honors .gitignore, so deploying from the repo would upload no
+# static files. Copy the build + server files here first, then deploy.
+stage := "/tmp/usagi-book-site"
+
+# Author content with mdbook's live-reloading server.
 dev:
     mdbook serve
 
+ok:
+    deno task ok
+
+# Build, then serve the production Deno static server locally on :8009.
+dev-deno: build
+    deno task dev
+
 fmt:
     deno fmt *.md src/*.md src/recipes/*.md
- 
-deploy:
+
+build:
     mdbook build
-    npx netlify deploy --prod --dir book
+
+# Deploy the book to Deno Deploy
+deploy: build
+    rm -rf {{stage}}
+    mkdir -p {{stage}}/book
+    cp -R book/. {{stage}}/book/
+    cp main.ts deno.json {{stage}}/
+    cd {{stage}} && deno deploy --prod --org {{deno_org}} --app {{deno_app}}

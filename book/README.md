@@ -13,5 +13,5 @@ Preview the changes at http://localhost:3000
 
 ## Hosting
 
-The site is hosted on Netlify and currently requires a manual deploy with
+The site is hosted on Deno Deploy and currently requires a manual deploy with
 `just deploy`.
