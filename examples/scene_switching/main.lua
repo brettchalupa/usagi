@@ -38,7 +38,7 @@ function _update(dt)
       scenes[State.current_scene].init()
     end
   end
-  scenes[State.current_scene].update()
+  scenes[State.current_scene].update(dt)
 end
 
 function _draw()
