@@ -182,7 +182,7 @@ function gfx.spr(index, x, y) end
 ---@param flip_x   boolean  flip horizontally (mirror left/right) when true
 ---@param flip_y   boolean  flip vertically (mirror top/bottom) when true
 ---@param rotation number   rotation in radians; use `math.rad(deg)` for literal-degree values, `0` for none
----@param tint     integer  palette color to multiply over the sprite; `gfx.COLOR_WHITE` for none
+---@param tint     integer  palette color to multiply over the sprite; `gfx.COLOR_TRUE_WHITE` for none
 ---@param alpha    number   opacity in `0..1`; `1.0` is opaque
 function gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha) end
 
@@ -236,7 +236,7 @@ function gfx.sspr(sx, sy, sw, sh, dx, dy) end
 ---@param flip_x   boolean  flip horizontally (mirror left/right) when true
 ---@param flip_y   boolean  flip vertically (mirror top/bottom) when true
 ---@param rotation number   rotation in radians; use `math.rad(deg)` for literal-degree values, `0` for none
----@param tint     integer  palette color to multiply over the sprite; `gfx.COLOR_WHITE` for none
+---@param tint     integer  palette color to multiply over the sprite; `gfx.COLOR_TRUE_WHITE` for none
 ---@param alpha    number   opacity in `0..1`; `1.0` is opaque
 function gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha) end
 
