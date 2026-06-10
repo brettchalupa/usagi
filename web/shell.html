@@ -154,6 +154,13 @@
         // Don't auto-run main(); we drive it from the click handler so the
         // bundle is in place and we're inside a user gesture.
         noInitialRun: true,
+        // Append `?verbose=1` in the URL to get
+        // console logs with frame timings and memory diagnostics
+        preRun: [function () {
+          if (new URLSearchParams(location.search).has("verbose")) {
+            ENV.USAGI_VERBOSE = "1";
+          }
+        }],
         onRuntimeInitialized: function () {
           runtimeReady = true;
           startBtn.disabled = false;

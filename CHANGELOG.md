@@ -16,6 +16,13 @@ Features:
   the cmap filter drops the codepoints they don't cover. To keep an atlas small,
   subtract the blocks you don't need, e.g. `--scripts all,-symbols,-math`. See
   https://codeberg.org/brettchalupa/usagi/issues/16
+- Add the `?verbose=1` query param to web builds to get diagnostic logging to
+  the console for debugging web build performance.
+
+Fixes:
+
+- Added `gfx.COLOR_TRUE_WHITE` to meta Lua stubs/comments as the wrong white was
+  being used.
 
 ## v1.1.0 - June 4, 2026
 
