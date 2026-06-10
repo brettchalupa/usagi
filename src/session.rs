@@ -525,6 +525,12 @@ struct Session {
     /// `gfx.get_px` returns `nil` until the first snapshot exists.
     screen_pixels: Option<crate::pixels::Pixels>,
 
+    /// Latched true the first time a game calls `gfx.get_px`. The
+    /// per-frame screen snapshot reads the render target back from the
+    /// GPU, which is slow on web. This makes it so that only games that
+    /// use `gfx.get_px` read the render target from GPU to CPU.
+    screen_px_used: std::cell::Cell<bool>,
+
     /// `audio` is leaked to give it a `'static` lifetime so `Sound<'static>`
     /// can be stored alongside it in the same struct without self-reference
     /// pain. The audio device lives for program lifetime anyway; this is
@@ -983,6 +989,7 @@ impl Session {
             update,
             draw,
             screen_pixels: None,
+            screen_px_used: std::cell::Cell::new(false),
             audio,
             sfx,
             music,
@@ -1156,8 +1163,12 @@ impl Session {
         // Snapshot the just-rendered frame for next tick's `gfx.get_px`
         // reads. Pixel reads always reflect the most recently finished
         // frame, so in-progress draws in the same `_draw` are not
-        // visible to `gfx.get_px`.
-        self.screen_pixels = crate::pixels::Pixels::from_render_texture(&self.rt);
+        // visible to `gfx.get_px`. Skipped entirely until a game actually
+        // calls `gfx.get_px` due to it being expensive on the web.
+        //  performance issues on web.
+        if self.screen_px_used.get() {
+            self.screen_pixels = crate::pixels::Pixels::from_render_texture(&self.rt);
+        }
 
         self.blit_and_overlay(screen_w, screen_h);
         // Cheap when USAGI_VERBOSE is off: the sampler short-circuits
@@ -1585,6 +1596,7 @@ impl Session {
             update,
             last_error,
             screen_pixels,
+            screen_px_used,
             sprites,
             ..
         } = self;
@@ -1593,6 +1605,7 @@ impl Session {
         };
         let sfx_ref: &SfxLibrary<'static> = sfx;
         let screen_pixels_ref: Option<&crate::pixels::Pixels> = screen_pixels.as_ref();
+        let screen_px_used_ref: &std::cell::Cell<bool> = screen_px_used;
         let sprite_pixels_ref: Option<&crate::pixels::Pixels> = sprites.pixels();
         record_err(
             last_error,
@@ -1624,6 +1637,8 @@ impl Session {
 
                 let gfx_tbl: LuaTable = lua.globals().get("gfx")?;
                 let get_px = scope.create_function(|_, (x, y): (f32, f32)| {
+                    // Latch the readback on for subsequent frames.
+                    screen_px_used_ref.set(true);
                     Ok(crate::pixels::read_screen(screen_pixels_ref, x, y))
                 })?;
                 gfx_tbl.set(
@@ -1673,6 +1688,7 @@ impl Session {
             last_error,
             show_fps,
             last_clear,
+            screen_px_used,
             ..
         } = self;
         let mut d_rt = rl.begin_texture_mode(thread, rt);
@@ -1681,6 +1697,7 @@ impl Session {
             let sprites_ref = sprites.texture();
             let sprite_pixels_ref: Option<&crate::pixels::Pixels> = sprites.pixels();
             let screen_pixels_ref: Option<&crate::pixels::Pixels> = screen_pixels.as_ref();
+            let screen_px_used_ref: &std::cell::Cell<bool> = screen_px_used;
             let font_ref: &Font = user_font;
             let sfx_ref: &SfxLibrary<'static> = sfx;
             record_err(
@@ -2221,6 +2238,7 @@ impl Session {
                     )?;
 
                     let get_px = scope.create_function(|_, (x, y): (f32, f32)| {
+                        screen_px_used_ref.set(true);
                         Ok(crate::pixels::read_screen(screen_pixels_ref, x, y))
                     })?;
                     gfx_tbl.set(

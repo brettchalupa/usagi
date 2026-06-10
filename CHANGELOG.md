@@ -23,6 +23,11 @@ Fixes:
 
 - Added `gfx.COLOR_TRUE_WHITE` to meta Lua stubs/comments as the wrong white was
   being used.
+- Improved web performance by only copying screen pixels from GPU to CPU for
+  games that call `gfx.get_px`, that way all games don't have to pay that cost.
+  This operation is seemingly slow on web. Showing about a 10% improvement in
+  performance from testing. See
+  https://codeberg.org/brettchalupa/usagi/issues/19
 
 ## v1.1.0 - June 4, 2026
 

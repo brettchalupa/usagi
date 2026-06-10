@@ -235,7 +235,7 @@ gfx.line_ex(x1, y1, x2, y2, thickness, color)
 gfx.tri(x1, y1, x2, y2, x3, y3, color)
 gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)
 gfx.px(x, y, color)
-gfx.get_px(x, y) -- read screen pixel: r, g, b, palette_index
+gfx.get_px(x, y) -- read screen pixel: r, g, b, palette_index; expensive on web
 gfx.spr(index, x, y)
 gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)
 gfx.get_spr_px(index, x, y) -- read sprite-sheet pixel: r, g, b, palette_index
@@ -487,6 +487,8 @@ palette slot indices `1..16`; use the named constants.
   so they don't see in-progress draws inside the current `_draw`. The classic
   use is collision-by-color: paint walls into the framebuffer with a known
   color, then consult `gfx.get_px` on the proposed destination in `_update`.
+  **PERFORMANCE**: this function is expensive, in particular on web. It will
+  slow down your game by ~10% if you call it even just once. Use it with care.
 - `gfx.text(text, x, y, color)` — bundled monogram font (5×7 pixel font, 12 px
   line height; see Credits below). Renders the engine's default Latin/Cyrillic/
   Greek glyph set, or your custom font if a `font.png` is present at the project

@@ -157,6 +157,10 @@ function gfx.px(x, y, color) end
 ---draws inside the current `_draw` aren't visible. Common uses:
 ---collision-by-color, fog-of-war reveals, water reflections, palette
 ---swap effects.
+---
+---PERFORMANCE: expensive on web and can drop performance.
+---If you only need to sample your own sprite art, use `gfx.get_spr_px`,
+---which is not expensive.
 ---@param x number  x in game-space pixels (0 = left edge)
 ---@param y number  y in game-space pixels (0 = top edge)
 ---@return integer? r              red channel, 0..255
