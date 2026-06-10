@@ -5,6 +5,10 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
+No unreleased changes yet.
+
+## v1.1.1 - June 10, 2026
+
 Features:
 
 - `usagi font bake` gained five new script blocks, all included in
@@ -16,8 +20,8 @@ Features:
   the cmap filter drops the codepoints they don't cover. To keep an atlas small,
   subtract the blocks you don't need, e.g. `--scripts all,-symbols,-math`. See
   https://codeberg.org/brettchalupa/usagi/issues/16
-- Add the `?verbose=1` query param to web builds to get diagnostic logging to
-  the console for debugging web build performance.
+- Added support for the `?verbose=1` query param to web builds to get diagnostic
+  logging to the console for debugging web build performance.
 
 Fixes:
 
