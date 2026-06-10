@@ -80,3 +80,4 @@ at the great assets out there.
 - [OpenGameArt.org](https://opengameart.org/)
 - [Assets on Itch](https://itch.io/game-assets)
 - [Kenney](https://kenney.nl/)
+- [DaFont](https://www.dafont.com/) — font downloads
