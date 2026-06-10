@@ -14,4 +14,4 @@
 
 ---
 
-[License](./license.md)
+[Resources](./resources.md) [License](./license.md)
