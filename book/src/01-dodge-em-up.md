@@ -160,9 +160,15 @@ end
 
 ## Spawning Circles
 
+TODO
+
 ## Hit Detection
 
+TODO
+
 ## Game Over
+
+TODO
 
 ## Sharing Our Game
 
