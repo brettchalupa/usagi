@@ -1165,7 +1165,6 @@ impl Session {
         // frame, so in-progress draws in the same `_draw` are not
         // visible to `gfx.get_px`. Skipped entirely until a game actually
         // calls `gfx.get_px` due to it being expensive on the web.
-        //  performance issues on web.
         if self.screen_px_used.get() {
             self.screen_pixels = crate::pixels::Pixels::from_render_texture(&self.rt);
         }
