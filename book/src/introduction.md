@@ -1,5 +1,9 @@
 # Introduction
 
+_A beginner-friendly guide to coding games with Lua_
+
+![Game Programming with Usagi Engine cover feautring an illustration of a rabbit](./img/usagi-cover-3d.jpg)
+
 **NOTE**: this book is a work in progress!
 
 Hi, my name is Brett Chalupa! I'm the creator of Usagi Engine and primary author
@@ -62,13 +66,13 @@ concept as opposed to programming and engine fundamentals.
 
 There are three things you need to get started with Usagi:
 
-1. A computer running Linux, macOS, or Windows.
-2. A text editor for writing code. Here are some free, privacy-respecting
+1. A computer running Linux, macOS, or Windows
+2. A text editor for writing code; here are some free, privacy-respecting
    options:
    - [Gram Editor](https://gram-editor.com/)
    - [VSCodium](https://vscodium.com/)
 3. Usagi installed; follow the instructions at
-   [usagiengine.com](https://usagiengine.com#install).
+   [usagiengine.com](https://usagiengine.com#install)
 
 Usagi is interacted with via the command line. You type in commands rather than
 click buttons in a graphical user interface. On Linux and macOS, this program is
