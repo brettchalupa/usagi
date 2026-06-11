@@ -67,6 +67,8 @@ Recommended tools for making games. Most of which are free.
 ### Graphics
 
 - [Aseprite](https://www.aseprite.org/) — pixel art tool
+- [LibreSprite](https://libresprite.github.io/) — free pixel art tool, fork of
+  Aseprite
 - [GIMP](https://www.gimp.org/) — open-source image editor
 - [Inkscape](https://inkscape.org/) — open-source vector editor
 - [Krita](https://krita.org/en/) — digital painting tool
@@ -87,3 +89,4 @@ at the great assets out there.
 - [Assets on Itch](https://itch.io/game-assets)
 - [Kenney](https://kenney.nl/)
 - [DaFont](https://www.dafont.com/) — font downloads
+- [Google Fonts](https://fonts.google.com/) — free fonts
