@@ -1,5 +1,5 @@
 [book]
-title = "Game Programming with Usagi Engine"
+title = "Game Programming with Usagi"
 authors = ["Brett Chalupa"]
 language = "en"
 description = "A beginner-friendly guide to programming 2D games in Lua with Usagi Engine."
