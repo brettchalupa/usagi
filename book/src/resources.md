@@ -16,6 +16,10 @@ here!
 - [Code the Classics](https://magpi.raspberrypi.com/books/code-the-classics1) —
   a free book covering how to make classic games in PyGame, but you could adapt
   them to use Lua and Usagi!
+- [Jeffrey Thompson's Collision Detection Guide](http://jeffreythompson.org/collision-detection/table_of_contents.php)
+  — in-depth explainations of collision detection
+- [Easing Functions](https://easings.net/) — explainers for different types of
+  easing, useful for animation and juice
 
 ### Lua Resources
 
@@ -67,6 +71,8 @@ Recommended tools for making games. Most of which are free.
 - [Inkscape](https://inkscape.org/) — open-source vector editor
 - [Krita](https://krita.org/en/) — digital painting tool
 - [Piskel](https://www.piskelapp.com/) — free browser pixel tool
+- [YAL's Pixel Font Converter](https://yal.cc/tools/pixel-font/) — make pixel
+  fonts in your browser
 
 ## Assets
 
