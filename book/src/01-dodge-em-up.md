@@ -146,6 +146,8 @@ values in this example function. While `add` isn't something we'll use in our
 game, it's useful to show what functions can be like. I tend to think of
 functions as _verbs_, actions we want our code to take.
 
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/01-dodge-em-up/02-greet/main.lua)
+
 ## Drawing a Square
 
 Let's draw a square to represent our player. You can delete our `greet`
@@ -166,6 +168,8 @@ it'll draw an outline of the rectangle instead of filling it in.
 Usagi makes it easy to draw a few different shape primitives like rectangles,
 circles, and triangles. We'll draw circles in an upcoming section to represent
 enemies.
+
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/01-dodge-em-up/03-square/main.lua)
 
 ## Player Input
 
@@ -230,6 +234,8 @@ how English is spoken.
 
 Boolean checks are used so frequently when programming games. If the player is
 dead, then show game over. If the timer is up, then play a sound effect.
+
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/01-dodge-em-up/04-input/main.lua)
 
 ## Spawning Enemy Circles
 

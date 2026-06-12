@@ -118,6 +118,8 @@ This was a whole lot for the first section of our chapter, but we've got a good
 starting point to build upon. Tweak the `player_speed` and `player_size` to see
 what happens.
 
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/02-shoot-em-up/01-moveable-player/main.lua)
+
 ## Firing Bullets
 
 Let's make our player's ship fire bullets upward. We'll keep track of them in a
@@ -179,6 +181,8 @@ In less than 100 lines of code, we've got a pretty good feeling player ship that
 moves around the screen and fires bullets. Not bad!
 
 ![player moving around the screen and firing bullets](./img/shmup-bullet-firing.gif)
+
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/02-shoot-em-up/02-firing-bullets/main.lua)
 
 ## Enemies Fly Into Position
 
