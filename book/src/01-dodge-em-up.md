@@ -221,7 +221,7 @@ down, each loop of our game adds 4 pixels to the `x` variable. This causes our
 square to fly across the screen to the right.
 
 The `if ... then` code means: only run the code between this check and the
-corresponding `end` if what's between the `if` and the `end` is `true`. In
+corresponding `end` if what's between the `if` and the `then` is `true`. In
 programming, `true` and `false` are known as boolean values and are used for
 logic checks. If the left input is held down, then decrease the `x` position by
 `4` pixels. One of the nice parts about the Lua programming language is how

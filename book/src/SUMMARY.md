@@ -5,8 +5,7 @@
 # Tutorials
 
 - [Dodge 'Em Up](./01-dodge-em-up.md)
-- [Target Practice](./02-target-practice.md)
-- [Shoot 'Em Up](./03-shoot-em-up.md)
+- [Shoot 'Em Up](./02-shoot-em-up.md)
 - [Snake](./04-snake.md)
 - [Sokoban](./05-sokoban.md)
 - [Action Platformer](./06-action-platformer.md)
