@@ -4,6 +4,8 @@ In this chapter we'll make a very simple game where you move a square around the
 screen and dodge circles that fly at you. We'll cover all of the basics of
 making a game with Usagi and then package up our game to share it with others.
 
+## Initializing a New Game
+
 Now that you've got Usagi is installed, you'll have the `usagi` command
 available. Go ahead and open your text editor. Many code editors include a way
 to open a terminal/shell within it. If you're using a text editor that doesn't,
@@ -12,6 +14,10 @@ then launch your terminal or Command Prompt or PowerShell separately. Run
 bunch of different files in them. The most important one is `main.lua`, which is
 the primary entrypoint for your game. It's where you'll start out coding.
 
+`USAGI.md` contains the full and complete documentation for Usagi in the
+Markdown format. You can open it up and browse it to learn all about what Usagi
+can do. It's a user manual of sorts.
+
 `meta/usagi.lua` is a file that helps your text editor know what functions and
 variables are available from Usagi. You don't edit this file, it's read-only and
 to help improve your experience writing code.
@@ -19,29 +25,12 @@ to help improve your experience writing code.
 In your terminal, run `usagi dev hello_usagi`. You'll see a window pop up that
 draws some text on the screen.
 
-(TODO: show screenshot)
+![Black screen with text that reads "Hello, Usagi!"](./img/01-init.png)
 
 Then in your text editor, open `main.lua`. You'll see this:
 
 ```lua
-function _config()
-  return { name = "Game", game_id = "com.usagiengine.YOURGAMENAME" }
-end
-
-function _init()
-  -- Live reload preserves globals across saved edits but resets locals.
-  -- Stash mutable game state in a capitalized global like `State` so it
-  -- survives reloads; F5 calls _init again to reset.
-  State = {}
-end
-
-function _update(dt)
-end
-
-function _draw(dt)
-  gfx.clear(gfx.COLOR_BLACK)
-  gfx.text("Hello, Usagi!", 10, 10, gfx.COLOR_WHITE)
-end
+{{#include code/01-dodge-em-up/01-init/main.lua}}
 ```
 
 If this is your first time seeing code, congratulations! This is Lua.
@@ -101,13 +90,13 @@ Normally, in most game engines, you'd need to change your code, save it, and run
 a command to start the game again. With Usagi, you just change it and save it
 and see your changes.
 
-(TODO: explain the coordinate system + image)
-
 The `x` and `y` parameters of the `gfx.text` function are the pixel coordinates
 on our screen of where to place the upper-left corner of the text. The
 upper-left corner of our game is the 0 x position and the 0 y position. If you
 increase the `x` value, the text will move to the right. If you increase the `y`
 value, it will move down.
+
+![Illustration showing x and y axis with points on them representing their position](./img/screencoordinates.png)
 
 By default, Usagi games are 320 pixels wide and 180 pixels tall. If you set the
 `x` position of your text to `400`, it won't be visible in your game.
@@ -121,32 +110,29 @@ name.
 At the bottom of `main.lua`, add the following code:
 
 ```lua
-function greet(name)
-  return "Hello, " .. name .. "!"
-end
+{{#include code/01-dodge-em-up/02-greet/main.lua:21:23}}
 ```
 
 Then, in `_draw`:
 
 ```lua
-gfx.text(greet("Alucard"), 10, 10, gfx.COLOR_WHITE)
+{{#include code/01-dodge-em-up/02-greet/main.lua:18}}
 ```
 
 Try changing the name. What our updated `gfx.text` is doing is calling our new
 `greet` function. We pass in the `name` we want to greet, wrapped quotations
-(note: these are not curly quotes, those are for writing, not coding). When you
-wrap characters in quotations, this is called a **string** and it is not
-evaluated as code. It's instead data that we can use in our code. The `return`
-keyword in our function is what our function spits back to wherever calls it. In
-our case, it passes the returned value into `gfx.text`. It draws
+(note: these are not curly quotes; those are for writing prose, not coding).
+When you wrap characters in quotations, this is called a **string** and it is
+not evaluated as code. It's instead data that we can use in our code. The
+`return` keyword in our function is what our function spits back to wherever
+calls it. In our case, it passes the returned value into `gfx.text`. It draws
 `"Hello, Alucard!"` on the screen. The `..` (two periods) is Lua's syntax for
 how to combine strings. It squishes together `"Hello, "`, our `name` we pass in,
 and `"!"` into a new string.
 
 Add some other greetings to try our your new function.
 
-While we're not going to use this in our game yet, functions can take numbers
-and return them as well. Here's a simple function for adding two numbers:
+Here's a simple function for adding two numbers and returning the result:
 
 ```lua
 function add(a, b)
@@ -154,11 +140,98 @@ function add(a, b)
 end
 ```
 
-## Moving a Square
+Functions can accept all sorts of data and return something that's computed
+based on those values. You can see that `+` is used to calculate the sum of two
+values in this example function. While `add` isn't something we'll use in our
+game, it's useful to show what functions can be like. I tend to think of
+functions as _verbs_, actions we want our code to take.
 
-(TODO: drawing shapes) (TODO: player input) (TODO: State)
+## Drawing a Square
 
-## Spawning Circles
+Let's draw a square to represent our player. You can delete our `greet`
+function. and then replace the `gfx.text` function call with this:
+
+```lua
+{{#include code/01-dodge-em-up/03-square/main.lua:18}}
+```
+
+This draws a green rectangle at the position of x: 20 and y: 40. The rectangle
+is a square, with each side being 16 pixels long. The third parameter is width,
+the fourth is height. And the final parameter is the color. Try changing those
+values around to see what happens. If you change `gfx.rect_fill` to `gfx.rect`,
+it'll draw an outline of the rectangle instead of filling it in.
+
+![Green square drawn on black background](./img/01-square.png)
+
+Usagi makes it easy to draw a few different shape primitives like rectangles,
+circles, and triangles. We'll draw circles in an upcoming section to represent
+enemies.
+
+## Player Input
+
+When you changed the x and y parameters in the `gfx.rect_fill` function call,
+the square moved around the screen. That's all that movement in a game is:
+positions changing. Those positions can change due to the passage of time or in
+reaction to something else or from player input.
+
+We keep track of data that can change in what's called a **variable**. Variables
+get a name so that we can reference it and change it.
+
+At the top of your `main.lua` file, add the following:
+
+```lua
+{{#include code/01-dodge-em-up/04-input/main.lua:1:2}}
+```
+
+This creates and sets the `x` variable to the number `20` and the `y` value to
+the number `40`. The `=` sign does not mean equals, as in equality. It is the
+assignment operator. It sets the variable on the left side to value on the right
+side.
+
+Now update your `gfx.rect_fill` to use the new `x` and `y` variables:
+
+```lua
+{{#include code/01-dodge-em-up/04-input/main.lua:33}}
+```
+
+Instead of using the hard-coded values we previously had to position the square,
+it's now determined by our new `x` and `y` variables. If you change the values
+assigned to`x` and `y`, it changes where the square is drawn.
+
+In order to move our little green square around, we need to check if the player
+has pressed input from their keyboard or gamepad. Usagi provides a simplified
+input API that lets you check for input directions and up to three action
+buttons. So `input.held(input.UP)` checks if the <kbd>Up</kbd> arrow key or
+<kbd>W</kbd> key on your keyboard is pressed or if any connected gamepads' d-pad
+up or analog stick up are held down. Usagi provides a baked-in Pause menu with
+the ability for players to remap controls. So if they change the up action to
+something else you don't have to change your code. Kind of nice!
+
+We'll make use of this `input.held` check in our `_update` function:
+
+```lua
+{{#include code/01-dodge-em-up/04-input/main.lua:16:29}}
+```
+
+If you use the arrow keys, WASD, or your gamepad, you can move the green square
+around the screen. How this works is that 60 times per second, our game checks
+if the direction inputs are held down. If they are, we use `=` to _reassign_ the
+variable value to the previous value plus 4 pixels. So if the right key is held
+down, each loop of our game adds 4 pixels to the `x` variable. This causes our
+square to fly across the screen to the right.
+
+The `if ... then` code means: only run the code between this check and the
+corresponding `end` if what's between the `if` and the `end` is `true`. In
+programming, `true` and `false` are known as boolean values and are used for
+logic checks. If the left input is held down, then decrease the `x` position by
+`4` pixels. One of the nice parts about the Lua programming language is how
+natural the code reads, making it easier to understand because it's a lot like
+how English is spoken.
+
+Boolean checks are used so frequently when programming games. If the player is
+dead, then show game over. If the timer is up, then play a sound effect.
+
+## Spawning Enemy Circles
 
 TODO
 
@@ -170,6 +243,16 @@ TODO
 
 TODO
 
+## Clock
+
+TODO
+
+## High Score
+
 ## Sharing Our Game
 
-(TODO: `usagi export`)
+TODO: `usagi export`
+
+## Bonus Credits
+
+TODO: share ideas of what would be fune to expand on here
