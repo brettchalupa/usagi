@@ -120,13 +120,77 @@ what happens.
 
 ## Firing Bullets
 
-## Spread Shot & Focus Shot
+Let's make our player's ship fire bullets upward. We'll keep track of them in a
+Lua table. Each frame we'll move them upward and if they scroll off the screen,
+we'll remove them from the table.
+
+Start by setting up some local variables at the top of `main.lua`:
+
+```lua
+{{#include code/02-shoot-em-up/02-firing-bullets/main.lua:3:7}}
+```
+
+We'll use all of these variables for firing and drawing bullets.
+
+In our `State` table, add a new empty table for `bullets`:
+
+```lua
+{{#include code/02-shoot-em-up/02-firing-bullets/main.lua:20:26}}
+```
+
+We'll add new bullets into that table when they're fired and loop through it for
+updating the bullets and draw them on the screen.
+
+In our `_update` function, below where we handle player movement, add the
+following code:
+
+```lua
+{{#include code/02-shoot-em-up/02-firing-bullets/main.lua:49:72}}
+```
+
+In each frame, we subtract the `dt` from `fire_timer` to count it down. Then, if
+the `fire_timer` is less than or equal to `0` and the player is pressing BTN1
+(keyboard: Z or gamepad: A by default), then fire three bullets. The firing of a
+bullet uses the Lua function `table.insert`, which appends a new bullet at the
+`x` and `y` position to `State.player.bullets` table. Then, finally, we reset
+the `fire_timer` to `fire_delay`, which restarts the countdown, adding a slight
+gap between each time a set of bullets get fired.
+
+The `for i = #State.player.bullets, 1, -1 do` line of code is a loop that goes
+through the player's bullets in reverse, moving them up the screen by
+subtracting the `bullet_speed * dt` from each bullet's `y` position. If the
+bullet is so far up the screen that's it's no longer visible (the negative
+height of the bullet), then we need to remove it from the player's bullets
+table. We have to loop through the bullets in reverse order so that if we do
+remove a bullet, those in the array from that position onward will properly
+shift into position. If you didn't reverse the order of looping through the
+bullets, if you removed the first bullet, they remaining would shift forward,
+causing the next iteration of the loop to skip one and potentially access an
+index that no longer exists.
+
+Now we need to draw our bullets by looping through them at the bottom of
+`_draw()` and drawing a light gray rectangle:
+
+```lua
+{{#include code/02-shoot-em-up/02-firing-bullets/main.lua:82:85}}
+```
+
+In less than 100 lines of code, we've got a pretty good feeling player ship that
+moves around the screen and fires bullets. Not bad!
+
+![player moving around the screen and firing bullets](./img/shmup-bullet-firing.gif)
 
 ## Enemies Fly Into Position
 
+TODO
+
 ## Defeating Enemies
 
+TODO
+
 ## Player Death
+
+TODO
 
 ---
 
@@ -145,8 +209,9 @@ what happens.
 - Waves of enemies
 - Medals
 - Enemies move
-- Scrolling background
-- Sprites & animating the player
-- Visibility
+- Starfield Background
 - Player bombs
 - Time over & scoring
+- Bonus Credits
+  - Sound effects
+  - Sprites
