@@ -18,8 +18,8 @@ say you make a game with Usagi v1. And then 5 years later, there's Usagi v2 that
 comes out and some of the functions change. If you did `usagi update` and then
 ran your game, your game might have errors that you need to fix, which could be
 tedious. I don't know what the future of Usagi will bring, so if you want to
-make sure your projects are resilient to change's in the engine, you can
-download the Usagi version that corresponds to your project and put the `usagi`
+make sure your projects are resilient to changes in the engine, you can download
+the Usagi version that corresponds to your project and put the `usagi`
 executable in your project's folder.
 
 Also, if you have many Usagi projects and they rely upon different versions of
@@ -28,7 +28,7 @@ your project's folder.
 
 All historical downloads of Usagi from v1.0.0 and onward are available at
 [https://codeberg.org/brettchalupa/usagi/releases](https://codeberg.org/brettchalupa/usagi/releases).
-If you made your game with Usagi v1.1.1, you'd fine that release and download
+If you made your game with Usagi v1.1.1, you'd find that release and download
 it. Decompress the archive and put the `usagi` (or `usagi.exe`) in your
 project's folder. Then you'd run commands by referencing it locally, like
 `./usagi dev` on Linux and macOS or `.\usagi.exe dev` on Windows. The `./` and
@@ -40,7 +40,7 @@ on a single operating system. Otherwise you'll run into issues trying to use the
 macOS executable on Linux.
 
 It's ultimately your decision for how you want to install and interact with
-`usagi`. In summary, install Usagi for your user if you value easily and quick
+`usagi`. In summary, install Usagi for your user if you value easily and quickly
 accessing it. If you want the same Usagi version you made your game with to be
 present years down the line, put the `usagi` executable in your project's
 folder.

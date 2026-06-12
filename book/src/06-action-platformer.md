@@ -1,7 +1,7 @@
 # Action Platformer
 
-TODO: baically going over how to code something like Contra or Kero Blaster with
-a couple of levels, a camera, enemies.
+TODO: basically going over how to code something like Contra or Kero Blaster
+with a couple of levels, a camera, enemies.
 
 Outline:
 

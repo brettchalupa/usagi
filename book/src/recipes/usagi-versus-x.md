@@ -28,7 +28,7 @@ You should use Usagi Engine instead if you:
 
 - Prefer free and open source software, as Pico-8 and Picotron are closed
   source.
-- Want you game to automatically update when you change your code and assets.
+- Want your game to automatically update when you change your code and assets.
 - Don't want to worry about token limits.
 - Prefer using a standalone sprite editor and using sound effects and music in
   common formats that you made or have permission to use.
@@ -75,7 +75,7 @@ Also, live reload isn't a built-in feature.
 
 You should use Love2D if you:
 
-- Want a much bigger API that let's you do pretty much everything you'd want to
+- Want a much bigger API that lets you do pretty much everything you'd want to
   do in a 2D game.
 - Want to make games for mobile devices.
 - Want to code input bindings, pause menu, settings, save data, and more
@@ -85,13 +85,13 @@ You should use Usagi instead if you:
 
 - Value the live reload and single-command export functionality.
 - Don't want to mess with Love.js to get web builds.
-- Would like a smaller, simpler API that does most things 2D games does and are
+- Would like a smaller, simpler API that does most things 2D games do and are
   okay with some limitations.
 
 In a lot of ways, I think if someone makes a robust prototype with Usagi and
 they want to expand it into a bigger commercial game, Love2D is a great fit.
 Porting from Usagi to Love2D is not difficult because of the shared language.
-And you'd then get a lot more power (but with a worse develper experience).
+And you'd then get a lot more power (but with a worse developer experience).
 
 I hope to build out an Usagi -> Love2D shim in the future to make it as easy as
 possible to port an Usagi game to Love2D.
@@ -142,7 +142,7 @@ You should use DragonRuby Game Toolkit if you:
 
 You should use Usagi instead if you:
 
-- Want to use a free and open source where you can modify the source.
+- Want to use a free and open source engine where you can modify the source.
 - Prefer a simpler API and some constraints.
 - Want to make lower resolution pixel art games.
 
@@ -197,8 +197,9 @@ My toolkit and thinking is quite simple:
 - For larger games, if I wanted to stay in Lua, I'd use Love2D. But I honestly
   would prefer to not use Lua for larger games because after 15 years of coding
   Ruby in large codebases, I'd much prefer to use a statically typed language
-  for anything remotely complex. Large codebases that's pure scripting languages
-  are a nightmare to work in and change without excessive automated tests.
+  for anything remotely complex. Large codebases that are pure scripting
+  languages are a nightmare to work in and change without excessive automated
+  tests.
 - So, for larger games, I'd use sola-raylib, the Rust bindings for Raylib, that
   I maintain. That way I have full control, better tooling, a compiler, a
   linter, and the ability to use Lua if I want in various places.

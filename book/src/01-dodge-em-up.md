@@ -6,10 +6,10 @@ making a game with Usagi and then package up our game to share it with others.
 
 ## Initializing a New Game
 
-Now that you've got Usagi is installed, you'll have the `usagi` command
-available. Go ahead and open your text editor. Many code editors include a way
-to open a terminal/shell within it. If you're using a text editor that doesn't,
-then launch your terminal or Command Prompt or PowerShell separately. Run
+Now that you've got Usagi installed, you'll have the `usagi` command available.
+Go ahead and open your text editor. Many code editors include a way to open a
+terminal/shell within it. If you're using a text editor that doesn't, then
+launch your terminal or Command Prompt or PowerShell separately. Run
 `usagi init hello_usagi`. This will create a folder called `hello_usagi` with a
 bunch of different files in them. The most important one is `main.lua`, which is
 the primary entrypoint for your game. It's where you'll start out coding.
@@ -53,7 +53,7 @@ react quickly to player input. Each iteration through the loop is called a
 frames per second (FPS), whereas games are often 60 FPS. The `_update` function
 is where you check for player input, have entities in your game react to what's
 happening, and simulate the game. There's nothing there yet, but there will be
-soon. The `_draw` function is where you can show text, draw hapes, or put your
+soon. The `_draw` function is where you can show text, draw shapes, or put your
 game's art on the screen.
 
 `dt` is short for delta-time and it's passed into `_update` and `_draw`
@@ -61,7 +61,7 @@ automatically by the game engine. We'll cover it more in depth in a future
 chapter. For now, it's unused and not something to worry about.
 
 `gfx.clear(gfx.COLOR_BLACK)` clears the screen so that all that's shown is a
-black rectangle. Each frame we clears the screen so that what was drawn on the
+black rectangle. Each frame we clear the screen so that what was drawn on the
 last frame doesn't reappear. Try changing `gfx.COLOR_BLACK` to `gfx.COLOR_RED`.
 The background of your game instantly updates from black to red.
 
@@ -70,7 +70,7 @@ the message on the screen.
 
 `_update` and `_draw` are functions we define ourselves, which Usagi looks for
 and _calls_. `gfx.clear` and `gfx.text` are functions that Usagi provides, which
-we _call_. Calling a function makes that code run. so `gfx.text` draws text to
+we _call_. Calling a function makes that code run. So `gfx.text` draws text to
 the screen. It knows which text to draw, where to place it, and what color to
 make it by passing in arguments. Arguments are comma-separated values that
 correspond to the parameter list of the function. `gfx.text` expects the text
@@ -120,7 +120,7 @@ Then, in `_draw`:
 ```
 
 Try changing the name. What our updated `gfx.text` is doing is calling our new
-`greet` function. We pass in the `name` we want to greet, wrapped quotations
+`greet` function. We pass in the `name` we want to greet, wrapped in quotations
 (note: these are not curly quotes; those are for writing prose, not coding).
 When you wrap characters in quotations, this is called a **string** and it is
 not evaluated as code. It's instead data that we can use in our code. The
@@ -130,7 +130,7 @@ calls it. In our case, it passes the returned value into `gfx.text`. It draws
 how to combine strings. It squishes together `"Hello, "`, our `name` we pass in,
 and `"!"` into a new string.
 
-Add some other greetings to try our your new function.
+Add some other greetings to try out your new function.
 
 Here's a simple function for adding two numbers and returning the result:
 
@@ -149,7 +149,7 @@ functions as _verbs_, actions we want our code to take.
 ## Drawing a Square
 
 Let's draw a square to represent our player. You can delete our `greet`
-function. and then replace the `gfx.text` function call with this:
+function. And then replace the `gfx.text` function call with this:
 
 ```lua
 {{#include code/01-dodge-em-up/03-square/main.lua:18}}
@@ -185,8 +185,8 @@ At the top of your `main.lua` file, add the following:
 
 This creates and sets the `x` variable to the number `20` and the `y` value to
 the number `40`. The `=` sign does not mean equals, as in equality. It is the
-assignment operator. It sets the variable on the left side to value on the right
-side.
+assignment operator. It sets the variable on the left side to the value on the
+right side.
 
 Now update your `gfx.rect_fill` to use the new `x` and `y` variables:
 
@@ -257,4 +257,4 @@ TODO: `usagi export`
 
 ## Bonus Credits
 
-TODO: share ideas of what would be fune to expand on here
+TODO: share ideas of what would be fun to expand on here

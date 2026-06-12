@@ -17,7 +17,7 @@ here!
   a free book covering how to make classic games in PyGame, but you could adapt
   them to use Lua and Usagi!
 - [Jeffrey Thompson's Collision Detection Guide](http://jeffreythompson.org/collision-detection/table_of_contents.php)
-  — in-depth explainations of collision detection
+  — in-depth explanations of collision detection
 - [Easing Functions](https://easings.net/) — explainers for different types of
   easing, useful for animation and juice
 

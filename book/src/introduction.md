@@ -4,7 +4,7 @@
 _A beginner-friendly guide to coding games with Lua_\
 by Brett Chalupa
 
-![Game Programming with Usagi Engine cover feautring an illustration of a rabbit](./img/usagi-cover-3d.jpg)
+![Game Programming with Usagi Engine cover featuring an illustration of a rabbit](./img/usagi-cover-3d.jpg)
 
 **NOTE**: this book is a work in progress!
 
@@ -22,9 +22,9 @@ by creating **Usagi Engine**, a free and open source game engine that's
 specifically focused on making small 2D games and being able to quickly share
 them. Your code, art assets, audio files, and data are live reloaded as you
 change them, removing the laborious step of having to constantly re-launch your
-game after every change to test it. If want to see if a different color looks
-better, just edit your sprite, save it, and see it update instantly. I can't
-overstate how useful this is.
+game after every change to test it. If you want to see if a different color
+looks better, just edit your sprite, save it, and see it update instantly. I
+can't overstate how useful this is.
 
 Usagi games are programmed with Lua, a simple and widely-used language. There
 are many different game engines and libraries that use Lua, which means the
@@ -33,7 +33,7 @@ stop using the engine. When you code a game, the engine provides functions,
 which are named pieces of code that do _something_ like draw a shape on the
 screen or play a sound effect. Large game engines have hundreds or thousands of
 functions, requiring you to study complex manuals to find what you need. Usagi,
-on the other hand, is embraces constraints and has a limited number of functions
+on the other hand, embraces constraints and has a limited number of functions
 that cover the functionality most games need.
 
 ## Why Usagi
@@ -69,7 +69,7 @@ from scratch. The complexity of each chapter steadily grows, so if you're new to
 game programming, it's best to start at the beginning and go through each one in
 order. If you've programmed games before, jump around a bit!
 
-The **Recipes** are deep-dives into specific topics. Sort like blog posts on
+The **Recipes** are deep-dives into specific topics. Sort of like blog posts on
 various topics related to Usagi Engine. They're great for learning a specific
 concept as opposed to guided programming and engine fundamentals.
 
@@ -92,7 +92,7 @@ Usagi is interacted with via the command line. You type in commands rather than
 click buttons in a graphical user interface. On Linux and macOS, the
 command-line program is called the Terminal. On Windows, the two primary tools
 are called the Command Prompt and PowerShell (you can use either with Usagi).
-While the command line can daunting at first, there are only a few commands
+While the command line can be daunting at first, there are only a few commands
 you'll need to know to work with Usagi most of the time.
 
 We'll cover all of the essential commands and make our first basic game in the

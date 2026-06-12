@@ -96,8 +96,8 @@ end
 ```
 
 Alternatively, if you want your sprites larger or want to stick to Usagi's
-defaulty 16px by 16px size, you could double the size of your `sprites.png` in
-an image editor.
+default 16px by 16px size, you could double the size of your `sprites.png` in an
+image editor.
 
 ### Export Music
 
