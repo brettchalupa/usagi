@@ -1,6 +1,8 @@
 # Introduction
 
-_A beginner-friendly guide to coding games with Lua_
+**Game Programming with Usagi**\
+_A beginner-friendly guide to coding games with Lua_\
+by Brett Chalupa
 
 ![Game Programming with Usagi Engine cover feautring an illustration of a rabbit](./img/usagi-cover-3d.jpg)
 
@@ -34,6 +36,8 @@ functions, requiring you to study complex manuals to find what you need. Usagi,
 on the other hand, is embraces constraints and has a limited number of functions
 that cover the functionality most games need.
 
+## Why Usagi
+
 Usagi is not the everything engine. There's a lot it doesn't do. But it excels
 at being simple, approachable, and fast. When you're exploring an idea or
 participating in a game jam, you don't want to spend your time coding input
@@ -42,6 +46,13 @@ making your game fun to play. Usagi provides input mapping, simple ways to check
 for player input via keyboard and gamepad, easy save data, and a fully-featured
 Pause menu. Also, with a single command you can export your game for web, Linux,
 macOS, and Windows.
+
+Here are some of my favorite aspects of Usagi and why it's enjoyable to use:
+
+- Live reload of code and assets in your running game for rapid development
+- Single command cross-platform export
+- Unified, simple input checking for gamepads and keyboard
+- Built-in Pause menu with settings, including input mapping
 
 ## Book Overview
 
@@ -60,7 +71,10 @@ order. If you've programmed games before, jump around a bit!
 
 The **Recipes** are deep-dives into specific topics. Sort like blog posts on
 various topics related to Usagi Engine. They're great for learning a specific
-concept as opposed to programming and engine fundamentals.
+concept as opposed to guided programming and engine fundamentals.
+
+If you're looking for Usagi's reference manual, you'll want to read through
+[usagiengine.com](https://usagiengine.com/).
 
 ## Getting Started
 
@@ -75,10 +89,11 @@ There are three things you need to get started with Usagi:
    [usagiengine.com](https://usagiengine.com#install)
 
 Usagi is interacted with via the command line. You type in commands rather than
-click buttons in a graphical user interface. On Linux and macOS, this program is
-called the Terminal. On Windows, the two primary tools are called the Command
-Prompt and PowerShell. While the command line can daunting at first, there are
-only a few commands you'll need to know to work with Usagi most of the time.
+click buttons in a graphical user interface. On Linux and macOS, the
+command-line program is called the Terminal. On Windows, the two primary tools
+are called the Command Prompt and PowerShell (you can use either with Usagi).
+While the command line can daunting at first, there are only a few commands
+you'll need to know to work with Usagi most of the time.
 
 We'll cover all of the essential commands and make our first basic game in the
 upcoming chapters.

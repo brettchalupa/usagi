@@ -249,6 +249,8 @@ TODO
 
 ## High Score
 
+TODO: saving and loading data
+
 ## Sharing Our Game
 
 TODO: `usagi export`
