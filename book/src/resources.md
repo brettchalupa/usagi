@@ -67,6 +67,7 @@ Recommended tools for making games. Most of which are free.
 ### Graphics
 
 - [Aseprite](https://www.aseprite.org/) — pixel art tool
+- [PixiEditor](https://pixieditor.net/) — multi-purpose 2D graphics editor
 - [LibreSprite](https://libresprite.github.io/) — free pixel art tool, fork of
   Aseprite
 - [GIMP](https://www.gimp.org/) — open-source image editor
