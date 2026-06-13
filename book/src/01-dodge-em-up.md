@@ -4,6 +4,8 @@ In this chapter we'll make a very simple game where you move a square around the
 screen and dodge circles that fly at you. We'll cover all of the basics of
 making a game with Usagi and then package up our game to share it with others.
 
+![player moving around the screen and dodging red circles](./img/dodge-em-up-complete.gif)
+
 ## Initializing a New Game
 
 Now that you've got Usagi installed, you'll have the `usagi` command available.
@@ -256,7 +258,7 @@ random speeds so that there's a bit of challenge.
 At the top of `main.lua`, below our `x` and `y` variable assignment, add this:
 
 ```lua
-{{#include code/01-dodge-em-up/05-input/main.lua:3}}
+{{#include code/01-dodge-em-up/05-enemies/main.lua:3}}
 ```
 
 This assigns `{}` to the `enemies` variable. But what do those squigly brackets
@@ -327,7 +329,7 @@ Right below that line, create these two new variables that we'll use for spawn
 timing:
 
 ```lua
-{{#include code/01-dodge-em-up/05-input/main.lua:4:5}}
+{{#include code/01-dodge-em-up/05-enemies/main.lua:4:5}}
 ```
 
 In our `_update` function, below where we handle player input for movement, we
@@ -335,7 +337,7 @@ need to countdown our `enemy_spawn_timer` every frame of our game and add an
 enemy to our `enemies` array if the timer is less than or equal to `0`:
 
 ```lua
-{{#include code/01-dodge-em-up/05-input/main.lua:33:37}}
+{{#include code/01-dodge-em-up/05-enemies/main.lua:33:37}}
 ```
 
 Just like we do with the `x` and `y` position for player movement, we update our
@@ -362,7 +364,7 @@ position by subtracting a value from it. Walking through an array item by item
 is done with a `for` **loop**. Here's the code:
 
 ```lua
-{{#include code/01-dodge-em-up/05-input/main.lua:39:42}}
+{{#include code/01-dodge-em-up/05-enemies/main.lua:39:42}}
 ```
 
 Let's break it down line by line:
@@ -411,7 +413,7 @@ function, after we clear the screen and draw our player, we need to loop through
 our enemies yet again and draw them:
 
 ```lua
-{{#include code/01-dodge-em-up/05-input/main.lua:49:52}}
+{{#include code/01-dodge-em-up/05-enemies/main.lua:49:52}}
 ```
 
 We use the same style of `for` loop. But rather than update the `enemy`'s
@@ -484,7 +486,7 @@ Well... let's find out! At the end of `_draw`, let's render some text that shows
 us how many enemies there are in our `enemies` array:
 
 ```lua
-{{#include code/01-dodge-em-up/07-recycle/main.lua:62}}
+{{#include code/01-dodge-em-up/07-recycle/main.lua:68}}
 ```
 
 The number of enemies keeps increasing. Which means each frame we're looping
@@ -505,7 +507,7 @@ table. Add this code below the for loop where we update the `x` position of each
 enemy:
 
 ```lua
-{{#include code/01-dodge-em-up/07-recycle/main.lua:52:55}}
+{{#include code/01-dodge-em-up/07-recycle/main.lua:52:56}}
 ```
 
 This is new, second loop through our enemies. But rather than going from the
@@ -587,22 +589,171 @@ bugs and potentially skipping over entries.
 
 ## Hit Detection
 
-## Clock
+We're on the cusp of having something that's pretty fun to play! We need to make
+it so that when our player is hit by a circle, the game ends. We'll check to see
+if the player's square overlaps with any of the circles. If it does, then it's
+game over! When it's game over, we'll display a message and let the player play
+again.
 
-TODO
+Add a variable at the top of `main.lua` by our other variables that tracks
+whether or not we've lost:
 
-## High Score
+```lua
+{{#include code/01-dodge-em-up/08-hit-detection/main.lua:6}}
+```
 
-TODO: saving and loading data
+You can assign `true` or `false` to variables, which are the boolean values that
+we are using in our various `if` checks. When the game starts, the game is not
+over yet, so we initialize it to `false`.
+
+Then in `_update`, where we loop through the enemies and update their position
+(not the loop where we check if they're off the screen), we need to check if
+each enemy overlaps with the player:
+
+```lua
+{{#include code/01-dodge-em-up/08-hit-detection/main.lua:48:58}}
+```
+
+`util.circ_rect_overlap` is a function Usagi provides that checks if any portion
+of a circle overlaps with a rectangle. The first argument is a table
+representing the circle, which is the enemy's position and its radius. The
+second is the player's rectangle, which is its position and its size.
+
+So if the enemy circle overlaps the player rectangle, then we set the
+`game_over` variable to `true`. Which we'll then use to render a game over
+message and also check if the player wants to restart the game.
+
+At the end of our `_update` function, below where we loop through each enemy in
+reverse to check if they're off the screen, add this code that checks if
+`game_over` is true and if the player has pressed `BTN1`. (More on `BTN1` in a
+moment.) If both of those are true (the `and` keyword is used to combine checks
+where both have to be true, meaning this code won't run if `game_over` is false
+but BTN is pressed), then we reset our game data to start the playing the game
+again.
+
+```lua
+{{#include code/01-dodge-em-up/08-hit-detection/main.lua:66:73}}
+```
+
+`input.BTN1` is part of Usagi's universal, simple input API. We checked for
+directional inputs before. But now we need to check an action button. The simple
+input API allows you to check keyboard and gamepad input, giving players
+flexibility in their input methods. Rather than you having to check if a
+specific key on the keyboard or button on the gamepad was pressed, you can use
+`input.pressed(input.BTN1)` to check if the key/button bound to that action was
+pressed once. By default `BTN1` is mapped to <kbd>Z</kbd> on the keyboard and
+the A button on gamepads. Usagi has support for up to 3 buttons.
+
+So if the game is over and BTN1 is pressed, restart the game. Nice!
+
+Now that we properly set `game_over`, we can check in our `_draw` function for
+its value and update what we render accordingly.
+
+Let's only draw the player if it's not game over:
+
+```lua
+{{#include code/01-dodge-em-up/08-hit-detection/main.lua:79:82}}
+```
+
+`if not game_over then` does exactly what it reads like: if `game_over` is
+false, then run the code between the `then` and the `end`.
+
+At the bottom of `_draw`, if it is game over, let the player know with some
+helpful text:
+
+```lua
+{{#include code/01-dodge-em-up/08-hit-detection/main.lua:89:93}}
+```
+
+`input.mapping_for` is a useful function Usagi provides that returns whatever
+key or gamepad button is bound to that input item. It auto detects if the last
+input source was a keyboard or gamepad and updates accordingly.
+
+We've got a little game that we can play now! It's got a lose condition and a
+little bit of challenge.
+
+## Play Time
+
+But there's one aspect missing: we don't know how long we survived for. Let's
+keep track of how long the player has survived and display that in our game.
+
+We need a new variable to keep track of `play_time` at the top of `main.lua`:
+
+```lua
+{{#include code/01-dodge-em-up/09-play-time/main.lua:7}}
+```
+
+In `_update` where we reset the game data, reset `play_time` to `0`:
+
+```lua
+{{#include code/01-dodge-em-up/09-play-time/main.lua:67:75}}
+```
+
+Right below that restart check, check if it's not game over and add the `dt` to
+`play_time`:
+
+```lua
+{{#include code/01-dodge-em-up/09-play-time/main.lua:77:79}}
+```
+
+`dt` is a decimal value, since it's usually about 0a.016. Each frame we add that
+to `play_time` to keep track of the time that's passed so long as the player
+hasn't been hit. Then at the bottom of `_draw`, drop the decimal places from
+`play_time` and render the whole number of seconds the player has survived:
+
+```lua
+{{#include code/01-dodge-em-up/09-play-time/main.lua:101}}
+```
 
 ## Sharing Our Game
 
-TODO: `usagi export`
+You did it! You made a game! It's got a goal: survive as long as possible.
+There's a bit of challenge to it. And you can play it over again when you game
+over. This simple little game has the core concepts virtually all games have: a
+gameplay loop, code that runs every frame, data, player input.
+
+Now all that's left is to share our game. Usagi makes that easy. Run:
+`usagi export` in your project folder from the terminal. This will create an
+`export` folder that has your game build for Web, Windows, macOS, Linux, and
+even Raspberry Pi devices. You can share your game with your family and friends
+or upload it online for others to play.
+
+A popular place to share your game online is [itch.io](https://itch.io). It lets
+you publish your game to a page that you can share privately or publicly,
+totally for free. Sign up for an account and then from the Dashboard, click
+"Create new project". Add a title for your game, like "Dodge 'Em Up" or whatever
+you want to call your game. Set **Kind of project** in the new project form to
+"HTML". Then in the **Uploads** section click "Upload files". Navigate to your
+Usagi project, open the new `exports` folder, and select all of the versions of
+your game. They'll upload to itch. It'll upload each one, and you can select the
+operating system accordingly. For `game-web.zip`, check the "This file will be
+played in the browser" box so the web game loads properly on itch. At the bottom
+fo the form, click "Save & view page". You'll have a draft page you can view and
+test your game in. And you can change the visibilty to Public if you want to
+share it with others.
+
+[📺 Watch a video of this process.](https://youtu.be/0i1wIm6c6Rw?t=708)
 
 ## Bonus Credits
 
-TODO: share ideas of what would be fun to expand on here
+Nice job following along and making your first Usagi game! It's a bit
+simplistic, so here are some ideas for how you could expand upon it to make it
+more fun:
 
+- We have a lot of duplicated numbers throughout our code, like the radius of
+  the enemy circles and the player's size. Put those in variables and replace
+  the magic numbers with the new variables you created. This makes the code
+  easier to understand and easier to change since the variable names are
+  descriptive and the value is consolidated in once place.
+- Keep track of the player's high score in a variable. When they game over,
+  compare the new time to the high score and update it if the new one is longer.
+  Display the high score in `_draw` function.
 - Make enemies fly in from different sides, not just the right side.
 - Add multiple enemy types that have different sizes and colors, to make the
   game more challenging.
+- Make more enemies spawn or make them faster as time goes, making the game
+  harder the longer the player survives.
+- Usagi has some functions to make it easy to add screen effects, like screen
+  shake and flash. Try adding `effect.screen_shake(0.2, 4)` when the player gets
+  hit and `game_over` is set to `true` to add a little bit of juice to your
+  game.
