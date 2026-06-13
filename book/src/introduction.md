@@ -76,6 +76,9 @@ concept as opposed to guided programming and engine fundamentals.
 If you're looking for Usagi's reference manual, you'll want to read through
 [usagiengine.com](https://usagiengine.com/).
 
+**This book is written for humans, by humans! No generative AI was used in the
+writing of this book.**
+
 ## Getting Started
 
 There are three things you need to get started with Usagi:

@@ -146,6 +146,14 @@ values in this example function. While `add` isn't something we'll use in our
 game, it's useful to show what functions can be like. I tend to think of
 functions as _verbs_, actions we want our code to take.
 
+**Aside:** you have have noticed some lines of text starting with `--` in
+`main.lua`. The double dash in Lua creates a **comment** which is code that's
+not executed and is meant to be used to document how something works. Comments
+are useful for future you (or collaborators) to remember what something does.
+Throughout the book you'll see comments like: `-- px/s` to mean that the number
+represents pixels per second for movement speed. I'll use comments to help
+explain some of the code in our games.
+
 [View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/01-dodge-em-up/02-greet/main.lua)
 
 ## Drawing a Square
@@ -233,21 +241,196 @@ natural the code reads, making it easier to understand because it's a lot like
 how English is spoken.
 
 Boolean checks are used so frequently when programming games. If the player is
-dead, then show game over. If the timer is up, then play a sound effect.
+dead, then show game over. If the timer is up, then play a sound effect. We'll
+be adding many more throughout this chapter and the entire book.
 
 [View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/01-dodge-em-up/04-input/main.lua)
 
 ## Spawning Enemy Circles
 
+Having a moveable player character is a natural first step, but let's give the
+player something to do. We're going to make circles fly at the player from the
+right side of the screen, spawning them at random positions and giving them
+random speeds so that there's a bit of challenge.
+
+At the top of `main.lua`, below our `x` and `y` variable assignment, add this:
+
+```lua
+{{#include code/01-dodge-em-up/05-input/main.lua:3}}
+```
+
+This assigns `{}` to the `enemies` variable. But what do those squigly brackets
+_mean_? They're the symbols that represent the beginning and end of a **table**
+in Lua. So far we've worked with **strings**, which are characters within
+`"hello123"`. We've used whole integer **numbers** to represent the player's
+position. The third absolutely foundational type of data in Lua programs are
+**tables**. They're used to store collections of other data.
+
+**Aside:** If you've programmed in other languages, Lua's tables are a single
+data structure used for arrays and for JavaScript-like objects or Ruby-like
+hashes.
+
+The data within a table can be an ordered list. Something like this:
+
+```lua
+even_nums = { 2, 4, 6, 8, 10 }
+classmates = { "Simon", "Alucard", "Richter" }
+```
+
+I'll call these types of tables **array tables** or just **arrays** throughout
+the book. Each entry is separated by a comma (`,`).
+
+Or you can assign values to a specific key:
+
+```lua
+monster = {
+  hp = 44,
+  str = 12,
+  def = 5
+}
+```
+
+The `monster` table has the key `hp` (which is technically the string `"hp"`)
+assigned the value of `44`, using a very similar syntax to variable assignment.
+Each key must have an associated value. And each key value pair in the table is
+separated by a comma (`,`), just like the array style table.
+
+These types of tables are sometimes called **associative tables**. Throughout
+the book they'll often just be referred to as **tables**.
+
+Array tables can contain tables as entries:
+
+```lua
+monsters = { { name = "Vampire", hp = 31 }, { name = "Golem", hp = 44 } }
+```
+
+And associative tables can have tables assigned to their keys:
+
+```lua
+player = {
+  items = { "Potion", "Wing" }
+  hp = 44,
+}
+```
+
+Tables are flexible in Lua and quite powerful. I can't think of a game I've made
+that doesn't use them, as they're you store collections of data. A game is
+essentially a bunch of different collections of data that respond to player
+input or time or some other system in the game.
+
+But back to our `enemies = {}` line of code. That creates an empty table with
+nothing in it. We'll treat this as an array table of data that contains our
+enemy positions, spawning new ones at a set interval.
+
+Right below that line, create these two new variables that we'll use for spawn
+timing:
+
+```lua
+{{#include code/01-dodge-em-up/05-input/main.lua:4:5}}
+```
+
+In our `_update` function, below where we handle player input for movement, we
+need to countdown our `enemy_spawn_timer` every frame of our game and add an
+enemy to our `enemies` array if the timer is less than or equal to `0`:
+
+```lua
+{{#include code/01-dodge-em-up/05-input/main.lua:33:37}}
+```
+
+Just like we do with the `x` and `y` position for player movement, we update our
+`enemy_spawn_timer` but subtracting the `dt` (delta time, which is how long has
+passed between frames in seconds) from its current value. Then we check if it's
+`<=` (less than or equal to) `0`. If it is, then we call the `table.insert`
+function, which Lua provides. The first argument is the array table we want to
+insert an entry into. In our case, it's the `enemies` array. `table.insert` adds
+a new entry at the end of the table. The second argument is the data we want to
+append. We pass an associative table with an `x` position and a `y` position,
+which represents where the enemy will spawn at. `usagi.GAME_W` is the width of
+the game, so the far right of the window. And `40` is just a little bit down
+from the top of the screen.
+
+Right after the enemy is spawned, we reset the `enemy_spawn_timer` to the
+`enemy_spawn_delay`, beginning the countdown to spawn another enemy again. The
+game continues to loop, running `_update` 60 times per second, decreasing
+`enemy_spawn_timer` each time.
+
+Right below that new code we added in `_update`, we want to make our enemies
+move across the screen from right to left. In order to do this, we need to walk
+through each enemy in our `enemies` array, one by one, and update its `x`
+position by subtracting a value from it. Walking through an array item by item
+is done with a `for` **loop**. Here's the code:
+
+```lua
+{{#include code/01-dodge-em-up/05-input/main.lua:39:42}}
+```
+
+Let's break it down line by line:
+
+```lua
+for i = 1, #enemies do
+```
+
+The first line starts the loop. `for` is the keyword to begin that style of
+loop. `i = 1` assigns a variable at the start of the loop the value of `1`. The
+next argument is the ending value of the loop. In our case, it's the total
+number of `enemies` in that array. In Lua, you get the number of items in an
+array with `#`. The `for` loop increments `i` by `1` until it hits the upper
+value. And for each iteration of the loop, it calls the code contained between
+the `do` and the `end`. In our case, that's:
+
+```lua
+local enemy = enemies[i]
+enemy.x -= 2
+```
+
+We assign a `local` variable `enemy`. `local` is a keyword in Lua that says:
+only make this variable exist within the _scope_ it was created in. Don't worry
+too much about `local` yet, we'll cover that in the future. The value we assign
+to `enemy` is `enemies[i]`. For array tables in Lua, you access the values in
+the list by its position. The first item has a position of `1`, the 2nd has a
+position of `2`, and so on. We call our position variable `i`, which is short
+for _index_. You could name it `pos`, short for position if you want. So that
+line that assigns `local enemy` grabs the current enemy in the array and assigns
+it to a variable so we can easily change it. Which we do on the line below by
+subtracting `2` pixels from that enemy's `x` position. This will make the enemy
+move from left to right off the screen.
+
+If games are collections of data, which we store in tables, then loops are how
+we enumerate through our list and check or change that data.
+
+All that's left for this section is to actually draw our enemies. In our `_draw`
+function, after we clear the screen and draw our player, we need to loop through
+our enemies yet again and draw them:
+
+```lua
+{{#include code/01-dodge-em-up/05-input/main.lua:49:52}}
+```
+
+We use the same style of `for` loop. But rather than update the `enemy`'s
+position, we draw a filled red cicle at the `enemy`'s position. The `8` is the
+radius of the circle in pixels. **Note:** when we draw our player, the origin is
+the upper left of the green rectangle. But when drawing a circle, the `x` and
+`y` describe the circle's center point. This can be slightly confusing but it's
+worth knowing upfront as it'll influence the code we write in the rest of the
+chapter.
+
+Save your `main.lua` and you'll see red circles fly across the screen:
+
+![Green square with red circles flying across the screen](./img/01-dodge-em-up-spawning.gif)
+
+Kind of neat to see something moving on its own! But we're missing a few things:
+handling when a circle hits the player and spawning our enemies at different `y`
+positions to make it more challenging. Also, it'd be more interesting if the
+speed of each circle was random to add some variation and keep the player on
+thier toes.
+
+## Random Y and Speed
+
 TODO
 
 ## Hit Detection
 
-TODO
-
-## Game Over
-
-TODO
+## Recycling Enemies
 
 ## Clock
 
@@ -264,3 +447,7 @@ TODO: `usagi export`
 ## Bonus Credits
 
 TODO: share ideas of what would be fun to expand on here
+
+- Make enemies fly in from different sides, not just the right side.
+- Add multiple enemy types that have different sizes and colors, to make the
+  game more challenging.
