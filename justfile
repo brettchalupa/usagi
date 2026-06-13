@@ -22,7 +22,7 @@ fmt:
 
 push:
     git push origin
-    git push gh
+    git push gh --no-verify
 
 # Regenerate examples/loveify/notetris/ from the canonical sources. Run after editing notetris or the Love shim.
 loveify:
