@@ -33,7 +33,8 @@ programming and Usagi Engine, read that first.
 
 Ensure you have [Usagi Engine](https://usagiengine.com) installed. Run
 `usagi init shmup` to create your new project. Open your new project folder in
-your code editor.
+your code editor. Then run `usagi dev` in the folder to start up your game in
+dev mode.
 
 We'll start by drawing a square to represent our player that can be moved around
 the screen. In the Dodge 'Em Up chapter, you may have noticed that if you press
@@ -177,6 +178,12 @@ Now we need to draw our bullets by looping through them at the bottom of
 {{#include code/02-shoot-em-up/02-firing-bullets/main.lua:82:85}}
 ```
 
+The `for _, bullet in ipairs(State.player.bullets) do` line loops through each
+of the bullets in `State.player.bullets`. The code between the `for ... do` and
+its `end` is called for each `bullet` in that list. `ipairs` returns two values,
+the index of the item in the list and the actual item in the list. We set the
+index variable to `_`, meaning we don't use it.
+
 In less than 100 lines of code, we've got a pretty good feeling player ship that
 moves around the screen and fires bullets. Not bad!
 
@@ -184,38 +191,151 @@ moves around the screen and fires bullets. Not bad!
 
 [View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/02-shoot-em-up/02-firing-bullets/main.lua)
 
-## Enemies Fly Into Position
-
-TODO
-
 ## Defeating Enemies
 
-TODO
+A shmup without enemies is no shmup at all! Let's spawn enemies that fly down
+the screen and when they're hit by the player's bullet, they lose health points
+(HP). When their HP drops to 0, they'll disappear.
+
+Start by defining the `local` variable `hit_flash_time`. It's the time in
+seconds that an enemy will flash then they're hit by a bullet:
+
+```lua
+{{#include code/02-shoot-em-up/03-enemies/main.lua:8}}
+```
+
+Then define a new function that returns a new enemy table at a given position.
+This function makes it easy to keep all of the different of an enemy close
+together.
+
+```lua
+{{#include code/02-shoot-em-up/03-enemies/main.lua:20:31}}
+```
+
+We'll call this function soon. The returned table has the width (`w`) and height
+(`h`), the `color`, the `speed`, and the `flash_timer` to keep track of changing
+the enemy's color when they're hit. It's worth noting that there's a downside to
+putting all of these values in a table like this: when our game code live
+reloads, the `State.enemies` contains the old values, not the new ones until
+either new enemies spawn or you press <kbd>Ctrl + R</kbd> to reload your game.
+Since our game is so simple right now, that's not a big deal. But it's worth
+seeing the difference in approach compared to using `local` variables we use the
+different player properties. Later on this chapter, we'll break up our code into
+multiple files and revise how this is handled. But for now, reutnring the table
+like this works.
+
+We'll store our enemies in a table in `State`, spawning three of them with our
+new `init_enemy` function:
+
+```lua
+{{#include code/02-shoot-em-up/03-enemies/main.lua:33:46}}
+```
+
+Then in `_update`, in our bullet loop, loop through each enemy and check if the
+bullet overlaps with any of the enemies:
+
+```lua
+{{#include code/02-shoot-em-up/03-enemies/main.lua:87:102}}
+```
+
+`util.rect_overlap` is a function Usagi provides that checks if two rectangles
+are intersecting. It returns `true` if they are. Each rectangle passed to this
+function must be a table with an `x`, `y`, `w`, and `h` key and value. If they
+do overlap, then we set the bullet's `dead` property to `true`, reduce the
+enemy's `hp`, and set the enemy's `flash_timer` to the `local` variable we
+created earlier for how long to change the color when the enemy is hit.
+
+Then, right after that, where we were checking for bullets that fly off the
+screen, we _also_ check if `bullet.dead` to see if we should remove dead bullets
+as well. Just add `or bullet.dead` to the check that previously existed.
+
+Now, similar to bullets and still in `_update`, we need to move our enemies down
+the screen and remove them if they've run out of hp or fly off the screen:
+
+```lua
+{{#include code/02-shoot-em-up/03-enemies/main.lua:105:117}}
+```
+
+We loop through in reverse, just like bullets. And we set `enemy.flash_timer` to
+the previous value minus `dt`, reducing that timer. We'll check that in the
+`_draw` code to know which color to draw the enemy.
+
+When we defeat all of our enemies, let's spawn some more, at the end of our
+`_update` function:
+
+```lua
+{{#include code/02-shoot-em-up/03-enemies/main.lua:119:132}}
+```
+
+There's nothing too fancy here. We check if the number of enemies is `0` and
+spawn more if so.
+
+In `_draw`, after we draw our player rectangle but _before_ we draw bullets,
+we'll loop through each enemy and draw them, factoring in whether or not their
+`flash_timer` is greater than `0`. If it is, then we'll draw the enemy as pink
+instead of the red that we set in `init_enemy`:
+
+```lua
+{{#include code/02-shoot-em-up/03-enemies/main.lua:142:148}}
+```
+
+Our game is starting to have glimmers of being fun with enemies endlessly
+approach and bullets we can hit them with.
+
+## Enemy Bullets - Aimed Shots
+
+Our game is a bit easy though. Sure, we could make the enemies move faster or
+spawn more of them. But the best way to add challenge (and fun) is to make the
+enemies fire back. In shoot 'em ups, there are two broad categories of enemy
+shot types: aimed shots that move toward the player's position and shots that
+move in a specific pattern, regardless of the player's location. We'll focus on
+aimed shots in this section, making our enemies fire bullets toward the player's
+position at the time of fire. This allows the player to dodge them by always
+needing to stay in motion. This is slightly different than a _homing_ shot,
+which would follow the player where they move, requiring them to either shoot
+the missle down or somehow shake it off (homing shots would be a cool thing for
+you to add at the end!).
+
+TODO: enemy spits out 3 bullets in succession in an aimed shot at the player;
+enemy bullets get drawn on top of everything else, player collision that kills
+the bullet
 
 ## Player Death
 
-TODO
+TODO: explain how to do hit detection with the enemy bullets and the player
 
----
+## Enemy Bullets - Spiral Pattern
 
-## Outline:
+TODO: add a second kind of enemy that fires a spiral pattern with some
+parameters that can be tuned
 
-- Player movement w/ normalized diagonals
-- Firing bullets
-- Enemies fly into position
-- Focus shot vs spread
-- Hitboxes & enemy death
-- Dev mode display
-- Enemies fire bullets
-- Player death
-- Bullet patterns pt 1 - aimed shots
-- Bullet patterns pt 2 - static shots
-- Waves of enemies
-- Medals
-- Enemies move
-- Starfield Background
-- Player bombs
-- Time over & scoring
-- Bonus Credits
-  - Sound effects
-  - Sprites
+## Waves of Enemies
+
+TODO: build a table of enemies and have them spawn one after the other
+
+## Time Over
+
+TODO: counting down time that remains from 60s
+
+## Scoring
+
+TODO: killing enemies faster leads to higher score
+
+## High Score Tracking
+
+TODO: saving it, displaying it, loading it
+
+## Sound Effects
+
+TODO: explain how to make sfx and play them back in the game; player shot, enemy
+hit, enemy explosion, player death; using pitch variation and tweaking volume a
+bit
+
+## Starfield Background
+
+TODO: render a starfield that scrolls by at varying rates and sizes
+
+## Bonus Credits
+
+TODO: list out ways to expand upon the shmup; ideas: bombs, music, sprites,
+explosion effects, adding homing shots/missles
