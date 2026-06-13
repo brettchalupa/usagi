@@ -767,3 +767,6 @@ more fun:
   shake and flash. Try adding `effect.screen_shake(0.2, 4)` when the player gets
   hit and `game_over` is set to `true` to add a little bit of juice to your
   game.
+- There's a lot our game doesn't do, like playing sound effects or music. Check
+  out [the Usagi documentation](https://usagiengine.com) and explore what else
+  is possible to add in your game. Make it your own!
