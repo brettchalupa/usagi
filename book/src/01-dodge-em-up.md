@@ -432,7 +432,9 @@ Kind of neat to see something moving on its own! But we're missing a few things:
 handling when a circle hits the player and spawning our enemies at different `y`
 positions to make it more challenging. Also, it'd be more interesting if the
 speed of each circle was random to add some variation and keep the player on
-thier toes.
+their toes.
+
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/01-dodge-em-up/05-enemies/main.lua)
 
 ## Random Y and Speed
 
@@ -473,6 +475,8 @@ the top of `main.lua`, decrease the `enemy_spawn_delay` value:
 Spawning an enemy every half second is feeling pretty good to me! But you're
 welcome to change it and tune it to what feels good. That's a key part of making
 games: adjusting speeds and sizes and stats to make the game feel good.
+
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/01-dodge-em-up/06-random/main.lua)
 
 ## Recycling Enemies
 
@@ -587,6 +591,8 @@ hate programming, don't sweat it! Just know that when we're removing items from
 an array, we have to loop through them in reverse order to prevent introducing
 bugs and potentially skipping over entries.
 
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/01-dodge-em-up/07-recycle/main.lua)
+
 ## Hit Detection
 
 We're on the cusp of having something that's pretty fun to play! We need to make
@@ -672,6 +678,8 @@ input source was a keyboard or gamepad and updates accordingly.
 We've got a little game that we can play now! It's got a lose condition and a
 little bit of challenge.
 
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/01-dodge-em-up/08-hit-detection/main.lua)
+
 ## Play Time
 
 But there's one aspect missing: we don't know how long we survived for. Let's
@@ -704,6 +712,8 @@ hasn't been hit. Then at the bottom of `_draw`, drop the decimal places from
 ```lua
 {{#include code/01-dodge-em-up/09-play-time/main.lua:101}}
 ```
+
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/01-dodge-em-up/09-play-time/main.lua)
 
 ## Sharing Our Game
 
