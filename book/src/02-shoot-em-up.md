@@ -407,7 +407,7 @@ design.
 ## Hitboxes
 
 TODO: explain how we'll have a player hit box smaller than the player, draw it;
-why we do this
+why we do this when making shmups; having functions to make this easier to get
 
 ## Refactoring Our Code
 
@@ -426,6 +426,11 @@ TODO: when player is hit by a bullet, show game over and don't update any longer
 ## Waves of Enemies
 
 TODO: build a table of enemies and have them spawn one after the other
+
+## Boss & Spiral Shots
+
+TODO: explain this and how to do spiral shots and some more advanced bullet
+patterns
 
 ## Time Out
 
@@ -446,6 +451,12 @@ hit, enemy explosion, player death; using pitch variation and tweaking volume a
 bit
 
 ## Sharing Our Game
+
+Use `usagi export` to generate cross-platform builds of your game in the
+**exports** folder. You can then send your game to friends or publish it on itch
+or Newgrounds or wherever. Be sure to check out
+[the full guide from the Dodge 'Em Up chapter](/01-dodge-em-up.html#sharing-our-game)
+if you want a deeper dive on this process.
 
 ## Bonus Credits
 
