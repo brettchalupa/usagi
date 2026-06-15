@@ -294,26 +294,140 @@ position at the time of fire. This allows the player to dodge them by always
 needing to stay in motion. This is slightly different than a _homing_ shot,
 which would follow the player where they move, requiring them to either shoot
 the missle down or somehow shake it off (homing shots would be a cool thing for
-you to add at the end!).
+you to add once this chapter is over!).
 
-TODO: enemy spits out 3 bullets in succession in an aimed shot at the player;
-enemy bullets get drawn on top of everything else, player collision that kills
-the bullet
+We'll make our enemy bullets quite large compared to the player's. Add a new
+variable at the top of the file for representing the width and height of the
+enemy bullets:
 
-## Player Death
+```lua
+{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:9}}
+```
 
-TODO: explain how to do hit detection with the enemy bullets and the player
+Add two new properties to our returned enemy table in `init_enemy()` that we can
+use to track when a enemy should fire a bullet:
 
-## Enemy Bullets - Spiral Pattern
+```lua
+{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:31:34}}
+```
 
-TODO: add a second kind of enemy that fires a spiral pattern with some
-parameters that can be tuned
+`fire_timer` will be used to countdown 1.5 seconds and then have the enemy fire
+their first bullet. We'll reset `fire_timer` after each shot to `fire_delay`,
+which will set the delay of future shots to 0.2s. We'll use `shots_fired` to
+count how many times the enemy has spat out a bullet and stop firing once that
+number reaches `shots_limit`.
+
+In the `_init` function's `State` table, add a new key: `enemy_bullets` that's
+initialized to an empty table: `{}`:
+
+```lua
+{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:50}}
+```
+
+We'll keep track of enemy bullets _separate_ from each enemy so that even after
+an enemy dies or flies of their screen, their bullets live on, carrying out
+their mission to destroy us.
+
+We need to make it so that our enemies fire bullets in our `_update` function
+within the enemies loop. We'll be calculating the linear velocity of the bullet
+based on the angle of the enemy toward the player. We'll use the power of
+trigonometry to accomplish this! Right after the code where we handle updating
+the enemy's flash timer, add this:
+
+```lua
+{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:120:142}}
+```
+
+There's a lot here. Let's break it down and go over what's happening.
+
+We subtract `dt` from the enemy's `fire_timer` so that it counts down, just like
+our other timers. Then, if the `fire_timer` is less than or equal to 0 **and**
+the number of shots fired is less than the limit, we insert a new bullet into
+`State.enemy_bullets`. In order to properly aim the bullet at the player, we
+need to calculate the angle at which the bullet needs to travel based on the
+enemy that's firing the bullet's position and the player's position at the time
+of fire. This is calculated using the arctangent of the y position delta and x
+position delta. Then we increment the enemy's `shots_fired` and reset the
+`fire_timer` for future checks as to whether or not the enemy should fire
+another bullet.
+
+If you're curious about the deeper trigonometric aspects of the arctangent
+calculate,
+[check out the Wikipedia page on Inverse trigonometric functions](https://en.wikipedia.org/wiki/Inverse_trigonometric_functions).
+If you're not curious, just accept that's how aimed shots work and move on. For
+what it's worth, these aspects of math in game programming make my head spin
+still (maybe a sign I should study it more!).
+
+Right below the enemy loop in `_update`, in a new loop, we need to loop through
+each enemy bullet, update its position, check for overlap with the player, and
+remove any bullets that are dead or offscreen:
+
+```lua
+{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:149:165}}
+```
+
+We need to take the `bullet.angle` into account when we move the bullet. In
+order to calculate the linear velocity, we pass that `bullet.angle` into
+`math.cos` for the `x` velocity and `math.sin` for the `y` velocity, multiplying
+it by enemy bullet's speed and `dt`.
+
+We then check if the bullet's rectangle overlaps the player's rectangle. If so,
+the bullet is dead. (And in the future, the player will die too.)
+
+At the end of the enemy bullet update loop, we remove any dead bullets or those
+that are off screen.
+
+Finally, loop through and draw each of the `State.enemy_bullets` _after_ we draw
+the player bullets:
+
+```lua
+{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:203:206}}
+```
+
+There's nothing particularly special about this code, we draw a blue square to
+represent the enemy bullets.
+
+The Usagi `_draw` loop draws in order of the `gfx` calls. Each proceeding `gfx`
+call draws on top of the previous ones. In shmups, it's absolutely **vital**
+that enemies and bullets are visible. So we draw the enemy bullets last, on top
+of everything else.
+
+Enemy bullet firing is one of the more complex parts of our shmup. Now that
+we've cleared that hurdle, we'll be making some smaller changes to make our game
+more challenging and fun.
+
+Tune some of the different values in the code to see what feels good, like try
+changing the bullet size, the fire delay, how many shots get fired. When making
+games, once you have the systems in place, you can turn the knobs and see what
+happens, which can often lead to some delightful surprises in your game's
+design.
+
+TODO: link to source code from this section
+
+## Hitboxes
+
+TODO: explain how we'll have a player hit box smaller than the player, draw it;
+why we do this
+
+## Refactoring Our Code
+
+TODO:
+
+- Explain what refactoring is
+- Break up the code into multiple functions
+- Making enemy and player bullet updating code shared
+- Using angular velocity
+- rectangle functions for enemyes, bullets, player; DRY up that code
+
+## Game Over
+
+TODO: when player is hit by a bullet, show game over and don't update any longer
 
 ## Waves of Enemies
 
 TODO: build a table of enemies and have them spawn one after the other
 
-## Time Over
+## Time Out
 
 TODO: counting down time that remains from 60s
 
@@ -331,11 +445,17 @@ TODO: explain how to make sfx and play them back in the game; player shot, enemy
 hit, enemy explosion, player death; using pitch variation and tweaking volume a
 bit
 
-## Starfield Background
-
-TODO: render a starfield that scrolls by at varying rates and sizes
+## Sharing Our Game
 
 ## Bonus Credits
 
 TODO: list out ways to expand upon the shmup; ideas: bombs, music, sprites,
-explosion effects, adding homing shots/missles
+explosion effects, adding homing shots/missles; player lives
+
+## Possible Future Expansions
+
+- Sprites - I'm on the fence if I want to introduce that here or in a future
+  game, like Sokoban or the action platformer
+- Starfield
+- More enemy types
+- More bullet patterns, like spirals
