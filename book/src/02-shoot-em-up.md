@@ -402,7 +402,7 @@ games, once you have the systems in place, you can turn the knobs and see what
 happens, which can often lead to some delightful surprises in your game's
 design.
 
-TODO: link to source code from this section
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/02-shoot-em-up/04-aimed-bullets/main.lua)
 
 ## Hitboxes
 
