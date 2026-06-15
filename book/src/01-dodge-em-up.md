@@ -22,7 +22,7 @@ can do. It's a user manual of sorts.
 
 `meta/usagi.lua` is a file that helps your text editor know what functions and
 variables are available from Usagi. You don't edit this file, it's read-only and
-to help improve your experience writing code.
+to help improve your experience writing code. Don't worry much about this yet!
 
 In your terminal, run `usagi dev hello_usagi`. You'll see a window pop up that
 draws some text on the screen.
@@ -105,9 +105,11 @@ By default, Usagi games are 320 pixels wide and 180 pixels tall. If you set the
 
 ## Greeting
 
-Let's write our own function. It's a great way to learn how functions work.
-Rather than just greeting Usagi, let's make it easy to say hello to any given
-name.
+Let's write our own function. Functions are a key programming concept that
+allows us to organize code into a named group that we can easily reuse.
+Functions can accept data that the code within makes use of. And functions can
+spit data back based on what the code within does. Rather than just greeting
+Usagi, let's make it easy to say hello to any given name.
 
 At the bottom of `main.lua`, add the following code:
 
@@ -317,7 +319,7 @@ player = {
 ```
 
 Tables are flexible in Lua and quite powerful. I can't think of a game I've made
-that doesn't use them, as they're you store collections of data. A game is
+that doesn't use them, as they're where you store collections of data. A game is
 essentially a bunch of different collections of data that respond to player
 input or time or some other system in the game.
 

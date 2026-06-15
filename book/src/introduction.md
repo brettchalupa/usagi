@@ -79,6 +79,34 @@ If you're looking for Usagi's reference manual, you'll want to read through
 **This book is written for humans, by humans! No generative AI was used in the
 writing of this book.**
 
+## Getting the Most Out of the Book
+
+Each chapter is broken down into sections, each of which cover a key concept in
+the game we'll be building out. The source code snippets are shown in a block of
+text and then beneath it I explain what that code does. At the end of each
+section, there's a link to the full source code at that point in time of the
+project, that way you can see the full files and where your version might
+differ.
+
+You'll be tempted to copy and paste the code from the book, but I **strongly**
+recommend you type it out yourself. Part of learning how to code is getting
+familiar with the process of typing text into your editor and getting use to
+those ergonomics.
+
+The tutorial chapters may be missing obvious features you think the game might
+need, like sprites or music or sound effects. I'd encourage you to add those
+things yourself, change the code, and make it your own game. It might also be
+that the concept is too complex for that point in the book and that it'll be
+covered in a future game.
+
+Most of all, have fun! Game programming can be challenging but it's quite
+rewarding. To get to play your game after building some new feature and see it
+get better and better is an amazing feeling.
+
+If you're stuck or run into an issue,
+[join the Usagi Engine Discord](https://usagiengine.com/discord) and ask for
+help in the #book channel.
+
 ## Getting Started
 
 There are three things you need to get started with Usagi:
