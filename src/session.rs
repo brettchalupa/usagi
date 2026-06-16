@@ -504,7 +504,7 @@ struct Session {
     /// Must come before `rl` for the same reason `rt` does.
     shader: Rc<std::cell::RefCell<ShaderManager>>,
     /// Bundled monogram font. Used for all engine UI overlays
-    /// (FPS, REC indicator, pause menu, error overlay) so layout
+    /// (FPS, pause menu, error overlay) so layout
     /// doesn't break when the user supplies an unusually-sized custom
     /// font. Leaked to `'static` so closures can hold it; reclaimed at
     /// process exit.

@@ -845,7 +845,7 @@ function effect.hitstop(time) end
 ---Shakes the rendered view for `time` seconds with up to `intensity`
 ---game-pixel offset. Magnitude decays linearly to zero across the
 ---duration. The shake is applied to the RT-to-screen blit, so
----overlays drawn outside the world (error, REC indicator) stay
+---overlays drawn outside the world (error overlay) stay
 ---stable.
 ---@param time      number  seconds to shake
 ---@param intensity number  maximum offset in game pixels (try 2-6)

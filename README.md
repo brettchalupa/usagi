@@ -1134,8 +1134,8 @@ effect.slow_mo(1.5, 0.3)                 -- 1.5 s at 30% speed
   `_draw` still runs so the world stays on screen.
 - **`effect.screen_shake(time, intensity)`** offsets the RT-to-window blit.
   `intensity` is a max offset in _game pixels_ (try 2-6); the magnitude decays
-  linearly to zero. Overlays drawn outside the world (the engine error overlay,
-  the REC indicator) stay anchored.
+  linearly to zero. Overlays drawn outside the world (the engine error overlay
+  stay anchored.
 - **`effect.flash(time, color)`** draws a full-screen overlay of palette `color`
   on top of `_draw`'s output. Alpha decays from opaque to transparent. White on
   hits, red on damage.

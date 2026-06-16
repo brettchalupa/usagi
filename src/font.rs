@@ -4,7 +4,7 @@
 //!
 //! - The **bundled** monogram-extended atlas (CC0 by datagoblin,
 //!   <https://datagoblin.itch.io/monogram>) powers engine UI overlays
-//!   (FPS, REC indicator, pause menu, error overlay, tools window).
+//!   (FPS, pause menu, error overlay, tools window).
 //!   It's always loaded and its metrics are stable, so engine layout
 //!   doesn't depend on what the user dropped in their project.
 //!
