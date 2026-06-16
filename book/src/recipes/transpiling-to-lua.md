@@ -32,6 +32,20 @@ references:
 - [https://typescripttolua.github.io/docs/the-self-parameter](https://typescripttolua.github.io/docs/the-self-parameter)
 - [https://typescripttolua.github.io/docs/assigning-global-variables](https://typescripttolua.github.io/docs/assigning-global-variables)
 
+## YueScript
+
+YueScript is a programmer friendly language that compiles to Lua, heavily
+inspired by the indentation-based syntax of CoffeeScript. It's a fork of
+MoonScript (see below).
+
+In order to use YueScript with Usagi, you need the `yue` executables installed.
+You then compile your `main.yue` into `main.lua` with `yue main.yue`.
+
+Website: [https://yuescript.org](https://yuescript.org)
+
+Here's a very simple working example:
+[https://codeberg.org/brettchalupa/usagi/src/branch/main/examples/transpile/yuescript](https://codeberg.org/brettchalupa/usagi/src/branch/main/examples/transpile/yuescript)
+
 ## MoonScript
 
 MoonScript is a programmer friendly language that compiles to Lua, heavily
@@ -50,10 +64,6 @@ Here's a very simple working example:
 ## Teal
 
 TODO: https://teal-language.org/
-
-## YueScript
-
-TODO: https://yuescript.org/
 
 ## Browse the Examples
 
