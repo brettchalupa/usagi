@@ -83,6 +83,19 @@ The accepted-licenses list lives in `about.toml`. If a new dep brings in a
 license that's not in the list, cargo-about errors; add the SPDX ID after
 eyeballing the terms, or replace the dep.
 
+## Adding New Functions and Constants
+
+When new Lua functions and enum-like table entries are added, the following
+needs to happen to ensure everywhere is properly updated:
+
+- `README_DEV.md` detailed documentation
+- `README_DEV.md` cheatsheet
+- `meta/usagi.lua` docs
+- Changelog entry
+- Loveify implementation (no-op is fine if not viable)
+- An example that exercises the new function for easy testing; it should be run
+  with `just examples`
+
 ## Docs
 
 Documentation is written in Markdown. It's formatted with `deno fmt`, but it's
