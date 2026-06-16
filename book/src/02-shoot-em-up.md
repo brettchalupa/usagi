@@ -459,7 +459,7 @@ you decide to make the hitbox smaller, just update `hitbox_size` in that single
 place. This principle of don't repeat yourself (DRY) is quite useful for making
 code easier to change and understand.
 
-TODO: link to the source code for this section
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/02-shoot-em-up/05-hitboxes/main.lua)
 
 ## Refactoring Our Code
 
@@ -518,20 +518,64 @@ that'd be something great for you to explore on your own if you're interested in
 that. There are some natural groupings so far, like `player.lua`, `enemy.lua`,
 `bullet.lua`.
 
-TODO: link to source code in this section
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/02-shoot-em-up/06-refactoring/main.lua)
 
 ## Game Over
 
-TODO: when player is hit by a bullet, show game over and don't update any longer
+When our player gets hit by bullets, nothing consequential happens. Much like in
+the _Dodge 'Em Up_ chapter, we'll make it trigger a game over and allow the
+player to restart to try again.
+
+Start by adding a `game_over` key to the `State` table:
+
+```lua
+{{#include code/02-shoot-em-up/07-game-over/main.lua:61}}
+```
+
+Then, in our new `update_enemy_bullets` function, in addition to setting the
+bullet to to `dead`, we'll also set the `State.game_over` to true:
+
+```lua
+TODO: fix this
+```
+
+In `_update`, check if `State.game_over` and check for player input to restart
+the game, otherwise call our normal update functions:
+
+```lua
+{{#include code/02-shoot-em-up/07-game-over/main.lua:65:78}}
+```
+
+When `game_over` is true, we check to see if the player has pressed BTN1, and if
+they have, just call the game's `_init()` to start it all over again.
+
+If the player is dead, we shouldn't draw their square in `_draw()`, so add this
+conditional check:
+
+```lua
+{{#include code/02-shoot-em-up/07-game-over/main.lua:83:93}}
+```
+
+We need to let the player know it's game over, so in `_draw()` render text at
+the very end of the function:
+
+```lua
+{{#include code/02-shoot-em-up/07-game-over/main.lua:113:117}}
+```
+
+While we could only draw the enemies and bullets if it's not game over, it's fun
+to draw them when they're not updating, leading to a freeze frame effect when
+the player dies.
+
+This is starting to fee like a real game! Play it for a bit and tune the enemy
+speeds, the bullet speeds, and whatever else is variable to see what feels best
+to you.
+
+TODO: link to source for this section
 
 ## Waves of Enemies
 
 TODO: build a table of enemies and have them spawn one after the other
-
-## Boss & Spiral Shots
-
-TODO: explain this and how to do spiral shots and some more advanced bullet
-patterns
 
 ## Time Out
 
@@ -571,3 +615,4 @@ explosion effects, adding homing shots/missles; player lives
 - Starfield
 - More enemy types
 - More bullet patterns, like spirals
+- Boss enemy
