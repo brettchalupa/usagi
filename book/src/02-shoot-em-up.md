@@ -459,15 +459,66 @@ you decide to make the hitbox smaller, just update `hitbox_size` in that single
 place. This principle of don't repeat yourself (DRY) is quite useful for making
 code easier to change and understand.
 
+TODO: link to the source code for this section
+
 ## Refactoring Our Code
 
-TODO:
+On the topic of code quality, there's something that's not great about our
+`main.lua` code right now. It's the `_update` function. It's over 100 lines
+long, and it's doing a lot of important work. Let's break that code down into
+smaller, reusable functions. This process of reorganizing our code is called
+**refactoring**. It's a way to step back and assess the code that exists and try
+to answer the question: _can this be organized better so I can better understand
+it and more easily change it in the future?_ A key part of refactoring is that
+we don't want to change the functionality.
 
-- Explain what refactoring is
-- Break up the code into multiple functions
-- Making enemy and player bullet updating code shared
-- Using angular velocity
-- rectangle functions for enemyes, bullets, player; DRY up that code
+When I read through our `_update` function, I see it handling some distinct
+functionalities:
+
+- Updating the player's position based on input
+- Handling firing the player's bullets
+- Updating the player's bullets and checking for collisions with enemies
+- Updating enemies positions and firing the enemies' bullets
+- Updating enemy bullets and checking for collisions with the player
+- Spawning more enemies
+
+These all naturally break down into distinct functions that we can call. Take
+those logical groupings, give them names, and then call those functions in
+`_update`:
+
+```lua
+{{#include code/02-shoot-em-up/06-refactoring/main.lua:64:71}}
+```
+
+Doesn't `_update` just feel better now? It's clear to see the order of
+operations. And then if we need to change enemy behavior, we go to the
+`update_enemies` function.
+
+We use the `update_*` prefix to make it clear that the code is called in the
+`_update` function. The `try_spawn_enemies` function uses the `try_*` suffix
+because it doesn't spawn enemies every time it's called. It only does it is
+there are currently 0 enemies. If the function was just named `spawn_enemies`,
+when you read it in `_update`, you might think it's always spawning enemies. By
+naming it `try_spawn_enemies`, it implies that certain conditions must be met
+for a spawn event to happen.
+
+All of our new functions look like this:
+
+```lua
+{{#include code/02-shoot-em-up/06-refactoring/main.lua:104:241}}
+```
+
+Every function we extracted except `try_spawn_enemies` needs `dt` passed in. But
+none of the actual code within the functions has changed. That's a clean
+refactor!
+
+**Aside:** A natural next step would be to extract our functions into different
+files to further organize our code. That's beyond the scope of this chapter, but
+that'd be something great for you to explore on your own if you're interested in
+that. There are some natural groupings so far, like `player.lua`, `enemy.lua`,
+`bullet.lua`.
+
+TODO: link to source code in this section
 
 ## Game Over
 
