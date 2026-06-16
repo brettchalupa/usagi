@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "tstl",
+    "dev:tstl": "tstl --watch",
+    "dev:usagi": "usagi dev",
+    "export": "npm run build && usagi export"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2",
+    "typescript-to-lua": "^1.37.0"
+  }
+}
