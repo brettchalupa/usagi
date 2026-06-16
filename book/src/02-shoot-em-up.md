@@ -406,8 +406,58 @@ design.
 
 ## Hitboxes
 
-TODO: explain how we'll have a player hit box smaller than the player, draw it;
-why we do this when making shmups; having functions to make this easier to get
+Our game currently uses the entire player's rectangle to check for collisions
+with enemy bullets. This makes our game quite difficult, and in many modern
+shmups, the _hitbox_ of the player is a much smaller square in the center.
+Hitboxes are a game dev term that represent a specific shape that's used for hit
+detection.
+
+Here's a sprite from the art Kenney with a box I've drawn over it:
+
+![ship sprite with a smaller rectangular overlay in the center](./img/hitboxvisualization.png)
+
+That pink-ish box would make for a more player-friendly hitbox, allowing for
+easier dodging and less frustrating gameplay. In some shmups, the hitbox is even
+smaller.
+
+Let's make our player's hitbox smaller than the black square we draw and use
+that for collision detection. In `main.lua`, create a new function called
+`player_hitbox`. It will return a Lua table representing the rectangle we want
+to use:
+
+```lua
+{{#include code/02-shoot-em-up/05-hitboxes/main.lua:38:46}}
+```
+
+The returned table is a small square centered on the player's location.
+
+In the `_update` function where we loop through the `#State.enemy_bullets` and
+call `util.rect_overlap` and pass in two tables to represent the bullet's hitbox
+and the player's hitbox, change the second argument to instead call out to our
+new function:
+
+```lua
+{{#include code/02-shoot-em-up/05-hitboxes/main.lua:165:170}}
+```
+
+**Aside:** if you wanted, you could even make the enemy bullet hitbox smaller
+than the bullet's size. Or extract it into a function and make it the exact
+same. It'd make the code a little bit cleaner.
+
+Let's draw the player's hitbox as a white dot in the middle of the player in
+`_draw` right after we draw our player:
+
+```lua
+{{#include code/02-shoot-em-up/05-hitboxes/main.lua:199:203}}
+```
+
+The reason we wrote the `player_hitbox` code insead of creating that table over
+and over to represent the hitbox is so that we could reuse that code in the
+`_update` collision detection code and we could then use it in `_draw`. By
+consolidating the code into one place, this makes it much easier to change. If
+you decide to make the hitbox smaller, just update `hitbox_size` in that single
+place. This principle of don't repeat yourself (DRY) is quite useful for making
+code easier to change and understand.
 
 ## Refactoring Our Code
 
