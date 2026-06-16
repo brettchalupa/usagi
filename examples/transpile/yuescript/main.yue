@@ -1,0 +1,8 @@
+export _config, _draw
+
+global _config = -> { name: "YueScript Ex" }
+
+global _draw = (dt) ->
+  gfx.clear(gfx.COLOR_BLACK)
+  gfx.text("Hello YueScript!", 10, 10, gfx.COLOR_WHITE)
+  gfx.text("dt: " .. dt, 10, 32, gfx.COLOR_PEACH)
