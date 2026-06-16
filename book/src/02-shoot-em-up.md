@@ -533,11 +533,17 @@ Start by adding a `game_over` key to the `State` table:
 ```
 
 Then, in our new `update_enemy_bullets` function, in addition to setting the
-bullet to to `dead`, we'll also set the `State.game_over` to true:
+bullet to to `dead`, we'll also set the `State.game_over` to `true`:
 
 ```lua
-TODO: fix this
+{{#include code/02-shoot-em-up/07-game-over/main.lua:229:237}}
 ```
+
+We also call out to two functions Usagi provides: `effect.flash` and
+`effect.screen_shake`. They add a little bit of juice to the game by flashing
+the screen white for 0.4 seconds and then shaking the screen at intensity level
+2 for 0.8 seconds. While you don't want to go overboard with these effects,
+using them wisely can make your game feel more alive and polished.
 
 In `_update`, check if `State.game_over` and check for player input to restart
 the game, otherwise call our normal update functions:
@@ -571,9 +577,9 @@ This is starting to fee like a real game! Play it for a bit and tune the enemy
 speeds, the bullet speeds, and whatever else is variable to see what feels best
 to you.
 
-TODO: link to source for this section
+[View the source for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/02-shoot-em-up/07-game-over/main.lua)
 
-## Waves of Enemies
+## Enemy Waves
 
 TODO: build a table of enemies and have them spawn one after the other
 
@@ -606,7 +612,7 @@ if you want a deeper dive on this process.
 ## Bonus Credits
 
 TODO: list out ways to expand upon the shmup; ideas: bombs, music, sprites,
-explosion effects, adding homing shots/missles; player lives
+explosion effects, adding homing shots/missles; player lives; chain system
 
 ## Possible Future Expansions
 

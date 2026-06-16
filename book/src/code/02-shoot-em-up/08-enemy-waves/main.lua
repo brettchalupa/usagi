@@ -232,8 +232,6 @@ function update_enemy_bullets(dt)
         ) then
       bullet.dead = true
       State.game_over = true
-      effect.flash(0.4, gfx.COLOR_WHITE)
-      effect.screen_shake(0.8, 2)
     end
 
     if bullet.y > usagi.GAME_H or bullet.dead then
