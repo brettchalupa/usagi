@@ -10,14 +10,6 @@ file that `usagi` then uses. What's nice about this is that you can read through
 the Lua code that gets generated to help see what's really happening under the
 hood and debug potential issues.
 
-## MoonScript
-
-TODO: https://moonscript.org/
-
-## Teal
-
-TODO: https://teal-language.org/
-
 ## TypeScript
 
 Using the [TypeScriptToLua](https://typescripttolua.github.io/) library, you can
@@ -39,6 +31,25 @@ references:
 
 - [https://typescripttolua.github.io/docs/the-self-parameter](https://typescripttolua.github.io/docs/the-self-parameter)
 - [https://typescripttolua.github.io/docs/assigning-global-variables](https://typescripttolua.github.io/docs/assigning-global-variables)
+
+## MoonScript
+
+MoonScript is a programmer friendly language that compiles to Lua, heavily
+inspired by the indentation-based syntax of CoffeeScript. The syntax is fairly
+different than Lua.
+
+In order to use MoonScript with Usagi, you need the `moon` and `moonc`
+executables installed. You then compile your `main.moon` into `main.lua` with
+`moonc main.moon`.
+
+Website: [https://moonscript.org/](https://moonscript.org/)
+
+Here's a very simple working example:
+[https://codeberg.org/brettchalupa/usagi/src/branch/main/examples/transpile/moonscript](https://codeberg.org/brettchalupa/usagi/src/branch/main/examples/transpile/moonscript)
+
+## Teal
+
+TODO: https://teal-language.org/
 
 ## YueScript
 
