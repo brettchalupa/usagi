@@ -32,6 +32,44 @@ references:
 - [https://typescripttolua.github.io/docs/the-self-parameter](https://typescripttolua.github.io/docs/the-self-parameter)
 - [https://typescripttolua.github.io/docs/assigning-global-variables](https://typescripttolua.github.io/docs/assigning-global-variables)
 
+## Teal
+
+Teal is a statically-typed dialect of Lua. Teal is to Lua what TypeScript is to
+JavaScript. It allows you to add types for your code and check those types.
+
+Website: [https://teal-language.org/](https://teal-language.org/)
+
+You install the `tl` binary to check your types and compile your Teal code into
+Lua. `tl check main.tl` checks the types. `tl gen main.tl` outputs the
+`main.lua` that Usagi uses.
+
+You have to handwrite the Usagi types that you use if you don't want the type
+checker to fail. It'd be nice if in the future there was a community-maintained
+typedef if people end up using Teal. Docs on typedef:
+[https://teal-language.org/book/latest/declaration_files.html](https://teal-language.org/book/latest/declaration_files.html)
+
+Here's an example of a Teal usagi game:
+[https://codeberg.org/brettchalupa/usagi/src/branch/main/examples/transpile/teal](https://codeberg.org/brettchalupa/usagi/src/branch/main/examples/transpile/teal)
+
+Here's an example of `main.tl`:
+
+```tl
+-- barebones typedef example for Usagi's `gfx` functions and constants
+global record gfx
+  clear: function(color: number)
+  text: function(text: string, x: number, y: number, color: number)
+  COLOR_BLACK: number
+  COLOR_WHITE: number
+  COLOR_PEACH: number
+end
+
+global function _draw(dt: number)
+  gfx.clear(gfx.COLOR_BLACK)
+  gfx.text("Hello, Teal!", 10, 10, gfx.COLOR_WHITE)
+  gfx.text("dt: " .. dt, 10, 32, gfx.COLOR_PEACH)
+end
+```
+
 ## YueScript
 
 YueScript is a programmer friendly language that compiles to Lua, heavily
@@ -45,6 +83,19 @@ Website: [https://yuescript.org](https://yuescript.org)
 
 Here's a very simple working example:
 [https://codeberg.org/brettchalupa/usagi/src/branch/main/examples/transpile/yuescript](https://codeberg.org/brettchalupa/usagi/src/branch/main/examples/transpile/yuescript)
+
+Here's an example of `main.yue`:
+
+```yue
+export _config, _draw
+
+global _config = -> { name: "YueScript Ex" }
+
+global _draw = (dt) ->
+  gfx.clear(gfx.COLOR_BLACK)
+  gfx.text("Hello YueScript!", 10, 10, gfx.COLOR_WHITE)
+  gfx.text("dt: " .. dt, 10, 32, gfx.COLOR_PEACH)
+```
 
 ## MoonScript
 
@@ -61,9 +112,18 @@ Website: [https://moonscript.org/](https://moonscript.org/)
 Here's a very simple working example:
 [https://codeberg.org/brettchalupa/usagi/src/branch/main/examples/transpile/moonscript](https://codeberg.org/brettchalupa/usagi/src/branch/main/examples/transpile/moonscript)
 
-## Teal
+Here's an example of `main.moon`:
 
-TODO: https://teal-language.org/
+```moon
+export _config, _draw
+
+_config = -> { name: "MoonScript Ex" }
+
+_draw = (dt) ->
+  gfx.clear(gfx.COLOR_BLACK)
+  gfx.text("Hello MoonScript!", 10, 10, gfx.COLOR_WHITE)
+  gfx.text("dt: " .. dt, 10, 32, gfx.COLOR_PEACH)
+```
 
 ## Browse the Examples
 
