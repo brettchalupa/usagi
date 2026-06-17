@@ -7,14 +7,32 @@ local player_bullet_w = 4
 local player_bullet_h = 10
 local hit_flash_time = 0.2 -- secs
 local enemy_bullet_size = 12
+local GAME_W = 320
+local GAME_H = 320
+local WAVES = {
+  {
+    { 72,  -20 },
+    { 112, -60 },
+    { 200, -100 },
+    { 240, -140 },
+  },
+  {
+    { 72,           -20 },
+    { 100,          -60 },
+    { GAME_W - 72,  -20 },
+    { GAME_W - 100, -60 },
+  },
+  -- TODO: add more waves
+}
+
 
 function _config()
   ---@type Usagi.Config
   return {
     name = "Shmup",
     game_id = "com.brettmakesgames.shmuptutorial",
-    game_width = 320,
-    game_height = 320,
+    game_width = GAME_W,
+    game_height = GAME_H,
   }
 end
 
@@ -46,20 +64,20 @@ function player_hitbox(player)
 end
 
 function _init()
+  State = nil
   State = {
     player = {
       x = usagi.GAME_W / 2 - player_size / 2,
       y = usagi.GAME_H - 60,
       bullets = {}
     },
-    enemies = {
-      init_enemy(72, -20),
-      init_enemy(usagi.GAME_W - 72, -20),
-      init_enemy(usagi.GAME_W / 2, -60),
-    },
+    enemies = {},
     enemy_bullets = {},
     game_over = false,
+    current_wave = 0,
   }
+  print("_init")
+  print(State.current_wave)
 end
 
 function _update(dt)
@@ -109,6 +127,8 @@ function _draw(dt)
     gfx.rect_fill(bullet.x, bullet.y,
       enemy_bullet_size, enemy_bullet_size, gfx.COLOR_BLUE)
   end
+
+  gfx.text("Wave: " .. State.current_wave, GAME_W - 60, 10, gfx.COLOR_BLACK)
 
   if State.game_over then
     gfx.text("GAME OVER", 10, 10, gfx.COLOR_BLACK)
@@ -232,6 +252,8 @@ function update_enemy_bullets(dt)
         ) then
       bullet.dead = true
       State.game_over = true
+      effect.flash(0.4, gfx.COLOR_WHITE)
+      effect.screen_shake(0.8, 2)
     end
 
     if bullet.y > usagi.GAME_H or bullet.dead then
@@ -241,18 +263,12 @@ function update_enemy_bullets(dt)
 end
 
 function try_spawn_enemies()
-  if #State.enemies == 0 then
-    table.insert(
-      State.enemies,
-      init_enemy(72, -20)
-    )
-    table.insert(
-      State.enemies,
-      init_enemy(usagi.GAME_W - 72, -20)
-    )
-    table.insert(
-      State.enemies,
-      init_enemy(usagi.GAME_W / 2, -60)
-    )
+  if #State.enemies == 0 and State.current_wave < #WAVES then
+    print("spawning!")
+    State.current_wave += 1
+    State.enemies = {}
+    for _, enemy in ipairs(WAVES[State.current_wave]) do
+      table.insert(State.enemies, init_enemy(enemy[1], enemy[2]))
+    end
   end
 end

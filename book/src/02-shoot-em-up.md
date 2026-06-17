@@ -583,6 +583,12 @@ to you.
 
 TODO: build a table of enemies and have them spawn one after the other
 
+Outline:
+
+- having an array table of enemy waves with their spawn positions
+- only advancing when the current wave is dead/empty
+- only spawning when there is a next wave
+
 ## Time Out
 
 TODO: counting down time that remains from 60s
