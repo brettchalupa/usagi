@@ -6,6 +6,10 @@
 
 - [Dodge 'Em Up](./01-dodge-em-up.md)
 - [Shoot 'Em Up](./02-shoot-em-up.md)
+- [Snake]()
+- [Sokoban]()
+- [Action Platformer]()
+- [JRPG]()
 
 # Recipes
 
@@ -13,6 +17,9 @@
 - [Making Dev Tools](./recipes/making-dev-tools.md)
 - [Advanced State](./recipes/advanced-state.md)
 - [Advanced Data](./recipes/advanced-data.md)
+- [Level Editors]()
+- [Collision Detection]()
+- [Packing Sprites]()
 - [Usagi Versus X](./recipes/usagi-versus-x.md)
 - [User Install vs Project Executable](./recipes/user-install-vs-project-executable.md)
 - [Transpiling to Lua](./recipes/transpiling-to-lua.md)

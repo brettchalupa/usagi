@@ -1,9 +1,5 @@
 # Advanced Data
 
-TODO: covering how to use the `./data` dir to do things like localization, game
-data loading, metadata parseable by other languages like Ruby for itch deploy
-script; etc.
-
 The `data` directory in Usagi games is very powerful! You can do all sorts of
 things with it, like store your games levels, localization data, and more. Here
 are a few examples:
