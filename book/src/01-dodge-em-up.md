@@ -717,7 +717,7 @@ hasn't been hit. Then at the bottom of `_draw`, drop the decimal places from
 
 [View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/01-dodge-em-up/09-play-time/main.lua)
 
-## Sharing Our Game
+## Sharing Your Game
 
 You did it! You made a game! It's got a goal: survive as long as possible.
 There's a bit of challenge to it. And you can play it over again when you game

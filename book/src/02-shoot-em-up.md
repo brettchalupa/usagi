@@ -581,13 +581,85 @@ to you.
 
 ## Enemy Waves
 
-TODO: build a table of enemies and have them spawn one after the other
+Spawning enemies over and over in the same position isn't very fun. Let's set up
+our game so that we can define the waves of enemy in an easy way that makes it
+possible for us to design the encounters. We'll have enemies fly down at various
+locations, giving our game a flow for the player to navigate through.
 
-Outline:
+The simplest way to set this up is to create an array table where each item in
+the array is its own array table of spawn positions.
 
-- having an array table of enemy waves with their spawn positions
-- only advancing when the current wave is dead/empty
-- only spawning when there is a next wave
+```lua
+{{#include code/02-shoot-em-up/08-enemy-waves/main.lua:10:32}}
+```
+
+Put the game width and height into local variables so that we can reference them
+in our `WAVES` positions. When we want enemies to spawn on the right side of the
+screen, subtract some pixels from `GAME_W`. You could just hardcode the values
+too.
+
+Two things to note:
+
+1. You might think: let's use `usagi.GAME_W` since we set that in `_config()`,
+   but that will actually lead to a bug because `usagi.GAME_W` when used outside
+   of a function will be different than what we set in `_config()`. (This is
+   something I want to fix in a future version of Usagi).
+2. In some programming languages and in this book, it's common to capitalize all
+   the characters of a variable value that isn't meant to change. Lua doesn't
+   have a concept of constants, so in order to signify that game width and
+   height and our waves don't change, they're written in `SCREAMING_SNAKE_CASE`.
+
+Each item in the `WAVES` array contains an array of spawn positions. In order to
+keep the code concise, we just use an array to represent the x and y position,
+that way we don't have to type `{ x = 72, y = -20 }` over and over again. The
+first value is x, the second is y.
+
+The arrays are nested three levels deep, but it makes it easy to add new waves
+and edit the existing enemy spawns. Also, you don't have to format your code
+like it is in the book. Some editors automatically format code on save to make
+it easier to read.
+
+In `_config`, let's use our new `GAME_W` and `GAME_H`:
+
+```lua
+{{#include code/02-shoot-em-up/08-enemy-waves/main.lua:35:43}}
+```
+
+In `_init`, change `State.enemies` to be an empty table and set `current_wave`
+to `0`:
+
+```lua
+{{#include code/02-shoot-em-up/08-enemy-waves/main.lua:72:84}}
+```
+
+By setting `current_wave` to `0`, we'll let our game's revised
+`try_spawn_enemies` handle incrementing it and spawn the enemies of the 1st
+wave, which will populate `State.enemies`. Revise the `try_spawn_enemies`
+function to be:
+
+```lua
+{{#include code/02-shoot-em-up/08-enemy-waves/main.lua:268:276}}
+```
+
+It checks if the length of `State.enemies` is `0` because the enemies all died
+or flew off the screen. But it also checks if `State.current_wave` is less than
+the total number of waves in `WAVES`. If both are true, then it's time to spawn
+the next wave of enemies. Spawning enemies from the current wave consists of
+reseting `State.enemies` to an empty table `{}` just to be sure there's nothing
+weird lingering. Then we loop through each spawn location of the current wave,
+inserting the enemy into the `State.enemies` table. Since we set all of the `y`
+values to be negative in `WAVES`, they fly in from the top of the screen. We
+access the first element, the x value, with `enemy[1]` and the second element,
+the y value, with `enemy[2]`.
+
+Revise the waves in `WAVES` by adding a bunch of different encounters. Play test
+your game a bunch and see what feels good. You're doing game design! **Note:**
+you'll need to press <kbd>Ctrl+R</kbd> to hard reload your game to reset
+`State.current_wave` to `0` if you want to test previous waves. But if you add
+new `WAVES` to your running game, it'll advance through and let you play test
+them right away, which is kind of nifty.
+
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/02-shoot-em-up/08-enemy-waves/main.lua)
 
 ## Time Out
 
@@ -597,17 +669,13 @@ TODO: counting down time that remains from 60s
 
 TODO: killing enemies faster leads to higher score
 
-## High Score Tracking
-
-TODO: saving it, displaying it, loading it
-
 ## Sound Effects
 
 TODO: explain how to make sfx and play them back in the game; player shot, enemy
 hit, enemy explosion, player death; using pitch variation and tweaking volume a
 bit
 
-## Sharing Our Game
+## Sharing Your Game
 
 Use `usagi export` to generate cross-platform builds of your game in the
 **exports** folder. You can then send your game to friends or publish it on itch
@@ -620,11 +688,25 @@ if you want a deeper dive on this process.
 TODO: list out ways to expand upon the shmup; ideas: bombs, music, sprites,
 explosion effects, adding homing shots/missles; player lives; chain system
 
+## References
+
+- [Bomberfrog source code](https://github.com/brettchalupa/bomberfrog) — an open
+  source horizontal wave-based shmup I made for a game jam
+- [Bog Hog's Shmup Workshop](https://www.youtube.com/playlist?list=PLj_fo4j9ZtOlW8jUPFG-zlONynlI0ycnu)
+  — video series detailing how to approach making a shmup, covering movement,
+  shooting, hitboxes, scoring, pattern design, and more; there's also
+  [a written version](https://shmups.wiki/library/Boghog%27s_bullet_hell_shmup_101)
+- [Lazy Devs Shmup Tutorial](https://www.youtube.com/playlist?list=PLea8cjCua_P3Sfq4XJqNVbd1vsWnh7LZd)
+  — guided video series on making a shmup in Pico-8; you could follow along but
+  with Usagi!
+
 ## Possible Future Expansions
 
-- Sprites - I'm on the fence if I want to introduce that here or in a future
-  game, like Sokoban or the action platformer
-- Starfield
-- More enemy types
-- More bullet patterns, like spirals
-- Boss enemy
+Here are ideas of what I'd like to add to this chapter in a possible future
+expansion:
+
+- Sprites for the player, enemies, and bullets
+- Drawing a moving starfield on the background
+- Adding more enemy types, like a boss
+- How to code more bullet patterns, like spirals
+- High score tracking with saving and loading

@@ -22,7 +22,13 @@ local WAVES = {
     { GAME_W - 72,  -20 },
     { GAME_W - 100, -60 },
   },
-  -- TODO: add more waves
+  {
+    { 72,  -20 },
+    { 102, -40 },
+    { 132, -60 },
+    { 162, -80 },
+  },
+  -- add more waves here youself!
 }
 
 
@@ -64,7 +70,6 @@ function player_hitbox(player)
 end
 
 function _init()
-  State = nil
   State = {
     player = {
       x = usagi.GAME_W / 2 - player_size / 2,
@@ -76,8 +81,6 @@ function _init()
     game_over = false,
     current_wave = 0,
   }
-  print("_init")
-  print(State.current_wave)
 end
 
 function _update(dt)
@@ -264,7 +267,6 @@ end
 
 function try_spawn_enemies()
   if #State.enemies == 0 and State.current_wave < #WAVES then
-    print("spawning!")
     State.current_wave += 1
     State.enemies = {}
     for _, enemy in ipairs(WAVES[State.current_wave]) do
