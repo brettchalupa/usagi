@@ -663,7 +663,55 @@ them right away, which is kind of nifty.
 
 ## Time Out
 
-TODO: counting down time that remains from 60s
+Let's make it so that our game is 60 seconds long. We'll add a timer that counts
+down and when it hits 0, it'll be **time out** for that round. Just like when
+the player dies, they can restart and play again.
+
+You'll need to add enough `WAVES` to fill up the space of 60 seconds. Be sure to
+account for skilled players who can clear the waves quickly. You don't want
+someone to sit there for 20 seconds if they cleared all the waves before time
+ran out.
+
+Start by adding a new `timer` field to `State` in `_init`:
+
+```lua
+{{#include code/02-shoot-em-up/09-time-out/main.lua:83}}
+```
+
+Then in `_update` subtract `dt` from `State.timer` each frame that it's not game
+over and when the timer hits `0`, set the `State.game_over` boolean to `true`:
+
+```lua
+{{#include code/02-shoot-em-up/09-time-out/main.lua:87:97}}
+```
+
+The `math.max` function call basically says, if `State.timer` is less than 0,
+set it to 0 so that we can check if we've timed out. It returns the larger of
+the two values. You could also write it like this:
+
+```lua
+if State.timer < 0 then
+  State.timer = 0
+end
+```
+
+But I thought it'd be nice for you to see another `math` function that Lua
+provides.
+
+In `_draw`, near the end so that it draws on top of everything else, render text
+of the `State.timer` and when it is game over and the `State.timer` is `0`, show
+a "TIME OUT" message:
+
+```lua
+{{#include code/02-shoot-em-up/09-time-out/main.lua:142:152}}
+```
+
+`string.format("%.2f", State.timer)` takes our `State.timer` value and converts
+it to a string rounded to two decimal places. So it'll show as 44.32 in our
+game. the 2 in `"%.2f"` means show 2 decimal places. Otherwise `State.timer`
+will be many decimal places long and look bad.
+
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/02-shoot-em-up/09-time-out/main.lua)
 
 ## Scoring
 
@@ -685,8 +733,23 @@ if you want a deeper dive on this process.
 
 ## Bonus Credits
 
-TODO: list out ways to expand upon the shmup; ideas: bombs, music, sprites,
-explosion effects, adding homing shots/missles; player lives; chain system
+There's a lot you could do to expand your shmup:
+
+- Refine the design of the waves
+- Expand the game to be 120 seconds instead of 60
+- Add more types of enemies that exhibit different behaviors (add a third item
+  to the wave spawn arrays to represent enemy type and then in the enemy update
+  and drawing code, check that value and implement behavior accordingly)
+- Add sprites once you learn how to do that with Usagi Engine
+- Add in music
+- Add homing missiles that the enemies fire
+- Make player bullets fire out in a spread with an angle + linear velocity
+  rather than just upward
+- Add a chain system where if the gap between killing each enemy is short
+  enough, you get a score multiplier
+- Draw explosion circles when an enemy dies to
+- Add a bomb that fires when BTN2 is pressed, that creates an ever-growing
+  circle that kills enemies when it encounters them
 
 ## References
 
