@@ -54,19 +54,6 @@ We set `player_size` and `player_speed` variables. The `local` keyword is new
 and worth explaining a bit, as it impacts how Usagi's live reload works and
 what's accessible in your game's source code as it expands into multiple files.
 
-By default, when you create a variable in Lua, like `x = 10`, it is a **global**
-variable. That means that any part of your game's source code can read its value
-and even change it. This is powerful but risky. It's easy to accidentally
-sometimes create global variables and accidentally change them when you didn't
-intend to. When Usagi live reloads your games code, it **does not** update
-global variables unless you press <kbd>Ctrl + R</kbd> or <kbd>F5</kbd>. On the
-other hand, the `local` keyword says: only within this file or function or chunk
-of code is this variable accessible. Usagi **does** re-evaluate `local`
-variables when you change them. For our `player_size` and `player_speed`, if you
-change them and save `main.lua`, the engine will re-evaluate your new values.
-This is helpful for tuning speed and trying out different values to see what
-feels right.
-
 In our `_config()` function, we set the `name` of our game and the `game_id`.
 Change the `game_id` to `com.usagiengine.YOURUSERNAME.shmup`, where you actually
 put in your username/handle. This should be a unique identifier for your game,
@@ -81,15 +68,16 @@ In `_init()`, we create a global `State` table with our `player`'s position.
 `State` is a common way in Usagi games to have a global to contain all of the
 game's data, allowing for easy access. Since `State` is global, it doesn't
 change when the game is live reloaded, which is what we want. This lets our
-player stay in the same position when our game code changes. You could change
-`player_speed` and instantly test that new value without the entire game
-reseting. The math in the `player` `x` and `y` value centers our player
-horizontally and places the `y` value 60 pixels up from the bottom of the game.
-The values of `usagi.GAME_W` and `usagi.GAME_H` correspond to what we set in
-`_config`. Yoou could just hardcode `320` instead for each of them, but if you
-decide to change the width or height of your game, you'll be left searching for
-and updating all of those old values. When possible, it's best to not use
-**magic numbers** for values in our game.
+player stay in the same position when our game code changes because `State` is
+only reassigned when `_init` is called, which happens when you launch your game
+or press <kbd>Ctrl+R</kbd>. You could change `player_speed` and instantly test
+that new value without the entire game reseting. The math in the `player` `x`
+and `y` value centers our player horizontally and places the `y` value 60 pixels
+up from the bottom of the game. The values of `usagi.GAME_W` and `usagi.GAME_H`
+correspond to what we set in `_config`. Yoou could just hardcode `320` instead
+for each of them, but if you decide to change the width or height of your game,
+you'll be left searching for and updating all of those old values. When
+possible, it's best to not use **magic numbers** for values in our game.
 
 The `_update` function contains our player movement, similar to Dodge 'Em Up.
 Except rather than changing the player's `x` and `y` value in the `if` checks,
@@ -111,6 +99,13 @@ values: the value you want to limit, the lower limit, and the upper limit. If
 the value is below the lower limit, then the lower limit is returned. If the
 value is higher than the upper limit, the upper limit is return. Otherwise, the
 value is returned.
+
+If you went through the _Dodge 'Em Up_ chapter, you might be wondering what `+=`
+and `-=` means since we didn't use that syntax in the first chapter. Those are
+called **compound assignment operators**. Lua doesn't support them by default
+but Usagi pre-processes your source code to add support for them. So
+`input_delta.y -= 1` is the same as `input_delta.y = input_delta.y - 1`. It's a
+more convenient shorthand.
 
 Finally, in `_draw`, we clear the screen so we have a white background. And then
 draw a black rectangle at the `State.player`'s position.
@@ -143,6 +138,20 @@ In our `State` table, add a new empty table for `bullets`:
 
 We'll add new bullets into that table when they're fired and loop through it for
 updating the bullets and draw them on the screen.
+
+**Note**: when you add a new entry to `State` (or any table that's only
+initialized in `_init()`), you may see an error pop-up the first time you make
+use of it in your code. The error will be about trying to do something with that
+new table entry, like nil arithmetic error or something similar. This is because
+Usagi's live reload when you change your source doesn't call `_init()` and the
+code is trying to access the table entry that doesn't exist yet (it's `nil`).
+Usagi's live reload not calling `init()` allows you to have game state that
+doesn't get wiped on each live reload, which is ideal when testing changes you
+just made. You don't lose your level or hp or whatever it is your game has in
+it. But if you change something within `_init()`, you need to _hard reload_ your
+game to get that value populated. Press <kbd>Ctrl + R</kbd> or <kbd>F5</kbd> to
+hard reload your game and run `_init()` again. When you see an error and aren't
+sure what to do, try a hard reload first!
 
 In our `_update` function, below where we handle player movement, add the
 following code:
@@ -715,15 +724,123 @@ will be many decimal places long and look bad.
 
 ## Scoring
 
-TODO: killing enemies faster leads to higher score
+Let's add score tracking to our game. Scoring can encourage players to replay a
+game to try to beat their previous best. We'll start with a very simple scoring
+logic: when you defeat an enemy, you get 100 points.
+
+Add new `score` key to `State` in `_init()` that we'll use to keep track of
+score. Set it to `0` by default:
+
+```lua
+{{#include code/02-shoot-em-up/10-scoring/main.lua:84}}
+```
+
+In `_draw`, draw our score just like we draw our wave number:
+
+```lua
+{{#include code/02-shoot-em-up/10-scoring/main.lua:141}}
+```
+
+Because we draw the score in the upper-left corner, we need to shift the game
+over and restart text down a bit by adding to their `y` draw value:
+
+```lua
+{{#include code/02-shoot-em-up/10-scoring/main.lua:147:155}}
+```
+
+In `update_player_bullets`, check to ensure that the enemy has more than `0` HP
+in the overlap check so that we don't accidentally allow a second bullet
+overlapping with the dead enemy to give us double score. And then add `100` to
+`State.score` if we've just killed the enemy (i.e., their `hp` has dropped to
+`0` or less):
+
+```lua
+{{#include code/02-shoot-em-up/10-scoring/main.lua:203:214}}
+```
+
+That's all it takes to add simple scoring to our game. In the **Bonus Credits**
+section below, you'll find some ideas for how you could expand it to make it
+more fun. Scoring at its best gives the player more systems to experment with
+and play around with.
+
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/02-shoot-em-up/10-scoring/main.lua)
 
 ## Sound Effects
 
-TODO: explain how to make sfx and play them back in the game; player shot, enemy
-hit, enemy explosion, player death; using pitch variation and tweaking volume a
-bit
+Our game is feeling a bit... quiet. In fact, there's no sound at all yet. The
+proper application of sound effects can make a game go from feeling just okay to
+feeling real good.Let's add some basic sound effects to our game for when the
+player fires, enemies get killed, and the player dies.
+
+Usagi makes it easy to play sound effects, but we first need to make some. If
+you're experienced with sound creation, use your tool of preference. I like to
+use [jsfxr](https://sfxr.me/), a free web-based tool that allows you to generate
+and download retro sound effects for free. Alternatively, you can find sound
+effects online at places like [itch.io](https://itch.io) and
+[opengameart.org](https://opengameart.org/).
+
+For the book, let's use jsfxr. In the left column of the tool, you'll see
+presets for different actions, like Pickup/coin, Laster/shoot, Explosion, and so
+on. You can click those to have it generate a sound. You can click it again to
+have it generate a new one. And then you can drag the sliders around to change
+how your sound effect sounds. Try changing them and see what happens!
+
+Start with **Laser/shoot** for the player's firing. Mash the **Play** button
+rapidly to get a sense of how it'll sound when repeated. Something short and
+quieter is ideal since it will be repeated often. Click Download:
+**laserShoot.wav**. It'll put that .wav file in your Downloads folder. In your
+game folder, create a new folder called `sfx` and move laserShoot.wav into it.
+
+In `update_player_fire` in main.lua` when we fire the three player bullets, play
+the new sound effect:
+
+```lua
+{{#include code/02-shoot-em-up/11-sfx/main.lua:182:185}}
+```
+
+`sfx.play` plays the corresponding sound effect in the `sfx` folder once.
+`laserShoot` is the name of the sound corresponding to the file
+`sfx/laserShoot.wav`.
+
+Usagi automatically picks up your new sound effect and plays it when you fire.
+Doesn't firing the player's bullets feel better already?
+
+While it's true sound effects can make your game feel better, they can also make
+the game worse if the sound effect is annoying when repeated a lot or
+particularly grating. So be sure to test your sound effects and tweak them as
+needed.
+
+Repeat that process but generate an **Explosion** for enemy death. I've renamed
+the explosion.wav to `enemyDeath.wav` so that we can have different explosion
+sound effects.
+
+In `update_player_bullets`, in the same place we add to the score, play the new
+sound effect:
+
+```lua
+{{#include code/02-shoot-em-up/11-sfx/main.lua:212:215}}
+```
+
+Make another explosion sound effect, `playerDeath.wav`, and put it in sfx. The
+player's explosion doesn't happen nearly as often as firing bullets or enemy's
+dying, so make it sound impactful. In `update_enemy_bullets`, play it when an
+enemy bullet overlaps with the player's hitbox:
+
+```lua
+{{#include code/02-shoot-em-up/11-sfx/main.lua:273:282}}
+```
+
+Adding sound effects makes a huge difference. Play around with making different
+ones until you're happy with how it sounds.
+
+[View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/02-shoot-em-up/11-sfx/main.lua)
 
 ## Sharing Your Game
+
+You made a wave-based shmup with a playable ship that fires bullets, enemies
+that spawn and fire bullets, waves, scoring, and sound effects. Nice work!
+Action games are fun to build because of the immediate feedback and how making
+small tweaks and adding new systems leads to immediate feedback.
 
 Use `usagi export` to generate cross-platform builds of your game in the
 **exports** folder. You can then send your game to friends or publish it on itch
@@ -745,9 +862,14 @@ There's a lot you could do to expand your shmup:
 - Add homing missiles that the enemies fire
 - Make player bullets fire out in a spread with an angle + linear velocity
   rather than just upward
+- Give the player more points if they kill an enemy faster, encouraging more
+  aggressive play
 - Add a chain system where if the gap between killing each enemy is short
   enough, you get a score multiplier
 - Draw explosion circles when an enemy dies to
+- Try using `sfx.play_ex` and setting a random pitch for the player's weapon
+  firing to add variance, using what we learned about generating random number
+  generation in the _Dodge 'Em Up_ chapter
 - Add a bomb that fires when BTN2 is pressed, that creates an ever-growing
   circle that kills enemies when it encounters them
 
@@ -765,6 +887,9 @@ There's a lot you could do to expand your shmup:
 
 ## Possible Future Expansions
 
+If you liked this chapter and want more shmup tutorials, let me know
+[in Discord](https://usagiengine.com/discord)!
+
 Here are ideas of what I'd like to add to this chapter in a possible future
 expansion:
 
@@ -773,3 +898,7 @@ expansion:
 - Adding more enemy types, like a boss
 - How to code more bullet patterns, like spirals
 - High score tracking with saving and loading
+
+It's likely those concepts will be covered in future chapters too. Those would
+also be great items for you to explore as part of self-learning too. If you get
+stuck, let me know and I'll try to help!
