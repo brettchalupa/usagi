@@ -850,6 +850,12 @@ enemy bullet overlaps with the player's hitbox:
 Adding sound effects makes a huge difference. Play around with making different
 ones until you're happy with how it sounds.
 
+Usagi provides some tools to make game development easier. In a new command
+line, run `usagi tools`. A window will pop up. There's a **Jukebox** tab. You
+can see all of your game's sound effects and test them out to hear them.
+
+![screenshot of Usagi Tools' Jukebox showing the available sound effects to play](./img/jukebox.png)
+
 [View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/02-shoot-em-up/11-sfx/main.lua)
 
 ## Sharing Your Game
