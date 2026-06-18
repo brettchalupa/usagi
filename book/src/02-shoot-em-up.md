@@ -42,7 +42,7 @@ We'll start by drawing a square to represent our player that can be moved around
 the screen. In the Dodge 'Em Up chapter, you may have noticed that if you press
 Up and Right (or any diagonal combination), the player moved faster than they
 did when moving in the cardinal directions. In a lot of shmups, this isn't
-ideal, as you want movement to be precise. In order to make the distanced
+ideal, as you want movement to be precise. In order to make the distance
 traveled in all 8 possible directions the same, we need to **normalize** our
 input.
 
@@ -52,60 +52,75 @@ Here's the starting place for our game in `main.lua`:
 {{#include code/02-shoot-em-up/01-moveable-player/main.lua}}
 ```
 
-We set `player_size` and `player_speed` variables. The `local` keyword is new
-and worth explaining a bit, as it impacts how Usagi's live reload works and
-what's accessible in your game's source code as it expands into multiple files.
+We set `player_size` and `player_speed` variables. The `local` keyword is a new
+concept in our code that's worth covering. `local` is a keyword that tells Lua
+to only make this variable visible within the current scope. The scope of these
+variables is the current file: `main.lua`. But when you're within a function and
+create a `local` variable, the scope is that function and that variable is not
+accessible outside of that function. It's a good habit to get into creating
+`local` variables since Lua's variables are global by default. You don't want to
+accidentally create a global variable and end up referencing it somewhere else
+because you used that same variable name. Basically: make variables `local`
+unless you want to intentionally make it globally accessible. In Usagi code,
+globals start with capital letters, like the `State` variable, which I'll
+explain in a moment. Functions can also be `local`, but this requires you to
+place them in specific ordering in your source code, which is a hassle and
+beyodn what this tutorial covers.
 
 In our `_config()` function, we set the `name` of our game and the `game_id`.
 Change the `game_id` to `com.usagiengine.YOURUSERNAME.shmup`, where you actually
-put in your username/handle. This should be a unique identifier for your game,
-which is used for the save data location on people's computers. The `game_width`
-and `game_height` tell Usagi Engine to make our game field those specified
-sizes. You can change these values to whatever you want, but for our game, a
-square field feels good since you don't have to worry about covering a wide
-distance to reach enemies on the other side of the screen. Enemies will fly in
-from the top, which will make our shoot 'em up a vertically-oriented game.
+put in your username/handle. Or if you have a website or itch.io page, use it in
+reverse order, like `io.itch.brettchalupa.shmup`. This should be a unique
+identifier for your game, which becomes important when adding save data to
+games, as it helps ensure your game's save data goes in a unique directory. The
+`game_width` and `game_height` tell Usagi Engine to make our game field those
+specified sizes. You can change these values to whatever you want, but for our
+game, a square field feels good since you don't have to worry about covering a
+wide distance to reach enemies on the other side of the screen. Enemies will fly
+in from the top, which will make our shoot 'em up a vertically-oriented game.
 
 In `_init()`, we create a global `State` table with our `player`'s position.
 `State` is a common way in Usagi games to have a global to contain all of the
-game's data, allowing for easy access. Since `State` is global, it doesn't
-change when the game is live reloaded, which is what we want. This lets our
-player stay in the same position when our game code changes because `State` is
-only reassigned when `_init` is called, which happens when you launch your game
-or press <kbd>Ctrl+R</kbd>. You could change `player_speed` and instantly test
-that new value without the entire game reseting. The math in the `player` `x`
-and `y` value centers our player horizontally and places the `y` value 60 pixels
-up from the bottom of the game. The values of `usagi.GAME_W` and `usagi.GAME_H`
-correspond to what we set in `_config`. Yoou could just hardcode `320` instead
-for each of them, but if you decide to change the width or height of your game,
-you'll be left searching for and updating all of those old values. When
-possible, it's best to not use **magic numbers** for values in our game.
+game's data, allowing for easy access. Since `State` is initialized in
+`_init()`, it doesn't change when the game is live reloaded, which is what we
+want. This lets our player stay in the same position when our game code changes.
+You can reload `State` and reset your game by pressing <kbd>Ctrl+R</kbd>. You
+can change `player_speed` and instantly test that new value without the entire
+game reseting.
+
+The math in the `player` `x` and `y` value centers our player horizontally and
+places the `y` value 60 pixels up from the bottom of the game. The values of
+`usagi.GAME_W` and `usagi.GAME_H` correspond to what we set in `_config`. You
+could just hardcode `320` instead for each of them, but if you decide to change
+the width or height of your game, you'll be left searching for and updating all
+of those old values.
 
 The `_update` function contains our player movement, similar to Dodge 'Em Up.
 Except rather than changing the player's `x` and `y` value in the `if` checks,
 we update a variable called `input_delta`. `input_delta` is a Lua table that
 lets us set whether or not there was movement on a given axis. By using `1`,
-we're creating what's known as a unit vector, which makes normalizing it on the
-diagonals easier. Then we call `util.vec_normalize(input_delta)` after our input
-checks. `util` is a collection of functions that Usagi provides to make common
-operations easier. That function returns a new table with the values normalized.
+we're creating what's known as a unit vector, which makes normalizing the
+movement on the diagonals easier. Then we call `util.vec_normalize(input_delta)`
+after our input checks. `util` is a collection of functions that Usagi provides
+to make common operations easier. That function returns a new table with the
+values normalized.
 
 When you press right and down, rather than `x` and `y` both being `1`, the value
-of both are: `0.7071...`. This makes it so that the distance traveled is the
-same in all directions. We then take that normalized value and multiply it by
-the `player_speed` and `dt` (`dt` is delta time, the amount of time since our
-last `_update` call). This gives us the new position for the `State.player`.
-After that, we prevent the player from moving off the screen by calling
-`util.clamp` on the `x` and `y` position of the player. `util.clamp` takes three
-values: the value you want to limit, the lower limit, and the upper limit. If
-the value is below the lower limit, then the lower limit is returned. If the
-value is higher than the upper limit, the upper limit is return. Otherwise, the
-value is returned.
+of both gets normalized to: `0.7071...`. This makes it so that the distance
+traveled is the same in all directions. We then take that normalized value and
+multiply it by the `player_speed` and `dt` (`dt` is delta time, the amount of
+time since our last `_update` call). This gives us the new position for the
+`State.player`. After that, we prevent the player from moving off the screen by
+calling `util.clamp` on the `x` and `y` position of the player. `util.clamp`
+takes three values: the value you want to limit, the lower limit, and the upper
+limit. If the value is below the lower limit, then the lower limit is returned.
+If the value is higher than the upper limit, the upper limit is return.
+Otherwise, the value is returned.
 
 If you went through the _Dodge 'Em Up_ chapter, you might be wondering what `+=`
 and `-=` means since we didn't use that syntax in the first chapter. Those are
 called **compound assignment operators**. Lua doesn't support them by default
-but Usagi pre-processes your source code to add support for them. So
+but Usagi pre-processes your source code to add support for them.
 `input_delta.y -= 1` is the same as `input_delta.y = input_delta.y - 1`. It's a
 more convenient shorthand.
 
