@@ -6,7 +6,8 @@ by Brett Chalupa
 
 ![Game Programming with Usagi Engine cover featuring an illustration of a rabbit](./img/usagi-cover-3d.jpg)
 
-**NOTE**: this book is a work in progress!
+**NOTE**: this book is a continual work in progress! The plan is to add to it
+over time, based on feedback and engine development.
 
 Hi, my name is Brett Chalupa! I'm the creator of Usagi Engine and primary author
 of _Game Programming with Usagi_. This book is a guide for how to jump into
@@ -78,6 +79,11 @@ If you're looking for Usagi's reference manual, you'll want to read through
 
 **This book is written for humans, by humans! No generative AI was used in the
 writing of this book.**
+
+If you find the book helpful and are able,
+[consider buying me a coffee](https://buymeacoffee.com/brettchalupa) as a way to
+say thanks! I make everything about Usagi free: the engine, the book, and the
+videos. Any amount of financial support is much appreciated!
 
 ## Getting the Most Out of the Book
 

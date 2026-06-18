@@ -36,4 +36,5 @@
 
 ---
 
-[Resources](./resources.md) [License](./license.md) [Contributing]()
+[Resources](./resources.md) [License](./license.md)
+[Contributing](./contributing.md)
