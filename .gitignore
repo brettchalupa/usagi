@@ -9,6 +9,7 @@ export/
 # bundled source `assets/monogram-extended.ttf` is intentionally
 # tracked; user-project TTFs live next to their project's main.lua.
 /*.ttf
+*.tiled-session
 
 # Don't duplicate the loveified notetris as it's basically the game
 examples/loveify/notetris
