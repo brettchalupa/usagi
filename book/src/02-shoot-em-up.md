@@ -8,7 +8,9 @@ talking about games like _Galaga_, _R-Type_, _Dodonpachi_. Intense action games
 with an arcade lineage. They also happen to be my favorite type of game to play
 and make.
 
-TODO: screenshot showing an example of the game type or what we'll make
+Here's a look at the game we're going to be making:
+
+![Completed game showing a player moving, firing bullets, and defeating enemies](./img/shmup-tut-complete.gif)
 
 Shmups are great for learning how to make games because you can build something
 fun and challenging and begin iterating on it quickly, experimenting with
