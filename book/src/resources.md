@@ -13,9 +13,9 @@ here!
 - [Game Programming Patterns](https://gameprogrammingpatterns.com/) — a great
   book by Robert Nystrom about architecting and organizing non-trivial game
   codebases
-- [Code the Classics](https://magazine.raspberrypi.com/books/code-the-classics-vol-I-2ed) —
-  a free book covering how to make classic games in PyGame, but you could adapt
-  them to use Lua and Usagi!
+- [Code the Classics](https://magazine.raspberrypi.com/books/code-the-classics-vol-I-2ed)
+  — a free book covering how to make classic games in PyGame, but you could
+  adapt them to use Lua and Usagi!
 - [Jeffrey Thompson's Collision Detection Guide](http://jeffreythompson.org/collision-detection/table_of_contents.php)
   — in-depth explanations of collision detection
 - [Easing Functions](https://easings.net/) — explainers for different types of
