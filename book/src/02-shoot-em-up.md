@@ -247,7 +247,7 @@ either new enemies spawn or you press <kbd>Ctrl + R</kbd> to reload your game.
 Since our game is so simple right now, that's not a big deal. But it's worth
 seeing the difference in approach compared to using `local` variables we use the
 different player properties. Later on this chapter, we'll break up our code into
-multiple files and revise how this is handled. But for now, reutnring the table
+multiple files and revise how this is handled. But for now, returning the table
 like this works.
 
 We'll store our enemies in a table in `State`, spawning three of them with our
