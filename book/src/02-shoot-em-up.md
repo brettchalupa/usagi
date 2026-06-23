@@ -808,8 +808,8 @@ quieter is ideal since it will be repeated often. Click Download:
 **laserShoot.wav**. It'll put that .wav file in your Downloads folder. In your
 game folder, create a new folder called `sfx` and move laserShoot.wav into it.
 
-In `update_player_fire` in `main.lua` when we fire the three player bullets, play
-the new sound effect:
+In `update_player_fire` in `main.lua` when we fire the three player bullets,
+play the new sound effect:
 
 ```lua
 {{#include code/02-shoot-em-up/11-sfx/main.lua:182:185}}
