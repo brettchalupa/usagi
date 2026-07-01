@@ -154,6 +154,9 @@ pub(super) fn snapshot_tester(
 /// clicks are deliberately not bindable so capture can't trap the
 /// player in a menu they can't navigate out of.
 pub(super) fn first_bindable_button_pressed(rl: &RaylibHandle) -> Option<GamepadButton> {
+    if !rl.is_window_focused() {
+        return None;
+    }
     for pad in 0..MAX_GAMEPADS {
         if !rl.is_gamepad_available(pad) {
             continue;
@@ -171,6 +174,9 @@ pub(super) fn first_bindable_button_pressed(rl: &RaylibHandle) -> Option<Gamepad
 /// pressed this frame. Used by Pad Config as the gamepad-side undo
 /// gesture (keyboard equivalent: Backspace).
 pub(super) fn gamepad_select_pressed(rl: &RaylibHandle) -> bool {
+    if !rl.is_window_focused() {
+        return false;
+    }
     for pad in 0..MAX_GAMEPADS {
         if rl.is_gamepad_available(pad)
             && rl.is_gamepad_button_pressed(pad, GamepadButton::GAMEPAD_BUTTON_MIDDLE_LEFT)
@@ -182,6 +188,9 @@ pub(super) fn gamepad_select_pressed(rl: &RaylibHandle) -> bool {
 }
 
 fn gamepad_start_pressed(rl: &RaylibHandle) -> bool {
+    if !rl.is_window_focused() {
+        return false;
+    }
     for pad in 0..MAX_GAMEPADS {
         if rl.is_gamepad_available(pad)
             && rl.is_gamepad_button_pressed(pad, GamepadButton::GAMEPAD_BUTTON_MIDDLE_RIGHT)

@@ -608,6 +608,9 @@ pub fn detect_source(
     pad_map: &PadMap,
     prior: InputSource,
 ) -> (InputSource, Option<i32>) {
+    if !rl.is_window_focused() {
+        return (prior, None);
+    }
     for (i, b) in BINDINGS.iter().enumerate() {
         let action = (i + 1) as u32;
         for pad in 0..MAX_GAMEPADS {
@@ -673,6 +676,9 @@ pub fn is_valid_action(action: u32) -> bool {
 /// overrides BTN1/2/3 the Nintendo south/east swap stops applying:
 /// the player picked a specific physical button and that's what fires.
 pub fn action_down(rl: &RaylibHandle, keymap: &Keymap, pad_map: &PadMap, action: u32) -> bool {
+    if !rl.is_window_focused() {
+        return false;
+    }
     let Some(b) = binding(action) else {
         return false;
     };
@@ -732,6 +738,9 @@ pub fn action_pressed(
     axes: &AxisEdgeTracker,
     action: u32,
 ) -> bool {
+    if !rl.is_window_focused() {
+        return false;
+    }
     let Some(b) = binding(action) else {
         return false;
     };
@@ -792,6 +801,9 @@ pub fn action_released(
     axes: &AxisEdgeTracker,
     action: u32,
 ) -> bool {
+    if !rl.is_window_focused() {
+        return false;
+    }
     let Some(b) = binding(action) else {
         return false;
     };

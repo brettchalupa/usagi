@@ -14,6 +14,8 @@ Fixes:
   [#60](https://codeberg.org/brettchalupa/usagi/issues/60)
 - Alpha values now properly render; see
   [#51](https://codeberg.org/brettchalupa/usagi/issues/51)
+- Don't register gamepad input when window is not focused; see
+  [#28](https://codeberg.org/brettchalupa/usagi/issues/28)
 
 ## v1.1.1 - June 10, 2026
 
