@@ -53,15 +53,41 @@ return function(raw, name, ...)
 end
 "##;
 
-/// Installs `_usagi_wrap` (see [`WRAP_HELPER_LUA`]). Call once before any API
-/// registration so [`wrap`] can find it.
+/// Wraps a raw fn returning `(value, err_message)`: raises the message via
+/// Lua `error()` when non-nil, else returns the value. Lets fallible APIs
+/// report failures without returning a Rust `Err`, whose `lua_error` longjmp
+/// crosses Rust frames and aborts on Windows MSVC (see [`WRAP_HELPER_LUA`]).
+const FALLIBLE_HELPER_LUA: &str = r##"
+return function(raw)
+  return function(...)
+    local v, err = raw(...)
+    if err ~= nil then error(err, 0) end
+    return v
+  end
+end
+"##;
+
+/// Installs `_usagi_wrap` / `_usagi_fallible`. Call once before any API
+/// registration so [`wrap`] and [`fallible`] can find them.
 pub fn install_wrap_helper(lua: &Lua) -> LuaResult<()> {
     let wrap_fn: LuaFunction = lua
         .load(WRAP_HELPER_LUA)
         .set_name("=usagi/wrap.lua")
         .eval()?;
     lua.globals().set("_usagi_wrap", wrap_fn)?;
+    let fallible_fn: LuaFunction = lua
+        .load(FALLIBLE_HELPER_LUA)
+        .set_name("=usagi/fallible.lua")
+        .eval()?;
+    lua.globals().set("_usagi_fallible", fallible_fn)?;
     Ok(())
+}
+
+/// Wraps `raw` (which returns `(value, err_message)`) so failures raise a Lua
+/// error instead of returning a Rust `Err`. See [`FALLIBLE_HELPER_LUA`].
+fn fallible(lua: &Lua, raw: LuaFunction) -> LuaResult<LuaFunction> {
+    let helper: LuaFunction = lua.globals().get("_usagi_fallible")?;
+    helper.call(raw)
 }
 
 /// Wraps `raw` with Lua-side argument validation. `types` lists the expected
@@ -241,41 +267,48 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
 pub fn register_data_api(lua: &Lua, vfs: Rc<dyn VirtualFs>) -> LuaResult<()> {
     let usagi: LuaTable = lua.globals().get("usagi")?;
 
+    // These return `(value, err_message)` and go through `fallible` so a
+    // missing/invalid file raises via Lua `error()`, not a Rust `Err` (which
+    // aborts on Windows MSVC, see `wrap`). `to_string_lossy` for the same
+    // reason: a non-UTF-8 path arg must not error at the FFI boundary.
     let vfs_for_json = vfs.clone();
-    let read_json = lua.create_function(move |lua, path: LuaString| {
-        let path = path.to_str()?.to_string();
+    let read_json = lua.create_function(move |lua, path: LuaString| -> LuaResult<(LuaValue, Option<String>)> {
+        let path = path.to_string_lossy();
         let key = format!("data/{path}");
-        let bytes = vfs_for_json.read_file(&key).ok_or_else(|| {
-            mlua::Error::external(format!(
+        let Some(bytes) = vfs_for_json.read_file(&key) else {
+            return Ok((LuaValue::Nil, Some(format!(
                 "usagi.read_json: data/{path} not found (use forward slashes; no \\, no .., no leading /)"
-            ))
-        })?;
-        let s = std::str::from_utf8(&bytes).map_err(|e| {
-            mlua::Error::external(format!("usagi.read_json: data/{path} is not UTF-8: {e}"))
-        })?;
-        crate::save::json_to_lua(lua, s).map_err(|e| {
-            mlua::Error::external(format!("usagi.read_json: data/{path}: {e}"))
-        })
+            ))));
+        };
+        let Ok(s) = std::str::from_utf8(&bytes) else {
+            return Ok((LuaValue::Nil, Some(format!("usagi.read_json: data/{path} is not UTF-8"))));
+        };
+        match crate::save::json_to_lua(lua, s) {
+            Ok(v) => Ok((v, None)),
+            Err(e) => Ok((LuaValue::Nil, Some(format!("usagi.read_json: data/{path}: {e}")))),
+        }
     })?;
+    let read_json = fallible(lua, read_json)?;
     usagi.set(
         "read_json",
         wrap(lua, read_json, "usagi.read_json", &["string"])?,
     )?;
 
     let vfs_for_text = vfs;
-    let read_text = lua.create_function(move |_, path: LuaString| {
-        let path = path.to_str()?.to_string();
+    let read_text = lua.create_function(move |lua, path: LuaString| -> LuaResult<(LuaValue, Option<String>)> {
+        let path = path.to_string_lossy();
         let key = format!("data/{path}");
-        let bytes = vfs_for_text.read_file(&key).ok_or_else(|| {
-            mlua::Error::external(format!(
+        let Some(bytes) = vfs_for_text.read_file(&key) else {
+            return Ok((LuaValue::Nil, Some(format!(
                 "usagi.read_text: data/{path} not found (use forward slashes; no \\, no .., no leading /)"
-            ))
-        })?;
-        let s = std::str::from_utf8(&bytes).map_err(|e| {
-            mlua::Error::external(format!("usagi.read_text: data/{path} is not UTF-8: {e}"))
-        })?;
-        Ok(s.to_string())
+            ))));
+        };
+        match std::str::from_utf8(&bytes) {
+            Ok(s) => Ok((LuaValue::String(lua.create_string(s)?), None)),
+            Err(e) => Ok((LuaValue::Nil, Some(format!("usagi.read_text: data/{path} is not UTF-8: {e}")))),
+        }
     })?;
+    let read_text = fallible(lua, read_text)?;
     usagi.set(
         "read_text",
         wrap(lua, read_text, "usagi.read_text", &["string"])?,

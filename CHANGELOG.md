@@ -5,6 +5,11 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
+Features:
+
+- Backspace acts as a cancel button in the Pause menu; see
+  [#48](https://codeberg.org/brettchalupa/usagi/issues/48)
+
 Fixes:
 
 - Reseting/clearing save data on web now works; see
@@ -26,6 +31,8 @@ Fixes:
   [#63](https://codeberg.org/brettchalupa/usagi/issues/63)
 - Pause audio in web builds when tab isn't visible, fixing choppy playback in
   that scenario; see [#63](https://codeberg.org/brettchalupa/usagi/issues/63)
+- Don't crash when attempting to reading a file that doesn't exist; see
+  [#30](https://codeberg.org/brettchalupa/usagi/issues/30)
 
 ## v1.1.1 - June 10, 2026
 
