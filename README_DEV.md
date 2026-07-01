@@ -151,11 +151,6 @@ my_game/
     crt_es.fs        -- web GLSL ES 100
 ```
 
-`require "name"` resolves to `name.lua` in the project root, falling back to
-`name/init.lua` if that misses. Dotted names (`require "world.tiles"`) become
-slash-separated paths. The same lookup works inside a fused / exported build, so
-multi-file projects ship as a single binary or `.usagi` with no extra config.
-
 Run with:
 
 - `usagi init path/to/new_game` bootstraps a project (main.lua stub,
@@ -171,6 +166,31 @@ Run with:
 
 You can also run Usagi commands without a path to have them run in the current
 directory, like `usagi dev` or `usagi export`.
+
+### Multiple Lua files
+
+`require "name"` resolves to `name.lua` in the project root, falling back to
+`name/init.lua` if that misses. Dotted names (`require "world.tiles"`) become
+slash-separated paths. The same lookup works inside a fused / exported build, so
+multi-file projects ship as a single binary or `.usagi` with no extra config.
+
+Split code into files with `require`. A module returns its API and is cached, so
+`require` it wherever you need it:
+
+```lua
+-- player.lua
+local Player = {}
+function Player.new() return { x = 0, y = 0 } end
+return Player
+
+-- main.lua
+local Player = require "player"
+```
+
+Use `require` only, never `loadfile` / `dofile` / `io` to load `.lua` files:
+those read from the OS filesystem, which works in `usagi dev` but breaks in web
+and exported builds. `require` goes through Usagi's virtual filesystem, so it
+works everywhere.
 
 ## Lua API
 
