@@ -511,6 +511,51 @@ fn register_save_api(lua: &Lua, game_id: crate::game_id::GameId) -> LuaResult<()
     Ok(())
 }
 
+/// APIs that must exist before `load_script` runs: base tables (`setup_api`),
+/// `require`, and the data readers (so top-level `usagi.read_json` resolves).
+/// Shared by `Session::new` and the hard-reset VM rebuild so the two can't
+/// drift apart.
+fn install_core_apis(lua: &Lua, dev: bool, vfs: &Rc<dyn VirtualFs>) -> crate::Result<()> {
+    setup_api(lua, dev)?;
+    install_require(lua, vfs.clone())?;
+    register_data_api(lua, vfs.clone())?;
+    Ok(())
+}
+
+/// The rest of the persistent APIs, registered against the session's shared
+/// handles after they exist. Also seeds `usagi.GAME_W/GAME_H/SPRITE_SIZE`.
+/// Shared by `Session::new` and the hard-reset VM rebuild. Per-frame `gfx.*`
+/// / `sfx.*` closures aren't here; they re-register via `lua.scope`.
+#[allow(clippy::too_many_arguments)]
+fn install_game_apis(
+    lua: &Lua,
+    user_font: &'static Font,
+    input_bridge: &InputBridge,
+    game_id: &crate::game_id::GameId,
+    music: &Rc<std::cell::RefCell<MusicLibrary<'static>>>,
+    shader: &Rc<std::cell::RefCell<ShaderManager>>,
+    effects: &Rc<std::cell::RefCell<Effects>>,
+    menu_items: &crate::menu_items::MenuItemStore,
+    fullscreen_state: &Rc<std::cell::Cell<bool>>,
+    lua_quit_requested: &Rc<std::cell::Cell<bool>>,
+    config: &Config,
+) -> crate::Result<()> {
+    register_usagi_measure_text(lua, user_font)?;
+    register_input_api(lua, input_bridge)?;
+    register_save_api(lua, game_id.clone())?;
+    register_music_api(lua, music)?;
+    register_shader_api(lua, shader)?;
+    register_effect_api(lua, effects)?;
+    crate::menu_items::register_api(lua, menu_items)?;
+    register_fullscreen_api(lua, fullscreen_state)?;
+    register_quit_api(lua, lua_quit_requested)?;
+    let usagi_tbl: LuaTable = lua.globals().get("usagi")?;
+    usagi_tbl.set("GAME_W", config.resolution.w)?;
+    usagi_tbl.set("GAME_H", config.resolution.h)?;
+    usagi_tbl.set("SPRITE_SIZE", config.sprite_size)?;
+    Ok(())
+}
+
 use crate::config::Config;
 
 /// Reads project config from the live session Lua VM. Errors flow
@@ -738,20 +783,10 @@ impl Session {
         // re-scan the whole heap on every allocation, visible as a ~3x
         // framerate drop in allocation-heavy games.
         lua.gc_inc(GC_PAUSE, GC_STEPMUL, GC_STEPSIZE);
-        setup_api(&lua, dev)?;
-        install_require(&lua, vfs.clone())
-            .map_err(|e| crate::Error::Cli(format!("installing require: {e}")))?;
-        // Register data readers before `load_script` so the chunk's
-        // top-level code can call `usagi.read_json` / `usagi.read_text`
-        // (the recommended pattern, since top-level reads re-execute
-        // on hot reload). `register_save_api` registers later because
-        // it needs the game_id resolved out of `_config()`, which
-        // requires the script to already be loaded.
-        register_data_api(&lua, vfs.clone()).map_err(|e| {
-            crate::Error::Cli(format!(
-                "registering usagi.read_json / usagi.read_text: {e}"
-            ))
-        })?;
+        // Core APIs (base tables, require, data readers) must exist before
+        // load_script so top-level `usagi.read_json` etc. resolve. The rest
+        // register later via `install_game_apis`, once their handles exist.
+        install_core_apis(&lua, dev, &vfs)?;
 
         let mut last_error: Option<String> = None;
 
@@ -890,15 +925,6 @@ impl Session {
             .load_render_texture(&thread, res.w as u32, res.h as u32)
             .unwrap();
 
-        // Mirror the resolved dims into the Lua side immediately so
-        // `_init` reads the correct `usagi.GAME_W` / `GAME_H`. The api
-        // setup seeded defaults; this writes the active values.
-        if let Ok(usagi_tbl) = lua.globals().get::<LuaTable>("usagi") {
-            let _ = usagi_tbl.set("GAME_W", res.w);
-            let _ = usagi_tbl.set("GAME_H", res.h);
-            let _ = usagi_tbl.set("SPRITE_SIZE", config.sprite_size);
-        }
-
         // Load the font before `_init` runs so we can register
         // `usagi.measure_text` against a leaked `&'static Font`. That
         // makes the function callable from any callback (including
@@ -917,9 +943,6 @@ impl Session {
             Some(f) => &*Box::leak(Box::new(f)),
             None => font,
         };
-
-        register_usagi_measure_text(&lua, user_font)
-            .map_err(|e| crate::Error::Cli(format!("registering usagi.measure_text: {e}")))?;
 
         let input_bridge = InputBridge::new();
         let mut axis_edges = input::AxisEdgeTracker::new();
@@ -944,17 +967,11 @@ impl Session {
         // stick already past the deadzone at boot would fire a spurious
         // press on frame 1).
         axis_edges.snapshot(&rl);
-        register_input_api(&lua, &input_bridge)
-            .map_err(|e| crate::Error::Cli(format!("registering input.* API: {e}")))?;
 
-        // Clone for session retain (mute toggle and fullscreen
-        // toggle write settings back under this id) before handing
-        // ownership to `register_save_api`. Capture filename prefix
-        // is derived from the same id so saves and captures share a
-        // name (e.g. `snake-...gif`).
-        let game_id = resolved_game_id.clone();
-        register_save_api(&lua, resolved_game_id)
-            .map_err(|e| crate::Error::Cli(format!("registering usagi.save / usagi.load: {e}")))?;
+        // Capture filename prefix is derived from the same id so saves and
+        // captures share a name (e.g. `snake-...gif`). API registration
+        // (including save/load) happens once all handles exist, below.
+        let game_id = resolved_game_id;
 
         // Audio and the music library load before `_init` so games can
         // call `music.play` / `music.loop` from `_init` (e.g. start a
@@ -980,28 +997,27 @@ impl Session {
         sfx.set_volume(settings.sfx_volume);
         music.set_volume(settings.music_volume);
         let music = Rc::new(std::cell::RefCell::new(music));
-        register_music_api(&lua, &music)
-            .map_err(|e| crate::Error::Cli(format!("registering music.* API: {e}")))?;
-
         let shader = Rc::new(std::cell::RefCell::new(ShaderManager::new()));
-        register_shader_api(&lua, &shader)
-            .map_err(|e| crate::Error::Cli(format!("registering gfx.shader_* API: {e}")))?;
-
         let effects = Rc::new(std::cell::RefCell::new(Effects::new()));
-        register_effect_api(&lua, &effects)
-            .map_err(|e| crate::Error::Cli(format!("registering effect.* API: {e}")))?;
-
         let menu_items = crate::menu_items::new_store();
-        crate::menu_items::register_api(&lua, &menu_items)
-            .map_err(|e| crate::Error::Cli(format!("registering usagi.menu_item: {e}")))?;
-
         let fullscreen_state = Rc::new(std::cell::Cell::new(settings.fullscreen));
-        register_fullscreen_api(&lua, &fullscreen_state)
-            .map_err(|e| crate::Error::Cli(format!("registering usagi.toggle_fullscreen: {e}")))?;
-
         let lua_quit_requested = Rc::new(std::cell::Cell::new(false));
-        register_quit_api(&lua, &lua_quit_requested)
-            .map_err(|e| crate::Error::Cli(format!("registering usagi.quit: {e}")))?;
+
+        // Register the rest of the persistent APIs now that every handle
+        // exists. Shared with the hard-reset VM rebuild via `install_game_apis`.
+        install_game_apis(
+            &lua,
+            user_font,
+            &input_bridge,
+            &game_id,
+            &music,
+            &shader,
+            &effects,
+            &menu_items,
+            &fullscreen_state,
+            &lua_quit_requested,
+            &config,
+        )?;
 
         if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
             record_err(&mut last_error, "_init", init.call::<()>(()));
@@ -1365,25 +1381,52 @@ impl Session {
     /// can call `effect.flash(...)` etc. during init and have those
     /// stick. That way a long `effect.hitstop(100)` from the previous
     /// run doesn't freeze the new one.
+    /// Installs every persistent API on `lua`, using the same shared helpers
+    /// as `Session::new` so the two can't drift. Used by the hard-reset rebuild.
+    fn install_apis(&self, lua: &Lua) -> crate::Result<()> {
+        install_core_apis(lua, self.dev, &self.vfs)?;
+        install_game_apis(
+            lua,
+            self.user_font,
+            &self.input_bridge,
+            &self.game_id,
+            &self.music,
+            &self.shader,
+            &self.effects,
+            &self.menu_items,
+            &self.fullscreen_state,
+            &self.lua_quit_requested,
+            &self.config,
+        )
+    }
+
     fn reset_game(&mut self) {
         self.effects.borrow_mut().reset();
-        // Wipe Lua-registered pause-menu items so the next `_init()`
-        // starts from a clean slate. Scripts that register in `_init`
-        // would otherwise accumulate duplicates across resets.
+        // Drain menu items registered on the OLD VM before we drop it.
         crate::menu_items::drain_into_lua(&self.menu_items, &self.lua);
-        let Ok(init) = self.lua.globals().get::<LuaFunction>("_init") else {
+
+        // Hard reset rebuilds the whole Lua VM so no script state survives.
+        let lua = unsafe { Lua::unsafe_new() };
+        lua.gc_inc(GC_PAUSE, GC_STEPMUL, GC_STEPSIZE);
+        if let Err(e) = self.install_apis(&lua) {
+            let msg = format!("reset: {e}");
+            crate::msg::err!("{msg}");
+            self.last_error = Some(msg);
             return;
-        };
-        match init.call::<()>(()) {
-            Ok(()) => {
-                crate::msg::info!("reset");
-                self.last_error = None;
-            }
-            Err(e) => {
-                let msg = format!("_init: {}", e);
-                crate::msg::err!("{}", msg);
-                self.last_error = Some(msg);
-            }
+        }
+
+        self.last_error = None;
+        let loaded = load_script(&lua, self.vfs.as_ref());
+        record_err(&mut self.last_error, "reset load", loaded);
+        self.lua = lua;
+        self.update = self.lua.globals().get("_update").ok();
+        self.draw = self.lua.globals().get("_draw").ok();
+
+        if let Ok(init) = self.lua.globals().get::<LuaFunction>("_init") {
+            record_err(&mut self.last_error, "_init", init.call::<()>(()));
+        }
+        if self.last_error.is_none() {
+            crate::msg::info!("reset");
         }
     }
 

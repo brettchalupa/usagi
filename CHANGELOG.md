@@ -16,6 +16,9 @@ Fixes:
   [#51](https://codeberg.org/brettchalupa/usagi/issues/51)
 - Don't register gamepad input when window is not focused; see
   [#28](https://codeberg.org/brettchalupa/usagi/issues/28)
+- Tear down the entire Lua VM on game reset (a.k.a. hard reload) so there aren't
+  lingering variables/changes; this better matches dev expectations; see
+  [#44](https://codeberg.org/brettchalupa/usagi/issues/44)
 
 ## v1.1.1 - June 10, 2026
 
