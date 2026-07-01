@@ -199,6 +199,7 @@ usagi.GAME_H
 usagi.SPRITE_SIZE
 usagi.PLATFORM -- "web" | "macos" | "linux" | "windows" | "unknown"
 usagi.IS_DEV
+usagi.IS_RELEASE
 usagi.elapsed
 usagi.measure_text(text)
 usagi.save(t)
@@ -1006,6 +1007,8 @@ Engine-level info.
   end
   ```
 
+- `usagi.IS_RELEASE` — the inverse of `usagi.IS_DEV`. Reads nicer than
+  `not usagi.IS_DEV` when gating release-only code.
 - `usagi.elapsed` — wall-clock seconds since the session started, updated once
   per frame before `_update`. Frame-stable (every read in one frame returns the
   same value). Survives [Reset](#reset); track your own counter from `_init` if

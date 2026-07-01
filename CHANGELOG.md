@@ -7,6 +7,9 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
+- `usagi.IS_RELEASE`, the inverse of `usagi.IS_DEV`, for gating release-only
+  code more readably; see
+  [#37](https://codeberg.org/brettchalupa/usagi/issues/37)
 - Backspace acts as a cancel button in the Pause menu; see
   [#48](https://codeberg.org/brettchalupa/usagi/issues/48)
 - `_config` now has `initial_fullscreen` to launch the game fullscreen by

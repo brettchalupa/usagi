@@ -795,6 +795,7 @@ usagi.PLATFORM =
 -- false and let users override it themselves if their dev/release
 -- builds need different code paths.
 usagi.IS_DEV = false
+usagi.IS_RELEASE = true
 
 function usagi.quit()
   love.event.quit()

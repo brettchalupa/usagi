@@ -218,6 +218,9 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     // fused/compiled binaries. Lets games gate debug overlays, dev menus,
     // verbose logging, etc.
     usagi.set("IS_DEV", dev)?;
+    // The inverse of IS_DEV. Reads nicer than `not usagi.IS_DEV` when
+    // gating release-only code.
+    usagi.set("IS_RELEASE", !dev)?;
     // Wall-clock seconds since the session started. The session updates
     // this once per frame before _update; tests and tools that don't
     // drive a frame loop see the seed value below. Doesn't reset on F5.
@@ -642,11 +645,13 @@ mod tests {
         setup_api(&lua, true).unwrap();
         let usagi: LuaTable = lua.globals().get("usagi").unwrap();
         assert!(usagi.get::<bool>("IS_DEV").unwrap());
+        assert!(!usagi.get::<bool>("IS_RELEASE").unwrap());
 
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
         let usagi: LuaTable = lua.globals().get("usagi").unwrap();
         assert!(!usagi.get::<bool>("IS_DEV").unwrap());
+        assert!(usagi.get::<bool>("IS_RELEASE").unwrap());
     }
 
     #[test]

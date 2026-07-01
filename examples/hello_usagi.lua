@@ -55,6 +55,9 @@ function _draw(dt)
   if usagi.IS_DEV then
     gfx.text("DEV mode!", usagi.GAME_W - usagi.measure_text("DEV mode!") - padding, padding, gfx.COLOR_PINK)
   end
+  if usagi.IS_RELEASE then
+    gfx.text("RELEASE mode!", usagi.GAME_W - usagi.measure_text("RELEASE mode!") - padding, padding, gfx.COLOR_PINK)
+  end
 
   gfx.spr(1, State.x, State.y)
   gfx.spr(2, State.sx, State.sy)

@@ -545,6 +545,7 @@ function input.mouse_visible() end
 ---@field SPRITE_SIZE integer  side length, in pixels, of one cell in `sprites.png` (drives `gfx.spr` indexing)
 ---@field PLATFORM    string   build target: "web" | "macos" | "linux" | "windows" | "unknown"
 ---@field IS_DEV      boolean  true under `usagi dev`; false for `usagi run` and compiled binaries
+---@field IS_RELEASE  boolean  inverse of IS_DEV; true for `usagi run` and compiled binaries
 ---@field elapsed     number   wall-clock seconds since session start; updated once per frame before _update
 usagi = {}
 
