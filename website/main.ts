@@ -33,7 +33,7 @@ async function renderPage(opts: PageOpts): Promise<string> {
     "body": opts.body,
   };
   return layout.replace(
-    /\{\{(title|description|url|gfm-css|body)\}\}/g,
+    /\{\{\s*(title|description|url|gfm-css|body)\s*\}\}/g,
     (_, key) => values[key],
   );
 }
