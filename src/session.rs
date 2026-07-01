@@ -511,6 +511,25 @@ fn register_save_api(lua: &Lua, game_id: crate::game_id::GameId) -> LuaResult<()
     Ok(())
 }
 
+/// Creates the Lua VM with the GC config Usagi expects. Shared by boot and
+/// the hard-reset rebuild so both start from an identically configured VM.
+///
+/// Unsafe mode opens the full standard library, including `debug`. User
+/// scripts (logging, traceback rendering, third-party debuggers like
+/// debugger.lua) rely on it. mlua's safe mode doesn't load `debug`
+/// because its setupvalue/setlocal/sethook surface lets Lua corrupt host
+/// state; Usagi treats game scripts as trusted.
+///
+/// Uses incremental GC because after trying generational, it didn't lead to a
+/// big performance gain and led to shutdown slowness while sweeping dead objects.
+/// The `GC_*` vals are explicitly set to Lua 5.5's defaults so that that Usagi can
+/// control them explicitly to prevent against implicit change upstream.
+fn new_lua() -> Lua {
+    let lua = unsafe { Lua::unsafe_new() };
+    lua.gc_inc(GC_PAUSE, GC_STEPMUL, GC_STEPSIZE);
+    lua
+}
+
 /// APIs that must exist before `load_script` runs: base tables (`setup_api`),
 /// `require`, and the data readers (so top-level `usagi.read_json` resolves).
 /// Shared by `Session::new` and the hard-reset VM rebuild so the two can't
@@ -764,25 +783,7 @@ impl Session {
 
         let reload = dev && vfs.supports_reload();
 
-        // Unsafe mode opens the full standard library, including `debug`.
-        // User scripts (logging, traceback rendering, third-party debuggers
-        // like debugger.lua) rely on it. mlua's safe mode refuses to load
-        // `debug` because its setupvalue/setlocal/sethook surface lets Lua
-        // corrupt host state; Usagi treats game scripts as trusted, so the
-        // tradeoff lands on the dev-ergonomics side.
-        let lua = unsafe { Lua::unsafe_new() };
-        // Use incremental garbage collection. Generational let the heap grow
-        // unbounded under per-frame allocation, so lua_close at exit would have
-        // to sweep multi-GiB of dead objects and stalled for minutes.
-        //
-        // Pass Lua 5.5's own defaults explicitly (`LUAI_GCPAUSE` 250 /
-        // `LUAI_GCMUL` 200 / `LUAI_GCSTEPSIZE` ~11 KB). Earlier Lua versions
-        // treated `0` as "skip this param, keep the default", but Lua 5.5
-        // unconditionally writes each value via `LUA_GCPARAM`, so `(0, 0, 0)`
-        // collapses the pause threshold to 0% and makes the collector
-        // re-scan the whole heap on every allocation, visible as a ~3x
-        // framerate drop in allocation-heavy games.
-        lua.gc_inc(GC_PAUSE, GC_STEPMUL, GC_STEPSIZE);
+        let lua = new_lua();
         // Core APIs (base tables, require, data readers) must exist before
         // load_script so top-level `usagi.read_json` etc. resolve. The rest
         // register later via `install_game_apis`, once their handles exist.
@@ -1405,9 +1406,10 @@ impl Session {
         // Drain menu items registered on the OLD VM before we drop it.
         crate::menu_items::drain_into_lua(&self.menu_items, &self.lua);
 
-        // Hard reset rebuilds the whole Lua VM so no script state survives.
-        let lua = unsafe { Lua::unsafe_new() };
-        lua.gc_inc(GC_PAUSE, GC_STEPMUL, GC_STEPSIZE);
+        // Hard reset rebuilds the whole Lua VM so no script state survives:
+        // globals and package.loaded alike, including mutated `require`
+        // tables that a bare `_init` re-run leaves untouched (#44).
+        let lua = new_lua();
         if let Err(e) = self.install_apis(&lua) {
             let msg = format!("reset: {e}");
             crate::msg::err!("{msg}");
