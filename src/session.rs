@@ -867,7 +867,7 @@ impl Session {
         {
             settings.fullscreen = false;
         }
-        // First run adopts the dev's `initial_fullscreen` default; after that
+        // First run uses the dev's `initial_fullscreen` default; after that
         // the player's saved choice wins.
         #[cfg(not(target_os = "emscripten"))]
         if !crate::settings::exists(&resolved_game_id) {
