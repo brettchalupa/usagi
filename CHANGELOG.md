@@ -24,6 +24,8 @@ Fixes:
 - Set 0.1s max on `dt` so that there aren't weird gaps when resuming a game
   after OS pause (browser tab not focused, computer wakes from sleep, etc.); see
   [#63](https://codeberg.org/brettchalupa/usagi/issues/63)
+- Pause audio in web builds when tab isn't visible, fixing choppy playback in
+  that scenario; see [#63](https://codeberg.org/brettchalupa/usagi/issues/63)
 
 ## v1.1.1 - June 10, 2026
 

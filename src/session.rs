@@ -1212,8 +1212,7 @@ impl Session {
             .apply_pending(&mut self.rl, &self.thread, self.vfs.as_ref());
 
         #[cfg(not(target_os = "emscripten"))]
-        self.recorder
-            .capture(&self.rt, dt, self.config.resolution);
+        self.recorder.capture(&self.rt, dt, self.config.resolution);
 
         // Snapshot the just-rendered frame for next tick's `gfx.get_px`
         // reads. Pixel reads always reflect the most recently finished

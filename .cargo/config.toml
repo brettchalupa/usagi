@@ -31,6 +31,9 @@ rustflags = [
   # API; raylib's desktop-only `ToggleBorderlessWindowed` is a no-op
   # on emscripten.
   "-C", "link-arg=--js-library=web/usagi_fullscreen.js",
+  # Baked into usagi.js so custom shells inherit it: suspends Web Audio
+  # when the tab is hidden (see the file for why).
+  "-C", "link-arg=--pre-js=web/usagi_audio_focus.js",
 ]
 
 # C/C++ deps must use the same exception ABI rustc uses at link time. See
