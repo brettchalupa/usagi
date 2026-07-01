@@ -35,6 +35,9 @@ Features:
 
 Fixes:
 
+- `usagi loveify` now refuses when the destination is inside the source project
+  instead of recursing until it errors; see
+  [#14](https://codeberg.org/brettchalupa/usagi/issues/14)
 - Reseting/clearing save data on web now works; see
   [#61](https://codeberg.org/brettchalupa/usagi/issues/61)
 - Pause menu rectangle outlines properly render top-right corner on some GPUs

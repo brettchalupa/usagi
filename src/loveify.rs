@@ -11,7 +11,7 @@
 //! `examples/love_shim/` and stay the single source of truth.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Canonical Love shim source. Single source of truth — edits in the
 /// example dir get baked in on the next `cargo build`.
@@ -43,6 +43,16 @@ pub fn run(src: &str, dst: &str) -> Result<(), String> {
         return Err(format!(
             "destination '{dst}' already exists. \
              Refusing to overwrite — remove it or pick a different path."
+        ));
+    }
+    // Refuse when the destination lives inside the source: the walk
+    // would descend into the freshly-created dst and copy forever
+    // (classic `usagi loveify . love_example` from within a project).
+    if dst_inside_src(src_path, dst_path) {
+        return Err(format!(
+            "destination '{dst}' is inside the source project '{src}'. \
+             loveify can't port a project into itself. Pick a \
+             destination outside the source directory."
         ));
     }
 
@@ -91,6 +101,37 @@ pub fn run(src: &str, dst: &str) -> Result<(), String> {
     println!();
     println!("next step:  cd {dst} && love .");
     Ok(())
+}
+
+/// True when `dst` is the same as `src` or nested inside it. Resolves
+/// both to absolute paths first so `.`, `..`, and relative forms don't
+/// fool the comparison. `dst` need not exist yet.
+fn dst_inside_src(src: &Path, dst: &Path) -> bool {
+    match (abs_lenient(src), abs_lenient(dst)) {
+        (Some(s), Some(d)) => d.starts_with(&s),
+        _ => false,
+    }
+}
+
+/// Best-effort absolute path for a path that may not exist yet:
+/// canonicalize the longest existing ancestor and re-join the missing
+/// tail. Falls back to a lexical join against the current dir.
+fn abs_lenient(p: &Path) -> Option<PathBuf> {
+    let abs = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        std::env::current_dir().ok()?.join(p)
+    };
+    if let Ok(c) = fs::canonicalize(&abs) {
+        return Some(c);
+    }
+    for ancestor in abs.ancestors().skip(1) {
+        if let Ok(base) = fs::canonicalize(ancestor) {
+            let rest = abs.strip_prefix(ancestor).ok()?;
+            return Some(base.join(rest));
+        }
+    }
+    Some(abs)
 }
 
 #[derive(Default)]
@@ -309,6 +350,19 @@ mod tests {
         fs::create_dir(&dst).unwrap();
         let err = run(src.to_str().unwrap(), dst.to_str().unwrap()).unwrap_err();
         assert!(err.contains("already exists"), "got: {err}");
+    }
+
+    #[test]
+    fn refuses_when_destination_is_inside_source() {
+        let tmp = tempdir().unwrap();
+        let src = tmp.path().join("src");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("main.lua"), b"function _draw() end\n").unwrap();
+        // dst nested under src, as with `usagi loveify . love_example`.
+        let dst = src.join("love_example");
+        let err = run(src.to_str().unwrap(), dst.to_str().unwrap()).unwrap_err();
+        assert!(err.contains("inside the source"), "got: {err}");
+        assert!(!dst.exists(), "nothing should be written");
     }
 
     #[test]
