@@ -110,15 +110,19 @@ pub(super) fn read_inputs(
     pad_map: &PadMap,
     axes: &AxisEdgeTracker,
     pause_open: bool,
+    capturing: bool,
 ) -> MenuInputs {
     let alt_held =
         rl.is_key_down(KeyboardKey::KEY_LEFT_ALT) || rl.is_key_down(KeyboardKey::KEY_RIGHT_ALT);
     let enter = rl.is_key_pressed(KeyboardKey::KEY_ENTER) && !alt_held;
     let start_press = gamepad_start_pressed(rl);
+    // Backspace backs out like Esc (Esc is disabled in web fullscreen), except
+    // in capture views where it undoes the last binding.
     let toggle = rl.is_key_pressed(KeyboardKey::KEY_ESCAPE)
         || rl.is_key_pressed(KeyboardKey::KEY_P)
         || start_press
-        || (enter && !pause_open);
+        || (enter && !pause_open)
+        || (!capturing && rl.is_key_pressed(KeyboardKey::KEY_BACKSPACE));
     MenuInputs {
         up: input::action_pressed(rl, keymap, pad_map, axes, ACTION_UP),
         down: input::action_pressed(rl, keymap, pad_map, axes, ACTION_DOWN),

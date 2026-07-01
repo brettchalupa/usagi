@@ -154,7 +154,15 @@ impl PauseMenu {
         axes: &AxisEdgeTracker,
         dt: f32,
     ) -> Option<PauseAction> {
-        let menu_inputs = read_inputs(rl, frame.maps.keymap, frame.maps.pad_map, axes, self.open);
+        let capturing = matches!(self.view, View::KeyConfig | View::PadConfig);
+        let menu_inputs = read_inputs(
+            rl,
+            frame.maps.keymap,
+            frame.maps.pad_map,
+            axes,
+            self.open,
+            capturing,
+        );
 
         // Snapshot the held actions so `draw` doesn't need `rl`.
         self.tester_input = snapshot_tester(rl, frame.maps.keymap, frame.maps.pad_map);
