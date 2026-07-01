@@ -82,6 +82,18 @@ function _draw(_dt)
   gfx.line(12, 176, 60, 160, gfx.COLOR_DARK_PURPLE) -- diagonal up
   gfx.line(64, 160, 112, 176, gfx.COLOR_PINK)       -- diagonal down
 
+  -- alpha: every gfx drawing call takes an optional trailing opacity
+  -- in 0..1. Three overlapping fills at 0.5 blend where they cross.
+  gfx.text("alpha", 120, 18, gfx.COLOR_LIGHT_GRAY)
+  gfx.circ_fill(136, 44, 16, gfx.COLOR_RED, 0.5)
+  gfx.circ_fill(152, 44, 16, gfx.COLOR_GREEN, 0.5)
+  gfx.circ_fill(144, 58, 16, gfx.COLOR_BLUE, 0.5)
+  -- outlines fade too; a translucent rect over the fills above.
+  gfx.rect_fill(120, 74, 40, 12, gfx.COLOR_WHITE, 0.25)
+  gfx.rect(120, 74, 40, 12, gfx.COLOR_WHITE, 0.6)
+  -- text takes alpha too (as do spr / sspr).
+  gfx.text("faded", 120, 88, gfx.COLOR_WHITE, 0.4)
+
   -- Right column: a small composed scene exercising every primitive
   -- together, so users can see them combine.
   gfx.text("composed", 168, 18, gfx.COLOR_LIGHT_GRAY)

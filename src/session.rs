@@ -74,6 +74,16 @@ fn tinted(tint_idx: i32, alpha: f32) -> Color {
     c
 }
 
+/// Resolves a `gfx` drawing call's optional trailing alpha (0..1, `nil`
+/// = fully opaque) into a palette color. Shared by every shape, text,
+/// and sprite draw so opacity is a uniform trailing param across `gfx`.
+fn shape_color(idx: i32, alpha: Option<f32>) -> Color {
+    match alpha {
+        Some(a) => tinted(idx, a),
+        None => color(idx),
+    }
+}
+
 /// Fraction of the monitor the default initial window aims to fill.
 const INITIAL_WINDOW_FRACTION: f32 = 0.66;
 
@@ -1844,8 +1854,8 @@ impl Session {
                         d_rt_cell.borrow_mut().clear_background(color(c));
                         Ok(())
                     })?;
-                    let text =
-                        scope.create_function(|_, (s, x, y, c): (LuaString, f32, f32, i32)| {
+                    let text = scope.create_function(
+                        |_, (s, x, y, c, a): (LuaString, f32, f32, i32, Option<f32>)| {
                             let s = s.to_string_lossy();
                             d_rt_cell.borrow_mut().draw_text_ex(
                                 font_ref,
@@ -1853,10 +1863,11 @@ impl Session {
                                 Vector2::new(x.round(), y.round()),
                                 font_ref.base_size() as f32,
                                 0.0,
-                                color(c),
+                                shape_color(c, a),
                             );
                             Ok(())
-                        })?;
+                        },
+                    )?;
                     let text_ex = scope.create_function(
                         |_,
                          (s, x, y, scale, rotation, c, alpha): (
@@ -1893,7 +1904,7 @@ impl Session {
                         },
                     )?;
                     let rect = scope.create_function(
-                        |_, (x, y, w, h, c): (f32, f32, f32, f32, i32)| {
+                        |_, (x, y, w, h, c, a): (f32, f32, f32, f32, i32, Option<f32>)| {
                             // thickness=1 routes through filled rects,
                             // avoiding the GL_LINES corner rule that
                             // drops the top-right pixel on some Linux
@@ -1907,56 +1918,68 @@ impl Session {
                                     height: h.round(),
                                 },
                                 1.0,
-                                color(c),
+                                shape_color(c, a),
                             );
                             Ok(())
                         },
                     )?;
                     let rect_fill = scope.create_function(
-                        |_, (x, y, w, h, c): (f32, f32, f32, f32, i32)| {
+                        |_, (x, y, w, h, c, a): (f32, f32, f32, f32, i32, Option<f32>)| {
                             d_rt_cell.borrow_mut().draw_rectangle(
                                 x.round() as i32,
                                 y.round() as i32,
                                 w.round() as i32,
                                 h.round() as i32,
-                                color(c),
+                                shape_color(c, a),
                             );
                             Ok(())
                         },
                     )?;
-                    let circ = scope.create_function(|_, (x, y, r, c): (f32, f32, f32, i32)| {
-                        d_rt_cell.borrow_mut().draw_circle_lines(
-                            x.round() as i32,
-                            y.round() as i32,
-                            r,
-                            color(c),
-                        );
-                        Ok(())
-                    })?;
-                    let circ_fill =
-                        scope.create_function(|_, (x, y, r, c): (f32, f32, f32, i32)| {
+                    let circ = scope.create_function(
+                        |_, (x, y, r, c, a): (f32, f32, f32, i32, Option<f32>)| {
+                            d_rt_cell.borrow_mut().draw_circle_lines(
+                                x.round() as i32,
+                                y.round() as i32,
+                                r,
+                                shape_color(c, a),
+                            );
+                            Ok(())
+                        },
+                    )?;
+                    let circ_fill = scope.create_function(
+                        |_, (x, y, r, c, a): (f32, f32, f32, i32, Option<f32>)| {
                             d_rt_cell.borrow_mut().draw_circle(
                                 x.round() as i32,
                                 y.round() as i32,
                                 r,
-                                color(c),
+                                shape_color(c, a),
                             );
                             Ok(())
-                        })?;
+                        },
+                    )?;
                     let line = scope.create_function(
-                        |_, (x1, y1, x2, y2, c): (f32, f32, f32, f32, i32)| {
+                        |_, (x1, y1, x2, y2, c, a): (f32, f32, f32, f32, i32, Option<f32>)| {
                             d_rt_cell.borrow_mut().draw_line(
                                 x1.round() as i32,
                                 y1.round() as i32,
                                 x2.round() as i32,
                                 y2.round() as i32,
-                                color(c),
+                                shape_color(c, a),
                             );
                             Ok(())
                         },
                     )?;
                     let rect_ex = scope.create_function(
-                        |_, (x, y, w, h, thickness, c): (f32, f32, f32, f32, f32, i32)| {
+                        |_,
+                         (x, y, w, h, thickness, c, a): (
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            i32,
+                            Option<f32>,
+                        )| {
                             d_rt_cell.borrow_mut().draw_rectangle_lines_ex(
                                 Rectangle {
                                     x: x.round(),
@@ -1965,13 +1988,13 @@ impl Session {
                                     height: h.round(),
                                 },
                                 thickness,
-                                color(c),
+                                shape_color(c, a),
                             );
                             Ok(())
                         },
                     )?;
                     let circ_ex = scope.create_function(
-                        |_, (x, y, r, thickness, c): (f32, f32, f32, f32, i32)| {
+                        |_, (x, y, r, thickness, c, a): (f32, f32, f32, f32, i32, Option<f32>)| {
                             // Centered stroke: thickness/2 on either
                             // side of the nominal radius. Inner clamped
                             // to 0 so a fat stroke on a tiny circle
@@ -1985,35 +2008,64 @@ impl Session {
                                 0.0,
                                 360.0,
                                 36,
-                                color(c),
+                                shape_color(c, a),
                             );
                             Ok(())
                         },
                     )?;
                     let line_ex = scope.create_function(
-                        |_, (x1, y1, x2, y2, thickness, c): (f32, f32, f32, f32, f32, i32)| {
+                        |_,
+                         (x1, y1, x2, y2, thickness, c, a): (
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            i32,
+                            Option<f32>,
+                        )| {
                             d_rt_cell.borrow_mut().draw_line_ex(
                                 Vector2::new(x1.round(), y1.round()),
                                 Vector2::new(x2.round(), y2.round()),
                                 thickness,
-                                color(c),
+                                shape_color(c, a),
                             );
                             Ok(())
                         },
                     )?;
                     let tri = scope.create_function(
-                        |_, (x1, y1, x2, y2, x3, y3, c): (f32, f32, f32, f32, f32, f32, i32)| {
+                        |_,
+                         (x1, y1, x2, y2, x3, y3, c, a): (
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            i32,
+                            Option<f32>,
+                        )| {
                             d_rt_cell.borrow_mut().draw_triangle_lines(
                                 Vector2::new(x1.round(), y1.round()),
                                 Vector2::new(x2.round(), y2.round()),
                                 Vector2::new(x3.round(), y3.round()),
-                                color(c),
+                                shape_color(c, a),
                             );
                             Ok(())
                         },
                     )?;
                     let tri_fill = scope.create_function(
-                        |_, (x1, y1, x2, y2, x3, y3, c): (f32, f32, f32, f32, f32, f32, i32)| {
+                        |_,
+                         (x1, y1, x2, y2, x3, y3, c, a_alpha): (
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            i32,
+                            Option<f32>,
+                        )| {
                             // raylib's backface culling (front = GL_CCW
                             // in clip space, post Y-flip ortho) means a
                             // user-space triangle has to be CCW *as you
@@ -2042,18 +2094,22 @@ impl Session {
                                     Vector2::new(x3r, y3r),
                                 )
                             };
-                            d_rt_cell.borrow_mut().draw_triangle(a, b, cc, color(c));
+                            d_rt_cell
+                                .borrow_mut()
+                                .draw_triangle(a, b, cc, shape_color(c, a_alpha));
                             Ok(())
                         },
                     )?;
-                    let px = scope.create_function(|_, (x, y, c): (f32, f32, i32)| {
-                        d_rt_cell.borrow_mut().draw_pixel(
-                            x.round() as i32,
-                            y.round() as i32,
-                            color(c),
-                        );
-                        Ok(())
-                    })?;
+                    let px = scope.create_function(
+                        |_, (x, y, c, a): (f32, f32, i32, Option<f32>)| {
+                            d_rt_cell.borrow_mut().draw_pixel(
+                                x.round() as i32,
+                                y.round() as i32,
+                                shape_color(c, a),
+                            );
+                            Ok(())
+                        },
+                    )?;
                     // Resolves a 1-based sprite index into a (col, row,
                     // cell) tuple on the loaded sheet, or None for
                     // out-of-range / no-sheet. Shared between `spr`
@@ -2076,23 +2132,30 @@ impl Session {
                         }
                         Some((col, row, cell))
                     }
-                    let spr = scope.create_function(|_, (idx, x, y): (i32, f32, f32)| {
-                        if let Some(tex) = sprites_ref
-                            && let Some((col, row, cell)) = cell_for(tex, idx, sprite_size)
-                        {
-                            let source = Rectangle {
-                                x: (col * cell) as f32,
-                                y: (row * cell) as f32,
-                                width: cell as f32,
-                                height: cell as f32,
-                            };
-                            let pos = Vector2::new(x.round(), y.round());
-                            d_rt_cell
-                                .borrow_mut()
-                                .draw_texture_rec(tex, source, pos, Color::WHITE);
-                        }
-                        Ok(())
-                    })?;
+                    let spr = scope.create_function(
+                        |_, (idx, x, y, a): (i32, f32, f32, Option<f32>)| {
+                            if let Some(tex) = sprites_ref
+                                && let Some((col, row, cell)) = cell_for(tex, idx, sprite_size)
+                            {
+                                let source = Rectangle {
+                                    x: (col * cell) as f32,
+                                    y: (row * cell) as f32,
+                                    width: cell as f32,
+                                    height: cell as f32,
+                                };
+                                let pos = Vector2::new(x.round(), y.round());
+                                // Palette slot 0 is COLOR_TRUE_WHITE: the
+                                // identity tint, so alpha only fades.
+                                d_rt_cell.borrow_mut().draw_texture_rec(
+                                    tex,
+                                    source,
+                                    pos,
+                                    shape_color(0, a),
+                                );
+                            }
+                            Ok(())
+                        },
+                    )?;
                     let spr_ex = scope.create_function(
                         |_, (idx, x, y, flip_x, flip_y, rotation, tint_idx, alpha): SprExArgs| {
                             if let Some(tex) = sprites_ref
@@ -2134,7 +2197,16 @@ impl Session {
                         },
                     )?;
                     let sspr = scope.create_function(
-                        |_, (sx, sy, sw, sh, dx, dy): (f32, f32, f32, f32, f32, f32)| {
+                        |_,
+                         (sx, sy, sw, sh, dx, dy, a): (
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            f32,
+                            Option<f32>,
+                        )| {
                             if let Some(tex) = sprites_ref {
                                 let source = Rectangle {
                                     x: sx,
@@ -2147,7 +2219,7 @@ impl Session {
                                     tex,
                                     source,
                                     pos,
-                                    Color::WHITE,
+                                    shape_color(0, a),
                                 );
                             }
                             Ok(())

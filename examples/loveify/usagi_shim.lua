@@ -140,8 +140,8 @@ function gfx.clear(c)
   love.graphics.clear(p[1], p[2], p[3], 1.0)
 end
 
-function gfx.rect(x, y, w, h, c)
-  set_color(c)
+function gfx.rect(x, y, w, h, c, alpha)
+  set_color(c, alpha)
   love.graphics.setLineWidth(1)
   -- Love rasterizes "line" mode centered on the geometric path, so a
   -- rect at (x, y, w, h) can spill into the row at y+h / col at x+w.
@@ -151,13 +151,13 @@ function gfx.rect(x, y, w, h, c)
   love.graphics.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
 end
 
-function gfx.rect_fill(x, y, w, h, c)
-  set_color(c)
+function gfx.rect_fill(x, y, w, h, c, alpha)
+  set_color(c, alpha)
   love.graphics.rectangle("fill", x, y, w, h)
 end
 
-function gfx.rect_ex(x, y, w, h, thickness, c)
-  set_color(c)
+function gfx.rect_ex(x, y, w, h, thickness, c, alpha)
+  set_color(c, alpha)
   love.graphics.setLineWidth(thickness)
   -- Inset by thickness/2 for the same reason as gfx.rect: the stroke
   -- is centered on the path, so we shift in by half its width.
@@ -166,59 +166,59 @@ function gfx.rect_ex(x, y, w, h, thickness, c)
   love.graphics.setLineWidth(1)
 end
 
-function gfx.circ(x, y, r, c)
-  set_color(c)
+function gfx.circ(x, y, r, c, alpha)
+  set_color(c, alpha)
   love.graphics.setLineWidth(1)
   love.graphics.circle("line", x, y, r)
 end
 
-function gfx.circ_fill(x, y, r, c)
-  set_color(c)
+function gfx.circ_fill(x, y, r, c, alpha)
+  set_color(c, alpha)
   love.graphics.circle("fill", x, y, r)
 end
 
-function gfx.circ_ex(x, y, r, thickness, c)
-  set_color(c)
+function gfx.circ_ex(x, y, r, thickness, c, alpha)
+  set_color(c, alpha)
   love.graphics.setLineWidth(thickness)
   love.graphics.circle("line", x, y, r)
   love.graphics.setLineWidth(1)
 end
 
-function gfx.line(x1, y1, x2, y2, c)
-  set_color(c)
+function gfx.line(x1, y1, x2, y2, c, alpha)
+  set_color(c, alpha)
   love.graphics.setLineWidth(1)
   love.graphics.line(x1, y1, x2, y2)
 end
 
-function gfx.line_ex(x1, y1, x2, y2, thickness, c)
-  set_color(c)
+function gfx.line_ex(x1, y1, x2, y2, thickness, c, alpha)
+  set_color(c, alpha)
   love.graphics.setLineWidth(thickness)
   love.graphics.line(x1, y1, x2, y2)
   love.graphics.setLineWidth(1)
 end
 
-function gfx.tri(x1, y1, x2, y2, x3, y3, c)
-  set_color(c)
+function gfx.tri(x1, y1, x2, y2, x3, y3, c, alpha)
+  set_color(c, alpha)
   love.graphics.setLineWidth(1)
   love.graphics.polygon("line", x1, y1, x2, y2, x3, y3)
 end
 
-function gfx.tri_fill(x1, y1, x2, y2, x3, y3, c)
-  set_color(c)
+function gfx.tri_fill(x1, y1, x2, y2, x3, y3, c, alpha)
+  set_color(c, alpha)
   love.graphics.polygon("fill", x1, y1, x2, y2, x3, y3)
 end
 
-function gfx.px(x, y, c)
-  set_color(c)
+function gfx.px(x, y, c, alpha)
+  set_color(c, alpha)
   love.graphics.points(x + 0.5, y + 0.5)
 end
 
-function gfx.text(text, x, y, c)
+function gfx.text(text, x, y, c, alpha)
   if custom_font_meta then
-    draw_text_custom(tostring(text), x, y, 1, 0, c, 1.0)
+    draw_text_custom(tostring(text), x, y, 1, 0, c, alpha or 1.0)
     return
   end
-  set_color(c)
+  set_color(c, alpha)
   love.graphics.print(text, x, y)
 end
 
@@ -280,12 +280,12 @@ local function quad_for_index(index)
   return q
 end
 
-function gfx.spr(index, x, y)
+function gfx.spr(index, x, y, alpha)
   local img = load_sprites()
   if not img then return end
   local q = quad_for_index(index)
   if not q then return end
-  love.graphics.setColor(1, 1, 1, 1)
+  love.graphics.setColor(1, 1, 1, alpha or 1.0)
   love.graphics.draw(img, q, x, y)
 end
 
@@ -305,12 +305,12 @@ function gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)
     rotation or 0, sx, sy, sz / 2, sz / 2)
 end
 
-function gfx.sspr(sx, sy, sw, sh, dx, dy)
+function gfx.sspr(sx, sy, sw, sh, dx, dy, alpha)
   local img = load_sprites()
   if not img then return end
   local q = love.graphics.newQuad(sx, sy, sw, sh,
     img:getWidth(), img:getHeight())
-  love.graphics.setColor(1, 1, 1, 1)
+  love.graphics.setColor(1, 1, 1, alpha or 1.0)
   love.graphics.draw(img, q, dx, dy)
 end
 

@@ -37,7 +37,8 @@ function gfx.clear(color) end
 ---@param x     number  left edge in game-space pixels
 ---@param y     number  top edge in game-space pixels
 ---@param color integer  a gfx.COLOR_* constant
-function gfx.text(text, x, y, color) end
+---@param alpha? number  opacity in `0..1`; omit or `1.0` for opaque
+function gfx.text(text, x, y, color, alpha) end
 
 ---Extended `text`: scale, rotation, and alpha. Rotation pivots around
 ---the center of the text's unrotated bounding box; (x, y) stays the
@@ -59,7 +60,8 @@ function gfx.text_ex(text, x, y, scale, rotation, color, alpha) end
 ---@param w     number  width in pixels
 ---@param h     number  height in pixels
 ---@param color integer  a gfx.COLOR_* constant
-function gfx.rect(x, y, w, h, color) end
+---@param alpha? number  opacity in `0..1`; omit or `1.0` for opaque
+function gfx.rect(x, y, w, h, color, alpha) end
 
 ---Draws a filled rectangle.
 ---@param x     number  left edge in game-space pixels
@@ -67,21 +69,24 @@ function gfx.rect(x, y, w, h, color) end
 ---@param w     number  width in pixels
 ---@param h     number  height in pixels
 ---@param color integer  a gfx.COLOR_* constant
-function gfx.rect_fill(x, y, w, h, color) end
+---@param alpha? number  opacity in `0..1`; omit or `1.0` for opaque
+function gfx.rect_fill(x, y, w, h, color, alpha) end
 
 ---Draws a circle outline centered at (x, y).
 ---@param x     number  center x in game-space pixels
 ---@param y     number  center y in game-space pixels
 ---@param r     number  radius in pixels
 ---@param color integer  a gfx.COLOR_* constant
-function gfx.circ(x, y, r, color) end
+---@param alpha? number  opacity in `0..1`; omit or `1.0` for opaque
+function gfx.circ(x, y, r, color, alpha) end
 
 ---Draws a filled circle centered at (x, y).
 ---@param x     number  center x in game-space pixels
 ---@param y     number  center y in game-space pixels
 ---@param r     number  radius in pixels
 ---@param color integer  a gfx.COLOR_* constant
-function gfx.circ_fill(x, y, r, color) end
+---@param alpha? number  opacity in `0..1`; omit or `1.0` for opaque
+function gfx.circ_fill(x, y, r, color, alpha) end
 
 ---Draws a line from (x1, y1) to (x2, y2).
 ---@param x1    number  start x in game-space pixels
@@ -89,7 +94,8 @@ function gfx.circ_fill(x, y, r, color) end
 ---@param x2    number  end x in game-space pixels
 ---@param y2    number  end y in game-space pixels
 ---@param color integer  a gfx.COLOR_* constant
-function gfx.line(x1, y1, x2, y2, color) end
+---@param alpha? number  opacity in `0..1`; omit or `1.0` for opaque
+function gfx.line(x1, y1, x2, y2, color, alpha) end
 
 ---Extended `rect`: rectangle outline with a thickness param.
 ---@param x         number   left edge in game-space pixels
@@ -98,7 +104,8 @@ function gfx.line(x1, y1, x2, y2, color) end
 ---@param h         number   height in pixels
 ---@param thickness number   stroke thickness in pixels
 ---@param color     integer  a gfx.COLOR_* constant
-function gfx.rect_ex(x, y, w, h, thickness, color) end
+---@param alpha?    number   opacity in `0..1`; omit or `1.0` for opaque
+function gfx.rect_ex(x, y, w, h, thickness, color, alpha) end
 
 ---Extended `circ`: circle outline with a thickness param. Stroke is
 ---centered on the nominal radius so concentric `circ_ex` calls at
@@ -108,7 +115,8 @@ function gfx.rect_ex(x, y, w, h, thickness, color) end
 ---@param r         number   radius in pixels
 ---@param thickness number   stroke thickness in pixels
 ---@param color     integer  a gfx.COLOR_* constant
-function gfx.circ_ex(x, y, r, thickness, color) end
+---@param alpha?    number   opacity in `0..1`; omit or `1.0` for opaque
+function gfx.circ_ex(x, y, r, thickness, color, alpha) end
 
 ---Extended `line`: line with a thickness param.
 ---@param x1        number   start x in game-space pixels
@@ -117,7 +125,8 @@ function gfx.circ_ex(x, y, r, thickness, color) end
 ---@param y2        number   end y in game-space pixels
 ---@param thickness number   stroke thickness in pixels
 ---@param color     integer  a gfx.COLOR_* constant
-function gfx.line_ex(x1, y1, x2, y2, thickness, color) end
+---@param alpha?    number   opacity in `0..1`; omit or `1.0` for opaque
+function gfx.line_ex(x1, y1, x2, y2, thickness, color, alpha) end
 
 ---Draws a triangle outline from three points.
 ---@param x1    number   first vertex x in game-space pixels
@@ -127,7 +136,8 @@ function gfx.line_ex(x1, y1, x2, y2, thickness, color) end
 ---@param x3    number   third vertex x in game-space pixels
 ---@param y3    number   third vertex y in game-space pixels
 ---@param color integer  a gfx.COLOR_* constant
-function gfx.tri(x1, y1, x2, y2, x3, y3, color) end
+---@param alpha? number   opacity in `0..1`; omit or `1.0` for opaque
+function gfx.tri(x1, y1, x2, y2, x3, y3, color, alpha) end
 
 ---Draws a filled triangle from three points. Vertex order doesn't
 ---matter; winding is corrected internally.
@@ -138,13 +148,15 @@ function gfx.tri(x1, y1, x2, y2, x3, y3, color) end
 ---@param x3    number   third vertex x in game-space pixels
 ---@param y3    number   third vertex y in game-space pixels
 ---@param color integer  a gfx.COLOR_* constant
-function gfx.tri_fill(x1, y1, x2, y2, x3, y3, color) end
+---@param alpha? number   opacity in `0..1`; omit or `1.0` for opaque
+function gfx.tri_fill(x1, y1, x2, y2, x3, y3, color, alpha) end
 
 ---Sets a single pixel.
 ---@param x     number  x in game-space pixels
 ---@param y     number  y in game-space pixels
 ---@param color integer  a gfx.COLOR_* constant
-function gfx.px(x, y, color) end
+---@param alpha? number  opacity in `0..1`; omit or `1.0` for opaque
+function gfx.px(x, y, color, alpha) end
 
 ---Reads a pixel from the most recently rendered frame. Returns the
 ---RGB channels of the color at `(x, y)` plus the 1-based palette
@@ -175,7 +187,8 @@ function gfx.get_px(x, y) end
 ---@param index integer  one-based sprite index (1 = top-left cell)
 ---@param x     number   destination left edge in game-space pixels
 ---@param y     number   destination top edge in game-space pixels
-function gfx.spr(index, x, y) end
+---@param alpha? number   opacity in `0..1`; omit or `1.0` for opaque
+function gfx.spr(index, x, y, alpha) end
 
 ---Extended `spr`: draws a sprite with required flip flags, rotation,
 ---tint, and alpha. Rotation pivots around the center of the sprite;
@@ -221,7 +234,8 @@ function gfx.get_spr_px(index, x, y) end
 ---@param sh number  source rect height in pixels
 ---@param dx number  destination left edge in game-space pixels
 ---@param dy number  destination top edge in game-space pixels
-function gfx.sspr(sx, sy, sw, sh, dx, dy) end
+---@param alpha? number  opacity in `0..1`; omit or `1.0` for opaque
+function gfx.sspr(sx, sy, sw, sh, dx, dy, alpha) end
 
 ---Extended `sspr`: source rect stretched to (dw, dh) at the destination
 ---with required flip flags, rotation, tint, and alpha. Rotation pivots

@@ -791,47 +791,53 @@ mod tests {
             gfx.set("clear", scope.create_function(|_, _c: i32| Ok(()))?)?;
             gfx.set(
                 "rect",
-                scope.create_function(|_, _a: (f32, f32, f32, f32, i32)| Ok(()))?,
+                scope.create_function(|_, _a: (f32, f32, f32, f32, i32, Option<f32>)| Ok(()))?,
             )?;
             gfx.set(
                 "rect_fill",
-                scope.create_function(|_, _a: (f32, f32, f32, f32, i32)| Ok(()))?,
+                scope.create_function(|_, _a: (f32, f32, f32, f32, i32, Option<f32>)| Ok(()))?,
             )?;
             gfx.set(
                 "circ",
-                scope.create_function(|_, _a: (f32, f32, f32, i32)| Ok(()))?,
+                scope.create_function(|_, _a: (f32, f32, f32, i32, Option<f32>)| Ok(()))?,
             )?;
             gfx.set(
                 "circ_fill",
-                scope.create_function(|_, _a: (f32, f32, f32, i32)| Ok(()))?,
+                scope.create_function(|_, _a: (f32, f32, f32, i32, Option<f32>)| Ok(()))?,
             )?;
             gfx.set(
                 "line",
-                scope.create_function(|_, _a: (f32, f32, f32, f32, i32)| Ok(()))?,
+                scope.create_function(|_, _a: (f32, f32, f32, f32, i32, Option<f32>)| Ok(()))?,
             )?;
             gfx.set(
                 "rect_ex",
-                scope.create_function(|_, _a: (f32, f32, f32, f32, f32, i32)| Ok(()))?,
+                scope
+                    .create_function(|_, _a: (f32, f32, f32, f32, f32, i32, Option<f32>)| Ok(()))?,
             )?;
             gfx.set(
                 "circ_ex",
-                scope.create_function(|_, _a: (f32, f32, f32, f32, i32)| Ok(()))?,
+                scope.create_function(|_, _a: (f32, f32, f32, f32, i32, Option<f32>)| Ok(()))?,
             )?;
             gfx.set(
                 "line_ex",
-                scope.create_function(|_, _a: (f32, f32, f32, f32, f32, i32)| Ok(()))?,
+                scope
+                    .create_function(|_, _a: (f32, f32, f32, f32, f32, i32, Option<f32>)| Ok(()))?,
             )?;
             gfx.set(
                 "tri",
-                scope.create_function(|_, _a: (f32, f32, f32, f32, f32, f32, i32)| Ok(()))?,
+                scope.create_function(
+                    |_, _a: (f32, f32, f32, f32, f32, f32, i32, Option<f32>)| Ok(()),
+                )?,
             )?;
             gfx.set(
                 "tri_fill",
-                scope.create_function(|_, _a: (f32, f32, f32, f32, f32, f32, i32)| Ok(()))?,
+                scope.create_function(
+                    |_, _a: (f32, f32, f32, f32, f32, f32, i32, Option<f32>)| Ok(()),
+                )?,
             )?;
             gfx.set(
                 "text",
-                scope.create_function(|_, _a: (LuaString, f32, f32, i32)| Ok(()))?,
+                scope.create_function(|_, _a: (LuaString, f32, f32, i32, Option<f32>)| Ok(()))?,
             )?;
             gfx.set(
                 "text_ex",
@@ -839,7 +845,7 @@ mod tests {
             )?;
             gfx.set(
                 "spr",
-                scope.create_function(|_, _a: (i32, f32, f32)| Ok(()))?,
+                scope.create_function(|_, _a: (i32, f32, f32, Option<f32>)| Ok(()))?,
             )?;
             gfx.set(
                 "spr_ex",
@@ -848,7 +854,8 @@ mod tests {
             )?;
             gfx.set(
                 "sspr",
-                scope.create_function(|_, _a: (f32, f32, f32, f32, f32, f32)| Ok(()))?,
+                scope
+                    .create_function(|_, _a: (f32, f32, f32, f32, f32, f32, Option<f32>)| Ok(()))?,
             )?;
             type SsprExArgs = (
                 f32,
@@ -871,7 +878,7 @@ mod tests {
             )?;
             gfx.set(
                 "px",
-                scope.create_function(|_, _a: (f32, f32, i32)| Ok(()))?,
+                scope.create_function(|_, _a: (f32, f32, i32, Option<f32>)| Ok(()))?,
             )?;
 
             let input: LuaTable = lua.globals().get("input")?;

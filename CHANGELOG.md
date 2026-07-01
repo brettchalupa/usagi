@@ -7,6 +7,11 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
+- Every `gfx` drawing call now takes an optional trailing `alpha` (opacity in
+  `0..1`); omit it for opaque. Covers the shape primitives (`rect`, `rect_fill`,
+  `rect_ex`, `circ`, `circ_fill`, `circ_ex`, `line`, `line_ex`, `tri`,
+  `tri_fill`, `px`) plus `text`, `spr`, and `sspr`. See the `shapes` example.
+  See [#53](https://codeberg.org/brettchalupa/usagi/issues/53)
 - `usagi init` now creates empty `sfx/`, `music/`, and `data/` dirs so new
   projects show where sound and save files go; see
   [#32](https://codeberg.org/brettchalupa/usagi/issues/32)

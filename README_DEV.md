@@ -223,24 +223,24 @@ _draw(dt)
 -- Graphics
 
 gfx.clear(color)
-gfx.text(text, x, y, color)
+gfx.text(text, x, y, color, alpha?)
 gfx.text_ex(text, x, y, scale, rotation, color, alpha)
-gfx.rect(x, y, w, h, color)
-gfx.rect_fill(x, y, w, h, color)
-gfx.rect_ex(x, y, w, h, thickness, color)
-gfx.circ(x, y, r, color)
-gfx.circ_fill(x, y, r, color)
-gfx.circ_ex(x, y, r, thickness, color)
-gfx.line(x1, y1, x2, y2, color)
-gfx.line_ex(x1, y1, x2, y2, thickness, color)
-gfx.tri(x1, y1, x2, y2, x3, y3, color)
-gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)
-gfx.px(x, y, color)
+gfx.rect(x, y, w, h, color, alpha?)
+gfx.rect_fill(x, y, w, h, color, alpha?)
+gfx.rect_ex(x, y, w, h, thickness, color, alpha?)
+gfx.circ(x, y, r, color, alpha?)
+gfx.circ_fill(x, y, r, color, alpha?)
+gfx.circ_ex(x, y, r, thickness, color, alpha?)
+gfx.line(x1, y1, x2, y2, color, alpha?)
+gfx.line_ex(x1, y1, x2, y2, thickness, color, alpha?)
+gfx.tri(x1, y1, x2, y2, x3, y3, color, alpha?)
+gfx.tri_fill(x1, y1, x2, y2, x3, y3, color, alpha?)
+gfx.px(x, y, color, alpha?)
 gfx.get_px(x, y) -- read screen pixel: r, g, b, palette_index; expensive on web
-gfx.spr(index, x, y)
+gfx.spr(index, x, y, alpha?)
 gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)
 gfx.get_spr_px(index, x, y) -- read sprite-sheet pixel: r, g, b, palette_index
-gfx.sspr(sx, sy, sw, sh, dx, dy)
+gfx.sspr(sx, sy, sw, sh, dx, dy, alpha?)
 gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha)
 gfx.shader_set(name)
 gfx.shader_uniform(name, value)
@@ -476,30 +476,35 @@ to `true` in `_config`.
 Draws to the screen. Positions are in game-space pixels (320×180). Colors are
 palette slot indices `1..16`; use the named constants.
 
+Every `gfx` drawing call below takes an optional trailing `alpha` (opacity in
+`0..1`); omit it or pass `1.0` for a fully opaque draw. This includes `text`,
+`spr`, and `sspr` as well as the shape primitives.
+
 - `gfx.clear(color)` — fill the screen.
-- `gfx.rect(x, y, w, h, color)` — 1-pixel rectangle outline.
-- `gfx.rect_fill(x, y, w, h, color)` — filled rectangle.
-- `gfx.rect_ex(x, y, w, h, thickness, color)` — rectangle outline with a custom
-  stroke thickness in pixels.
-- `gfx.circ(x, y, r, color)` — 1-pixel circle outline centered at `(x, y)`.
-- `gfx.circ_fill(x, y, r, color)` — filled circle centered at `(x, y)`.
-- `gfx.circ_ex(x, y, r, thickness, color)` — circle outline with a custom stroke
-  thickness. Stroke is centered on the nominal radius, so stacking three
-  `circ_ex(x, y, r, 1, c)` / `circ_ex(x, y, r-1, 1, c)` /
+- `gfx.rect(x, y, w, h, color, alpha?)` — 1-pixel rectangle outline.
+- `gfx.rect_fill(x, y, w, h, color, alpha?)` — filled rectangle.
+- `gfx.rect_ex(x, y, w, h, thickness, color, alpha?)` — rectangle outline with a
+  custom stroke thickness in pixels.
+- `gfx.circ(x, y, r, color, alpha?)` — 1-pixel circle outline centered at
+  `(x, y)`.
+- `gfx.circ_fill(x, y, r, color, alpha?)` — filled circle centered at `(x, y)`.
+- `gfx.circ_ex(x, y, r, thickness, color, alpha?)` — circle outline with a
+  custom stroke thickness. Stroke is centered on the nominal radius, so stacking
+  three `circ_ex(x, y, r, 1, c)` / `circ_ex(x, y, r-1, 1, c)` /
   `circ_ex(x, y, r-2, 1, c)` calls produces flush concentric rings with no gaps
   — fixes the rounding-gap issue you get layering plain `gfx.circ` calls at
   adjacent radii.
-- `gfx.line(x1, y1, x2, y2, color)` — 1-pixel line from `(x1, y1)` to
+- `gfx.line(x1, y1, x2, y2, color, alpha?)` — 1-pixel line from `(x1, y1)` to
   `(x2, y2)`.
-- `gfx.line_ex(x1, y1, x2, y2, thickness, color)` — line with a custom thickness
-  in pixels.
-- `gfx.tri(x1, y1, x2, y2, x3, y3, color)` — 1-pixel triangle outline from three
-  points. For a thicker outline, draw three `gfx.line_ex` calls.
-- `gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)` — filled triangle from three
-  points. Vertex order doesn't matter; the winding is corrected for you so
+- `gfx.line_ex(x1, y1, x2, y2, thickness, color, alpha?)` — line with a custom
+  thickness in pixels.
+- `gfx.tri(x1, y1, x2, y2, x3, y3, color, alpha?)` — 1-pixel triangle outline
+  from three points. For a thicker outline, draw three `gfx.line_ex` calls.
+- `gfx.tri_fill(x1, y1, x2, y2, x3, y3, color, alpha?)` — filled triangle from
+  three points. Vertex order doesn't matter; the winding is corrected for you so
   arrows, spaceship nosecones, and the like just draw regardless of how you laid
   out the points.
-- `gfx.px(x, y, color)` — set a single pixel.
+- `gfx.px(x, y, color, alpha?)` — set a single pixel.
 - `gfx.get_px(x, y)` returns `(r, g, b, palette_index)` for the pixel at
   `(x, y)` on the most recently rendered frame. `palette_index` is the 1-based
   slot for an exact RGB match or `nil` for off-palette colors. All four returns
@@ -510,13 +515,13 @@ palette slot indices `1..16`; use the named constants.
   color, then consult `gfx.get_px` on the proposed destination in `_update`.
   **PERFORMANCE**: this function is expensive, in particular on web. It will
   slow down your game by ~10% if you call it even just once. Use it with care.
-- `gfx.text(text, x, y, color)` — bundled monogram font (5×7 pixel font, 12 px
-  line height; see Credits below). Renders the engine's default Latin/Cyrillic/
-  Greek glyph set, or your custom font if a `font.png` is present at the project
-  root (see "Custom fonts" below). To measure text dimensions, use
-  `usagi.measure_text` — it lives on `usagi` rather than `gfx` because
-  measurement is a pure utility (no render side-effect) and is callable from any
-  callback, including `_init`.
+- `gfx.text(text, x, y, color, alpha?)` — bundled monogram font (5×7 pixel font,
+  12 px line height; see Credits below). Renders the engine's default
+  Latin/Cyrillic/ Greek glyph set, or your custom font if a `font.png` is
+  present at the project root (see "Custom fonts" below). To measure text
+  dimensions, use `usagi.measure_text` — it lives on `usagi` rather than `gfx`
+  because measurement is a pure utility (no render side-effect) and is callable
+  from any callback, including `_init`.
 - `gfx.text_ex(text, x, y, scale, rotation, color, alpha)` — extended `text`:
   - `scale` (number) — font-size multiplier. **Use integers** (`1`, `2`, `3`)
     for crisp text since atlas-baked fonts use POINT filtering and integer
@@ -527,8 +532,9 @@ palette slot indices `1..16`; use the named constants.
     Useful for juice: wiggling subtitles, tilted labels, score popups.
   - `alpha` (number) — opacity in `0..1`. `1.0` is opaque, `0.0` is invisible.
     Use for fade-in/out, dimmed UI, ghosted previews.
-- `gfx.spr(index, x, y)` — draw the 16×16 sprite at `index` (1 = top-left) from
-  `sprites.png`. Native size, no flips, no rotation, no tint, full opacity.
+- `gfx.spr(index, x, y, alpha?)` — draw the 16×16 sprite at `index` (1 =
+  top-left) from `sprites.png`. Native size, no flips, no rotation, no tint;
+  opaque unless you pass `alpha`.
 - `gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)` — extended
   `spr`. All eight args required:
   - `flip_x` / `flip_y` (boolean) — mirror left/right or top/bottom.
@@ -554,8 +560,9 @@ palette slot indices `1..16`; use the named constants.
   sprite reads are deterministic and unaffected by draw order: useful for
   pixel-perfect sprite collision and for levels where you paint the layout into
   the sheet and scan it at startup to spawn entities.
-- `gfx.sspr(sx, sy, sw, sh, dx, dy)` — draw an arbitrary `(sx, sy, sw, sh)`
-  rectangle from `sprites.png` at `(dx, dy)` at original size.
+- `gfx.sspr(sx, sy, sw, sh, dx, dy, alpha?)` — draw an arbitrary
+  `(sx, sy, sw, sh)` rectangle from `sprites.png` at `(dx, dy)` at original
+  size; opaque unless you pass `alpha`.
 - `gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha)`
   — extended `sspr`: stretches to `(dw, dh)`, flips per the booleans, then
   rotates / tints / sets alpha. Same semantics as `spr_ex`. All thirteen args
