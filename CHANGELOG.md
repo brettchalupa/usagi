@@ -40,6 +40,10 @@ Features:
 
 Fixes:
 
+- Warn at load when `sprites.png` exceeds a safe texture dimension (8192px per
+  axis). Oversized sheets get clamped by the GPU and render sprites past the
+  limit as black squares; the warning explains the cause and the grid-layout
+  fix; see [#22](https://codeberg.org/brettchalupa/usagi/issues/22)
 - `usagi loveify` now refuses when the destination is inside the source project
   instead of recursing until it errors; see
   [#14](https://codeberg.org/brettchalupa/usagi/issues/14)

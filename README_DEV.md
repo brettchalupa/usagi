@@ -405,6 +405,13 @@ Supported fields:
   both axes; the window icon falls back to the default when the layout doesn't
   fit. The value also flows into `usagi.SPRITE_SIZE` so Lua code can read the
   active cell size. Optional.
+
+  Keep `sprites.png` within **8192px on each axis**. GPUs cap texture dimensions
+  (usually 16384 on desktop, but often 8192 or less on web and older hardware);
+  a sheet past the limit uploads clamped, so any sprite sourced beyond it
+  renders as a black square with no error. If you have hundreds of frames, lay
+  them out as a grid of rows rather than one very wide row. Usagi logs a warning
+  at load when a sheet is too large.
 - `game_width` (default `320`) and `game_height` (default `180`): override the
   game's render resolution. The internal render target is sized to these
   dimensions; the window upscales to fit, preserving aspect ratio. Tested range

@@ -132,6 +132,17 @@ pub fn clear_user_modules(lua: &Lua, vfs: &dyn VirtualFs) -> LuaResult<()> {
 /// CPU-side pixel snapshot for `gfx.get_spr_px` reads. Both halves come
 /// from the same decode pass, so the CPU mirror is guaranteed to
 /// match what got uploaded.
+/// Conservative cross-platform ceiling for either sprite-sheet
+/// dimension. Desktop GPUs usually allow `GL_MAX_TEXTURE_SIZE` = 16384,
+/// but WebGL and older/mobile GPUs commonly cap at 8192 (or less). A
+/// sheet past the GPU limit uploads clamped, so any sprite sourced
+/// beyond it samples black with no error.
+///
+/// sola-raylib-upstream: this is a static guess. Replace with the real
+/// `GL_MAX_TEXTURE_SIZE` (via a sola-raylib getter) once a release
+/// exposes it, then warn against the actual per-GPU limit.
+const MAX_SAFE_SPRITE_DIM: i32 = 8192;
+
 fn load_texture_and_pixels(
     rl: &mut RaylibHandle,
     thread: &RaylibThread,
@@ -140,6 +151,15 @@ fn load_texture_and_pixels(
     let image = Image::load_image_from_mem(".png", bytes)
         .map_err(|e| crate::msg::err!("failed to decode sprites.png: {e}"))
         .ok()?;
+    if image.width > MAX_SAFE_SPRITE_DIM || image.height > MAX_SAFE_SPRITE_DIM {
+        crate::msg::warn!(
+            "sprites.png is {}x{}; dimensions over {MAX_SAFE_SPRITE_DIM}px can exceed the GPU \
+             texture limit and render as black past that point (worse on web). \
+             Reshape a very wide/tall sheet into a grid of rows.",
+            image.width,
+            image.height,
+        );
+    }
     let pixels = crate::pixels::Pixels::from_image(&image);
     let texture = rl
         .load_texture_from_image(thread, &image)
