@@ -1402,6 +1402,7 @@ impl Session {
     }
 
     fn reset_game(&mut self) {
+        self.pause.close();
         self.effects.borrow_mut().reset();
         // Drain menu items registered on the OLD VM before we drop it.
         crate::menu_items::drain_into_lua(&self.menu_items, &self.lua);
@@ -1467,7 +1468,7 @@ impl Session {
             }
         };
         if !stay_open {
-            self.pause.open = false;
+            self.pause.close();
         }
     }
 

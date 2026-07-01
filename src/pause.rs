@@ -246,9 +246,7 @@ impl PauseMenu {
         if inputs.toggle {
             return match self.view {
                 View::Top => {
-                    self.open = false;
-                    self.key_config = None;
-                    self.pad_config = None;
+                    self.close();
                     Some(PauseAction::Resume)
                 }
                 View::SettingsMenu => {
@@ -289,6 +287,14 @@ impl PauseMenu {
             View::PadConfig => self.handle_pad_config(inputs, pc),
             View::ConfirmClearSave => self.handle_confirm_clear(inputs),
         }
+    }
+
+    /// Closes the menu and resets it to a fresh top-view state.
+    pub fn close(&mut self) {
+        self.open = false;
+        self.view = View::Top;
+        self.key_config = None;
+        self.pad_config = None;
     }
 
     pub fn just_opened(&self) -> bool {
@@ -754,6 +760,25 @@ mod tests {
         step(&mut m, &s, &k, btn1());
         assert_eq!(m.view, View::ConfirmClearSave);
         assert_eq!(step(&mut m, &s, &k, btn2()), None);
+        assert_eq!(m.view, View::Top);
+    }
+
+    #[test]
+    fn close_resets_open_and_view() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default();
+        let k = Keymap::default();
+        // Open and dive into a sub-view so we can prove close() resets both.
+        step(&mut m, &s, &k, toggle());
+        for _ in 0..item_clear_0() {
+            step(&mut m, &s, &k, down());
+        }
+        step(&mut m, &s, &k, btn1());
+        assert!(m.open);
+        assert_eq!(m.view, View::ConfirmClearSave);
+
+        m.close();
+        assert!(!m.open);
         assert_eq!(m.view, View::Top);
     }
 

@@ -19,6 +19,8 @@ Fixes:
 - Tear down the entire Lua VM on game reset (a.k.a. hard reload) so there aren't
   lingering variables/changes; this better matches dev expectations; see
   [#44](https://codeberg.org/brettchalupa/usagi/issues/44)
+- Close pause menu when resetting with hotkey (e.g., Ctrl+R); see
+  [#65](https://codeberg.org/brettchalupa/usagi/issues/65)
 
 ## v1.1.1 - June 10, 2026
 

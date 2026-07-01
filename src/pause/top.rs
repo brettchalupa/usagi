@@ -93,7 +93,7 @@ impl PauseMenu {
     ) -> Option<PauseAction> {
         let total = top_count(menu_items.len());
         if inputs.btn2 {
-            self.open = false;
+            self.close();
             return Some(PauseAction::Resume);
         }
         if inputs.up {
@@ -110,7 +110,7 @@ impl PauseMenu {
             let row = resolve_row(self.top_selected, menu_items.len())?;
             return match row {
                 TopRow::Continue => {
-                    self.open = false;
+                    self.close();
                     Some(PauseAction::Resume)
                 }
                 TopRow::MenuItem(idx) => Some(PauseAction::FireMenuItem(idx)),
@@ -125,7 +125,7 @@ impl PauseMenu {
                     None
                 }
                 TopRow::Reset => {
-                    self.open = false;
+                    self.close();
                     Some(PauseAction::ResetGame)
                 }
                 #[cfg(not(target_os = "emscripten"))]
