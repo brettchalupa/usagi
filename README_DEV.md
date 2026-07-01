@@ -280,6 +280,7 @@ input.SOURCE_KEYBOARD, input.SOURCE_GAMEPAD
 -- Input -- mouse
 
 input.mouse()
+input.mouse_over()
 input.mouse_held(button)
 input.mouse_pressed(button)
 input.mouse_released(button)
@@ -848,6 +849,8 @@ gfx.text("Press " .. btn .. " to jump", 10, 10, gfx.COLOR_WHITE)
   `0..usagi.GAME_W` / `0..usagi.GAME_H`, so a bounds check is the idiomatic way
   to detect "cursor is off the play area." See
   [`examples/mouse`](https://github.com/brettchalupa/usagi/blob/main/examples/mouse/main.lua).
+- `input.mouse_over()` — true when the cursor is over the drawn game area; false
+  when it's outside the window or over the letterbox bars.
 - `input.mouse_held(button)` — true while `button` is held.
 - `input.mouse_pressed(button)` — true the frame `button` first went down.
 - `input.mouse_released(button)` — true the frame `button` first went up.

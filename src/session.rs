@@ -255,6 +255,13 @@ fn register_input_api(lua: &Lua, bridge: &InputBridge) -> LuaResult<()> {
     input.set("mouse", wrap(lua, mouse, "input.mouse", &[])?)?;
 
     let s = Rc::clone(&bridge.state);
+    let mouse_over = lua.create_function(move |_, ()| Ok(s.get().mouse_over()))?;
+    input.set(
+        "mouse_over",
+        wrap(lua, mouse_over, "input.mouse_over", &[])?,
+    )?;
+
+    let s = Rc::clone(&bridge.state);
     let mouse_held =
         lua.create_function(move |_, button: u32| Ok(s.get().mouse_button_down(button)))?;
     input.set(

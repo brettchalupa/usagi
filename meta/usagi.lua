@@ -491,6 +491,13 @@ function input.last_source() end
 ---@return integer y  game-space y in pixels
 function input.mouse() end
 
+---True when the cursor is over the drawn game area. Returns false when
+---the cursor is outside the window or over the letterbox bars (so it
+---lines up with the in-bounds range of `input.mouse`). Handy for
+---gating hover/click handling to the play area.
+---@return boolean
+function input.mouse_over() end
+
 ---Returns true while the given mouse button is held.
 ---@param button integer  one of input.MOUSE_LEFT / input.MOUSE_RIGHT / input.MOUSE_MIDDLE
 ---@return boolean

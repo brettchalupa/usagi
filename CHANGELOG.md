@@ -7,6 +7,9 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
+- `input.mouse_over()` returns true when the cursor is over the drawn game area,
+  false when it's outside the window or over the letterbox bars; see
+  [#41](https://codeberg.org/brettchalupa/usagi/issues/41)
 - Every `gfx` drawing call now takes an optional trailing `alpha` (opacity in
   `0..1`); omit it for opaque. Covers the shape primitives (`rect`, `rect_fill`,
   `rect_ex`, `circ`, `circ_fill`, `circ_ex`, `line`, `line_ex`, `tri`,

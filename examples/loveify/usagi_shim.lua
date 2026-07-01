@@ -626,6 +626,15 @@ function input.mouse()
   return cx, cy
 end
 
+-- True when the cursor is over the drawn game area: inside the window
+-- (hasMouseFocus mirrors Usagi's is_cursor_on_screen check) and within
+-- the canvas bounds rather than the letterbox bars.
+function input.mouse_over()
+  if not love.window.hasMouseFocus() then return false end
+  local cx, cy = input.mouse()
+  return cx >= 0 and cy >= 0 and cx < usagi.GAME_W and cy < usagi.GAME_H
+end
+
 local last_mouse_state = {}
 
 function input.mouse_held(button)

@@ -35,10 +35,11 @@ end
 
 function _update(dt)
   local mx, my = input.mouse()
-  -- Mouse coords can land outside the game viewport when the cursor is
-  -- over a letterbox bar. Skip emitting in that case so sparks don't
-  -- spawn off-screen.
-  local in_bounds = mx >= 0 and mx < usagi.GAME_W and my >= 0 and my < usagi.GAME_H
+  -- The cursor can sit outside the window or over a letterbox bar, where
+  -- mouse coords land off the play area. input.mouse_over() is true only
+  -- when the cursor is over the drawn game area, so sparks never spawn
+  -- off-screen.
+  local in_bounds = input.mouse_over()
 
   if in_bounds then
     -- Steady trickle while moving the cursor inside the play area.
@@ -111,6 +112,9 @@ function _draw(_dt)
   end
 
   gfx.text("Mouse: " .. mx .. ", " .. my, 4, 4, gfx.COLOR_WHITE)
+  local over = input.mouse_over()
+  gfx.text("mouse_over: " .. tostring(over), 4, 44,
+    over and gfx.COLOR_GREEN or gfx.COLOR_RED)
   gfx.text("Left click: burst   Right click: clear", 4, 14, gfx.COLOR_LIGHT_GRAY)
   local b3 = input.mapping_for(input.BTN3) or "BTN3"
   gfx.text(b3 .. " toggles OS cursor", 4, 24, gfx.COLOR_LIGHT_GRAY)

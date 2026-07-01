@@ -882,6 +882,14 @@ pub fn screen_to_game(
     (gx, gy)
 }
 
+/// True when game-space coords `(gx, gy)` fall within the drawn game
+/// area. Coords outside `0..res.w` / `0..res.h` mean the cursor is over
+/// a letterbox bar (or off-window), where `screen_to_game` returns
+/// out-of-range values.
+pub fn point_in_game_area(gx: i32, gy: i32, res: crate::config::Resolution) -> bool {
+    gx >= 0 && gy >= 0 && gx < res.w as i32 && gy < res.h as i32
+}
+
 fn mouse_button_from_u32(button: u32) -> Option<MouseButton> {
     match button {
         MOUSE_LEFT => Some(MouseButton::MOUSE_BUTTON_LEFT),
@@ -951,6 +959,10 @@ pub struct InputState {
     mouse_middle_released: bool,
     mouse_x: i32,
     mouse_y: i32,
+    /// True when the cursor is inside the window *and* over the drawn
+    /// game area (not the letterbox bars). Precomputed in `sample` so
+    /// the `input.mouse_over` closure stays a cheap field read.
+    mouse_over: bool,
     /// Per-frame vertical scroll delta. Positive when scrolled up this
     /// frame, negative when down, 0 when no scroll. Floats supported
     /// (trackpads emit fractional per-frame values).
@@ -1001,6 +1013,9 @@ impl InputState {
         let sw = rl.get_screen_width();
         let sh = rl.get_screen_height();
         let (mx, my) = screen_to_game(m.x, m.y, sw, sh, res, pixel_perfect);
+        // Cursor must be inside the window (raylib check) and land on the
+        // game area rather than a letterbox bar.
+        let mouse_over = rl.is_cursor_on_screen() && point_in_game_area(mx, my, res);
         let (last_source, fired_pad) = detect_source(rl, keymap, pad_map, prior_source);
         // Carry the slot forward when nothing fired so a stretch of
         // idle frames doesn't wipe the glyph identity.
@@ -1048,6 +1063,7 @@ impl InputState {
             mouse_middle_released: rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_MIDDLE),
             mouse_x: mx,
             mouse_y: my,
+            mouse_over,
             mouse_scroll: rl.get_mouse_wheel_move(),
             mapping,
             last_source,
@@ -1144,6 +1160,10 @@ impl InputState {
 
     pub fn mouse_position(&self) -> (i32, i32) {
         (self.mouse_x, self.mouse_y)
+    }
+
+    pub fn mouse_over(&self) -> bool {
+        self.mouse_over
     }
 
     /// Per-frame vertical scroll delta. Positive when scrolled up this
@@ -1718,6 +1738,19 @@ mod tests {
         let (sw, sh) = (1920, 1080);
         let res = crate::config::Resolution { w: 480.0, h: 270.0 };
         assert_eq!(screen_to_game(960.0, 540.0, sw, sh, res, false), (240, 135));
+    }
+
+    #[test]
+    fn point_in_game_area_bounds() {
+        let res = crate::config::Resolution { w: 320.0, h: 180.0 };
+        assert!(point_in_game_area(0, 0, res));
+        assert!(point_in_game_area(319, 179, res));
+        assert!(point_in_game_area(160, 90, res));
+        // Off the edges / into the letterbox.
+        assert!(!point_in_game_area(-1, 90, res));
+        assert!(!point_in_game_area(90, -1, res));
+        assert!(!point_in_game_area(320, 90, res));
+        assert!(!point_in_game_area(90, 180, res));
     }
 
     fn sampled_with(actions_down: u32, keys_held: u128) -> InputState {
