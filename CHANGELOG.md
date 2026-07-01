@@ -21,6 +21,9 @@ Fixes:
   [#44](https://codeberg.org/brettchalupa/usagi/issues/44)
 - Close pause menu when resetting with hotkey (e.g., Ctrl+R); see
   [#65](https://codeberg.org/brettchalupa/usagi/issues/65)
+- Set 0.1s max on `dt` so that there aren't weird gaps when resuming a game
+  after OS pause (browser tab not focused, computer wakes from sleep, etc.); see
+  [#63](https://codeberg.org/brettchalupa/usagi/issues/63)
 
 ## v1.1.1 - June 10, 2026
 

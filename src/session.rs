@@ -37,6 +37,10 @@ const GC_PAUSE: std::os::raw::c_int = 250;
 const GC_STEPMUL: std::os::raw::c_int = 200;
 const GC_STEPSIZE: std::os::raw::c_int = 11200;
 
+// Cap per-frame dt so a stalled loop (backgrounded web tab, laptop sleep,
+// debugger pause) resumes with one normal step instead of a huge jump.
+const MAX_FRAME_DT: f32 = 0.1;
+
 /// Argument tuple for `gfx.sspr_ex`: `(sx, sy, sw, sh, dx, dy, dw, dh,
 /// flip_x, flip_y, rotation_rad, tint_idx, alpha)`. Aliased so the
 /// closure signature stays readable.
@@ -1104,7 +1108,7 @@ impl Session {
         self.apply_lua_fullscreen_request();
         self.handle_global_shortcuts();
 
-        let dt = self.rl.get_frame_time();
+        let dt = self.rl.get_frame_time().min(MAX_FRAME_DT);
         if self.config.pause_menu {
             let menu_labels = crate::menu_items::snapshot_labels(&self.menu_items);
             let pause_action = self.pause.update(
@@ -1209,7 +1213,7 @@ impl Session {
 
         #[cfg(not(target_os = "emscripten"))]
         self.recorder
-            .capture(&self.rt, self.rl.get_frame_time(), self.config.resolution);
+            .capture(&self.rt, dt, self.config.resolution);
 
         // Snapshot the just-rendered frame for next tick's `gfx.get_px`
         // reads. Pixel reads always reflect the most recently finished
