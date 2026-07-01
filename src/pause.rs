@@ -319,12 +319,15 @@ impl PauseMenu {
             res.h as i32,
             palette::engine_color(Pal::Black).alpha(0.8),
         );
-        let border_padding = 4;
-        d.draw_rectangle_lines(
-            border_padding,
-            border_padding,
-            res.w as i32 - border_padding * 2,
-            res.h as i32 - border_padding * 2,
+        let border_padding = 4.0;
+        d.draw_rectangle_lines_ex(
+            Rectangle {
+                x: border_padding,
+                y: border_padding,
+                width: res.w - border_padding * 2.0,
+                height: res.h - border_padding * 2.0,
+            },
+            1.0,
             palette::engine_color(Pal::White),
         );
 

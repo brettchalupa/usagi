@@ -53,7 +53,16 @@ impl PauseMenu {
             if on {
                 d.draw_rectangle(x as i32, y as i32, w as i32, w as i32, white);
             } else {
-                d.draw_rectangle_lines(x as i32, y as i32, w as i32, w as i32, white);
+                d.draw_rectangle_lines_ex(
+                    Rectangle {
+                        x: x.round(),
+                        y: y.round(),
+                        width: w.round(),
+                        height: w.round(),
+                    },
+                    1.0,
+                    white,
+                );
             }
         };
 

@@ -53,11 +53,14 @@ pub(super) fn draw_volume_bars<D: RaylibDraw>(
                 color,
             );
         } else {
-            d.draw_rectangle_lines(
-                cx as i32,
-                cell_top as i32,
-                cell_w as i32,
-                cell_h as i32,
+            d.draw_rectangle_lines_ex(
+                Rectangle {
+                    x: cx.round(),
+                    y: cell_top.round(),
+                    width: cell_w.round(),
+                    height: cell_h.round(),
+                },
+                1.0,
                 color,
             );
         }
