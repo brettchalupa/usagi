@@ -22,7 +22,10 @@ pub fn game_view_transform(
 ) -> (f32, f32, f32) {
     let mut scale = (screen_w as f32 / res.w).min(screen_h as f32 / res.h);
     if pixel_perfect {
-        scale = scale.floor();
+        // Nudge before flooring so sub-pixel rounding in the reported window
+        // size under fractional display scaling (e.g. 639px for a 640px 2x
+        // window) doesn't drop 1.997 to 1x.
+        scale = (scale + 0.02).floor();
     }
     if scale < 1.0 {
         scale = 1.0;
@@ -277,5 +280,36 @@ mod tests {
         };
         let out = wrap_to_width(measure, "iiii m", 4.0);
         assert_eq!(out, vec!["iiii", "m"]);
+    }
+
+    const RES: Resolution = Resolution { w: 320.0, h: 180.0 };
+
+    #[test]
+    fn pixel_perfect_tolerates_fractional_rounding() {
+        // 639px reported for a 640px 2x window (fractional scaling) must
+        // still land on 2x, not floor 1.997 down to 1x.
+        let (scale, _, _) = game_view_transform(639, 360, RES, true);
+        assert_eq!(scale, 2.0);
+    }
+
+    #[test]
+    fn pixel_perfect_exact_multiple_is_integer() {
+        let (scale, _, _) = game_view_transform(640, 360, RES, true);
+        assert_eq!(scale, 2.0);
+    }
+
+    #[test]
+    fn pixel_perfect_does_not_overshoot_small_window() {
+        // A genuinely ~1.5x window stays at 1x, not bumped to 2x.
+        let (scale, _, _) = game_view_transform(500, 300, RES, true);
+        assert_eq!(scale, 1.0);
+    }
+
+    #[test]
+    fn non_pixel_perfect_keeps_fractional_scale() {
+        let (scale, _, _) = game_view_transform(640, 360, RES, false);
+        assert_eq!(scale, 2.0);
+        let (scale, _, _) = game_view_transform(480, 270, RES, false);
+        assert_eq!(scale, 1.5);
     }
 }

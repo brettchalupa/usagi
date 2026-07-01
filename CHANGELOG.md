@@ -33,6 +33,8 @@ Fixes:
   that scenario; see [#63](https://codeberg.org/brettchalupa/usagi/issues/63)
 - Don't crash when attempting to reading a file that doesn't exist; see
   [#30](https://codeberg.org/brettchalupa/usagi/issues/30)
+- Fractional scaling with pixel_perfect doesn't drop 1.99x to 1, it now nudges
+  it up to 2x; [see #47](https://codeberg.org/brettchalupa/usagi/issues/47)
 
 ## v1.1.1 - June 10, 2026
 

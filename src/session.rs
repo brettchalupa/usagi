@@ -930,6 +930,29 @@ impl Session {
             .load_render_texture(&thread, res.w as u32, res.h as u32)
             .unwrap();
 
+        // Boot diagnostic for display/scaling bug reports: game res, logical
+        // window vs physical framebuffer, DPI scale, and the resulting fit.
+        let dpi = rl.get_window_scale_dpi();
+        let (fit, _, _) = game_view_transform(
+            rl.get_screen_width(),
+            rl.get_screen_height(),
+            res,
+            config.pixel_perfect,
+        );
+        crate::msg::info!(
+            "display: game {}x{}, window {}x{} logical, {}x{} framebuffer, dpi {:.2}x{:.2}, pixel_perfect {}, fit {}x",
+            res.w as i32,
+            res.h as i32,
+            rl.get_screen_width(),
+            rl.get_screen_height(),
+            rl.get_render_width(),
+            rl.get_render_height(),
+            dpi.x,
+            dpi.y,
+            config.pixel_perfect,
+            fit,
+        );
+
         // Load the font before `_init` runs so we can register
         // `usagi.measure_text` against a leaked `&'static Font`. That
         // makes the function callable from any callback (including

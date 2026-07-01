@@ -213,4 +213,5 @@ examples:
     just example localization
     just example to_json
     just example bunnymark
+    just example pixel_perfect
     USAGI_VERBOSE=1 just example diagnostics
