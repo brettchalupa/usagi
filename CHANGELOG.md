@@ -12,6 +12,8 @@ Fixes:
 - Pause menu rectangle outlines properly render top-right corner on some GPUs
   with fractional scaling; see
   [#60](https://codeberg.org/brettchalupa/usagi/issues/60)
+- Alpha values now properly render; see
+  [#51](https://codeberg.org/brettchalupa/usagi/issues/51)
 
 ## v1.1.1 - June 10, 2026
 

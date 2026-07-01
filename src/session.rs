@@ -70,6 +70,40 @@ fn tinted(tint_idx: i32, alpha: f32) -> Color {
     c
 }
 
+/// Draw semi-transparent things into the render target correctly.
+///
+/// Raylib by default blends the texture's alpha channel the same
+/// way it blends color, so drawing something semi-transparent makes the
+/// texture itself partly transparent there, leading to alpha areas
+/// looking darking than they should with the black background.
+///
+/// This function makes it so that we blend colors normally but keep
+/// the game's render texture alpha set to 1 so it's fully opaque.
+///
+/// Uses unsafe + FFI since sola-raylib doesn't expose these functions
+/// and constants (yet).
+fn begin_rt_blend() {
+    use sola_raylib::ffi;
+    unsafe {
+        ffi::rlSetBlendFactorsSeparate(
+            ffi::RL_SRC_ALPHA as i32,
+            ffi::RL_ONE_MINUS_SRC_ALPHA as i32,
+            ffi::RL_ONE as i32,
+            ffi::RL_ONE_MINUS_SRC_ALPHA as i32,
+            ffi::RL_FUNC_ADD as i32,
+            ffi::RL_FUNC_ADD as i32,
+        );
+        ffi::BeginBlendMode(ffi::BlendMode::BLEND_CUSTOM_SEPARATE as i32);
+    }
+}
+
+/// Restores default `BLEND_ALPHA` after `begin_rt_blend`.
+/// Uses unsafe + ffi since sola-raylib doesn't explose this function
+/// (yet).
+fn end_rt_blend() {
+    unsafe { sola_raylib::ffi::EndBlendMode() }
+}
+
 /// Reads the project's optional `palette.png` and installs it as the
 /// active palette. Missing file keeps the Pico-8 default. A malformed
 /// or oversized image (e.g. anything taller than 1px) logs a warning
@@ -1686,6 +1720,8 @@ impl Session {
             ..
         } = self;
         let mut d_rt = rl.begin_texture_mode(thread, rt);
+        // Keep the RT alpha opaque while drawing into it so alpha values work correctly.
+        begin_rt_blend();
         if let Some(draw_fn) = draw.as_ref() {
             let d_rt_cell = std::cell::RefCell::new(&mut d_rt);
             let sprites_ref = sprites.texture();
@@ -2301,6 +2337,7 @@ impl Session {
                 Color::GREEN,
             );
         }
+        end_rt_blend();
     }
 
     /// draw the renter target to the screen, on top of a true black bg
