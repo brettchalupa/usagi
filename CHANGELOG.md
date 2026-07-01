@@ -7,6 +7,9 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
+- `usagi init` now creates empty `sfx/`, `music/`, and `data/` dirs so new
+  projects show where sound and save files go; see
+  [#32](https://codeberg.org/brettchalupa/usagi/issues/32)
 - `usagi.IS_RELEASE`, the inverse of `usagi.IS_DEV`, for gating release-only
   code more readably; see
   [#37](https://codeberg.org/brettchalupa/usagi/issues/37)

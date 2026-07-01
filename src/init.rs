@@ -57,6 +57,10 @@ pub(crate) fn template_files() -> Vec<TemplateFile> {
     ]
 }
 
+/// Asset dirs created empty at init so new users know where sound and
+/// save files go. Harmless if unused; users can delete them.
+const ASSET_DIRS: &[&str] = &["sfx", "music", "data"];
+
 /// Writes the bootstrap files into `path`. Skips files that already
 /// exist so re-running on an in-progress project never clobbers user
 /// edits.
@@ -65,6 +69,14 @@ pub fn run(path: &str) -> Result<()> {
     fs::create_dir_all(dir).map_err(|e| Error::Cli(format!("creating {}: {e}", dir.display())))?;
     fs::create_dir_all(dir.join("meta"))
         .map_err(|e| Error::Cli(format!("creating {}: {e}", dir.join("meta").display())))?;
+    for d in ASSET_DIRS {
+        let target = dir.join(d);
+        if !target.exists() {
+            crate::msg::info!("created {d}/");
+        }
+        fs::create_dir_all(&target)
+            .map_err(|e| Error::Cli(format!("creating {}: {e}", target.display())))?;
+    }
 
     let mut created = 0usize;
     let mut skipped = 0usize;
@@ -135,6 +147,15 @@ mod tests {
         assert!(dir.path().join(".gitignore").is_file());
         assert!(dir.path().join("USAGI.md").is_file());
         assert!(dir.path().join("meta/usagi.lua").is_file());
+    }
+
+    #[test]
+    fn creates_asset_dirs() {
+        let dir = tempdir().unwrap();
+        run(dir.path().to_str().unwrap()).unwrap();
+        for d in ASSET_DIRS {
+            assert!(dir.path().join(d).is_dir(), "{d} should exist");
+        }
     }
 
     #[test]
