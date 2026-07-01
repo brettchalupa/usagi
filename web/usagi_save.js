@@ -45,6 +45,15 @@ mergeInto(LibraryManager.library, {
     return ptr;
   },
 
+  usagi_save_remove: function (keyPtr) {
+    var key = UTF8ToString(keyPtr);
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {
+      console.error("[usagi] save remove failed for key '" + key + "':", e);
+    }
+  },
+
   usagi_save_free: function (ptr) {
     _free(ptr);
   },

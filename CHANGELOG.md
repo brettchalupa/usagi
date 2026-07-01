@@ -5,7 +5,10 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
-No unreleased changes yet.
+Fixes:
+
+- Reseting/clearing save data on web now works; see
+  [#61](https://codeberg.org/brettchalupa/usagi/issues/61)
 
 ## v1.1.1 - June 10, 2026
 

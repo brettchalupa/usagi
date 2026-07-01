@@ -216,6 +216,7 @@ mod web {
     unsafe extern "C" {
         fn usagi_save_write(key: *const c_char, val: *const c_char);
         fn usagi_save_read(key: *const c_char) -> *mut c_char;
+        fn usagi_save_remove(key: *const c_char);
         fn usagi_save_free(val: *mut c_char);
     }
 
@@ -250,6 +251,15 @@ mod web {
         }
     }
 
+    /// Generic key/value delete from the JS-side storage shim.
+    pub(crate) fn kv_remove(key: &str) -> std::io::Result<()> {
+        let key = CString::new(key).map_err(|_| std::io::Error::other("key contained NUL byte"))?;
+        unsafe {
+            usagi_save_remove(key.as_ptr());
+        }
+        Ok(())
+    }
+
     pub fn write_save(game_id: &super::GameId, contents: &str) -> std::io::Result<()> {
         kv_write(&format!("usagi.save.{}", game_id.as_str()), contents)
     }
@@ -257,10 +267,17 @@ mod web {
     pub fn read_save(game_id: &super::GameId) -> std::io::Result<Option<String>> {
         kv_read(&format!("usagi.save.{}", game_id.as_str()))
     }
+
+    /// Removes the save entry from localStorage. No-op if it was never
+    /// written (`removeItem` on a missing key is silent), mirroring the
+    /// native `clear_save`'s "clearing an empty save isn't an error".
+    pub fn clear_save(game_id: &super::GameId) -> std::io::Result<()> {
+        kv_remove(&format!("usagi.save.{}", game_id.as_str()))
+    }
 }
 
 #[cfg(target_os = "emscripten")]
-pub use web::{read_save, write_save};
+pub use web::{clear_save, read_save, write_save};
 
 // Shared key/value primitives backed by the same JS storage shim as
 // save data. Used by `settings.rs` to land on web localStorage with

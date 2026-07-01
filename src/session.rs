@@ -1557,15 +1557,10 @@ impl Session {
             PauseAction::ResetGame => {
                 self.reset_game();
             }
-            PauseAction::ClearSave => {
-                #[cfg(not(target_os = "emscripten"))]
-                match crate::save::clear_save(&self.game_id) {
-                    Ok(()) => crate::msg::info!("save data cleared"),
-                    Err(e) => crate::msg::err!("save clear failed: {e}"),
-                }
-                #[cfg(target_os = "emscripten")]
-                crate::msg::err!("clear save data is not supported on web yet");
-            }
+            PauseAction::ClearSave => match crate::save::clear_save(&self.game_id) {
+                Ok(()) => crate::msg::info!("save data cleared"),
+                Err(e) => crate::msg::err!("save clear failed: {e}"),
+            },
             PauseAction::SetKeymap(km) => {
                 self.keymap = km;
                 if let Err(e) = crate::keymap::write(&self.game_id, &self.keymap) {
