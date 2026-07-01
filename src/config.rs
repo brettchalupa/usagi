@@ -93,6 +93,9 @@ pub struct Config {
     /// Keys / Configure Gamepad screens, since they're sub-views of the
     /// same overlay.
     pub pause_menu: bool,
+    /// Launch fullscreen by default. Only the default: once a player toggles
+    /// fullscreen the saved setting wins. Set via `_config().initial_fullscreen`.
+    pub initial_fullscreen: bool,
 }
 
 impl Default for Config {
@@ -105,6 +108,7 @@ impl Default for Config {
             resolution: Resolution::DEFAULT,
             sprite_size: DEFAULT_SPRITE_SIZE,
             pause_menu: true,
+            initial_fullscreen: false,
         }
     }
 }
@@ -156,6 +160,9 @@ impl Config {
                 }
                 if let Ok(Some(b)) = tbl.get::<Option<bool>>("pause_menu") {
                     config.pause_menu = b;
+                }
+                if let Ok(Some(b)) = tbl.get::<Option<bool>>("initial_fullscreen") {
+                    config.initial_fullscreen = b;
                 }
             }
             Err(e) => {

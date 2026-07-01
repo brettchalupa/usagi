@@ -423,6 +423,10 @@ Supported fields:
   Tester, and gamepad-driven menu nav (sub-views of the same overlay), and
   `usagi.menu_item` registrations no longer render. Suitable for keyboard-driven
   prototypes. Optional.
+- `initial_fullscreen` (default `false`): when `true`, the game launches in
+  fullscreen. This only sets the default for a player's first launch; once they
+  toggle fullscreen from the pause menu, that saved preference wins on later
+  launches. Optional.
 
 ```lua
 function _config()
@@ -435,6 +439,7 @@ function _config()
     -- game_height = 270,  -- optional; default 180
     -- sprite_size = 32,   -- optional; default 16
     -- pause_menu = false, -- optional; default true
+    -- initial_fullscreen = true,  -- optional; default false
   }
 end
 ```
@@ -449,6 +454,21 @@ the `.app`, which is what the macOS Dock/Finder pick up.
 yet), so its return value is **read once at startup and cached**. Editing
 `_config()` while the game is running won't update the title or any future
 config field on save; restart the session to pick up changes.
+
+#### Window sizing and scaling
+
+You don't have to think about window size with Usagi. Your game gets scaled to
+the window. By default, games launch windowed at about 66% of the display's
+size, floored to the closest integer scale. Players can toggle fullscreen based
+on their preference and it's persisted as expected for the next launch. Windows
+are resizeable by players.
+
+You can set `pixel_perfect` to `true` in your `_config` to ensure your game is
+never not pixel perfect. For displays that might be lower res than your game,
+your game's window is gets maximized.
+
+If you want your game to launch fullscreen by default, set `initial_fullscreen`
+to `true` in `_config`.
 
 ### `gfx`
 

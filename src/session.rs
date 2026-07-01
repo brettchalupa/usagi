@@ -74,6 +74,18 @@ fn tinted(tint_idx: i32, alpha: f32) -> Color {
     c
 }
 
+/// Fraction of the monitor the default initial window aims to fill.
+const INITIAL_WINDOW_FRACTION: f32 = 0.66;
+
+/// Largest integer scale of `res` that fits within `INITIAL_WINDOW_FRACTION`
+/// of the monitor. Never below 1, so a game larger than the display still
+/// returns 1 (the caller maximizes in that case).
+fn initial_window_scale(res: crate::config::Resolution, monitor_w: i32, monitor_h: i32) -> u32 {
+    let fit_w = (monitor_w as f32 * INITIAL_WINDOW_FRACTION / res.w).floor() as i32;
+    let fit_h = (monitor_h as f32 * INITIAL_WINDOW_FRACTION / res.h).floor() as i32;
+    fit_w.min(fit_h).max(1) as u32
+}
+
 /// Draw semi-transparent things into the render target correctly.
 ///
 /// Raylib by default blends the texture's alpha channel the same
@@ -659,6 +671,9 @@ struct Session {
     /// backend has no mtimes, e.g. bundled games).
     palette_mtime: Option<SystemTime>,
     show_fps: bool,
+    /// One-shot guard for the display/scaling diagnostic, logged on the first
+    /// frame (after the window size settles) rather than during setup.
+    display_logged: bool,
     config: Config,
 
     /// Wall-clock seconds since the session started. Mirrored into the
@@ -835,6 +850,12 @@ impl Session {
         {
             settings.fullscreen = false;
         }
+        // First run adopts the dev's `initial_fullscreen` default; after that
+        // the player's saved choice wins.
+        #[cfg(not(target_os = "emscripten"))]
+        if !crate::settings::exists(&resolved_game_id) {
+            settings.fullscreen = config.initial_fullscreen;
+        }
         let keymap = crate::keymap::load(&resolved_game_id);
         let pad_map = crate::pad_map::load(&resolved_game_id);
         #[cfg(not(target_os = "emscripten"))]
@@ -844,23 +865,13 @@ impl Session {
         // defaulting to 320x180 when the user doesn't override.
         let res = config.resolution;
 
-        // Games up to 640x360 open at 2x for readability; bigger
-        // games open at 1x so the initial window doesn't blow past
-        // common laptop displays. The 640 threshold means the
-        // default 320x180 game opens at 640x360 and a 640x360 game
-        // opens at 1280x720 (a nice minimal-fullscreen baseline);
-        // anything past that lands native-sized. The window is
-        // resizable, so users can drag it bigger.
-        let win_scale_threshold = crate::config::Resolution::DEFAULT.w * 2.0;
-        let win_scale = if res.w.max(res.h) > win_scale_threshold {
-            1.0
-        } else {
-            2.0
-        };
+        // Placeholder backing-store size (also what web keeps, upscaled by
+        // the shell's CSS). Native re-sizes the window to a display-relative
+        // integer scale after the window exists; see below.
+        let win_scale = 2.0;
 
-        // `.highdpi()` and `.resizable()` are desktop-only: on emscripten
-        // they fight the JS shell's CSS scaling. `.highdpi()` doubles the
-        // canvas backing-store via devicePixelRatio. `.resizable()` makes
+        // `.resizable()` is desktop-only: on emscripten
+        // they fight the JS shell's CSS scaling. `.resizable()` makes
         // raylib's emscripten resize callback set the canvas backing-store
         // to `window.innerWidth × window.innerHeight` on every resize event
         // (and one fires at page load), stretching the framebuffer to
@@ -889,7 +900,7 @@ impl Session {
         builder.log_level(log_level);
         #[cfg(not(target_os = "emscripten"))]
         {
-            builder.highdpi().resizable();
+            builder.resizable();
         }
 
         let (mut rl, thread) = builder.build();
@@ -905,13 +916,28 @@ impl Session {
             _ => crate::icon::apply(&mut rl),
         }
 
-        // Apply persisted fullscreen as soon as the window exists.
-        // Has a visible windowed-frame flash on macOS (raylib's
-        // builder doesn't expose `FLAG_BORDERLESS_WINDOWED_MODE`
-        // yet); revisit once sola-raylib ships
-        // `builder.borderless_windowed()`.
+        // Fullscreen or size-and-center the window now that it exists.
+        // Fullscreen has a visible windowed-frame flash on macOS (raylib's
+        // builder lacks `FLAG_BORDERLESS_WINDOWED_MODE`). Windowed picks a
+        // display-relative integer scale and maximizes when the game is
+        // larger than the display.
+        #[cfg(not(target_os = "emscripten"))]
         if settings.fullscreen {
             rl.toggle_borderless_windowed();
+        } else {
+            let mon = sola_raylib::window::get_current_monitor();
+            let mw = sola_raylib::window::get_monitor_width(mon);
+            let mh = sola_raylib::window::get_monitor_height(mon);
+            let scale = initial_window_scale(res, mw, mh);
+            let w = res.w as i32 * scale as i32;
+            let h = res.h as i32 * scale as i32;
+            if w > mw || h > mh {
+                rl.maximize_window();
+            } else {
+                rl.set_window_size(w, h);
+                let pos = sola_raylib::window::get_monitor_position(mon);
+                rl.set_window_position(pos.x as i32 + (mw - w) / 2, pos.y as i32 + (mh - h) / 2);
+            }
         }
 
         // On web, the browser drives the frame rate through
@@ -929,29 +955,10 @@ impl Session {
         let rt: RenderTexture2D = rl
             .load_render_texture(&thread, res.w as u32, res.h as u32)
             .unwrap();
-
-        // Boot diagnostic for display/scaling bug reports: game res, logical
-        // window vs physical framebuffer, DPI scale, and the resulting fit.
-        let dpi = rl.get_window_scale_dpi();
-        let (fit, _, _) = game_view_transform(
-            rl.get_screen_width(),
-            rl.get_screen_height(),
-            res,
-            config.pixel_perfect,
-        );
-        crate::msg::info!(
-            "display: game {}x{}, window {}x{} logical, {}x{} framebuffer, dpi {:.2}x{:.2}, pixel_perfect {}, fit {}x",
-            res.w as i32,
-            res.h as i32,
-            rl.get_screen_width(),
-            rl.get_screen_height(),
-            rl.get_render_width(),
-            rl.get_render_height(),
-            dpi.x,
-            dpi.y,
-            config.pixel_perfect,
-            fit,
-        );
+        // Pin POINT so the RT-to-window blit stays crisp (don't ride on a
+        // default), matching the sprite/font atlases.
+        rt.texture()
+            .set_texture_filter(&thread, TextureFilter::TEXTURE_FILTER_POINT);
 
         // Load the font before `_init` runs so we can register
         // `usagi.measure_text` against a leaked `&'static Font`. That
@@ -1076,6 +1083,7 @@ impl Session {
             last_data_mtime,
             palette_mtime,
             show_fps: false,
+            display_logged: false,
             config,
             elapsed: 0.0,
             effects,
@@ -1158,6 +1166,30 @@ impl Session {
         let screen_w = self.rl.get_screen_width();
         let screen_h = self.rl.get_screen_height();
         let fps = self.rl.get_fps();
+
+        // Display/scaling diagnostic for bug reports, logged once the window
+        // size has settled: game res, logical window vs physical framebuffer,
+        // DPI, and the resulting fit.
+        if !self.display_logged && self.elapsed > 0.05 {
+            self.display_logged = true;
+            let res = self.config.resolution;
+            let dpi = self.rl.get_window_scale_dpi();
+            let (fit, _, _) =
+                game_view_transform(screen_w, screen_h, res, self.config.pixel_perfect);
+            crate::msg::info!(
+                "display: game {}x{}, window {}x{} logical, {}x{} framebuffer, dpi {:.2}x{:.2}, pixel_perfect {}, fit {}x",
+                res.w as i32,
+                res.h as i32,
+                screen_w,
+                screen_h,
+                self.rl.get_render_width(),
+                self.rl.get_render_height(),
+                dpi.x,
+                dpi.y,
+                self.config.pixel_perfect,
+                fit,
+            );
+        }
 
         // Refresh the input snapshot once per frame so the Lua-side
         // `input.*` closures see consistent values throughout `_update`
@@ -2550,6 +2582,31 @@ fn run_emscripten(session: Box<Session>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Resolution;
+
+    #[test]
+    fn initial_scale_fits_display_by_integer() {
+        let res = Resolution { w: 320.0, h: 180.0 };
+        // 0.66 * 1080 / 180 = 3.96 -> 3
+        assert_eq!(initial_window_scale(res, 1920, 1080), 3);
+    }
+
+    #[test]
+    fn initial_scale_grows_low_res_games() {
+        // A tiny game should still open large, not at a fixed small scale.
+        let res = Resolution { w: 64.0, h: 64.0 };
+        assert!(initial_window_scale(res, 1920, 1080) >= 10);
+    }
+
+    #[test]
+    fn initial_scale_never_below_one() {
+        // Game larger than the display still returns 1 (caller maximizes).
+        let res = Resolution {
+            w: 1920.0,
+            h: 1080.0,
+        };
+        assert_eq!(initial_window_scale(res, 1280, 720), 1);
+    }
 
     /// Encoded form of `0` for any GC param in Lua 5.5. Lua's
     /// `luaO_codeparam` maps `0% → 0`, and that byte makes

@@ -9,6 +9,23 @@ Features:
 
 - Backspace acts as a cancel button in the Pause menu; see
   [#48](https://codeberg.org/brettchalupa/usagi/issues/48)
+- `_config` now has `initial_fullscreen` to launch the game fullscreen by
+  default, until a player toggles fullscreen and their choice is saved; see
+  [#34](https://codeberg.org/brettchalupa/usagi/issues/34)
+- Reworked window scaling so pixel art stays crisp on high-DPI and
+  fractional-scaling displays instead of tearing or squashing pixels. Usagi now
+  turns off the OS high-DPI mode and scales the game in real pixels, which is
+  what makes integer scaling land on whole pixels; before, the OS scaled our
+  already integer-scaled frame again by a fractional factor, so the pixels came
+  out uneven. The starting window size is now picked relative to the display
+  (the largest integer scale that fills about two-thirds of it) rather than a
+  fixed 2x, so low-res games no longer open in a tiny window, and a game bigger
+  than the display opens maximized rather than hanging. Usagi also logs a
+  one-line display summary on boot to make future scaling reports easier to
+  debug. See [#62](https://codeberg.org/brettchalupa/usagi/issues/62),
+  [#47](https://codeberg.org/brettchalupa/usagi/issues/47),
+  [#34](https://codeberg.org/brettchalupa/usagi/issues/34), and
+  [#36](https://codeberg.org/brettchalupa/usagi/issues/36)
 
 Fixes:
 
@@ -33,8 +50,8 @@ Fixes:
   that scenario; see [#63](https://codeberg.org/brettchalupa/usagi/issues/63)
 - Don't crash when attempting to reading a file that doesn't exist; see
   [#30](https://codeberg.org/brettchalupa/usagi/issues/30)
-- Fractional scaling with pixel_perfect doesn't drop 1.99x to 1, it now nudges
-  it up to 2x; [see #47](https://codeberg.org/brettchalupa/usagi/issues/47)
+- The GIF recorder does not run for games higher res than 720 as it degrades
+  performance majorly; an info message is logged
 
 ## v1.1.1 - June 10, 2026
 
@@ -449,11 +466,11 @@ Features:
   gamepad-heavy games that want full control should keep the default or fork.
   New `examples/custom_menu.lua` ships a minimal hand-rolled menu (Resume,
   Toggle Fullscreen, Quit) wired up to the new APIs.
-- The `usagi tools` window adopts a clean dark theme of its own, independent of
-  the engine's Pico-8 palette. Less competing color for the eye when you're
-  picking sprites, inspecting saves, or playing back music. The ColorPalette
-  tool still displays the project's actual palette (the whole point of that
-  tool); only the surrounding chrome changed.
+- The `usagi tools` window uses a dark theme, independent of the engine's Pico-8
+  palette. Less competing color for the eye when you're picking sprites,
+  inspecting saves, or playing back music. The ColorPalette tool still displays
+  the project's actual palette (the whole point of that tool); only the
+  surrounding chrome changed.
 - First-boot music and sfx volumes default to `1.0` (full) instead of `0.8`.
   Players with an existing `settings.json` keep whatever they previously set;
   this only affects fresh installs and new game ids. The same `1.0` is also the

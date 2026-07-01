@@ -49,6 +49,13 @@ pub fn settings_path(game_id: &GameId) -> std::io::Result<std::path::PathBuf> {
     Ok(crate::save::save_dir(game_id)?.join(SETTINGS_FILE))
 }
 
+/// Whether a settings blob has been saved for `game_id`. Used to tell a
+/// first run (apply `_config().initial_fullscreen`) from a returning player
+/// (honor their saved fullscreen choice).
+pub fn exists(game_id: &GameId) -> bool {
+    matches!(read_blob(game_id), Ok(Some(_)))
+}
+
 /// Loads stored settings. Returns defaults on any failure (missing,
 /// parse error, IO error); errors log to stderr but never panic.
 /// Unknown JSON keys are ignored for forward-compat.

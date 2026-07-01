@@ -1698,20 +1698,22 @@ function love.load()
 
   if cfg.name then love.window.setTitle(cfg.name) end
 
-  -- Pick a reasonable starting window size: the game resolution at
-  -- the largest integer scale that fits the user's primary display
-  -- with room to spare.
+  -- Starting window size: the game resolution at the largest integer scale
+  -- that fits the primary display within 0.66 of each axis (matching the
+  -- engine).
   local dw, dh = love.window.getDesktopDimensions()
   local target_scale = math.max(
     1,
     math.min(
-      math.floor(dw * 0.75 / usagi.GAME_W),
-      math.floor(dh * 0.75 / usagi.GAME_H)
+      math.floor(dw * 0.66 / usagi.GAME_W),
+      math.floor(dh * 0.66 / usagi.GAME_H)
     )
   )
   love.window.setMode(usagi.GAME_W * target_scale, usagi.GAME_H * target_scale, {
     resizable = true,
     vsync = true,
+    fullscreen = cfg.initial_fullscreen == true,
+    fullscreentype = "desktop",
   })
 
   love.graphics.setDefaultFilter("nearest", "nearest")
@@ -1756,6 +1758,9 @@ function love.resize(_w, _h)
 end
 
 function love.update(dt)
+  -- Cap dt so a stalled loop (window unfocused, machine slept) resumes with
+  -- one normal step instead of a huge jump. Matches the engine.
+  dt = math.min(dt, 0.1)
   usagi.elapsed = usagi.elapsed + dt
   effect_tick(dt)
   update_current_source()
@@ -1785,7 +1790,7 @@ function love.draw()
   love.graphics.setCanvas(canvas)
   love.graphics.clear(0, 0, 0, 1)
   if type(_G._draw) == "function" then
-    _G._draw(love.timer.getDelta())
+    _G._draw(math.min(love.timer.getDelta(), 0.1))
   end
   -- Flash overlay: drawn on the canvas after _draw so it scales
   -- nearest-neighbor with the rest of the frame. Alpha decays linearly

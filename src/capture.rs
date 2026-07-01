@@ -122,7 +122,15 @@ pub struct Recorder {
     /// mixed dims.
     width: u16,
     height: u16,
+    /// One-shot guard so the "disabled at this resolution" note logs once.
+    oversize_logged: bool,
 }
+
+/// Above this pixel budget the rolling recorder turns itself off: the
+/// per-frame GPU readback would dominate the frame (a 4K RT tanks to a few
+/// fps), and a GIF that large is impractical anyway. The game still runs at
+/// any resolution; only recording stops.
+const MAX_RECORDING_PIXELS: u32 = 1280 * 720;
 
 impl Recorder {
     pub fn new() -> Self {
@@ -132,6 +140,7 @@ impl Recorder {
             accumulated_dt: 0.0,
             width: 0,
             height: 0,
+            oversize_logged: false,
         }
     }
 
@@ -143,6 +152,17 @@ impl Recorder {
     /// exceeds `BUFFER_SECONDS`. Palette building / quantization is
     /// deferred to save time on a worker thread.
     pub fn capture(&mut self, rt: &RenderTexture2D, dt: f32, res: crate::config::Resolution) {
+        if (res.w as u32) * (res.h as u32) > MAX_RECORDING_PIXELS {
+            if !self.oversize_logged {
+                self.oversize_logged = true;
+                crate::msg::info!(
+                    "screen recording disabled at {}x{}: too high-res for the rolling recorder",
+                    res.w as i32,
+                    res.h as i32
+                );
+            }
+            return;
+        }
         let Some(delay_cs) = tick_timing(&mut self.accumulated_dt, dt) else {
             return;
         };
