@@ -148,7 +148,7 @@ my_game/
     boss.ogg
   shaders/           -- optional: post-process GLSL shaders (advanced; see Shaders)
     crt.fs           -- desktop GLSL 330
-    crt_es.fs        -- web GLSL ES 100
+    crt_es.fs        -- web + Raspberry Pi GLSL ES 100
 ```
 
 Run with:
@@ -1245,17 +1245,19 @@ function _draw(_dt)
 end
 ```
 
-**Cross-platform shader files.** Desktop targets compile GLSL `#version 330`;
-the web target uses GLSL ES `#version 100` (WebGL 1 / GLES 2). Include two files
-alongside each other to support both:
+**Cross-platform shader files.** Desktop GL targets compile GLSL `#version 330`.
+GLES targets, the web build and the Linux ARM (Raspberry Pi) build, use GLSL ES
+`#version 100` (WebGL 1 / GLES 2). Include two files alongside each other to
+support both:
 
 - `shaders/<name>.fs`: desktop, `#version 330`, `in`/`out`, `texture(...)`,
   custom `out vec4 finalColor`.
-- `shaders/<name>_es.fs`: web, `#version 100`, `precision mediump float;`,
+- `shaders/<name>_es.fs`: GLES, `#version 100`, `precision mediump float;`,
   `varying`, `texture2D(...)`, `gl_FragColor` output.
 
-Web prefers `_es.fs` and falls back to `.fs`; desktop is the reverse. If only
-one is included, every platform that loads it runs that one. The `fragTexCoord`,
+GLES targets prefer `_es.fs` and fall back to `.fs`; desktop GL is the reverse.
+If only one is included, every platform that loads it runs that one, so ship the
+`_es.fs` variant if you want Raspberry Pi and web support. The `fragTexCoord`,
 `fragColor`, and `texture0` inputs are provided by raylib on both targets. See
 `examples/shader/` for a runnable CRT effect plus a Game Boy palette swap with
 both variants of each.

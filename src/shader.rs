@@ -227,19 +227,22 @@ fn file_mtime(vfs: &dyn VirtualFs, key: &str) -> Option<SystemTime> {
     vfs.file_mtime(key)
 }
 
-#[cfg(target_os = "emscripten")]
+// GLES contexts (web, and the `gles` feature for ARM builds) want the
+// v100 `_es` shaders; desktop GL 3.3 wants the v330 `.fs`. Prefer the
+// matching variant, fall back to the other.
+#[cfg(any(target_os = "emscripten", feature = "gles"))]
 fn primary_key(name: &str, ext: &str) -> String {
     format!("shaders/{name}_es.{ext}")
 }
-#[cfg(target_os = "emscripten")]
+#[cfg(any(target_os = "emscripten", feature = "gles"))]
 fn alt_key(name: &str, ext: &str) -> String {
     format!("shaders/{name}.{ext}")
 }
-#[cfg(not(target_os = "emscripten"))]
+#[cfg(not(any(target_os = "emscripten", feature = "gles")))]
 fn primary_key(name: &str, ext: &str) -> String {
     format!("shaders/{name}.{ext}")
 }
-#[cfg(not(target_os = "emscripten"))]
+#[cfg(not(any(target_os = "emscripten", feature = "gles")))]
 fn alt_key(name: &str, ext: &str) -> String {
     format!("shaders/{name}_es.{ext}")
 }

@@ -27,6 +27,8 @@ jobs:
             os: ubuntu-22.04-arm
             ext: ""
             archive: tar.gz
+            # Use older OpenGL stack for better Raspberry Pi compat
+            features: "--features gles"
           - name: macos-aarch64
             os: macos-15
             ext: ""
@@ -50,7 +52,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libasound2-dev libudev-dev libx11-dev libxcursor-dev \
-            libxinerama-dev libxrandr-dev libxi-dev libgl1-mesa-dev
+            libxinerama-dev libxrandr-dev libxi-dev libgl1-mesa-dev \
+            libgles-dev libglvnd-dev libegl-dev
 
       - name: Install Windows zlib for freetype-sys
         # See ci.yml for context. freetype-sys 0.23.0 bundled build
@@ -63,7 +66,7 @@ jobs:
             | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build
-        run: cargo build --release --locked
+        run: cargo build --release --locked ${{ matrix.features }}
 
       - name: Resolve version
         id: ver

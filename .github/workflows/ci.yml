@@ -67,7 +67,10 @@ jobs:
             libxinerama-dev \
             libxrandr-dev \
             libxi-dev \
-            libgl1-mesa-dev
+            libgl1-mesa-dev \
+            libgles-dev \
+            libglvnd-dev \
+            libegl-dev
 
       - name: Install Windows zlib for freetype-sys
         # freetype-sys 0.23.0's bundled FreeType build also compiles
@@ -95,6 +98,10 @@ jobs:
 
       - name: Release build
         run: cargo build --release
+
+      - name: GLES build (Linux ARM release target)
+        if: matrix.os == 'ubuntu-22.04-arm'
+        run: cargo build --release --features gles
 
       - name: Upload binary
         uses: actions/upload-artifact@v4

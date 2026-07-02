@@ -11,6 +11,11 @@ keywords = ["gamedev", "lua"]
 categories = ["game-engines"]
 exclude = ["examples", ".zed", "docs", "justfile", "*.sh"]
 
+[features]
+# Build against OpenGL ES 2.0 (GLSL 100) instead of desktop GL 3.3. Used by
+# the linux-aarch64 release for better compat
+gles = ["sola-raylib/opengl_es_20"]
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 mlua = { version = "0.11", features = ["lua55", "vendored", "serde"] }
