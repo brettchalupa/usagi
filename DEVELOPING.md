@@ -343,10 +343,6 @@ published version nor the upcoming version (yet).
   target (raylib) and the `cc` crate passes `-arch` (vendored Lua, freetype);
   ring ships x86_64-darwin asm and LuaJIT isn't built. One runner, no Intel
   hardware needed, so it survives the Intel (`macos-13`) runner retirement.
-- Homebrew rename note: the first universal release needs a one-time bump of the
-  macOS `url` line in `Formula/usagi.rb` from `-macos-aarch64.tar.gz` to
-  `-macos.tar.gz` (do it with the release so the artifact exists); after that
-  `update_homebrew.rb` maintains it automatically.
 
 ## Web Build (wasm32-unknown-emscripten) Notes
 

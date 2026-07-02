@@ -1,22 +1,23 @@
 class Usagi < Formula
   desc "Simple 2D Game Engine for Rapid Prototyping"
   homepage "https://usagiengine.com"
-  version "1.1.1"
+  version "1.2.0"
   license "Unlicense"
 
   # URLs and checksums are maintained by scripts/update_homebrew.rb — after a
   # release, run `ruby scripts/update_homebrew.rb` to refresh them from GitHub.
-  if OS.mac? && Hardware::CPU.arm?
-    url "https://github.com/brettchalupa/usagi/releases/download/v1.1.1/usagi-1.1.1-macos-aarch64.tar.gz"
-    sha256 "162011e1f47104892c6ca56196d1a88f1cd819874317c2f5ed6c90312b049182"
+  if OS.mac?
+    # Universal binary (Apple Silicon + Intel).
+    url "https://github.com/brettchalupa/usagi/releases/download/v1.2.0/usagi-1.2.0-macos.tar.gz"
+    sha256 "2e8a388ee1c22adb9cfe2bab29668c76c88b1b4abfd68bf4aef2e7418631703d"
   elsif OS.linux? && Hardware::CPU.intel?
-    url "https://github.com/brettchalupa/usagi/releases/download/v1.1.1/usagi-1.1.1-linux-x86_64.tar.gz"
-    sha256 "b625a6d1f285077586fe0e5a2441d6b6cd99a1681fb28f118cb36a8bf4626663"
+    url "https://github.com/brettchalupa/usagi/releases/download/v1.2.0/usagi-1.2.0-linux-x86_64.tar.gz"
+    sha256 "5e4d920bb926be7fc57578a49e115d0926169e969220fe34c254612460a40199"
   elsif OS.linux? && Hardware::CPU.arm?
-    url "https://github.com/brettchalupa/usagi/releases/download/v1.1.1/usagi-1.1.1-linux-aarch64.tar.gz"
-    sha256 "a6cedcc36e7cb1c72ad1943c37dd824baf6e377c41a6995069bfa67d84013922"
+    url "https://github.com/brettchalupa/usagi/releases/download/v1.2.0/usagi-1.2.0-linux-aarch64.tar.gz"
+    sha256 "3a0cdcd50a9683fc5622e50f473c7774f7d9ef81b850cebaf4a0bd7bcd2a9832"
   else
-    odie "usagi: no prebuilt binary for this platform yet (supported: macOS arm64, Linux x86_64)"
+    odie "usagi: no prebuilt binary for this platform yet (supported: macOS, Linux x86_64/arm64)"
   end
 
   def install
