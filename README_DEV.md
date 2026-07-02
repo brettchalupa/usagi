@@ -1551,7 +1551,7 @@ $ tree export
 export
 ├── snake-linux.zip          # Linux x86_64 fused exe
 ├── snake-linux-aarch64.zip  # Linux arm64 fused exe (Pi, ARM SBCs, ARM handhelds)
-├── snake-macos.zip          # macOS arm64 fused exe
+├── snake-macos.zip          # macOS universal (Apple Silicon + Intel) fused exe
 ├── snake-windows.zip        # Windows x86_64 fused exe
 ├── snake-web.zip            # web export: index.html + usagi.{js,wasm} + game.usagi
 └── snake.usagi              # portable bundle (usagi run snake.usagi)
@@ -1564,6 +1564,17 @@ $ usagi export examples/snake --target web
 $ usagi export examples/snake --target windows
 $ usagi export examples/snake --target bundle
 ```
+
+### macOS notes
+
+Exported `.app` bundles are unsigned, so the first launch is gated by
+Gatekeeper: players right-click the app and choose Open (otherwise macOS says
+it's damaged or from an unidentified developer). It's a one-time step per
+download.
+
+macOS may also prompt for microphone access on launch. That's the audio engine
+initializing Core Audio, not usagi reading the mic (it never does). Players can
+click Don't Allow and sound still works.
 
 ### Cross-Platform Templates
 
@@ -1593,10 +1604,10 @@ Override the template source explicitly:
 
 ### Building for Unsupported Platforms
 
-Usagi publishes binaries for Linux x86_64, Linux aarch64, macOS aarch64, Windows
-x86_64, and web (wasm). If you're on a platform outside that set (macOS Intel,
-FreeBSD, etc.) the official downloads won't work, but you can build the engine
-from source and export games for yourself:
+Usagi publishes binaries for Linux x86_64, Linux aarch64, macOS universal (Apple
+Silicon and Intel), Windows x86_64, and web (wasm). If you're on a platform
+outside that set (FreeBSD, etc.) the official downloads won't work, but you can
+build the engine from source and export games for yourself:
 
 1. Grab the source for the release you want. Either clone the repo and
    `git checkout v<version>` or download the source archive from the
