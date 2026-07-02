@@ -1784,6 +1784,23 @@ impl Session {
                         &["string", "number", "number", "number"],
                     )?,
                 )?;
+                let stop = scope.create_function(|_, name: LuaString| {
+                    sfx_ref.stop(&name.to_string_lossy());
+                    Ok(())
+                })?;
+                sfx_tbl.set("stop", wrap(lua, stop, "sfx.stop", &["string"])?)?;
+                let stop_all = scope.create_function(|_, ()| {
+                    sfx_ref.stop_all();
+                    Ok(())
+                })?;
+                sfx_tbl.set("stop_all", wrap(lua, stop_all, "sfx.stop_all", &[])?)?;
+                let is_playing = scope.create_function(|_, name: LuaString| {
+                    Ok(sfx_ref.is_playing(&name.to_string_lossy()))
+                })?;
+                sfx_tbl.set(
+                    "is_playing",
+                    wrap(lua, is_playing, "sfx.is_playing", &["string"])?,
+                )?;
 
                 let gfx_tbl: LuaTable = lua.globals().get("gfx")?;
                 let get_px = scope.create_function(|_, (x, y): (f32, f32)| {
@@ -2499,6 +2516,23 @@ impl Session {
                             "sfx.play_ex",
                             &["string", "number", "number", "number"],
                         )?,
+                    )?;
+                    let stop = scope.create_function(|_, name: LuaString| {
+                        sfx_ref.stop(&name.to_string_lossy());
+                        Ok(())
+                    })?;
+                    sfx_tbl.set("stop", wrap(lua, stop, "sfx.stop", &["string"])?)?;
+                    let stop_all = scope.create_function(|_, ()| {
+                        sfx_ref.stop_all();
+                        Ok(())
+                    })?;
+                    sfx_tbl.set("stop_all", wrap(lua, stop_all, "sfx.stop_all", &[])?)?;
+                    let is_playing = scope.create_function(|_, name: LuaString| {
+                        Ok(sfx_ref.is_playing(&name.to_string_lossy()))
+                    })?;
+                    sfx_tbl.set(
+                        "is_playing",
+                        wrap(lua, is_playing, "sfx.is_playing", &["string"])?,
                     )?;
 
                     draw_fn.call::<()>(dt)?;

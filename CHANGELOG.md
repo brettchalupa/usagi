@@ -7,6 +7,10 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
+- `sfx.stop(name)` stops every playing voice of a sound effect, `sfx.stop_all()`
+  stops all of them, and `sfx.is_playing(name)` reports whether any voice of a
+  sound is playing. See the `sound` example. See
+  [#31](https://codeberg.org/brettchalupa/usagi/issues/31)
 - The pause menu's top view now shows a confirm/back input hint labeled for
   whatever the player last used (keyboard keys or gamepad buttons). Hidden on
   games shorter than the default 320x180 resolution, where space is tight; see

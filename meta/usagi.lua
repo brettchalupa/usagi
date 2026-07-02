@@ -295,6 +295,20 @@ function sfx.play(name) end
 ---@param pan    number  stereo pan; `-1` left, `0` center, `1` right
 function sfx.play_ex(name, volume, pitch, pan) end
 
+---Stops every playing voice of a sound effect. Unknown or idle names
+---silently no-op.
+---@param name string  file stem of a `.wav` under `sfx/`
+function sfx.stop(name) end
+
+---Stops every playing voice of every loaded sound effect.
+function sfx.stop_all() end
+
+---Returns true if any voice of the named sound effect is currently
+---playing. False for unknown or idle names.
+---@param name string  file stem of a `.wav` under `sfx/`
+---@return boolean
+function sfx.is_playing(name) end
+
 ---@class Usagi.Music
 music = {}
 

@@ -1518,6 +1518,31 @@ function sfx.play_ex(name, volume, pitch, _pan)
   src:play()
 end
 
+function sfx.stop(name)
+  local pool = sfx_pools[name]
+  if not pool then return end
+  for _, src in ipairs(pool.sources) do
+    src:stop()
+  end
+end
+
+function sfx.stop_all()
+  for _, pool in pairs(sfx_pools) do
+    for _, src in ipairs(pool.sources) do
+      src:stop()
+    end
+  end
+end
+
+function sfx.is_playing(name)
+  local pool = sfx_pools[name]
+  if not pool then return false end
+  for _, src in ipairs(pool.sources) do
+    if src:isPlaying() then return true end
+  end
+  return false
+end
+
 -- music module -------------------------------------------------------------
 -- One streaming source at a time. Subsequent music.play* calls stop the
 -- previous track.

@@ -293,6 +293,16 @@ impl<'a> VoicePool<'a> {
             voice.set_volume(v);
         }
     }
+
+    fn stop(&self) {
+        for voice in &self.voices {
+            voice.stop();
+        }
+    }
+
+    fn is_playing(&self) -> bool {
+        self.voices.iter().any(|s| s.is_playing())
+    }
 }
 
 /// Owns the loaded sounds + a manifest of their mtimes. `reload_if_changed`
@@ -361,6 +371,26 @@ impl<'a> SfxLibrary<'a> {
             let v = volume.clamp(0.0, 1.0) * self.volume;
             pool.play(v, pitch.max(0.01), pan.clamp(-1.0, 1.0));
         }
+    }
+
+    /// Stops every voice of `name`. No-op if the sfx isn't loaded or
+    /// nothing is currently playing.
+    pub fn stop(&self, name: &str) {
+        if let Some(pool) = self.pools.get(name) {
+            pool.stop();
+        }
+    }
+
+    /// Stops every voice of every loaded sfx.
+    pub fn stop_all(&self) {
+        for pool in self.pools.values() {
+            pool.stop();
+        }
+    }
+
+    /// True if any voice of `name` is currently playing.
+    pub fn is_playing(&self, name: &str) -> bool {
+        self.pools.get(name).is_some_and(|pool| pool.is_playing())
     }
 
     pub fn len(&self) -> usize {

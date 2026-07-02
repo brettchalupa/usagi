@@ -283,6 +283,9 @@ gfx.COLOR_TRUE_WHITE
 
 sfx.play(name)
 sfx.play_ex(name, volume, pitch, pan)
+sfx.stop(name)
+sfx.stop_all()
+sfx.is_playing(name)
 music.play(name)
 music.loop(name)
 music.stop()
@@ -947,6 +950,11 @@ outgrown Usagi. Fork the engine or use Love2D!
     / coin pickups from a single .wav.
   - `pan` (number) — stereo pan, `-1..1`. `-1` left, `0` center, `1` right.
     Clamped.
+- `sfx.stop(name)` — stop every playing voice of `name`. Unknown or idle names
+  silently no-op.
+- `sfx.stop_all()` — stop every voice of every loaded sfx.
+- `sfx.is_playing(name)` — `true` if any voice of `name` is currently playing,
+  `false` for unknown or idle names.
 
 ### `music`
 
