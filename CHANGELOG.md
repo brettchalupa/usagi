@@ -79,8 +79,9 @@ Fixes:
   performance majorly; an info message is logged
 - Linux ARM (Raspberry Pi) builds now use OpenGL ES 2.0 so they boot on Pi
   driver stacks that only expose GLES; desktop GL 3.3 could fail there with
-  `GLXBadFBConfig`. Linux ARM builds now use `_es.fs` (GLSL 100) shader variants,
-  same as web; see [#38](https://codeberg.org/brettchalupa/usagi/issues/38)
+  `GLXBadFBConfig`. Linux ARM builds now use `_es.fs` (GLSL 100) shader
+  variants, same as web; see
+  [#38](https://codeberg.org/brettchalupa/usagi/issues/38)
 
 ## v1.1.1 - June 10, 2026
 
