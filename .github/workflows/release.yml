@@ -29,10 +29,8 @@ jobs:
             archive: tar.gz
             # Use older OpenGL stack for better Raspberry Pi compat
             features: "--features gles"
-          - name: macos-aarch64
-            os: macos-15
-            ext: ""
-            archive: tar.gz
+          # macOS is built separately (build-macos) as a universal
+          # arm64+x86_64 binary via lipo.
           - name: windows-x86_64
             os: windows-2022
             ext: ".exe"
@@ -103,6 +101,65 @@ jobs:
           name: usagi-${{ matrix.name }}
           path: dist/*
 
+  # Universal macOS binary built on one Apple Silicon runner: build both
+  # arches (the `cmake` crate sets CMAKE_OSX_ARCHITECTURES per target, and
+  # `cc` passes -arch, so raylib/Lua/freetype cross-compile), then lipo.
+  build-macos:
+    name: build (macos universal)
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-macos
+      - name: Build both arches
+        run: |
+          cargo build --release --locked --target aarch64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
+      - name: Lipo into a universal binary
+        run: |
+          lipo -create -output usagi \
+            target/aarch64-apple-darwin/release/usagi \
+            target/x86_64-apple-darwin/release/usagi
+          chmod +x usagi
+          # Fail loudly if it isn't actually universal.
+          archs="$(lipo -archs usagi)"
+          echo "archs: $archs"
+          case "$archs" in
+            *arm64*x86_64* | *x86_64*arm64*) ;;
+            *) echo "expected a universal arm64+x86_64 binary, got: $archs"; exit 1 ;;
+          esac
+
+      - name: Resolve version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Stage archive contents
+        run: |
+          mkdir -p staging
+          cp usagi UNLICENSE THIRD_PARTY_LICENSES.md staging/
+
+      - name: Package (canonical + compat alias)
+        run: |
+          mkdir -p dist
+          ver="${{ steps.ver.outputs.version }}"
+          # Canonical universal artifact, plus a `macos-aarch64` alias so
+          # `usagi update` from pre-universal arm-Mac builds keeps resolving.
+          for name in "macos" "macos-aarch64"; do
+            archive="usagi-${ver}-${name}.tar.gz"
+            tar -czf "dist/$archive" -C staging .
+            (cd dist && shasum -a 256 "$archive" > "$archive.sha256")
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: usagi-macos
+          path: dist/*
+
   build-web:
     name: build (wasm)
     runs-on: ubuntu-22.04
@@ -157,7 +214,7 @@ jobs:
 
   publish:
     name: publish
-    needs: [build, build-web]
+    needs: [build, build-macos, build-web]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/download-artifact@v4

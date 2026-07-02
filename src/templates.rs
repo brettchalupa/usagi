@@ -55,7 +55,11 @@ impl Target {
         match self {
             Target::Linux => "linux-x86_64",
             Target::LinuxAarch64 => "linux-aarch64",
-            Target::Macos => "macos-aarch64",
+            // Universal binary (arm64 + x86_64), so no arch suffix. The
+            // release also publishes an identical `macos-aarch64` alias so
+            // `usagi update` from pre-universal (<= v1.1.x) arm-Mac builds,
+            // which request `macos-aarch64`, still resolves.
+            Target::Macos => "macos",
             Target::Windows => "windows-x86_64",
             Target::Wasm => "wasm",
         }
@@ -77,7 +81,9 @@ impl Target {
             Some(Target::Linux)
         } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
             Some(Target::LinuxAarch64)
-        } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        } else if cfg!(target_os = "macos") {
+            // Universal macOS binary covers both arm64 and x86_64, so the
+            // Intel host resolves to the same template as Apple Silicon.
             Some(Target::Macos)
         } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
             Some(Target::Windows)

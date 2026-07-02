@@ -28,7 +28,7 @@ TARGET = "brettchalupa/usagi"
 # Suffixes match `usagi-<version>-<suffix>` produced by .github/workflows/release.yml.
 CHANNELS = {
   "linux-x86_64.tar.gz"  => "linux",
-  "macos-aarch64.tar.gz" => "macos",
+  "macos.tar.gz"         => "macos",
   "windows-x86_64.zip"   => "windows",
 }
 

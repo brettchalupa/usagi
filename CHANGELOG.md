@@ -7,6 +7,11 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
+- macOS builds are now a universal binary (Apple Silicon + Intel), so the engine
+  and exported games run on both without a separate download. Published as
+  `usagi-<ver>-macos.tar.gz` (with a `macos-aarch64` alias so `usagi update`
+  from older arm-Mac builds keeps working). See
+  [#9](https://codeberg.org/brettchalupa/usagi/issues/9)
 - `sfx.stop(name)` stops every playing voice of a sound effect, `sfx.stop_all()`
   stops all of them, and `sfx.is_playing(name)` reports whether any voice of a
   sound is playing. See the `sound` example. See

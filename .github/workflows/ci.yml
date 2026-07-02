@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # TEMP: `macos-test` here so the universal-binary CI job runs on
+    # pushes to that branch (no PRs on this repo). Remove before merging.
+    branches: [main, macos-test]
   pull_request:
   workflow_dispatch:
 
@@ -167,3 +169,39 @@ jobs:
           path: |
             target/wasm32-unknown-emscripten/release/usagi.js
             target/wasm32-unknown-emscripten/release/usagi.wasm
+
+  # Universal macOS binary, cross-compiled on one Apple Silicon runner
+  # (mirrors the release). Uploads the universal `usagi` so it can be
+  # downloaded from a main/PR run and test-run on Intel and Apple Silicon.
+  macos-universal:
+    name: macos universal
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: macos-universal
+      - name: Build both arches
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+      - name: Lipo
+        run: |
+          lipo -create -output usagi \
+            target/aarch64-apple-darwin/release/usagi \
+            target/x86_64-apple-darwin/release/usagi
+          chmod +x usagi
+          archs="$(lipo -archs usagi)"
+          echo "archs: $archs"
+          case "$archs" in
+            *arm64*x86_64* | *x86_64*arm64*) ;;
+            *) echo "expected a universal arm64+x86_64 binary, got: $archs"; exit 1 ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: usagi-macos-universal
+          path: usagi

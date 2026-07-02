@@ -283,13 +283,14 @@ release.
 
 ### Release Artifacts
 
-| File                               | Target                                               |
-| ---------------------------------- | ---------------------------------------------------- |
-| `usagi-<ver>-linux-x86_64.tar.gz`  | Linux x86_64, glibc 2.35+                            |
-| `usagi-<ver>-linux-aarch64.tar.gz` | Linux aarch64 (Pi, ARM SBCs, ARM handhelds, ARM VMs) |
-| `usagi-<ver>-macos-aarch64.tar.gz` | macOS, Apple Silicon                                 |
-| `usagi-<ver>-windows-x86_64.zip`   | Windows 10+                                          |
-| `usagi-<ver>-wasm.tar.gz`          | Web runtime (`usagi.js` + `usagi.wasm` + shell.html) |
+| File                               | Target                                                                                       |
+| ---------------------------------- | -------------------------------------------------------------------------------------------- |
+| `usagi-<ver>-linux-x86_64.tar.gz`  | Linux x86_64, glibc 2.35+                                                                    |
+| `usagi-<ver>-linux-aarch64.tar.gz` | Linux aarch64 (Pi, ARM SBCs, ARM handhelds, ARM VMs)                                         |
+| `usagi-<ver>-macos.tar.gz`         | macOS universal (Apple Silicon + Intel)                                                      |
+| `usagi-<ver>-macos-aarch64.tar.gz` | Alias of the universal binary; kept so `usagi update` from <= v1.1.x arm Macs still resolves |
+| `usagi-<ver>-windows-x86_64.zip`   | Windows 10+                                                                                  |
+| `usagi-<ver>-wasm.tar.gz`          | Web runtime (`usagi.js` + `usagi.wasm` + shell.html)                                         |
 
 Each artifact also publishes a `<file>.sha256` sidecar (sha256sum format).
 `usagi export` fetches the sidecar alongside the archive and verifies before
@@ -335,7 +336,17 @@ published version nor the upcoming version (yet).
   Binaries should run on Debian 12+, RHEL 9+, Fedora, Arch, openSUSE Leap 15.4+.
 - The Linux aarch64 runner is `ubuntu-22.04-arm`, GitHub's free arm64 Linux
   runner. Same glibc floor as the x86_64 build.
-- `macos-15` is Apple Silicon. No Intel mac binary is produced.
+- macOS ships a universal binary, built on one Apple Silicon runner
+  (`macos-15`): `cargo build` runs for both `aarch64-apple-darwin` and
+  `x86_64-apple-darwin`, then `lipo` fuses them. Cross-compiling the x86_64
+  slice works because the `cmake` crate sets `CMAKE_OSX_ARCHITECTURES` per
+  target (raylib) and the `cc` crate passes `-arch` (vendored Lua, freetype);
+  ring ships x86_64-darwin asm and LuaJIT isn't built. One runner, no Intel
+  hardware needed, so it survives the Intel (`macos-13`) runner retirement.
+- Homebrew rename note: the first universal release needs a one-time bump of the
+  macOS `url` line in `Formula/usagi.rb` from `-macos-aarch64.tar.gz` to
+  `-macos.tar.gz` (do it with the release so the artifact exists); after that
+  `update_homebrew.rb` maintains it automatically.
 
 ## Web Build (wasm32-unknown-emscripten) Notes
 

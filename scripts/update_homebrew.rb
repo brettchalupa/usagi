@@ -25,7 +25,7 @@ FORMULA = File.expand_path("../Formula/usagi.rb", __dir__)
 # Archive filename suffixes the formula installs from, matching
 # `usagi-<version>-<suffix>` produced by .github/workflows/release.yml.
 SUFFIXES = %w[
-  macos-aarch64.tar.gz
+  macos.tar.gz
   linux-x86_64.tar.gz
   linux-aarch64.tar.gz
 ].freeze
