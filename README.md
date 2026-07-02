@@ -48,7 +48,7 @@ Manual download:
 [GitHub](https://github.com/brettchalupa/usagi/releases/latest) |
 [itch.io](https://brettchalupa.itch.io/usagi)
 
-Latest release: **v1.1.0**.
+Latest release: **v1.2.0**.
 
 [View the changelog.](https://usagiengine.com/changelog)
 
@@ -148,13 +148,8 @@ my_game/
     boss.ogg
   shaders/           -- optional: post-process GLSL shaders (advanced; see Shaders)
     crt.fs           -- desktop GLSL 330
-    crt_es.fs        -- web GLSL ES 100
+    crt_es.fs        -- web + Raspberry Pi GLSL ES 100
 ```
-
-`require "name"` resolves to `name.lua` in the project root, falling back to
-`name/init.lua` if that misses. Dotted names (`require "world.tiles"`) become
-slash-separated paths. The same lookup works inside a fused / exported build, so
-multi-file projects ship as a single binary or `.usagi` with no extra config.
 
 Run with:
 
@@ -171,6 +166,35 @@ Run with:
 
 You can also run Usagi commands without a path to have them run in the current
 directory, like `usagi dev` or `usagi export`.
+
+Running the binary with no arguments at all (double-clicking it, or launching a
+`.desktop` file) opens a small launcher window. Drop a `main.lua` or a project
+folder onto it and Usagi starts `usagi dev` on that path.
+
+### Multiple Lua files
+
+`require "name"` resolves to `name.lua` in the project root, falling back to
+`name/init.lua` if that misses. Dotted names (`require "world.tiles"`) become
+slash-separated paths. The same lookup works inside a fused / exported build, so
+multi-file projects ship as a single binary or `.usagi` with no extra config.
+
+Split code into files with `require`. A module returns its API and is cached, so
+`require` it wherever you need it:
+
+```lua
+-- player.lua
+local Player = {}
+function Player.new() return { x = 0, y = 0 } end
+return Player
+
+-- main.lua
+local Player = require "player"
+```
+
+Use `require` only, never `loadfile` / `dofile` / `io` to load `.lua` files:
+those read from the OS filesystem, which works in `usagi dev` but breaks in web
+and exported builds. `require` goes through Usagi's virtual filesystem, so it
+works everywhere.
 
 ## Lua API
 
@@ -199,6 +223,7 @@ usagi.GAME_H
 usagi.SPRITE_SIZE
 usagi.PLATFORM -- "web" | "macos" | "linux" | "windows" | "unknown"
 usagi.IS_DEV
+usagi.IS_RELEASE
 usagi.elapsed
 usagi.measure_text(text)
 usagi.save(t)
@@ -222,24 +247,24 @@ _draw(dt)
 -- Graphics
 
 gfx.clear(color)
-gfx.text(text, x, y, color)
+gfx.text(text, x, y, color, alpha?)
 gfx.text_ex(text, x, y, scale, rotation, color, alpha)
-gfx.rect(x, y, w, h, color)
-gfx.rect_fill(x, y, w, h, color)
-gfx.rect_ex(x, y, w, h, thickness, color)
-gfx.circ(x, y, r, color)
-gfx.circ_fill(x, y, r, color)
-gfx.circ_ex(x, y, r, thickness, color)
-gfx.line(x1, y1, x2, y2, color)
-gfx.line_ex(x1, y1, x2, y2, thickness, color)
-gfx.tri(x1, y1, x2, y2, x3, y3, color)
-gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)
-gfx.px(x, y, color)
+gfx.rect(x, y, w, h, color, alpha?)
+gfx.rect_fill(x, y, w, h, color, alpha?)
+gfx.rect_ex(x, y, w, h, thickness, color, alpha?)
+gfx.circ(x, y, r, color, alpha?)
+gfx.circ_fill(x, y, r, color, alpha?)
+gfx.circ_ex(x, y, r, thickness, color, alpha?)
+gfx.line(x1, y1, x2, y2, color, alpha?)
+gfx.line_ex(x1, y1, x2, y2, thickness, color, alpha?)
+gfx.tri(x1, y1, x2, y2, x3, y3, color, alpha?)
+gfx.tri_fill(x1, y1, x2, y2, x3, y3, color, alpha?)
+gfx.px(x, y, color, alpha?)
 gfx.get_px(x, y) -- read screen pixel: r, g, b, palette_index; expensive on web
-gfx.spr(index, x, y)
+gfx.spr(index, x, y, alpha?)
 gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)
 gfx.get_spr_px(index, x, y) -- read sprite-sheet pixel: r, g, b, palette_index
-gfx.sspr(sx, sy, sw, sh, dx, dy)
+gfx.sspr(sx, sy, sw, sh, dx, dy, alpha?)
 gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha)
 gfx.shader_set(name)
 gfx.shader_uniform(name, value)
@@ -258,6 +283,9 @@ gfx.COLOR_TRUE_WHITE
 
 sfx.play(name)
 sfx.play_ex(name, volume, pitch, pan)
+sfx.stop(name)
+sfx.stop_all()
+sfx.is_playing(name)
 music.play(name)
 music.loop(name)
 music.stop()
@@ -279,6 +307,7 @@ input.SOURCE_KEYBOARD, input.SOURCE_GAMEPAD
 -- Input -- mouse
 
 input.mouse()
+input.mouse_over()
 input.mouse_held(button)
 input.mouse_pressed(button)
 input.mouse_released(button)
@@ -404,6 +433,13 @@ Supported fields:
   both axes; the window icon falls back to the default when the layout doesn't
   fit. The value also flows into `usagi.SPRITE_SIZE` so Lua code can read the
   active cell size. Optional.
+
+  Keep `sprites.png` within **8192px on each axis**. GPUs cap texture dimensions
+  (usually 16384 on desktop, but often 8192 or less on web and older hardware);
+  a sheet past the limit uploads clamped, so any sprite sourced beyond it
+  renders as a black square with no error. If you have hundreds of frames, lay
+  them out as a grid of rows rather than one very wide row. Usagi logs a warning
+  at load when a sheet is too large.
 - `game_width` (default `320`) and `game_height` (default `180`): override the
   game's render resolution. The internal render target is sized to these
   dimensions; the window upscales to fit, preserving aspect ratio. Tested range
@@ -423,6 +459,10 @@ Supported fields:
   Tester, and gamepad-driven menu nav (sub-views of the same overlay), and
   `usagi.menu_item` registrations no longer render. Suitable for keyboard-driven
   prototypes. Optional.
+- `initial_fullscreen` (default `false`): when `true`, the game launches in
+  fullscreen. This only sets the default for a player's first launch; once they
+  toggle fullscreen from the pause menu, that saved preference wins on later
+  launches. Optional.
 
 ```lua
 function _config()
@@ -435,6 +475,7 @@ function _config()
     -- game_height = 270,  -- optional; default 180
     -- sprite_size = 32,   -- optional; default 16
     -- pause_menu = false, -- optional; default true
+    -- initial_fullscreen = true,  -- optional; default false
   }
 end
 ```
@@ -450,35 +491,55 @@ yet), so its return value is **read once at startup and cached**. Editing
 `_config()` while the game is running won't update the title or any future
 config field on save; restart the session to pick up changes.
 
+#### Window sizing and scaling
+
+You don't have to think about window size with Usagi. Your game gets scaled to
+the window. By default, games launch windowed at about 66% of the display's
+size, floored to the closest integer scale. Players can toggle fullscreen based
+on their preference and it's persisted as expected for the next launch. Windows
+are resizeable by players.
+
+You can set `pixel_perfect` to `true` in your `_config` to ensure your game is
+never not pixel perfect. For displays that might be lower res than your game,
+your game's window is gets maximized.
+
+If you want your game to launch fullscreen by default, set `initial_fullscreen`
+to `true` in `_config`.
+
 ### `gfx`
 
 Draws to the screen. Positions are in game-space pixels (320×180). Colors are
 palette slot indices `1..16`; use the named constants.
 
+Every `gfx` drawing call below takes an optional trailing `alpha` (opacity in
+`0..1`); omit it or pass `1.0` for a fully opaque draw. This includes `text`,
+`spr`, and `sspr` as well as the shape primitives.
+
 - `gfx.clear(color)` — fill the screen.
-- `gfx.rect(x, y, w, h, color)` — 1-pixel rectangle outline.
-- `gfx.rect_fill(x, y, w, h, color)` — filled rectangle.
-- `gfx.rect_ex(x, y, w, h, thickness, color)` — rectangle outline with a custom
-  stroke thickness in pixels.
-- `gfx.circ(x, y, r, color)` — 1-pixel circle outline centered at `(x, y)`.
-- `gfx.circ_fill(x, y, r, color)` — filled circle centered at `(x, y)`.
-- `gfx.circ_ex(x, y, r, thickness, color)` — circle outline with a custom stroke
-  thickness. Stroke is centered on the nominal radius, so stacking three
-  `circ_ex(x, y, r, 1, c)` / `circ_ex(x, y, r-1, 1, c)` /
+- `gfx.rect(x, y, w, h, color, alpha?)` — 1-pixel rectangle outline.
+- `gfx.rect_fill(x, y, w, h, color, alpha?)` — filled rectangle.
+- `gfx.rect_ex(x, y, w, h, thickness, color, alpha?)` — rectangle outline with a
+  custom stroke thickness in pixels.
+- `gfx.circ(x, y, r, color, alpha?)` — 1-pixel circle outline centered at
+  `(x, y)`.
+- `gfx.circ_fill(x, y, r, color, alpha?)` — filled circle centered at `(x, y)`.
+- `gfx.circ_ex(x, y, r, thickness, color, alpha?)` — circle outline with a
+  custom stroke thickness. Stroke is centered on the nominal radius, so stacking
+  three `circ_ex(x, y, r, 1, c)` / `circ_ex(x, y, r-1, 1, c)` /
   `circ_ex(x, y, r-2, 1, c)` calls produces flush concentric rings with no gaps
   — fixes the rounding-gap issue you get layering plain `gfx.circ` calls at
   adjacent radii.
-- `gfx.line(x1, y1, x2, y2, color)` — 1-pixel line from `(x1, y1)` to
+- `gfx.line(x1, y1, x2, y2, color, alpha?)` — 1-pixel line from `(x1, y1)` to
   `(x2, y2)`.
-- `gfx.line_ex(x1, y1, x2, y2, thickness, color)` — line with a custom thickness
-  in pixels.
-- `gfx.tri(x1, y1, x2, y2, x3, y3, color)` — 1-pixel triangle outline from three
-  points. For a thicker outline, draw three `gfx.line_ex` calls.
-- `gfx.tri_fill(x1, y1, x2, y2, x3, y3, color)` — filled triangle from three
-  points. Vertex order doesn't matter; the winding is corrected for you so
+- `gfx.line_ex(x1, y1, x2, y2, thickness, color, alpha?)` — line with a custom
+  thickness in pixels.
+- `gfx.tri(x1, y1, x2, y2, x3, y3, color, alpha?)` — 1-pixel triangle outline
+  from three points. For a thicker outline, draw three `gfx.line_ex` calls.
+- `gfx.tri_fill(x1, y1, x2, y2, x3, y3, color, alpha?)` — filled triangle from
+  three points. Vertex order doesn't matter; the winding is corrected for you so
   arrows, spaceship nosecones, and the like just draw regardless of how you laid
   out the points.
-- `gfx.px(x, y, color)` — set a single pixel.
+- `gfx.px(x, y, color, alpha?)` — set a single pixel.
 - `gfx.get_px(x, y)` returns `(r, g, b, palette_index)` for the pixel at
   `(x, y)` on the most recently rendered frame. `palette_index` is the 1-based
   slot for an exact RGB match or `nil` for off-palette colors. All four returns
@@ -489,13 +550,13 @@ palette slot indices `1..16`; use the named constants.
   color, then consult `gfx.get_px` on the proposed destination in `_update`.
   **PERFORMANCE**: this function is expensive, in particular on web. It will
   slow down your game by ~10% if you call it even just once. Use it with care.
-- `gfx.text(text, x, y, color)` — bundled monogram font (5×7 pixel font, 12 px
-  line height; see Credits below). Renders the engine's default Latin/Cyrillic/
-  Greek glyph set, or your custom font if a `font.png` is present at the project
-  root (see "Custom fonts" below). To measure text dimensions, use
-  `usagi.measure_text` — it lives on `usagi` rather than `gfx` because
-  measurement is a pure utility (no render side-effect) and is callable from any
-  callback, including `_init`.
+- `gfx.text(text, x, y, color, alpha?)` — bundled monogram font (5×7 pixel font,
+  12 px line height; see Credits below). Renders the engine's default
+  Latin/Cyrillic/ Greek glyph set, or your custom font if a `font.png` is
+  present at the project root (see "Custom fonts" below). To measure text
+  dimensions, use `usagi.measure_text` — it lives on `usagi` rather than `gfx`
+  because measurement is a pure utility (no render side-effect) and is callable
+  from any callback, including `_init`.
 - `gfx.text_ex(text, x, y, scale, rotation, color, alpha)` — extended `text`:
   - `scale` (number) — font-size multiplier. **Use integers** (`1`, `2`, `3`)
     for crisp text since atlas-baked fonts use POINT filtering and integer
@@ -506,8 +567,9 @@ palette slot indices `1..16`; use the named constants.
     Useful for juice: wiggling subtitles, tilted labels, score popups.
   - `alpha` (number) — opacity in `0..1`. `1.0` is opaque, `0.0` is invisible.
     Use for fade-in/out, dimmed UI, ghosted previews.
-- `gfx.spr(index, x, y)` — draw the 16×16 sprite at `index` (1 = top-left) from
-  `sprites.png`. Native size, no flips, no rotation, no tint, full opacity.
+- `gfx.spr(index, x, y, alpha?)` — draw the 16×16 sprite at `index` (1 =
+  top-left) from `sprites.png`. Native size, no flips, no rotation, no tint;
+  opaque unless you pass `alpha`.
 - `gfx.spr_ex(index, x, y, flip_x, flip_y, rotation, tint, alpha)` — extended
   `spr`. All eight args required:
   - `flip_x` / `flip_y` (boolean) — mirror left/right or top/bottom.
@@ -533,8 +595,9 @@ palette slot indices `1..16`; use the named constants.
   sprite reads are deterministic and unaffected by draw order: useful for
   pixel-perfect sprite collision and for levels where you paint the layout into
   the sheet and scan it at startup to spawn entities.
-- `gfx.sspr(sx, sy, sw, sh, dx, dy)` — draw an arbitrary `(sx, sy, sw, sh)`
-  rectangle from `sprites.png` at `(dx, dy)` at original size.
+- `gfx.sspr(sx, sy, sw, sh, dx, dy, alpha?)` — draw an arbitrary
+  `(sx, sy, sw, sh)` rectangle from `sprites.png` at `(dx, dy)` at original
+  size; opaque unless you pass `alpha`.
 - `gfx.sspr_ex(sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y, rotation, tint, alpha)`
   — extended `sspr`: stretches to `(dw, dh)`, flips per the booleans, then
   rotates / tints / sets alpha. Same semantics as `spr_ex`. All thirteen args
@@ -813,6 +876,8 @@ gfx.text("Press " .. btn .. " to jump", 10, 10, gfx.COLOR_WHITE)
   `0..usagi.GAME_W` / `0..usagi.GAME_H`, so a bounds check is the idiomatic way
   to detect "cursor is off the play area." See
   [`examples/mouse`](https://github.com/brettchalupa/usagi/blob/main/examples/mouse/main.lua).
+- `input.mouse_over()` — true when the cursor is over the drawn game area; false
+  when it's outside the window or over the letterbox bars.
 - `input.mouse_held(button)` — true while `button` is held.
 - `input.mouse_pressed(button)` — true the frame `button` first went down.
 - `input.mouse_released(button)` — true the frame `button` first went up.
@@ -885,6 +950,11 @@ outgrown Usagi. Fork the engine or use Love2D!
     / coin pickups from a single .wav.
   - `pan` (number) — stereo pan, `-1..1`. `-1` left, `0` center, `1` right.
     Clamped.
+- `sfx.stop(name)` — stop every playing voice of `name`. Unknown or idle names
+  silently no-op.
+- `sfx.stop_all()` — stop every voice of every loaded sfx.
+- `sfx.is_playing(name)` — `true` if any voice of `name` is currently playing,
+  `false` for unknown or idle names.
 
 ### `music`
 
@@ -986,6 +1056,8 @@ Engine-level info.
   end
   ```
 
+- `usagi.IS_RELEASE` — the inverse of `usagi.IS_DEV`. Reads nicer than
+  `not usagi.IS_DEV` when gating release-only code.
 - `usagi.elapsed` — wall-clock seconds since the session started, updated once
   per frame before `_update`. Frame-stable (every read in one frame returns the
   same value). Survives [Reset](#reset); track your own counter from `_init` if
@@ -1134,8 +1206,8 @@ effect.slow_mo(1.5, 0.3)                 -- 1.5 s at 30% speed
   `_draw` still runs so the world stays on screen.
 - **`effect.screen_shake(time, intensity)`** offsets the RT-to-window blit.
   `intensity` is a max offset in _game pixels_ (try 2-6); the magnitude decays
-  linearly to zero. Overlays drawn outside the world (the engine error overlay
-  stay anchored.
+  linearly to zero. Overlays drawn outside the world (the engine error overlay,
+  the REC indicator) stay anchored.
 - **`effect.flash(time, color)`** draws a full-screen overlay of palette `color`
   on top of `_draw`'s output. Alpha decays from opaque to transparent. White on
   hits, red on damage.
@@ -1185,17 +1257,19 @@ function _draw(_dt)
 end
 ```
 
-**Cross-platform shader files.** Desktop targets compile GLSL `#version 330`;
-the web target uses GLSL ES `#version 100` (WebGL 1 / GLES 2). Include two files
-alongside each other to support both:
+**Cross-platform shader files.** Desktop GL targets compile GLSL `#version 330`.
+GLES targets, the web build and the Linux ARM (Raspberry Pi) build, use GLSL ES
+`#version 100` (WebGL 1 / GLES 2). Include two files alongside each other to
+support both:
 
 - `shaders/<name>.fs`: desktop, `#version 330`, `in`/`out`, `texture(...)`,
   custom `out vec4 finalColor`.
-- `shaders/<name>_es.fs`: web, `#version 100`, `precision mediump float;`,
+- `shaders/<name>_es.fs`: GLES, `#version 100`, `precision mediump float;`,
   `varying`, `texture2D(...)`, `gl_FragColor` output.
 
-Web prefers `_es.fs` and falls back to `.fs`; desktop is the reverse. If only
-one is included, every platform that loads it runs that one. The `fragTexCoord`,
+GLES targets prefer `_es.fs` and fall back to `.fs`; desktop GL is the reverse.
+If only one is included, every platform that loads it runs that one, so ship the
+`_es.fs` variant if you want Raspberry Pi and web support. The `fragTexCoord`,
 `fragColor`, and `texture0` inputs are provided by raylib on both targets. See
 `examples/shader/` for a runnable CRT effect plus a Game Boy palette swap with
 both variants of each.
@@ -1477,7 +1551,7 @@ $ tree export
 export
 ├── snake-linux.zip          # Linux x86_64 fused exe
 ├── snake-linux-aarch64.zip  # Linux arm64 fused exe (Pi, ARM SBCs, ARM handhelds)
-├── snake-macos.zip          # macOS arm64 fused exe
+├── snake-macos.zip          # macOS universal (Apple Silicon + Intel) fused exe
 ├── snake-windows.zip        # Windows x86_64 fused exe
 ├── snake-web.zip            # web export: index.html + usagi.{js,wasm} + game.usagi
 └── snake.usagi              # portable bundle (usagi run snake.usagi)
@@ -1490,6 +1564,17 @@ $ usagi export examples/snake --target web
 $ usagi export examples/snake --target windows
 $ usagi export examples/snake --target bundle
 ```
+
+### macOS notes
+
+Exported `.app` bundles are unsigned, so the first launch is gated by
+Gatekeeper: players right-click the app and choose Open (otherwise macOS says
+it's damaged or from an unidentified developer). It's a one-time step per
+download.
+
+macOS may also prompt for microphone access on launch. That's the audio engine
+initializing Core Audio, not usagi reading the mic (it never does). Players can
+click Don't Allow and sound still works.
 
 ### Cross-Platform Templates
 
@@ -1519,10 +1604,10 @@ Override the template source explicitly:
 
 ### Building for Unsupported Platforms
 
-Usagi publishes binaries for Linux x86_64, Linux aarch64, macOS aarch64, Windows
-x86_64, and web (wasm). If you're on a platform outside that set (macOS Intel,
-FreeBSD, etc.) the official downloads won't work, but you can build the engine
-from source and export games for yourself:
+Usagi publishes binaries for Linux x86_64, Linux aarch64, macOS universal (Apple
+Silicon and Intel), Windows x86_64, and web (wasm). If you're on a platform
+outside that set (FreeBSD, etc.) the official downloads won't work, but you can
+build the engine from source and export games for yourself:
 
 1. Grab the source for the release you want. Either clone the repo and
    `git checkout v<version>` or download the source archive from the

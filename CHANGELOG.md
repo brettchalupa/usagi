@@ -5,6 +5,10 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
+No unreleased changes.
+
+## v1.2.0 - July 2, 2026
+
 Features:
 
 - macOS builds are now a universal binary (Apple Silicon + Intel), so the engine
