@@ -150,6 +150,11 @@ end
 for index, value in ipairs(numbers) do
   print(index, value)
 end
+
+-- Use _ for the index when you only need the value
+for _, value in ipairs(numbers) do
+  print(value)
+end
 ```
 
 ### Table Length
@@ -228,6 +233,9 @@ end
 
 -- Short-circuit evaluation
 local value = input or "default"  -- use "default" if input is nil/false
+
+-- Ternary-style: "yes" when the condition is true, "no" otherwise
+local vote = age >= 18 and "yes" or "no"
 ```
 
 ### Loops
