@@ -918,6 +918,11 @@ impl Session {
         #[cfg(not(target_os = "emscripten"))]
         {
             builder.resizable();
+            // macOS needs high-DPI so sizes report as logical points; without
+            // it the game renders huge. Off on Windows/Linux, where fractional
+            // scaling would re-smear the integer-scaled frame.
+            #[cfg(target_os = "macos")]
+            builder.highdpi();
         }
 
         let (mut rl, thread) = builder.build();
