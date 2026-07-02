@@ -2,9 +2,7 @@ name: CI
 
 on:
   push:
-    # TEMP: `macos-test` here so the universal-binary CI job runs on
-    # pushes to that branch (no PRs on this repo). Remove before merging.
-    branches: [main, macos-test]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
