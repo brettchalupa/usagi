@@ -85,6 +85,8 @@ mod export;
 #[cfg(not(target_os = "emscripten"))]
 mod init;
 #[cfg(not(target_os = "emscripten"))]
+mod launcher;
+#[cfg(not(target_os = "emscripten"))]
 mod macos_app;
 #[cfg(not(target_os = "emscripten"))]
 mod refresh;
@@ -107,10 +109,15 @@ use export::ExportTarget;
 
 #[cfg(not(target_os = "emscripten"))]
 #[derive(Parser)]
-#[command(name = "usagi", version, about = "Rapid 2D game prototyping with Lua")]
+#[command(
+    name = "usagi",
+    version,
+    about = "Rapid 2D game prototyping with Lua",
+    after_help = "Run with no command to open a launcher window: drop a .lua file or a project folder onto it to start dev mode."
+)]
 struct Cli {
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[cfg(not(target_os = "emscripten"))]
@@ -284,12 +291,15 @@ fn main() -> ExitCode {
         }
         let cli = Cli::parse();
         let result = match cli.command {
-            Command::Run { path } => start_session(path.as_deref().unwrap_or("."), false),
-            Command::Dev { path } => start_session(path.as_deref().unwrap_or("."), true),
-            Command::Init { path } => init::run(path.as_deref().unwrap_or(".")),
-            Command::Tools { path } => tools::run(Some(path.as_deref().unwrap_or("."))),
-            Command::Templates { cmd } => run_templates_cmd(cmd),
-            Command::Export {
+            // No subcommand (double-click / `.desktop` launch): open the
+            // drop-a-project launcher window.
+            None => launcher::run(),
+            Some(Command::Run { path }) => start_session(path.as_deref().unwrap_or("."), false),
+            Some(Command::Dev { path }) => start_session(path.as_deref().unwrap_or("."), true),
+            Some(Command::Init { path }) => init::run(path.as_deref().unwrap_or(".")),
+            Some(Command::Tools { path }) => tools::run(Some(path.as_deref().unwrap_or("."))),
+            Some(Command::Templates { cmd }) => run_templates_cmd(cmd),
+            Some(Command::Export {
                 path,
                 output,
                 target,
@@ -297,7 +307,7 @@ fn main() -> ExitCode {
                 template_url,
                 no_cache,
                 web_shell,
-            } => export::run(
+            }) => export::run(
                 path.as_deref().unwrap_or("."),
                 output.as_deref(),
                 target,
@@ -306,12 +316,14 @@ fn main() -> ExitCode {
                 no_cache,
                 web_shell.as_deref(),
             ),
-            Command::Update => update::run(),
-            Command::Refresh { path, yes, dry_run } => {
+            Some(Command::Update) => update::run(),
+            Some(Command::Refresh { path, yes, dry_run }) => {
                 refresh::run(path.as_deref().unwrap_or("."), yes, dry_run)
             }
-            Command::Font { cmd } => run_font_cmd(cmd),
-            Command::Loveify { src, dst } => loveify::run(&src, &dst).map_err(crate::Error::Cli),
+            Some(Command::Font { cmd }) => run_font_cmd(cmd),
+            Some(Command::Loveify { src, dst }) => {
+                loveify::run(&src, &dst).map_err(crate::Error::Cli)
+            }
         };
         finish(result)
     }

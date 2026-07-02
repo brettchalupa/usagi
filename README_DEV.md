@@ -167,6 +167,10 @@ Run with:
 You can also run Usagi commands without a path to have them run in the current
 directory, like `usagi dev` or `usagi export`.
 
+Running the binary with no arguments at all (double-clicking it, or launching a
+`.desktop` file) opens a small launcher window. Drop a `main.lua` or a project
+folder onto it and Usagi starts `usagi dev` on that path.
+
 ### Multiple Lua files
 
 `require "name"` resolves to `name.lua` in the project root, falling back to

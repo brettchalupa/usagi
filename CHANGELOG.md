@@ -7,6 +7,10 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
+- Running the `usagi` binary with no arguments (double-clicking it or launching
+  a `.desktop` file) now opens a launcher window; drop a `main.lua` or project
+  folder onto it to start `usagi dev` on that path; see
+  [#24](https://codeberg.org/brettchalupa/usagi/issues/24)
 - `input.mouse_over()` returns true when the cursor is over the drawn game area,
   false when it's outside the window or over the letterbox bars; see
   [#41](https://codeberg.org/brettchalupa/usagi/issues/41)
