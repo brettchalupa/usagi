@@ -1,7 +1,8 @@
 #!/usr/bin/env ruby
 # Push usagi release archives to itch.io via butler.
 #
-# Downloads the linux/macos/windows archives from a GitHub release and uploads
+# Downloads the linux (x86_64 + arm64), macos, and windows archives from a
+# GitHub release and uploads
 # each to the matching itch.io channel under brettchalupa/usagi, tagged with
 # the release version.
 #
@@ -28,6 +29,7 @@ TARGET = "brettchalupa/usagi"
 # Suffixes match `usagi-<version>-<suffix>` produced by .github/workflows/release.yml.
 CHANNELS = {
   "linux-x86_64.tar.gz"  => "linux",
+  "linux-aarch64.tar.gz" => "linux-arm64",
   "macos.tar.gz"         => "macos",
   "windows-x86_64.zip"   => "windows",
 }
