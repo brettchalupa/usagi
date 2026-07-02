@@ -7,6 +7,10 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
+- The pause menu's top view now shows a confirm/back input hint labeled for
+  whatever the player last used (keyboard keys or gamepad buttons). Hidden on
+  games shorter than the default 320x180 resolution, where space is tight; see
+  [#49](https://codeberg.org/brettchalupa/usagi/issues/49)
 - Running the `usagi` binary with no arguments (double-clicking it or launching
   a `.desktop` file) now opens a launcher window; drop a `main.lua` or project
   folder onto it to start `usagi dev` on that path; see

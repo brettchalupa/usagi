@@ -1341,6 +1341,7 @@ impl Session {
     /// out so the borrow-splitting destructure stays local.
     fn draw_paused(&mut self) {
         let family = self.input_bridge.state.get().gamepad_family();
+        let last_source = self.input_bridge.state.get().last_source();
         let res = self.config.resolution;
         let Self {
             rl,
@@ -1361,7 +1362,7 @@ impl Session {
             maps: crate::pause::Maps { keymap, pad_map },
             menu_items: &menu_labels,
         };
-        pause.draw(&mut d_rt, font, frame, family, res);
+        pause.draw(&mut d_rt, font, frame, family, last_source, res);
     }
 
     fn maybe_reload_assets(&mut self) {

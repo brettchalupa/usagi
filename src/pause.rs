@@ -319,6 +319,7 @@ impl PauseMenu {
         font: &Font,
         frame: PauseFrame<'_>,
         gamepad_family: GamepadFamily,
+        last_source: crate::input::InputSource,
         res: crate::config::Resolution,
     ) {
         let PauseFrame {
@@ -377,7 +378,45 @@ impl PauseMenu {
             View::PadConfig => self.draw_pad_config(d, font, gamepad_family, body_y, res),
             View::ConfirmClearSave => self.draw_confirm_clear(d, font, body_y, res),
         }
+
+        // Top view only, and only when the game is at least as tall as
+        // the default resolution: on shorter games (e.g. 128x128 p8) the
+        // footer crowds the menu, so hide it.
+        if self.view == View::Top && res.h >= crate::config::Resolution::DEFAULT.h {
+            draw_hint_footer(d, font, maps, gamepad_family, last_source, res);
+        }
     }
+}
+
+/// Bottom-left footer showing the current confirm (BTN1) and cancel
+/// (BTN2) glyphs
+fn draw_hint_footer<D: RaylibDraw>(
+    d: &mut D,
+    font: &Font,
+    maps: Maps<'_>,
+    family: GamepadFamily,
+    source: crate::input::InputSource,
+    res: crate::config::Resolution,
+) {
+    use crate::input::{ACTION_BTN1, ACTION_BTN2, mapping_for};
+    let (Some(confirm), Some(cancel)) = (
+        mapping_for(ACTION_BTN1, maps.keymap, maps.pad_map, source, family),
+        mapping_for(ACTION_BTN2, maps.keymap, maps.pad_map, source, family),
+    ) else {
+        return;
+    };
+    let hint = format!("Confirm: {confirm} • Back: {cancel}");
+    let size = crate::font::MONOGRAM_SIZE as f32;
+    let x = item_x_for(res);
+    let y = res.h - size - 10.0;
+    d.draw_text_ex(
+        font,
+        &hint,
+        Vector2::new(x, y),
+        size,
+        0.0,
+        palette::engine_color(Pal::LightGray),
+    );
 }
 
 impl Default for PauseMenu {
