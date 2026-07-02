@@ -229,9 +229,10 @@ used with `notetris`.
 
 Runs on every push to `main` and every pull request. Three jobs:
 
-- `check`: matrix of Linux (`ubuntu-22.04`), macOS (`macos-latest`, Apple
-  Silicon), and Windows (`windows-latest`). Runs fmt, clippy, tests, and a
-  release build. Uploads the binary as an artifact.
+- `check`: matrix of Linux x86_64 (`ubuntu-22.04`), Linux aarch64
+  (`ubuntu-22.04-arm`), macOS (`macos-15`, Apple Silicon), and Windows
+  (`windows-2022`). Runs fmt, clippy, tests, and a release build. Uploads the
+  binary as an artifact.
 - `web`: builds the emscripten wasm runtime. Uploads `usagi.js` and
   `usagi.wasm`.
 
