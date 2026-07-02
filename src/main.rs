@@ -107,13 +107,22 @@ use clap::{Parser, Subcommand};
 #[cfg(not(target_os = "emscripten"))]
 use export::ExportTarget;
 
+/// `usagi --help` footer. Bare URLs (clap strips OSC 8 hyperlink escapes
+/// from help text); most modern terminals auto-linkify them anyway.
+#[cfg(not(target_os = "emscripten"))]
+const AFTER_HELP: &str = "\
+Manual: https://usagiengine.com
+Book:   https://book.usagiengine.com
+
+Run with no command to open a launcher window: drop a .lua file or a project folder onto it to start dev mode.";
+
 #[cfg(not(target_os = "emscripten"))]
 #[derive(Parser)]
 #[command(
     name = "usagi",
     version,
     about = "Rapid 2D game prototyping with Lua",
-    after_help = "Run with no command to open a launcher window: drop a .lua file or a project folder onto it to start dev mode."
+    after_help = AFTER_HELP
 )]
 struct Cli {
     #[command(subcommand)]
