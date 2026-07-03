@@ -874,11 +874,19 @@ pub fn screen_to_game(
     screen_h: i32,
     res: crate::config::Resolution,
     pixel_perfect: bool,
+    rotation: u16,
 ) -> (i32, i32) {
-    let (scale, ox, oy) =
-        crate::render::game_view_transform(screen_w, screen_h, res, pixel_perfect);
-    let gx = ((mouse_x - ox) / scale).floor() as i32;
-    let gy = ((mouse_y - oy) / scale).floor() as i32;
+    let (scale, _, _) =
+        crate::render::game_view_transform(screen_w, screen_h, res, pixel_perfect, rotation);
+    // Invert the blit: undo the rotation about the screen center, then
+    // the scale, then re-center in game space. Mirrors `draw_render_target`
+    // so clicks land where the player aimed on a rotated display.
+    let cx = (screen_w / 2) as f32;
+    let cy = (screen_h / 2) as f32;
+    let inv = (360 - rotation % 360) % 360;
+    let (dx, dy) = crate::render::rotate_vec(mouse_x - cx, mouse_y - cy, inv);
+    let gx = (dx / scale + res.w / 2.0).floor() as i32;
+    let gy = (dy / scale + res.h / 2.0).floor() as i32;
     (gx, gy)
 }
 
@@ -920,6 +928,9 @@ pub fn set_mouse_visible(rl: &mut RaylibHandle, visible: bool) {
 pub struct SampleConfig {
     pub res: crate::config::Resolution,
     pub pixel_perfect: bool,
+    /// Display rotation in degrees; mirrored into the mouse inversion so
+    /// pointer coords stay correct on a rotated display.
+    pub rotation: u16,
 }
 
 /// State-side context for `InputState::sample`: the per-game override
@@ -986,7 +997,11 @@ impl InputState {
     /// and `prior_pad` carry forward when no bound input fired this
     /// frame, so glyphs stay stable across idle moments.
     pub fn sample(rl: &RaylibHandle, cfg: SampleConfig, ctx: SampleContext<'_>) -> Self {
-        let SampleConfig { res, pixel_perfect } = cfg;
+        let SampleConfig {
+            res,
+            pixel_perfect,
+            rotation,
+        } = cfg;
         let SampleContext {
             keymap,
             pad_map,
@@ -1012,7 +1027,7 @@ impl InputState {
         let m = rl.get_mouse_position();
         let sw = rl.get_screen_width();
         let sh = rl.get_screen_height();
-        let (mx, my) = screen_to_game(m.x, m.y, sw, sh, res, pixel_perfect);
+        let (mx, my) = screen_to_game(m.x, m.y, sw, sh, res, pixel_perfect, rotation);
         // Cursor must be inside the window (raylib check) and land on the
         // game area rather than a letterbox bar.
         let mouse_over = rl.is_cursor_on_screen() && point_in_game_area(mx, my, res);
@@ -1683,12 +1698,15 @@ mod tests {
     fn screen_to_game_at_clean_4x_scale() {
         let (sw, sh) = (1280, 720);
         let res = crate::config::Resolution::DEFAULT;
-        assert_eq!(screen_to_game(640.0, 360.0, sw, sh, res, false), (160, 90));
-        assert_eq!(screen_to_game(0.0, 0.0, sw, sh, res, false), (0, 0));
+        assert_eq!(
+            screen_to_game(640.0, 360.0, sw, sh, res, false, 0),
+            (160, 90)
+        );
+        assert_eq!(screen_to_game(0.0, 0.0, sw, sh, res, false, 0), (0, 0));
         // Pixel just past the right edge: outside the game viewport
         // (game is 320 wide, so 320 itself is one past the last pixel).
         assert_eq!(
-            screen_to_game(1280.0, 720.0, sw, sh, res, false),
+            screen_to_game(1280.0, 720.0, sw, sh, res, false, 0),
             (320, 180),
             "should return out-of-range, not clamp"
         );
@@ -1705,10 +1723,10 @@ mod tests {
         // height = 450, leaving 75px black bars top and bottom.
         let (sw, sh) = (800, 600);
         let res = crate::config::Resolution::DEFAULT;
-        let (cx, cy) = screen_to_game(400.0, 300.0, sw, sh, res, false);
+        let (cx, cy) = screen_to_game(400.0, 300.0, sw, sh, res, false, 0);
         assert_eq!((cx, cy), (160, 90));
         // Click on the top letterbox bar: y should be negative.
-        let (_, top_y) = screen_to_game(400.0, 10.0, sw, sh, res, false);
+        let (_, top_y) = screen_to_game(400.0, 10.0, sw, sh, res, false, 0);
         assert!(top_y < 0, "expected negative y for top bar, got {top_y}");
     }
 
@@ -1719,14 +1737,14 @@ mod tests {
     fn screen_to_game_pixel_perfect_floors_scale() {
         let (sw, sh) = (800, 600);
         let res = crate::config::Resolution::DEFAULT;
-        let (free, _) = screen_to_game(400.0, 300.0, sw, sh, res, false);
-        let (pp, _) = screen_to_game(400.0, 300.0, sw, sh, res, true);
+        let (free, _) = screen_to_game(400.0, 300.0, sw, sh, res, false, 0);
+        let (pp, _) = screen_to_game(400.0, 300.0, sw, sh, res, true, 0);
         assert_eq!(free, 160);
         assert_eq!(pp, 160, "center stays mapped to game center either way");
         // Off-center: free scale = 2.5, pp scale = 2.0, so a 100px
         // window offset yields different game offsets.
-        let (free_x, _) = screen_to_game(500.0, 300.0, sw, sh, res, false);
-        let (pp_x, _) = screen_to_game(500.0, 300.0, sw, sh, res, true);
+        let (free_x, _) = screen_to_game(500.0, 300.0, sw, sh, res, false, 0);
+        let (pp_x, _) = screen_to_game(500.0, 300.0, sw, sh, res, true, 0);
         assert_eq!(free_x, 200);
         assert_eq!(pp_x, 210);
     }
@@ -1737,7 +1755,24 @@ mod tests {
         // 480x270 game in a 1920x1080 window: clean 4x scale.
         let (sw, sh) = (1920, 1080);
         let res = crate::config::Resolution { w: 480.0, h: 270.0 };
-        assert_eq!(screen_to_game(960.0, 540.0, sw, sh, res, false), (240, 135));
+        assert_eq!(
+            screen_to_game(960.0, 540.0, sw, sh, res, false, 0),
+            (240, 135)
+        );
+    }
+
+    /// Under 90deg rotation the game's (0,0) corner blits to the window's
+    /// top-right, so the inverse must map that screen point back to (0,0).
+    /// 360x640 window, 320x180 game rotated 90deg fits at 2x.
+    #[test]
+    fn screen_to_game_inverts_90deg_rotation() {
+        let (sw, sh) = (360, 640);
+        let res = crate::config::Resolution::DEFAULT;
+        assert_eq!(
+            screen_to_game(180.0, 320.0, sw, sh, res, false, 90),
+            (160, 90)
+        );
+        assert_eq!(screen_to_game(360.0, 0.0, sw, sh, res, false, 90), (0, 0));
     }
 
     #[test]

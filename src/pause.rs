@@ -3,7 +3,7 @@
 //! - **Top** — main item list (Continue, Settings sub-menu, Clear
 //!   Save, Reset, Quit). See `pause/top.rs`.
 //! - **SettingsMenu** — Settings sub-menu (Music, SFX, Fullscreen,
-//!   Input). See `pause/settings_menu.rs`.
+//!   Rotation, Input). See `pause/settings_menu.rs`.
 //! - **InputMenu** — Input sub-menu (Test Input / Configure Keys /
 //!   Configure Gamepad). See `pause/input_menu.rs`.
 //! - **InputTester** — visual D-pad / button tester + binding table.
@@ -64,6 +64,8 @@ pub enum PauseAction {
     SetMusicVolume(f32),
     SetSfxVolume(f32),
     ToggleFullscreen,
+    /// New display rotation in degrees clockwise (0/90/180/270).
+    SetRotation(u16),
     ResetGame,
     ClearSave,
     SetKeymap(Keymap),
@@ -87,7 +89,7 @@ enum View {
     Top,
     /// Sub-menu under Top: bundles every "tweakable" so the Top list
     /// stays short (Continue + destructive actions + Quit). Holds
-    /// Music, SFX, Fullscreen, and the Input sub-menu entry.
+    /// Music, SFX, Fullscreen, Rotation, and the Input sub-menu entry.
     SettingsMenu,
     /// Sub-menu under Settings: Test Input, Configure Keys, Configure
     /// Gamepad. Splitting these out keeps the Tester from intercepting
@@ -456,7 +458,9 @@ mod tests {
     use super::*;
     use crate::input::ACTION_LEFT;
     use input_menu::INPUT_ITEM_TEST;
-    use settings_menu::{SETTINGS_ITEM_FULLSCREEN, SETTINGS_ITEM_INPUT, SETTINGS_ITEM_MUSIC};
+    use settings_menu::{
+        SETTINGS_ITEM_FULLSCREEN, SETTINGS_ITEM_INPUT, SETTINGS_ITEM_MUSIC, SETTINGS_ITEM_ROTATION,
+    };
     use top::{item_clear, item_quit, item_reset, item_settings, top_count};
 
     // Convenience aliases: existing tests assume no menu items are
@@ -759,6 +763,27 @@ mod tests {
         assert_eq!(
             step(&mut m, &s, &k, btn1()),
             Some(PauseAction::ToggleFullscreen)
+        );
+    }
+
+    #[test]
+    fn left_right_on_rotation_steps_degrees() {
+        let mut m = PauseMenu::new();
+        let s = Settings::default(); // rotation 0
+        let k = Keymap::default();
+        enter_settings_at(&mut m, &s, &k, SETTINGS_ITEM_ROTATION);
+        // Right steps forward to 90; left wraps to 270; btn1 confirms 90.
+        assert_eq!(
+            step(&mut m, &s, &k, right()),
+            Some(PauseAction::SetRotation(90))
+        );
+        assert_eq!(
+            step(&mut m, &s, &k, left()),
+            Some(PauseAction::SetRotation(270))
+        );
+        assert_eq!(
+            step(&mut m, &s, &k, btn1()),
+            Some(PauseAction::SetRotation(90))
         );
     }
 

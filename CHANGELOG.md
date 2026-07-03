@@ -7,6 +7,11 @@ dev-facing changes, not those related to developing the engine itself.
 
 No unreleased changes.
 
+Features:
+
+- Game rotation setting in 90deg increments via the Pause menu's Settings; see
+  [#79](https://codeberg.org/brettchalupa/usagi/issues/79)
+
 ## v1.2.0 - July 2, 2026
 
 Features:

@@ -14,13 +14,25 @@ use sola_raylib::prelude::*;
 ///
 /// `res` is the configured render resolution (default 320x180;
 /// overridable via `_config().game_width / game_height`).
+///
+/// `rotation` is the display rotation in degrees clockwise (0/90/180/270).
+/// A 90/270 rotation swaps the effective footprint so a rotated frame fits
+/// the window: the returned top-left is the axis-aligned footprint corner
+/// (90deg turns of a rectangle stay axis-aligned).
 pub fn game_view_transform(
     screen_w: i32,
     screen_h: i32,
     res: Resolution,
     pixel_perfect: bool,
+    rotation: u16,
 ) -> (f32, f32, f32) {
-    let mut scale = (screen_w as f32 / res.w).min(screen_h as f32 / res.h);
+    // Fit against the rotated footprint: 90/270 swap width and height.
+    let (fit_w, fit_h) = if rotation % 180 == 90 {
+        (res.h, res.w)
+    } else {
+        (res.w, res.h)
+    };
+    let mut scale = (screen_w as f32 / fit_w).min(screen_h as f32 / fit_h);
     if pixel_perfect {
         // Nudge before flooring so sub-pixel rounding in the reported window
         // size under fractional display scaling (e.g. 639px for a 640px 2x
@@ -30,11 +42,33 @@ pub fn game_view_transform(
     if scale < 1.0 {
         scale = 1.0;
     }
-    let scaled_w = res.w * scale;
-    let scaled_h = res.h * scale;
-    let top_left_x = (screen_w / 2) as f32 - scaled_w / 2.0;
-    let top_left_y = (screen_h / 2) as f32 - scaled_h / 2.0;
+    let (foot_w, foot_h) = footprint(res, scale, rotation);
+    let top_left_x = (screen_w / 2) as f32 - foot_w / 2.0;
+    let top_left_y = (screen_h / 2) as f32 - foot_h / 2.0;
     (scale, top_left_x, top_left_y)
+}
+
+/// On-screen footprint of the scaled RT for `rotation`. 90/270 swap the
+/// dimensions since a 90deg turn of a rectangle stays axis-aligned.
+pub fn footprint(res: Resolution, scale: f32, rotation: u16) -> (f32, f32) {
+    if rotation % 180 == 90 {
+        (res.h * scale, res.w * scale)
+    } else {
+        (res.w * scale, res.h * scale)
+    }
+}
+
+/// Rotates a screen-space vector by `rotation` degrees clockwise
+/// (y-down), matching how `draw_texture_pro` rotates the blit. Used to
+/// keep the shake offset and the mouse inversion consistent with the
+/// visible orientation. Pass `(360 - rotation) % 360` for the inverse.
+pub fn rotate_vec(x: f32, y: f32, rotation: u16) -> (f32, f32) {
+    match rotation % 360 {
+        90 => (-y, x),
+        180 => (-x, -y),
+        270 => (y, -x),
+        _ => (x, y),
+    }
 }
 
 /// Draws the game's render target to the screen, scaled to fit.
@@ -45,6 +79,7 @@ pub fn game_view_transform(
 /// `shake` is an offset in *game pixels* (not screen pixels) added to
 /// the dest rect after upscaling, so `effect.screen_shake(t, 4)` looks
 /// the same regardless of window size.
+#[allow(clippy::too_many_arguments)]
 pub fn draw_render_target<D: RaylibDraw>(
     d: &mut D,
     rt: &mut RenderTexture2D,
@@ -53,14 +88,19 @@ pub fn draw_render_target<D: RaylibDraw>(
     res: Resolution,
     pixel_perfect: bool,
     shake: (f32, f32),
+    rotation: u16,
 ) {
-    let (scale, _, _) = game_view_transform(screen_w, screen_h, res, pixel_perfect);
+    let (scale, _, _) = game_view_transform(screen_w, screen_h, res, pixel_perfect, rotation);
     let scaled_w = res.w * scale;
     let scaled_h = res.h * scale;
-    let (sx, sy) = shake;
+    // Shake is defined in game pixels; rotate it so it stays consistent
+    // with the game's visible orientation.
+    let (sx, sy) = rotate_vec(shake.0 * scale, shake.1 * scale, rotation);
+    // The RT rotates about its center (origin), placed at the screen
+    // center, so 90/180/270 turns stay centered in the window.
     let dest_rect = Rectangle {
-        x: (screen_w / 2) as f32 + sx * scale,
-        y: (screen_h / 2) as f32 + sy * scale,
+        x: (screen_w / 2) as f32 + sx,
+        y: (screen_h / 2) as f32 + sy,
         width: scaled_w,
         height: scaled_h,
     };
@@ -76,7 +116,7 @@ pub fn draw_render_target<D: RaylibDraw>(
         },
         dest_rect,
         origin,
-        0.,
+        rotation as f32,
         Color::WHITE,
     );
 }
@@ -288,28 +328,58 @@ mod tests {
     fn pixel_perfect_tolerates_fractional_rounding() {
         // 639px reported for a 640px 2x window (fractional scaling) must
         // still land on 2x, not floor 1.997 down to 1x.
-        let (scale, _, _) = game_view_transform(639, 360, RES, true);
+        let (scale, _, _) = game_view_transform(639, 360, RES, true, 0);
         assert_eq!(scale, 2.0);
     }
 
     #[test]
     fn pixel_perfect_exact_multiple_is_integer() {
-        let (scale, _, _) = game_view_transform(640, 360, RES, true);
+        let (scale, _, _) = game_view_transform(640, 360, RES, true, 0);
         assert_eq!(scale, 2.0);
     }
 
     #[test]
     fn pixel_perfect_does_not_overshoot_small_window() {
         // A genuinely ~1.5x window stays at 1x, not bumped to 2x.
-        let (scale, _, _) = game_view_transform(500, 300, RES, true);
+        let (scale, _, _) = game_view_transform(500, 300, RES, true, 0);
         assert_eq!(scale, 1.0);
     }
 
     #[test]
     fn non_pixel_perfect_keeps_fractional_scale() {
-        let (scale, _, _) = game_view_transform(640, 360, RES, false);
+        let (scale, _, _) = game_view_transform(640, 360, RES, false, 0);
         assert_eq!(scale, 2.0);
-        let (scale, _, _) = game_view_transform(480, 270, RES, false);
+        let (scale, _, _) = game_view_transform(480, 270, RES, false, 0);
         assert_eq!(scale, 1.5);
+    }
+
+    #[test]
+    fn rotation_90_fits_against_swapped_footprint() {
+        // A 320x180 game rotated 90deg has a 180x320 footprint. In a
+        // 360x640 window that fits at 2x (360/180 and 640/320 both = 2),
+        // where the unrotated fit would have been min(360/320,640/180)=1.125.
+        let (scale, tlx, tly) = game_view_transform(360, 640, RES, false, 90);
+        assert_eq!(scale, 2.0);
+        // Footprint is 360x640, exactly filling the window: top-left at 0,0.
+        assert_eq!((tlx, tly), (0.0, 0.0));
+    }
+
+    #[test]
+    fn rotation_180_matches_unrotated_fit() {
+        let (s0, _, _) = game_view_transform(640, 360, RES, false, 0);
+        let (s180, _, _) = game_view_transform(640, 360, RES, false, 180);
+        assert_eq!(s0, s180);
+    }
+
+    #[test]
+    fn rotate_vec_turns_and_inverts() {
+        // +x under 90deg CW (y-down) points down.
+        assert_eq!(rotate_vec(1.0, 0.0, 90), (0.0, 1.0));
+        assert_eq!(rotate_vec(1.0, 0.0, 180), (-1.0, 0.0));
+        assert_eq!(rotate_vec(1.0, 0.0, 270), (0.0, -1.0));
+        assert_eq!(rotate_vec(3.0, 4.0, 0), (3.0, 4.0));
+        // Rotating then inverse-rotating restores the vector.
+        let (x, y) = rotate_vec(3.0, 4.0, 90);
+        assert_eq!(rotate_vec(x, y, 270), (3.0, 4.0));
     }
 }

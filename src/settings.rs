@@ -15,6 +15,20 @@ pub const DEFAULT_SFX_VOLUME: f32 = 1.0;
 /// First-boot fullscreen state. False so the player picks via Alt+Enter.
 const DEFAULT_FULLSCREEN: bool = false;
 
+/// First-boot display rotation. 0 so games render upright by default.
+const DEFAULT_ROTATION: u16 = 0;
+
+/// Normalizes any degree value to the nearest valid 90deg increment
+/// (0/90/180/270). Guards against garbage loaded from disk.
+pub fn normalize_rotation(deg: i32) -> u16 {
+    (deg.rem_euclid(360) / 90 * 90) as u16
+}
+
+/// Bumps rotation one 90deg step in `dir` (-1 / +1), wrapping around.
+pub fn step_rotation(current: u16, dir: i32) -> u16 {
+    normalize_rotation(current as i32 + dir * 90)
+}
+
 #[cfg(not(target_os = "emscripten"))]
 const SETTINGS_FILE: &str = "settings.json";
 
@@ -30,6 +44,10 @@ pub struct Settings {
     pub sfx_volume: f32,
     /// Borderless fullscreen state. Alt+Enter toggles and persists.
     pub fullscreen: bool,
+    /// Display rotation in degrees clockwise; one of 0/90/180/270.
+    /// Rotates the whole game (world, pause menu, shaders) at the final
+    /// blit. Useful for vertical arcade games on rotated monitors.
+    pub rotation: u16,
 }
 
 impl Default for Settings {
@@ -38,6 +56,7 @@ impl Default for Settings {
             music_volume: DEFAULT_MUSIC_VOLUME,
             sfx_volume: DEFAULT_SFX_VOLUME,
             fullscreen: DEFAULT_FULLSCREEN,
+            rotation: DEFAULT_ROTATION,
         }
     }
 }
@@ -99,6 +118,11 @@ fn parse(value: &serde_json::Value) -> Settings {
             .get("fullscreen")
             .and_then(|v| v.as_bool())
             .unwrap_or(defaults.fullscreen),
+        rotation: value
+            .get("rotation")
+            .and_then(|v| v.as_i64())
+            .map(|v| normalize_rotation(v as i32))
+            .unwrap_or(defaults.rotation),
     }
 }
 
@@ -110,6 +134,7 @@ pub fn write(game_id: &GameId, settings: &Settings) -> std::io::Result<()> {
         "music_volume": settings.music_volume,
         "sfx_volume": settings.sfx_volume,
         "fullscreen": settings.fullscreen,
+        "rotation": settings.rotation,
     });
     let body = serde_json::to_string_pretty(&json)
         .map_err(|e| std::io::Error::other(format!("serialize settings: {e}")))?;
@@ -205,6 +230,31 @@ mod tests {
         let parsed = parse(&value);
         assert!((parsed.music_volume - 0.6).abs() < 1e-6);
         assert!((parsed.sfx_volume - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn rotation_round_trips_and_normalizes() {
+        let body = r#"{ "rotation": 90 }"#;
+        let value: serde_json::Value = serde_json::from_str(body).unwrap();
+        assert_eq!(parse(&value).rotation, 90);
+        // Off-grid or out-of-range values snap to a valid increment.
+        assert_eq!(normalize_rotation(-90), 270);
+        assert_eq!(normalize_rotation(450), 90);
+        assert_eq!(normalize_rotation(200), 180);
+    }
+
+    #[test]
+    fn step_rotation_wraps_both_directions() {
+        assert_eq!(step_rotation(0, 1), 90);
+        assert_eq!(step_rotation(270, 1), 0);
+        assert_eq!(step_rotation(0, -1), 270);
+    }
+
+    #[test]
+    fn missing_rotation_key_defaults_to_zero() {
+        let body = r#"{ "fullscreen": false }"#;
+        let value: serde_json::Value = serde_json::from_str(body).unwrap();
+        assert_eq!(parse(&value).rotation, DEFAULT_ROTATION);
     }
 
     #[test]

@@ -1010,6 +1010,7 @@ impl Session {
             input::SampleConfig {
                 res,
                 pixel_perfect: config.pixel_perfect,
+                rotation: settings.rotation,
             },
             input::SampleContext {
                 keymap: &keymap,
@@ -1196,8 +1197,13 @@ impl Session {
             self.display_logged = true;
             let res = self.config.resolution;
             let dpi = self.rl.get_window_scale_dpi();
-            let (fit, _, _) =
-                game_view_transform(screen_w, screen_h, res, self.config.pixel_perfect);
+            let (fit, _, _) = game_view_transform(
+                screen_w,
+                screen_h,
+                res,
+                self.config.pixel_perfect,
+                self.settings.rotation,
+            );
             crate::msg::info!(
                 "display: game {}x{}, window {}x{} logical, {}x{} framebuffer, dpi {:.2}x{:.2}, pixel_perfect {}, fit {}x",
                 res.w as i32,
@@ -1223,6 +1229,7 @@ impl Session {
             input::SampleConfig {
                 res: self.config.resolution,
                 pixel_perfect: self.config.pixel_perfect,
+                rotation: self.settings.rotation,
             },
             input::SampleContext {
                 keymap: &self.keymap,
@@ -1714,6 +1721,14 @@ impl Session {
             }
             PauseAction::ToggleFullscreen => {
                 self.toggle_fullscreen();
+            }
+            PauseAction::SetRotation(deg) => {
+                // Normalize defensively; the render/input paths read
+                // self.settings.rotation directly, so no other apply step.
+                self.settings.rotation = crate::settings::normalize_rotation(deg as i32);
+                if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
+                    crate::msg::err!("settings write failed: {e}");
+                }
             }
             PauseAction::ResetGame => {
                 self.reset_game();
@@ -2585,14 +2600,16 @@ impl Session {
         // when no shake is active, since the RT blit covers the
         // full viewport in that case.
         let res = self.config.resolution;
+        let rotation = self.settings.rotation;
         if shake != (0.0, 0.0) {
             let (scale, top_left_x, top_left_y) =
-                game_view_transform(screen_w, screen_h, res, self.config.pixel_perfect);
+                game_view_transform(screen_w, screen_h, res, self.config.pixel_perfect, rotation);
+            let (foot_w, foot_h) = crate::render::footprint(res, scale, rotation);
             d.draw_rectangle(
                 top_left_x as i32,
                 top_left_y as i32,
-                (res.w * scale) as i32,
-                (res.h * scale) as i32,
+                foot_w as i32,
+                foot_h as i32,
                 color(self.last_clear.get()),
             );
         }
@@ -2612,6 +2629,7 @@ impl Session {
                     res,
                     self.config.pixel_perfect,
                     shake,
+                    rotation,
                 );
             } else {
                 draw_render_target(
@@ -2622,6 +2640,7 @@ impl Session {
                     res,
                     self.config.pixel_perfect,
                     shake,
+                    rotation,
                 );
             }
         }

@@ -12,14 +12,15 @@ use super::inputs::MenuInputs;
 use super::volume::{draw_volume_bars, step_volume};
 use crate::palette;
 use crate::palette::Pal;
-use crate::settings::Settings;
+use crate::settings::{Settings, step_rotation};
 use sola_raylib::prelude::*;
 
-pub(super) const SETTINGS_COUNT: usize = 4;
+pub(super) const SETTINGS_COUNT: usize = 5;
 pub(super) const SETTINGS_ITEM_MUSIC: usize = 0;
 pub(super) const SETTINGS_ITEM_SFX: usize = 1;
 pub(super) const SETTINGS_ITEM_FULLSCREEN: usize = 2;
-pub(super) const SETTINGS_ITEM_INPUT: usize = 3;
+pub(super) const SETTINGS_ITEM_ROTATION: usize = 3;
+pub(super) const SETTINGS_ITEM_INPUT: usize = 4;
 
 impl PauseMenu {
     pub(super) fn handle_settings_menu(
@@ -57,12 +58,24 @@ impl PauseMenu {
                     )));
                 }
                 SETTINGS_ITEM_FULLSCREEN => return Some(PauseAction::ToggleFullscreen),
+                SETTINGS_ITEM_ROTATION => {
+                    return Some(PauseAction::SetRotation(step_rotation(
+                        settings.rotation,
+                        dir,
+                    )));
+                }
                 _ => {}
             }
         }
         if inputs.btn1 {
             match self.settings_menu_selected {
                 SETTINGS_ITEM_FULLSCREEN => return Some(PauseAction::ToggleFullscreen),
+                SETTINGS_ITEM_ROTATION => {
+                    return Some(PauseAction::SetRotation(step_rotation(
+                        settings.rotation,
+                        1,
+                    )));
+                }
                 SETTINGS_ITEM_INPUT => {
                     self.view = View::InputMenu;
                     self.input_menu_selected = 0;
@@ -92,6 +105,7 @@ impl PauseMenu {
                 "Fullscreen: {}",
                 if settings.fullscreen { "On" } else { "Off" }
             ),
+            format!("Rotation: {}\u{00b0}", settings.rotation),
             "Input".to_string(),
         ];
         debug_assert_eq!(labels.len(), SETTINGS_COUNT);
