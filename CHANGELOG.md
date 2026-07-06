@@ -12,6 +12,11 @@ Features:
 - Game rotation setting in 90deg increments via the Pause menu's Settings; see
   [#79](https://codeberg.org/brettchalupa/usagi/issues/79)
 
+Fixes:
+
+- Nudge window size a little when launching so it's not too tiny when close to
+  an integer scale; see [#82](https://codeberg.org/brettchalupa/usagi/issues/82)
+
 ## v1.2.0 - July 2, 2026
 
 Features:

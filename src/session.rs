@@ -87,12 +87,17 @@ fn shape_color(idx: i32, alpha: Option<f32>) -> Color {
 /// Fraction of the monitor the default initial window aims to fill.
 const INITIAL_WINDOW_FRACTION: f32 = 0.66;
 
+/// Nudge applied before flooring in `initial_window_scale` to have
+/// the initial windowed launch not floor to a much smaller window
+/// size when it's close to the next whole scale.
+const FIT_EPSILON: f32 = 0.05;
+
 /// Largest integer scale of `res` that fits within `INITIAL_WINDOW_FRACTION`
 /// of the monitor. Never below 1, so a game larger than the display still
 /// returns 1 (the caller maximizes in that case).
 fn initial_window_scale(res: crate::config::Resolution, monitor_w: i32, monitor_h: i32) -> u32 {
-    let fit_w = (monitor_w as f32 * INITIAL_WINDOW_FRACTION / res.w).floor() as i32;
-    let fit_h = (monitor_h as f32 * INITIAL_WINDOW_FRACTION / res.h).floor() as i32;
+    let fit_w = (monitor_w as f32 * INITIAL_WINDOW_FRACTION / res.w + FIT_EPSILON).floor() as i32;
+    let fit_h = (monitor_h as f32 * INITIAL_WINDOW_FRACTION / res.h + FIT_EPSILON).floor() as i32;
     fit_w.min(fit_h).max(1) as u32
 }
 
@@ -2725,8 +2730,18 @@ mod tests {
     #[test]
     fn initial_scale_fits_display_by_integer() {
         let res = Resolution { w: 320.0, h: 180.0 };
-        // 0.66 * 1080 / 180 = 3.96 -> 3
-        assert_eq!(initial_window_scale(res, 1920, 1080), 3);
+        // 0.66 * 1080 / 180 = 3.96, nudged past 4 by FIT_EPSILON -> 4
+        assert_eq!(initial_window_scale(res, 1920, 1080), 4);
+    }
+
+    #[test]
+    fn initial_scale_does_not_undershoot_on_exact_multiples() {
+        let default_res = Resolution { w: 320.0, h: 180.0 };
+        let doubled_res = Resolution { w: 640.0, h: 360.0 };
+        let default_scale = initial_window_scale(default_res, 1920, 1080);
+        let doubled_scale = initial_window_scale(doubled_res, 1920, 1080);
+        assert_eq!(default_res.w * default_scale as f32, 1280.0);
+        assert_eq!(doubled_res.w * doubled_scale as f32, 1280.0);
     }
 
     #[test]
