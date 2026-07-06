@@ -11,6 +11,9 @@ Features:
 
 - Game rotation setting in 90deg increments via the Pause menu's Settings; see
   [#79](https://codeberg.org/brettchalupa/usagi/issues/79)
+- Warn when requiring files with different casing on the disk, as it can lead to
+  issues on different file-systems; see
+  [#81](https://codeberg.org/brettchalupa/usagi/issues/81)
 
 Fixes:
 

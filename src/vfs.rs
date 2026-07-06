@@ -176,6 +176,41 @@ fn module_candidates(name: &str) -> Option<Vec<String>> {
     Some(vec![format!("{rel}.lua"), format!("{rel}/init.lua")])
 }
 
+/// Checks `rel` (a `/`-joined path known to exist under `root`) against
+/// the actual on-disk casing of each segment. Returns the real casing
+/// if any segment differs, None if it matches exactly.
+///
+/// A successful `std::fs::read` for `rel` only proves the file exists
+/// under case-insensitive resolution (Windows, default macOS). The
+/// exported bundle is a case-sensitive HashMap, so a require that only
+/// works because the dev filesystem ignores case will fail once
+/// exported.
+fn on_disk_case(root: &Path, rel: &str) -> Option<String> {
+    let mut dir = root.to_path_buf();
+    let mut actual = Vec::new();
+    let mut mismatched = false;
+    for seg in rel.split('/') {
+        let entries = std::fs::read_dir(&dir).ok()?;
+        let mut real_name = None;
+        for entry in entries.flatten() {
+            let Some(name) = entry.file_name().to_str().map(str::to_string) else {
+                continue;
+            };
+            if name.eq_ignore_ascii_case(seg) {
+                if name != seg {
+                    mismatched = true;
+                }
+                real_name = Some(name);
+                break;
+            }
+        }
+        let real_name = real_name?;
+        dir.push(&real_name);
+        actual.push(real_name);
+    }
+    mismatched.then(|| actual.join("/"))
+}
+
 /// Recursively visits every `*.lua` file under `root`. Skips
 /// dotfiles / dot-directories. Read errors are swallowed (best-effort
 /// walk) since the call sites (live-reload watcher, bundle exporter)
@@ -467,6 +502,11 @@ impl VirtualFs for FsBacked {
                     // searcher chain (and its error message) is honest.
                     return None;
                 }
+                if let Some(actual) = on_disk_case(&self.root, &rel) {
+                    crate::msg::warn!(
+                        "require(\"{mod_name}\") only resolved because this filesystem ignores case; the file is actually \"{actual}\". Fix the case, it will fail to load once exported."
+                    );
+                }
                 return Some((bytes, full.to_string_lossy().into_owned()));
             }
         }
@@ -733,6 +773,37 @@ mod tests {
         assert_eq!(module_candidates(".foo"), None);
         assert_eq!(module_candidates("foo."), None);
         assert_eq!(module_candidates("foo..bar"), None);
+    }
+
+    #[test]
+    fn on_disk_case_finds_mismatch() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("Foobar.lua"), b"-- foobar").unwrap();
+        assert_eq!(
+            on_disk_case(root, "foobar.lua"),
+            Some("Foobar.lua".to_string())
+        );
+    }
+
+    #[test]
+    fn on_disk_case_none_when_exact_match() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("Foobar.lua"), b"-- foobar").unwrap();
+        assert_eq!(on_disk_case(root, "Foobar.lua"), None);
+    }
+
+    #[test]
+    fn on_disk_case_checks_every_segment() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("World")).unwrap();
+        fs::write(root.join("World/Tiles.lua"), b"-- tiles").unwrap();
+        assert_eq!(
+            on_disk_case(root, "world/tiles.lua"),
+            Some("World/Tiles.lua".to_string())
+        );
     }
 
     #[test]
