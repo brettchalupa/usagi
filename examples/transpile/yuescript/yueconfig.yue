@@ -1,0 +1,8 @@
+return
+    -- The global variables to be recognized by the extension.
+    globals:
+        - "gfx"
+        - "_config" 
+        - "_draw" 
+        - "_update" 
+        - "_init"

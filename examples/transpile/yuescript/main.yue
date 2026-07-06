@@ -1,8 +1,15 @@
-export _config, _draw
+export _config, _draw, _update, _init
 
 global _config = -> { name: "YueScript Ex" }
 
+State = {}
+global _init = (dt) ->
+  State = {}
+  State.my_number = 0
+global _update = (dt) ->
+  State.my_number += 1
+
 global _draw = (dt) ->
   gfx.clear(gfx.COLOR_BLACK)
-  gfx.text("Hello YueScript!", 10, 10, gfx.COLOR_WHITE)
-  gfx.text("dt: " .. dt, 10, 32, gfx.COLOR_PEACH)
+  gfx.text("Hello YueScript! #{State.my_number}", 10, 10, gfx.COLOR_WHITE)
+  gfx.text("dt: #{dt}", 10, 32, gfx.COLOR_PEACH)
