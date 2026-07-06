@@ -3,7 +3,7 @@
 YueScript is a programmer friendly language that compiles to Lua, similar to
 MoonScript and CoffeeScript.
 
-Website: [https://moonscript.org/](https://moonscript.org/)
+Website: [https://yuescript.org/](https://yuescript.org/)
 
 ## Developing
 
