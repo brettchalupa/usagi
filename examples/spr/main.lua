@@ -17,16 +17,6 @@ function _config()
   return { name = "Sprites", icon = 1 }
 end
 
-local function clamp(value, min, max)
-  if value > max then
-    return max
-  end
-  if value < min then
-    return min
-  end
-  return value
-end
-
 function _init()
   State = {
     p = {
@@ -76,8 +66,8 @@ function _update(dt)
   end
   State.hit_flash = math.max(0, State.hit_flash - dt)
 
-  State.p.x = clamp(State.p.x, 0, usagi.GAME_W)
-  State.p.y = clamp(State.p.y, 0, usagi.GAME_H)
+  State.p.x = util.clamp(State.p.x, 0, usagi.GAME_W)
+  State.p.y = util.clamp(State.p.y, 0, usagi.GAME_H)
 
   -- Two sparks per frame, then update positions and drop dead ones.
   emit_spark()
