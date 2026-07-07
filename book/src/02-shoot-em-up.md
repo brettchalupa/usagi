@@ -477,7 +477,7 @@ Let's draw the player's hitbox as a white dot in the middle of the player in
 {{#include code/02-shoot-em-up/05-hitboxes/main.lua:199:203}}
 ```
 
-The reason we wrote the `player_hitbox` code insead of creating that table over
+The reason we wrote the `player_hitbox` code instead of creating that table over
 and over to represent the hitbox is so that we could reuse that code in the
 `_update` collision detection code and we could then use it in `_draw`. By
 consolidating the code into one place, this makes it much easier to change. If
