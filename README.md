@@ -353,20 +353,19 @@ util.wrap(v, lo, hi)
 util.flash(t, hz)
 util.remap(v, start_a, end_a, start_b, end_b)
 
--- Util -- vectors
+-- Util -- vectors & geometry
+-- table args: vec {x, y}   rect {x, y, w, h}   circ {x, y, r}
 
-util.vec_normalize(v)
-util.vec_dist(a, b)
-util.vec_dist_sq(a, b)
-util.vec_from_angle(angle, len)
+util.vec_normalize(vec)
+util.vec_dist(vec, vec)
+util.vec_dist_sq(vec, vec)
+util.vec_from_angle(angle, len)          -- len optional, default 1
 
--- Util -- geometry
-
-util.point_in_rect(p, r)
-util.point_in_circ(p, c)
-util.rect_overlap(a, b)
-util.circ_overlap(a, b)
-util.circ_rect_overlap(c, r)
+util.point_in_rect(vec, rect)
+util.point_in_circ(vec, circ)
+util.rect_overlap(rect, rect)
+util.circ_overlap(circ, circ)
+util.circ_rect_overlap(circ, rect)
 ```
 
 ### Compound assignment operators
@@ -1017,26 +1016,34 @@ instead of a confusing nil-arithmetic explosion deep inside the helper.
 - `util.remap(v, start_a, end_a, start_b, end_b)` — maps `v` from
   `[start_a, end_a]` to `[start_b, end_b]`.
 
-**Vectors:**
+**Vectors:** all take `{x, y}` tables and are pure (inputs never mutated).
 
-- `util.vec_normalize({x, y})` — returns a new unit-length vector. Zero in →
-  zero out (no divide-by-zero).
-- `util.vec_dist(a, b)` — distance between two `{x, y}` points.
-- `util.vec_dist_sq(a, b)` — squared distance, for "is X closer than Y?" hot
-  loops where you don't want the sqrt. Compare against `r * r`.
-- `util.vec_from_angle(angle, len?)` — vector at `angle` (radians) with
-  magnitude `len` (default 1). Pair with `math.atan(dy, dx)` to convert any
-  direction into a velocity.
+- `util.vec_normalize(v)` — `v` is an `{x, y}` vector. Returns a new unit-length
+  `{x, y}`. Zero in → zero out (no divide-by-zero).
+- `util.vec_dist(a, b)` — straight-line distance between points `a` and `b`,
+  each an `{x, y}` table.
+- `util.vec_dist_sq(a, b)` — squared distance between `{x, y}` points `a` and
+  `b`. Skips the sqrt for "is X closer than Y?" hot loops; compare against
+  `r * r`.
+- `util.vec_from_angle(angle, len)` — `angle` in radians, `len` the magnitude
+  (optional, default 1). Returns an `{x, y}` vector. Pair with
+  `math.atan(dy, dx)` to convert a direction into a velocity.
 
-**Geometry overlap:**
+**Geometry overlap:** table args are points/vectors `{x, y}`, rects
+`{x, y, w, h}` (top-left origin), and circles `{x, y, r}` (center + radius). All
+return a boolean.
 
-- `util.point_in_rect(p, r)` — point-in-rect hit test. Half-open `[x, x+w)` on
-  each axis: top/left edges are inside, bottom/right edges are outside.
-- `util.point_in_circ(p, c)` — point-in-circle hit test. Boundary is outside
-  (matches `circ_overlap` convention).
-- `util.rect_overlap(a, b)` — AABB overlap. Edge-adjacent rects don't overlap.
-- `util.circ_overlap(a, b)` — circle-vs-circle. Tangent circles don't overlap.
-- `util.circ_rect_overlap(c, r)` — circle-vs-rect via closest-point method.
+- `util.point_in_rect(p, r)` — is point `p` `{x, y}` inside rect `r`
+  `{x, y, w, h}`? Half-open `[x, x+w)` on each axis: top/left edges count as
+  inside, bottom/right as outside.
+- `util.point_in_circ(p, c)` — is point `p` `{x, y}` inside circle `c`
+  `{x, y, r}`? Boundary counts as outside (matches `circ_overlap`).
+- `util.rect_overlap(a, b)` — do rects `a` and `b` (`{x, y, w, h}`) overlap?
+  AABB test; edge-adjacent rects don't overlap.
+- `util.circ_overlap(a, b)` — do circles `a` and `b` (`{x, y, r}`) overlap?
+  Tangent circles don't overlap.
+- `util.circ_rect_overlap(c, r)` — does circle `c` `{x, y, r}` overlap rect `r`
+  `{x, y, w, h}`? Closest-point method.
 
 ### `usagi`
 

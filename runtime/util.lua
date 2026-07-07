@@ -3,8 +3,11 @@
 -- engine state, easy to fork or override: assign `util.clamp = ...`
 -- in your own code if you want different semantics.
 --
--- Functions that take tables with required fields (vectors, rects,
--- circles) shape-check their args and raise an error pointing at the
+-- Functions that take tables use these shapes:
+--   vector/point  {x, y}
+--   rect          {x, y, w, h}   (x, y is the top-left corner)
+--   circle        {x, y, r}      (x, y is the center, r the radius)
+-- They shape-check their args and raise an error pointing at the
 -- caller's line, so a typo like `util.rect_overlap({x=0, y=0, w=10})`
 -- (missing `h`) fails fast with a useful message instead of a silent
 -- nil-arithmetic explosion deep inside the helper.
