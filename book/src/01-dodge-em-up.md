@@ -151,7 +151,7 @@ values in this example function. While `add` isn't something we'll use in our
 game, it's useful to show what functions can be like. I tend to think of
 functions as _verbs_, actions we want our code to take.
 
-**Aside:** you have have noticed some lines of text starting with `--` in
+**Aside:** you may have noticed some lines of text starting with `--` in
 `main.lua`. The double dash in Lua creates a **comment** which is code that's
 not executed and is meant to be used to document how something works. Comments
 are useful for future you (or collaborators) to remember what something does.
@@ -399,7 +399,7 @@ for _index_. You could name it `pos`, short for position if you want. So that
 line that assigns `local enemy` grabs the current enemy in the array and assigns
 it to a variable so we can easily change it. Which we do on the line below by
 subtracting `2` pixels from that enemy's `x` position. This will make the enemy
-move from left to right off the screen.
+move from right to left off the screen.
 
 In an associative Lua table with keys and values, you can access and modify the
 value of a given key using the dot syntax: `enemy.x` refers to the value
@@ -420,7 +420,7 @@ our enemies yet again and draw them:
 ```
 
 We use the same style of `for` loop. But rather than update the `enemy`'s
-position, we draw a filled red cicle at the `enemy`'s position. The `8` is the
+position, we draw a filled red circle at the `enemy`'s position. The `8` is the
 radius of the circle in pixels. **Note:** when we draw our player, the origin is
 the upper left of the green rectangle. But when drawing a circle, the `x` and
 `y` describe the circle's center point. This can be slightly confusing but it's
@@ -498,10 +498,10 @@ us how many enemies there are in our `enemies` array:
 
 The number of enemies keeps increasing. Which means each frame we're looping
 through dozens or hundreds or thousands of enemies. But they're not even visible
-nor a threat to the player. Also, if you know a little bit about computers work,
-you might be thinking, if there were millions of those little buddies, couldn't
-my computer run out of memory? What would happen then? It wouldn't be good,
-that's for sure!
+nor a threat to the player. Also, if you know a little bit about how computers
+work, you might be thinking, if there were millions of those little buddies,
+couldn't my computer run out of memory? What would happen then? It wouldn't be
+good, that's for sure!
 
 In our simple game, the risk here is pretty low. But we should clean up these
 enemies and recycle them. That way we don't waste CPU cycles and memory. And
@@ -517,7 +517,7 @@ enemy:
 {{#include code/01-dodge-em-up/07-recycle/main.lua:recycle}}
 ```
 
-This is new, second loop through our enemies. But rather than going from the
+This is a new second loop through our enemies. But rather than going from the
 beginning to the end, we go from the end to the beginning. The `for` loop also
 supports setting the value at which to increment or decrement by. In our new
 loop, it says: start `i` at the length of our enemies table, looping until `i`
@@ -569,7 +569,7 @@ skipped over checking some enemies, that could lead to buggy behavior where we
 miss checking the position of certain enemies.
 
 But if we loop through our `nums` in reverse order, it's safe to remove items
-becaus later entries in the array have already been checked and it's okay if
+because later entries in the array have already been checked and it's okay if
 their position changes. Let's walk through our simple example but in reverse:
 
 ```lua
@@ -707,7 +707,7 @@ Right below that restart check, check if it's not game over and add the `dt` to
 {{#include code/01-dodge-em-up/09-play-time/main.lua:update_time}}
 ```
 
-`dt` is a decimal value, since it's usually about 0a.016. Each frame we add that
+`dt` is a decimal value, since it's usually about 0.016. Each frame we add that
 to `play_time` to keep track of the time that's passed so long as the player
 hasn't been hit. Then at the bottom of `_draw`, drop the decimal places from
 `play_time` and render the whole number of seconds the player has survived:
@@ -741,8 +741,8 @@ Usagi project, open the new `exports` folder, and select all of the versions of
 your game. They'll upload to itch. It'll upload each one, and you can select the
 operating system accordingly. For `game-web.zip`, check the "This file will be
 played in the browser" box so the web game loads properly on itch. At the bottom
-fo the form, click "Save & view page". You'll have a draft page you can view and
-test your game in. And you can change the visibilty to Public if you want to
+of the form, click "Save & view page". You'll have a draft page you can view and
+test your game in. And you can change the visibility to Public if you want to
 share it with others.
 
 [📺 Watch a video of this process.](https://youtu.be/0i1wIm6c6Rw?t=708)
@@ -757,7 +757,7 @@ more fun:
   the enemy circles and the player's size. Put those in variables and replace
   the magic numbers with the new variables you created. This makes the code
   easier to understand and easier to change since the variable names are
-  descriptive and the value is consolidated in once place.
+  descriptive and the value is consolidated in one place.
 - Keep track of the player's high score in a variable. When they game over,
   compare the new time to the high score and update it if the new one is longer.
   Display the high score in `_draw` function.
