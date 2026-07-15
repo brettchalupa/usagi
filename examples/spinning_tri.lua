@@ -1,12 +1,10 @@
+-- name = Spinning Triangle
+
 -- Triangles have no _ex variant with a rotation param, so to spin
 -- one you compute each rotated vertex yourself and pass the six
 -- coordinates to gfx.tri / gfx.tri_fill. The fill primitive
 -- auto-corrects vertex winding, so the triangle stays solid as it
 -- rotates through every orientation.
-
-function _config()
-  return { name = "Spinning Triangle" }
-end
 
 local TWO_PI = math.pi * 2
 

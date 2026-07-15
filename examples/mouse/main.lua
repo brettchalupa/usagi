@@ -1,6 +1,4 @@
-function _config()
-  return { name = "Mouse" }
-end
+-- name = Mouse
 
 function _init()
   -- Hide the OS cursor so we can draw a custom one. Toggle back with

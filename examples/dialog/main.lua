@@ -1,3 +1,5 @@
+-- name = Typewriter Dialog
+
 -- Typewriter dialog box demo
 
 local CPS = 40        -- typewriter speed in chars/sec
@@ -30,10 +32,6 @@ local SCRIPT = {
   { SPEAKER.SNAKE,   "Metal Gear?!" },
   { SPEAKER.KAZ,     "They played us like a damn fiddle!" },
 }
-
-function _config()
-  return { name = "Typewriter Dialog" }
-end
 
 function _init()
   State = {

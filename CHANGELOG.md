@@ -9,6 +9,11 @@ No unreleased changes.
 
 Features:
 
+- Configure games with a `usagi.conf` file or `-- key = value` frontmatter
+  comments at the top of `main.lua`, instead of a `_config()` function.
+  Frontmatter wins over `usagi.conf`, which wins over the now-deprecated
+  `_config()`. `usagi init` creates a `usagi.conf`. See
+  [#55](https://codeberg.org/brettchalupa/usagi/issues/55)
 - Game rotation setting in 90deg increments via the Pause menu's Settings; see
   [#79](https://codeberg.org/brettchalupa/usagi/issues/79)
 - Warn when requiring files with different casing on the disk, as it can lead to

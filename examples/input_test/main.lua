@@ -1,6 +1,4 @@
-function _config()
-  return { name = "Input Test" }
-end
+-- name = Input Test
 
 function _init()
   State = {

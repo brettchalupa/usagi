@@ -1,3 +1,5 @@
+-- name = Mouse Physics
+
 -- Mouse drag with positional AABB collision resolution. Drag any box;
 -- it pushes the others along the minimum-translation axis. Pushes
 -- cascade through stacks, and walls clamp the play area.
@@ -5,10 +7,6 @@
 -- Pure positional resolution: no velocity, no momentum, no friction.
 -- Each frame the dragged box snaps to the cursor, then a few passes
 -- of pairwise overlap fixes settle the rest.
-
-function _config()
-  return { name = "Mouse Physics" }
-end
 
 function _init()
   State = {

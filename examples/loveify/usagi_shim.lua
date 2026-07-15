@@ -1253,7 +1253,7 @@ end
 
 -- save.json lives in the per-game identity dir. love.filesystem.write
 -- handles the directory creation. setIdentity (called from love.load
--- when _config().game_id is set) is what makes the path game-specific.
+-- when the game_id config is set) is what makes the path game-specific.
 local SAVE_FILE = "save.json"
 
 function usagi.save(t)
@@ -1714,11 +1714,51 @@ local function recompute_scale()
   letterbox_y = math.floor((wh - usagi.GAME_H * scale) / 2)
 end
 
+-- Coerces one config value to the type its key expects, matching the
+-- engine's text-config parser. Empty values are ignored.
+local function coerce_config(cfg, k, v)
+  if v == "" then return end
+  if k == "game_width" or k == "game_height" or k == "sprite_size" or k == "icon" then
+    cfg[k] = tonumber(v)
+  elseif k == "pixel_perfect" or k == "pause_menu" or k == "initial_fullscreen" then
+    cfg[k] = v == "true"
+  else
+    cfg[k] = v
+  end
+end
+
+-- Reads usagi.conf key=value lines, overriding the passed-in cfg.
+local function read_usagi_conf(cfg)
+  if not love.filesystem.getInfo("usagi.conf") then return end
+  for line in (love.filesystem.read("usagi.conf") .. "\n"):gmatch("(.-)\n") do
+    local trimmed = line:gsub("^%s+", "")
+    if trimmed ~= "" and trimmed:sub(1, 1) ~= "#" then
+      local k, v = line:match("^%s*([%w_]+)%s*=%s*(.-)%s*$")
+      if k then coerce_config(cfg, k, v) end
+    end
+  end
+end
+
+-- Reads `-- key = value` frontmatter from the top of main.lua, stopping at
+-- the first non-comment line. Highest precedence, so applied last.
+local function read_frontmatter(cfg)
+  if not love.filesystem.getInfo("main.lua") then return end
+  for line in (love.filesystem.read("main.lua") .. "\n"):gmatch("(.-)\n") do
+    local rest = line:gsub("^%s+", ""):match("^%-%-(.*)$")
+    if not rest then break end
+    local k, v = rest:match("^%s*([%w_]+)%s*=%s*(.-)%s*$")
+    if k then coerce_config(cfg, k, v) end
+  end
+end
+
 function love.load()
+  -- Precedence matches the engine: frontmatter > usagi.conf > _config().
   local cfg = {}
   if type(_G._config) == "function" then
     cfg = _G._config() or {}
   end
+  read_usagi_conf(cfg)
+  read_frontmatter(cfg)
 
   usagi.GAME_W = cfg.game_width or usagi.GAME_W
   usagi.GAME_H = cfg.game_height or usagi.GAME_H
@@ -1769,7 +1809,7 @@ function love.load()
   load_palette()
   load_custom_font()
 
-  -- Window icon from a sprites.png tile, mirroring Usagi's _config().icon.
+  -- Window icon from a sprites.png tile, mirroring Usagi's icon config.
   -- Loads sprites.png if not yet cached, slices out the requested cell,
   -- and hands it to Love. No-op on web (love.window.setIcon is desktop).
   if cfg.icon and love.filesystem.getInfo("sprites.png") then

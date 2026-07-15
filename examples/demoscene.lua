@@ -1,3 +1,5 @@
+-- name = Usagi Demo
+
 -- USAGI demoscene demo: a spinning 3D wireframe cube,
 -- a 3D starfield streaming past the camera, a color-cycling
 -- sine-wave title, and a classic rasterbar at the bottom.
@@ -48,10 +50,6 @@ local TITLE = "USAGI"
 local CHAR_W = 4
 
 local NUM_STARS = 90
-
-function _config()
-  return { name = "Usagi Demo" }
-end
 
 local function spawn_star(z)
   return {

@@ -1,11 +1,9 @@
+-- name = Input
+
 -- Live reload preserves globals but re-runs the chunk, so locals get
 -- fresh nil bindings each save. Keep mutable game state in a
 -- capitalized global (assigned only in _init); keep constants local.
 -- F5 calls _init to reset.
-
-function _config()
-  return { name = "Input" }
-end
 
 function _init()
   State = {

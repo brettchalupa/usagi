@@ -1,6 +1,4 @@
-export _config, _draw, _update, _init
-
-global _config = -> { name: "YueScript Ex" }
+export _draw, _update, _init
 
 State = {}
 global _init = (dt) ->

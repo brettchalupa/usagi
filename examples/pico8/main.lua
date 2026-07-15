@@ -1,3 +1,5 @@
+-- name = Pico-8 flavor
+
 -- Pico-8-flavored demo: requires the local `pico8` module to install
 -- bare globals (cls, spr, btn, btnp, print, ...), then writes the rest
 -- of the game in Pico-8 style. See pico8.lua for what's covered and
@@ -15,10 +17,6 @@ local SPR = {
 -- Warm palette cycle for the ship's exhaust trail. Pico-8 color indices
 -- (0-15) — the shim adds 1 when forwarding to usagi's gfx layer.
 local EXHAUST_COLORS = { 10, 9, 8, 4 } -- yellow, orange, red, brown
-
-function _config()
-  return { name = "Pico-8 flavor" }
-end
 
 function _init()
   State = {

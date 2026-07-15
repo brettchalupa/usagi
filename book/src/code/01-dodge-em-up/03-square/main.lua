@@ -1,8 +1,3 @@
-function _config()
-  ---@type Usagi.Config
-  return { name = "Game", game_id = "com.usagiengine.YOURGAMENAME" }
-end
-
 function _init()
   -- Live reload preserves globals across saved edits but resets locals.
   -- Stash mutable game state in a capitalized global like `State` so it
@@ -15,5 +10,7 @@ end
 
 function _draw(dt)
   gfx.clear(gfx.COLOR_BLACK)
+  -- ANCHOR: draw_square
   gfx.rect_fill(20, 40, 16, 16, gfx.COLOR_GREEN)
+  -- ANCHOR_END: draw_square
 end

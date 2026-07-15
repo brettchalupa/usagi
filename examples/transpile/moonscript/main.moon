@@ -1,6 +1,4 @@
-export _config, _draw
-
-_config = -> { name: "MoonScript Ex" }
+export _draw
 
 _draw = (dt) ->
   gfx.clear(gfx.COLOR_BLACK)

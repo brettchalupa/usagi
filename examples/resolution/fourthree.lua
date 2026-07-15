@@ -1,8 +1,8 @@
--- 4:3 res test
+-- name = 4:3 - 320x240
+-- game_width = 320
+-- game_height = 240
 
-function _config()
-  return { name = "4:3 - 320x240", game_width = 320, game_height = 240 }
-end
+-- 4:3 res test
 
 function _init()
   State = { x = 80, y = 80, vx = 180, vy = 130 }

@@ -1,3 +1,5 @@
+-- name = Menu Item Demo
+
 -- usagi.menu_item demo: register custom pause-menu rows that are
 -- *contextual* to the current scene. Title screen has no game-action
 -- items registered; entering gameplay registers three items at the
@@ -12,10 +14,6 @@
 -- Items auto-clear right before each `_init` re-run (Reset Game / F5).
 -- `usagi.clear_menu_items()` is for swapping the registered set
 -- mid-game, which is what this demo uses on scene transitions.
-
-function _config()
-  return { name = "Menu Item Demo" }
-end
 
 local state
 local level

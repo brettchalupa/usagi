@@ -16,5 +16,6 @@ Website: [https://moonscript.org/](https://moonscript.org/)
 When you make changes to `main.moon`, `moonc` will automatically transpile it to
 `main.lua`, which `usagi dev` picks up.
 
-Use `export _config, _draw, _update, _init` to declare Usagi's global callbacks
-that are needed for the core game setup and loop.
+Use `export _draw, _update, _init` to declare Usagi's global callbacks that are
+needed for the core game setup and loop. Game config goes in a `usagi.conf` file
+next to `main.lua`.

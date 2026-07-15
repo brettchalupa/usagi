@@ -1,17 +1,12 @@
+-- name = Keyboard
+-- pause_menu = false
+-- This option is needed, in order for the game to be able
+-- to capture the [Esc], [P] and [Enter] keypresses
+
 -- Visual QWERTY keyboard. Each key rect lights up while held. Demos
 -- the direct-keyboard escape hatch: input.key_held(input.KEY_*) reads
 -- raw keys (bypassing the abstract action / keymap system), which is
 -- what makes a literal keyboard test like this possible.
-
-function _config()
-  return {
-    name = "Keyboard",
-
-    -- This option is needed, in order for the game to be able
-    -- to capture the [Esc], [P] and [Enter] keypresses
-    pause_menu = false,
-  }
-end
 
 local KH = 14
 local GAP = 1

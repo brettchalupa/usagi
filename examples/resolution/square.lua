@@ -1,8 +1,8 @@
--- Square res 1:1 256x256 test; 2x Pico-8's resolution
+-- name = 1:1 - 256x256
+-- game_width = 256
+-- game_height = 256
 
-function _config()
-  return { name = "1:1 - 256x256", game_width = 256, game_height = 256 }
-end
+-- Square res 1:1 256x256 test; 2x Pico-8's resolution
 
 function _init()
   State = { x = 80, y = 80, vx = 180, vy = 130 }

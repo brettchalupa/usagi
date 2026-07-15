@@ -1,11 +1,9 @@
+-- name = Operators
+
 -- Compound assignment operators are sugar for `lhs = lhs op (rhs)`.
 -- Supported: +=, -=, *=, /=, %=
 -- They only apply when the operator is at the start of a logical line;
 -- compound ops inside `if cond then x += 1 end` are NOT rewritten.
-
-function _config()
-  return { name = "Operators" }
-end
 
 function _init()
   State = {

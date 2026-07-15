@@ -1,3 +1,6 @@
+-- name = Shader demo
+-- pixel_perfect = false
+
 -- Demonstrates `gfx.shader_set` + `gfx.shader_uniform` for full-screen
 -- post-processing.
 --
@@ -8,10 +11,6 @@ local SHADERS = { nil, "crt", "gameboy" }
 local SHADER_COUNT = 3
 local LABELS = { "off", "crt", "gameboy" }
 local SCANLINE_LEVELS = { 0.0, 0.25, 0.5, 0.75 }
-
-function _config()
-  return { name = "Shader demo", pixel_perfect = false }
-end
 
 function _init()
   State = {

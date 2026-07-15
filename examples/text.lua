@@ -1,11 +1,9 @@
+-- name = Text
+
 -- gfx.text_ex demo: scale (big title) and rotation (wiggling
 -- subtitle, static-tilted label). The plain gfx.text lines at the
 -- bottom show extended-character coverage (accented Latin, Cyrillic,
 -- Greek, punctuation) at native size.
-
-function _config()
-  return { name = "Text" }
-end
 
 function _draw(_dt)
   gfx.clear(gfx.COLOR_DARK_BLUE)

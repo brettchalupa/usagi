@@ -1,11 +1,9 @@
+-- name = Scene Switching
+
 -- Scene switching example: how to organize your game into multiple different scenes, like a main menu, gameplay, credits, etc.
 -- Each scene is a table returned from a Lua file in ./scenes that must have a
 -- `draw()` and `update()` function. An optional `init()` and `close()` get
 -- called if defined.
-
-function _config()
-  return { name = "Scene Switching" }
-end
 
 local scenes = {
   main_menu = require("scenes.main_menu"),

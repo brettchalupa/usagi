@@ -1,11 +1,9 @@
+-- name = Shapes
+
 -- Kitchen-sink demo of every gfx shape primitive.
 
 local STAR_X_MIN, STAR_X_MAX = 172, 312
 local STAR_Y_MIN, STAR_Y_MAX = 30, 88
-
-function _config()
-  return { name = "Shapes" }
-end
 
 local stars = {}
 

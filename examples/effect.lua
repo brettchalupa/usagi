@@ -1,3 +1,5 @@
+-- name = effect demo
+
 -- Demonstrates all four engine juice primitives:
 --   1 -> effect.hitstop      freezes _update for a beat
 --   2 -> effect.screen_shake offsets the blit, decays linearly
@@ -8,10 +10,6 @@
 -- A bouncing dot makes hitstop and slow_mo visible: the dot pauses
 -- entirely under hitstop, glides under slow_mo. Shake rattles the
 -- whole view; flash flashes over it.
-
-function _config()
-  return { name = "effect demo" }
-end
 
 function _init()
   State = {

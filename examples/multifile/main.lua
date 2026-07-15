@@ -1,13 +1,11 @@
+-- name = Multifile
+
 -- Multi-file example: main.lua loads helpers from sibling files via
 -- `require`. Usagi resolves dotted module names against the project root,
 -- so this example runs unchanged whether you `usagi dev` it or export it.
 
 local ball = require("ball")
 local colors = require("colors")
-
-function _config()
-  return { name = "Multifile" }
-end
 
 function _init()
   Balls = {

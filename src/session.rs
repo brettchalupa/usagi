@@ -606,6 +606,15 @@ fn install_game_apis(
     crate::menu_items::register_api(lua, menu_items)?;
     register_fullscreen_api(lua, fullscreen_state)?;
     register_quit_api(lua, lua_quit_requested)?;
+    seed_dimensions(lua, config)?;
+    Ok(())
+}
+
+/// Writes the resolved render dimensions and sprite size into the `usagi`
+/// table so `usagi.GAME_W/GAME_H/SPRITE_SIZE` reflect the project config.
+/// Called once from the pre-load text-config seed and again from
+/// `install_game_apis` with the fully-resolved config.
+fn seed_dimensions(lua: &Lua, config: &Config) -> crate::Result<()> {
     let usagi_tbl: LuaTable = lua.globals().get("usagi")?;
     usagi_tbl.set("GAME_W", config.resolution.w)?;
     usagi_tbl.set("GAME_H", config.resolution.h)?;
@@ -615,12 +624,18 @@ fn install_game_apis(
 
 use crate::config::Config;
 
-/// Reads project config from the live session Lua VM. Errors flow
-/// into `last_error` for the on-screen overlay; missing fields fall
-/// back to defaults. Thin wrapper over `Config::read_from_lua`,
-/// kept here so the call site reads naturally.
-fn read_config(lua: &Lua, last_error: &mut Option<String>) -> Config {
-    Config::read_from_lua(lua, Some(last_error))
+/// Reads project config from the live session Lua VM plus text sources
+/// (frontmatter + `usagi.conf`) on `vfs`. Errors flow into `last_error`
+/// for the on-screen overlay; missing fields fall back to defaults. The
+/// boot path uses `Config::read_text_sources` + `resolve` directly to
+/// avoid re-parsing; this wrapper is used by the tests.
+#[cfg(test)]
+fn read_config(lua: &Lua, vfs: Option<&dyn VirtualFs>, last_error: &mut Option<String>) -> Config {
+    let text = match vfs {
+        Some(v) => Config::read_text_sources(v, true),
+        None => Default::default(),
+    };
+    Config::resolve(lua, &text, Some(last_error))
 }
 
 /// All long-lived session state. Constructed once, frame() called once per
@@ -830,6 +845,15 @@ impl Session {
         // register later via `install_game_apis`, once their handles exist.
         install_core_apis(&lua, dev, &vfs)?;
 
+        // Read the text config once, then seed usagi.GAME_W/GAME_H/SPRITE_SIZE
+        // from it before load_script so top-level reads like `w = usagi.GAME_W`
+        // see the real values. `_config` can't seed here (it needs the script
+        // loaded), so its load-order footgun persists only for that deprecated
+        // path. The same `text_config` feeds the authoritative resolve below,
+        // so the files aren't parsed twice.
+        let text_config = Config::read_text_sources(vfs.as_ref(), true);
+        seed_dimensions(&lua, &Config::from_text(&text_config))?;
+
         let mut last_error: Option<String> = None;
 
         record_err(
@@ -838,7 +862,7 @@ impl Session {
             load_script(&lua, vfs.as_ref()),
         );
 
-        let config = read_config(&lua, &mut last_error);
+        let config = Config::resolve(&lua, &text_config, Some(&mut last_error));
 
         // Resolve game_id and load settings before the window opens
         // so the fullscreen state can be applied immediately after
@@ -2862,7 +2886,7 @@ mod tests {
         .exec()
         .unwrap();
         let mut err = None;
-        let config = read_config(&lua, &mut err);
+        let config = read_config(&lua, None, &mut err);
         assert_eq!(config.name.as_deref(), Some("Hello, Usagi!"));
         assert!(err.is_none());
     }
@@ -2875,7 +2899,7 @@ mod tests {
             .exec()
             .unwrap();
         let mut err = None;
-        let config = read_config(&lua, &mut err);
+        let config = read_config(&lua, None, &mut err);
         assert!(!config.pixel_perfect);
         assert!(err.is_none());
     }
@@ -2887,12 +2911,12 @@ mod tests {
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
         let mut err = None;
-        assert!(read_config(&lua, &mut err).pause_menu);
+        assert!(read_config(&lua, None, &mut err).pause_menu);
 
         lua.load("function _config() return { pause_menu = false } end")
             .exec()
             .unwrap();
-        assert!(!read_config(&lua, &mut err).pause_menu);
+        assert!(!read_config(&lua, None, &mut err).pause_menu);
     }
 
     #[test]
@@ -2900,7 +2924,7 @@ mod tests {
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
         let mut err = None;
-        let config = read_config(&lua, &mut err);
+        let config = read_config(&lua, None, &mut err);
         assert!(
             !config.pixel_perfect,
             "default should be pixel-perfect off (fill the window)"
@@ -2919,7 +2943,7 @@ mod tests {
             .exec()
             .unwrap();
         let mut err = None;
-        let config = read_config(&lua, &mut err);
+        let config = read_config(&lua, None, &mut err);
         assert_eq!(
             config.pixel_perfect,
             Config::default().pixel_perfect,
@@ -2934,7 +2958,7 @@ mod tests {
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
         let mut err = None;
-        let config = read_config(&lua, &mut err);
+        let config = read_config(&lua, None, &mut err);
         assert!(config.name.is_none());
         assert!(err.is_none());
     }
@@ -2945,7 +2969,7 @@ mod tests {
         setup_api(&lua, false).unwrap();
         lua.load("function _config() return {} end").exec().unwrap();
         let mut err = None;
-        let config = read_config(&lua, &mut err);
+        let config = read_config(&lua, None, &mut err);
         assert!(config.name.is_none());
         assert!(err.is_none());
     }
@@ -2958,7 +2982,7 @@ mod tests {
             .exec()
             .unwrap();
         let mut err = None;
-        let _ = read_config(&lua, &mut err);
+        let _ = read_config(&lua, None, &mut err);
         let stored = err.expect("error should have been recorded");
         assert!(stored.starts_with("_config: "), "got: {stored}");
         assert!(stored.contains("bad config"), "got: {stored}");
@@ -2972,7 +2996,32 @@ mod tests {
             .exec()
             .unwrap();
         let mut err = None;
-        let _ = read_config(&lua, &mut err);
+        let _ = read_config(&lua, None, &mut err);
         assert!(err.is_some());
+    }
+
+    /// Regression: top-level code reading `usagi.GAME_W` must see the
+    /// frontmatter value, not the engine default. This is the load-order
+    /// footgun the text config seed fixes: the seed writes the real dims
+    /// before the script chunk runs.
+    #[test]
+    fn frontmatter_seeds_game_w_before_script_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let main = dir.path().join("main.lua");
+        std::fs::write(&main, "-- game_width = 400\nW = usagi.GAME_W\n").unwrap();
+
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+        let vfs = crate::vfs::FsBacked::from_script_path(&main);
+        seed_dimensions(
+            &lua,
+            &Config::from_text(&Config::read_text_sources(&vfs, false)),
+        )
+        .unwrap();
+        lua.load(std::fs::read_to_string(&main).unwrap())
+            .exec()
+            .unwrap();
+
+        assert_eq!(lua.globals().get::<f32>("W").unwrap(), 400.0);
     }
 }

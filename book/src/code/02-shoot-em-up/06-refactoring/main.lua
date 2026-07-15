@@ -8,16 +8,6 @@ local player_bullet_h = 10
 local hit_flash_time = 0.2 -- secs
 local enemy_bullet_size = 12
 
-function _config()
-  ---@type Usagi.Config
-  return {
-    name = "Shmup",
-    game_id = "com.brettmakesgames.shmuptutorial",
-    game_width = 320,
-    game_height = 320,
-  }
-end
-
 function init_enemy(x, y)
   return {
     x = x,
@@ -61,6 +51,7 @@ function _init()
   }
 end
 
+-- ANCHOR: update
 function _update(dt)
   update_player_move(dt)
   update_player_fire(dt)
@@ -69,6 +60,7 @@ function _update(dt)
   update_enemy_bullets(dt)
   try_spawn_enemies()
 end
+-- ANCHOR_END: update
 
 function _draw(dt)
   gfx.clear(gfx.COLOR_WHITE)
@@ -101,6 +93,7 @@ function _draw(dt)
   end
 end
 
+-- ANCHOR: functions
 function update_player_move(dt)
   local input_delta = { x = 0, y = 0 }
   if input.held(input.UP) then
@@ -239,3 +232,4 @@ function try_spawn_enemies()
     )
   end
 end
+-- ANCHOR_END: functions

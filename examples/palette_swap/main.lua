@@ -1,3 +1,5 @@
+-- name = Palette swap - sweetie16
+
 -- Palette swap demo using Sweetie16.
 --
 -- Drop a `palette.png` (any rectangular shape, one color per pixel)
@@ -36,10 +38,6 @@ local COLOR = {
   GRAY = 15,
   SHADOW = 16,
 }
-
-function _config()
-  return { name = "Palette swap - sweetie16" }
-end
 
 function _draw(_dt)
   gfx.clear(COLOR.NIGHT)

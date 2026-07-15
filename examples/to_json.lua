@@ -1,3 +1,6 @@
+-- name = to_json demo
+-- game_id = com.usagi.tojsondemo
+
 -- usagi.to_json demo: serialize a Lua table to a pretty-printed JSON
 -- string. Same shape rules as `usagi.save` (keys are all strings or a
 -- dense 1..n integer array; no cycles, NaN, functions, or userdata).
@@ -10,10 +13,6 @@
 -- Controls:
 --   BTN1 (Z / pad-A): print the current state as JSON to stdout
 --   BTN2 (X / pad-B): bump the score
-
-function _config()
-  return { name = "to_json demo", game_id = "com.usagi.tojsondemo" }
-end
 
 function _init()
   State = {

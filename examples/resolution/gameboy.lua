@@ -1,8 +1,8 @@
--- Game Boy 160x144 test
+-- name = Game Boy Res 160x144
+-- game_width = 160
+-- game_height = 144
 
-function _config()
-  return { name = "Game Boy Res 160x144", game_width = 160, game_height = 144 }
-end
+-- Game Boy 160x144 test
 
 function _init()
   State = { x = 80, y = 80, vx = 180, vy = 130 }

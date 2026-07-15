@@ -1,3 +1,5 @@
+-- name = RNG
+
 -- Lua's `math.random` is already wired up: usagi's Lua State auto-seeds
 -- the PRNG at startup, so a fresh launch produces a fresh sequence.
 -- Press BTN1 to reroll the scene from the current PRNG. Press BTN2
@@ -6,10 +8,6 @@
 
 local DOTS = 180
 local SAMPLES = 6
-
-function _config()
-  return { name = "RNG" }
-end
 
 local function reroll()
   State.dots = {}

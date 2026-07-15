@@ -1,5 +1,8 @@
+-- name = Custom Menu Demo
+-- pause_menu = false
+
 -- Custom pause menu demo. Disables the built-in pause overlay via
--- `_config().pause_menu = false`, then rebuilds an equivalent (smaller)
+-- `pause_menu = false`, then rebuilds an equivalent (smaller)
 -- menu in pure Lua using the standalone APIs:
 --
 --   * `usagi.toggle_fullscreen` / `usagi.is_fullscreen`
@@ -9,13 +12,6 @@
 --
 -- Player drives a square around with arrows; press Esc, P, or Enter to
 -- pop the custom menu.
-
-function _config()
-  return {
-    name = "Custom Menu Demo",
-    pause_menu = false,
-  }
-end
 
 local menu_open = false
 local cursor = 1

@@ -240,10 +240,13 @@ usagi.quit() -- terminate the main loop (no-op visually on web)
 
 -- Lifecycle callbacks
 
-_config()
 _init()
 _update(dt)
 _draw(dt)
+
+-- Config: usagi.conf at project root, or `-- key = value` frontmatter
+-- comments atop main.lua. Keys: name, game_id, icon, game_width,
+-- game_height, sprite_size, pixel_perfect, pause_menu, initial_fullscreen.
 
 -- Graphics
 
@@ -401,12 +404,52 @@ Define any of these as globals for Usagi to call them:
   other cross-frame globals) here.
 - `_update(dt)` — each frame, before draw. `dt` is seconds since last frame.
 - `_draw(dt)` — each frame, after update. `dt` same as above.
-- `_config()` — optional. Called **once at startup, before the window opens**;
-  must return a config table.
 
-#### `_config`
+### Configuration
 
-Supported fields:
+Configure your game with a `usagi.conf` file at the project root, or with
+frontmatter comments at the top of `main.lua`. Both use the same `key = value`
+format, one per line. Config is read once at startup, before the window opens.
+
+`usagi.conf` is the recommended way for most games; it keeps config out of the
+code and is easy for other tools to read. `usagi init` creates one for you.
+
+```conf
+name = Snake
+game_id = com.example.snake
+pixel_perfect = true
+# game_width = 480     # optional; default 320
+# game_height = 270    # optional; default 180
+# sprite_size = 32     # optional; default 16
+# pause_menu = false   # optional; default true
+# initial_fullscreen = true  # optional; default false
+```
+
+Frontmatter comments must start on the very first line of `main.lua` (no blank
+line or code before them, or they're skipped). They're read line by line until
+the first line that isn't a `--` comment (a blank line ends the block). Comment
+lines without `=` are treated as prose and ignored, so descriptions can sit
+alongside config lines. This keeps single-file games and dev tools
+self-configuring:
+
+```lua
+-- name = Snake
+-- game_id = com.example.snake
+-- pixel_perfect = true
+
+function _init() end
+```
+
+When both are present they merge per field, with frontmatter winning over
+`usagi.conf`. This lets a single-file `mapeditor.lua` set its own resolution
+without touching the project's `usagi.conf`. A field set in more than one place
+logs a warning naming the winner.
+
+Values are strings, coerced per field: `pixel_perfect = true`,
+`game_width = 480`, `name = My Game` (no quotes, spaces kept). Blank lines and
+`#` comments in `usagi.conf` are ignored.
+
+Supported keys:
 
 - `name`: display name. Drives the window title bar, the macOS `.app` bundle
   directory (`Sprite Example.app`), the Info.plist `CFBundleName` /
@@ -464,32 +507,25 @@ Supported fields:
   toggle fullscreen from the pause menu, that saved preference wins on later
   launches. Optional.
 
-```lua
-function _config()
-  return {
-    name = "Snake",
-    pixel_perfect = true,
-    game_id = "com.example.snake",
-    icon = 1,
-    -- game_width = 480,   -- optional; default 320
-    -- game_height = 270,  -- optional; default 180
-    -- sprite_size = 32,   -- optional; default 16
-    -- pause_menu = false, -- optional; default true
-    -- initial_fullscreen = true,  -- optional; default false
-  }
-end
-```
-
 `icon` (optional) is a 1-based tile index into your `sprites.png`, same indexing
 as `gfx.spr`. Omitted, the embedded Usagi bunny is used. The chosen tile is
 applied to the game window on Linux/Windows. At `usagi export --target macos`
 time the same tile is scaled up and packed into `Resources/AppIcon.icns` inside
 the `.app`, which is what the macOS Dock/Finder pick up.
 
-`_config()` runs before the runtime is fully alive (the window doesn't exist
-yet), so its return value is **read once at startup and cached**. Editing
-`_config()` while the game is running won't update the title or any future
-config field on save; restart the session to pick up changes.
+Config is **read once at startup and cached**. Editing `usagi.conf` or the
+frontmatter while the game is running won't update the title or any other config
+field; restart the session to pick up changes.
+
+#### Deprecated: `_config()`
+
+Older games return a config table from a global `_config()` function. This still
+works but is deprecated: it forces the engine (and `usagi tools` /
+`usagi export`) to boot a Lua VM just to read config, and it has a load-order
+footgun where top-level reads of `usagi.GAME_W` see the default before
+`_config()` runs. `_config()` has the lowest precedence (frontmatter, then
+`usagi.conf`, then `_config()`), and Usagi logs a deprecation warning when it's
+present. Move your settings to `usagi.conf` or frontmatter.
 
 #### Window sizing and scaling
 
@@ -499,12 +535,12 @@ size, floored to the closest integer scale. Players can toggle fullscreen based
 on their preference and it's persisted as expected for the next launch. Windows
 are resizeable by players.
 
-You can set `pixel_perfect` to `true` in your `_config` to ensure your game is
-never not pixel perfect. For displays that might be lower res than your game,
-your game's window is gets maximized.
+You can set `pixel_perfect = true` in your config to ensure your game is never
+not pixel perfect. For displays that might be lower res than your game, your
+game's window is gets maximized.
 
-If you want your game to launch fullscreen by default, set `initial_fullscreen`
-to `true` in `_config`.
+If you want your game to launch fullscreen by default, set
+`initial_fullscreen = true` in your config.
 
 ### `gfx`
 
@@ -1051,7 +1087,7 @@ Engine-level info.
 
 - `usagi.GAME_W`, `usagi.GAME_H` — game render dimensions (320, 180).
 - `usagi.SPRITE_SIZE` — side length, in pixels, of one cell in `sprites.png`
-  (default 16, set via `_config().sprite_size`). Use it for tile-grid math
+  (default 16, set via the `sprite_size` config). Use it for tile-grid math
   instead of hardcoding 16:
   `gfx.spr(idx, col * usagi.SPRITE_SIZE, row * usagi.SPRITE_SIZE)`.
 - `usagi.IS_DEV` — `true` when running under `usagi dev`; `false` under
@@ -1082,14 +1118,12 @@ Engine-level info.
   ```
 
 - `usagi.save(t)` — serialize a Lua table as JSON and persist it. Saves are
-  per-game (namespaced by `game_id` in `_config()`) so games made with usagi
-  don't clobber each other.
+  per-game (namespaced by the `game_id` config) so games made with usagi don't
+  clobber each other.
 - `usagi.load()` — return the previously saved table, or `nil` on first run.
 
   ```lua
-  function _config()
-    return { name = "My Game", game_id = "com.you.mygame" }
-  end
+  -- usagi.conf: name = My Game / game_id = com.you.mygame
 
   function _init()
     State = usagi.load() or { score = 0, best = 0 }
@@ -1145,9 +1179,7 @@ absolute paths, and `..` segments are rejected at the vfs boundary so a
 malicious or buggy path can't escape `data/`.
 
 ```lua
-function _config()
-  return { name = "Tile Demo" }
-end
+-- usagi.conf: name = Tile Demo
 
 -- Read at the top of the chunk so live reload picks up edits to the JSON
 -- without needing F5. The script re-runs whenever any data file mtime
@@ -1355,7 +1387,7 @@ spr(0, 20, 30)
   `dev`.
 - Press **Alt+Enter** to toggle borderless fullscreen. Persists in
   `settings.json` and applies before the first frame on the next launch. No Lua
-  or `_config` surface by design; the player owns this setting.
+  or config surface by design; the player owns this setting.
 - Press **Esc**, **P**, or gamepad **Start** to pause. The same keys (plus
   **BTN2**) close the menu. While paused, `_update` is skipped but `_draw` still
   runs each frame, with the pause overlay rendered on top. Music pauses on menu
@@ -1364,12 +1396,11 @@ spr(0, 20, 30)
 - The engine keeps the last ~5 seconds of gameplay in memory at all times. Press
   **F9** or **Cmd/Ctrl + G** to write that buffer out as a GIF in your user
   Downloads dir, named `<game>-YYYYMMDD-HHMMSS.gif` (where `<game>` is the short
-  form of your `_config().game_id`, e.g.
-  `~/Downloads/snake-20260101-120000.gif`). Upscaled 2x (640×360) so they read
-  well when embedded online. Rolling buffer: trigger the save after the cool
-  moment, not before. Per-frame timing reflects real frame dt clamped to a 30fps
-  floor, so a game that stutters produces a GIF that plays at the same pace as
-  the game ran.
+  form of your `game_id` config, e.g. `~/Downloads/snake-20260101-120000.gif`).
+  Upscaled 2x (640×360) so they read well when embedded online. Rolling buffer:
+  trigger the save after the cool moment, not before. Per-frame timing reflects
+  real frame dt clamped to a 30fps floor, so a game that stutters produces a GIF
+  that plays at the same pace as the game ran.
 - Press **F8** or **Cmd/Ctrl + F** to save a PNG screenshot to the same
   Downloads bucket. Same 2x upscale as the gif recorder, lossless,
   palette-exact.
@@ -1515,8 +1546,8 @@ The current selection is shown in the header and highlighted on the sheet.
 
 ### SaveInspector
 
-Reads the project's `_config().game_id` and shows the current `save.json`
-contents alongside the resolved file path. Useful for debugging save formats and
+Reads the project's `game_id` config and shows the current `save.json` contents
+alongside the resolved file path. Useful for debugging save formats and
 inspecting state between runs without leaving the editor.
 
 - Save JSON is shown raw; the engine already pretty-prints it on write.
@@ -1672,9 +1703,9 @@ love .
 drops in the Love shim runtime: `usagi_shim.lua` (~1800 lines of pure Lua that
 reimplements `gfx.*`, `input.*`, `sfx.*`, `music.*`, `usagi.*`, `util.*`,
 `effect.*`, and the custom font.png + palette.png paths against Love's APIs)
-plus a `conf.lua` (suppresses Love's default 800×600 window so your
-`_config().game_width / game_height` apply at boot). If your source has no
-custom `font.png`, the engine's bundled monogram font drops in too so `gfx.text`
+plus a `conf.lua` (suppresses Love's default 800×600 window so your configured
+`game_width / game_height` apply at boot). If your source has no custom
+`font.png`, the engine's bundled monogram font drops in too so `gfx.text`
 renders crisply out of the box. Refuses to overwrite an existing destination.
 
 This is meant to be a **one-time operation**. After porting, your game has
@@ -1823,8 +1854,7 @@ a CI log viewer that doesn't render ANSI cleanly. Usagi follows the
 when stdout/stderr isn't a terminal, so most pipe / redirect cases are already
 covered without setting anything. PowerShell honors the same env var; set it for
 the current session with `$env:NO_COLOR = "1"`, or persistently via
-`[Environment]::SetEnvironmentVariable("NO_COLOR", "1",
-"User")`. cmd uses
+`[Environment]::SetEnvironmentVariable("NO_COLOR", "1", "User")`. cmd uses
 `set NO_COLOR=1`.
 
 ## Developing

@@ -1,13 +1,11 @@
+-- name = Hello, Usagi!
+
 -- Live reload preserves globals but re-runs the chunk, so locals get
 -- fresh nil bindings each save. Cross-frame mutable data goes in a
 -- capitalized global (assigned only in _init); constants stay local.
 -- F5 calls _init to reset.
 
 local MSG = "Hello, Usagi!"
-
-function _config()
-  return { name = "Hello, Usagi!" }
-end
 
 function _init()
   State = {

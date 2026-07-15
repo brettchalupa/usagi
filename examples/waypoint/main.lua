@@ -1,10 +1,8 @@
+-- name = Waypoint
+--
 -- Click anywhere to drop a waypoint. The unit walks the waypoints in the order
 -- they were placed, consuming each one as it arrives. Right-click clears the
 -- queue.
-
-function _config()
-  return { name = "Waypoint" }
-end
 
 function _init()
   State = {

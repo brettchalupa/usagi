@@ -1,8 +1,4 @@
-function _config()
-  return {
-    pixel_perfect = true
-  }
-end
+-- pixel_perfect = true
 
 function _draw()
   gfx.clear(gfx.COLOR_BLUE)

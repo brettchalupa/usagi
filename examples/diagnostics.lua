@@ -1,3 +1,6 @@
+-- name = Diagnostics
+-- game_id = com.usagi.diagnostics
+
 -- diagnostics: stress the Lua GC and watch the verbose-mode
 -- diagnostics line. Designed to be run with the env var set, e.g.
 --
@@ -22,13 +25,6 @@
 
 local ALLOC_STEP = 500
 local BURST_SIZE = 50000
-
-function _config()
-  return {
-    name = "Diagnostics",
-    game_id = "com.usagi.diagnostics",
-  }
-end
 
 function _init()
   State = {

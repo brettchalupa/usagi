@@ -1,8 +1,8 @@
--- Pico-8 1:1 128x128 res test
+-- name = 1:1 - 128x128
+-- game_width = 128
+-- game_height = 128
 
-function _config()
-  return { name = "1:1 - 128x128", game_width = 128, game_height = 128 }
-end
+-- Pico-8 1:1 128x128 res test
 
 function _init()
   State = { x = 80, y = 80, vx = 180, vy = 130 }

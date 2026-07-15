@@ -1,15 +1,11 @@
+-- name = Usagi Playdate Prototype
+-- game_width = 200
+-- game_height = 120
+-- pixel_perfect = true
+
 -- Playdate Prototype: resolution at half the Playdate's screen size with a
 -- shader to make it look like Playdate's colors. Useful for prototyping and
 -- eventual shim to run the Usagi API via the Playdate SDK.
-
-function _config()
-  return {
-    name = "Usagi Playdate Prototype",
-    game_width = 200,
-    game_height = 120,
-    pixel_perfect = true
-  }
-end
 
 function _init()
   gfx.shader_set("playdate_palette")

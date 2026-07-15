@@ -1,3 +1,5 @@
+-- name = Music Demo
+
 -- Music playback demo
 --
 --   music.play(name)                            -- play once, stop at end
@@ -11,10 +13,6 @@
 -- name passed to play/loop, so music/invincible.ogg → music.loop("invincible").
 
 local TRACK = "invincible"
-
-function _config()
-  return { name = "Music Demo" }
-end
 
 function _init()
   State = {

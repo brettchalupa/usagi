@@ -1,3 +1,6 @@
+-- name = Save Demo
+-- game_id = com.usagi.savedemo
+
 -- Save/load demo: data that persists across runs.
 --
 --   usagi.save(t)  -- writes a Lua table as JSON to a per-game file
@@ -14,10 +17,6 @@
 --   macos  : ~/Library/Application Support/com.usagi.savedemo/save.json
 --   windows: %APPDATA%\com.usagi.savedemo\save.json
 --   web    : window.localStorage, key "usagi.save.com.usagi.savedemo"
-
-function _config()
-  return { name = "Save Demo", game_id = "com.usagi.savedemo" }
-end
 
 local function fresh_state()
   return { last_saved_at = nil, playtime = 0 }

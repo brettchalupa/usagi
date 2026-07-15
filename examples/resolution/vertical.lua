@@ -1,10 +1,10 @@
+-- name = vertical 180x320
+-- game_width = 180
+-- game_height = 320
+
 -- Portrait-oriented game at 180x320. Demonstrates that the engine
 -- doesn't assume 16:9; the window opens tall and the RT, mouse
 -- coords, pause menu, and capture all follow the configured dims.
-
-function _config()
-  return { name = "vertical 180x320", game_width = 180, game_height = 320 }
-end
 
 function _init()
   State = { x = 90, y = 40, vx = 50, vy = 80 }

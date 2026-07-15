@@ -1,17 +1,13 @@
--- Demonstrates `_config().sprite_size`. The engine default is 16;
+-- name = custom_sprite_size
+-- sprite_size = 32
+-- `usagi tools .` will lay its grid out at 32px to match.
+
+-- Demonstrates the `sprite_size` config. The engine default is 16;
 -- this game runs at 32, so `gfx.spr` indexes into sprites.png at a
 -- 32-pixel grid, the tile-picker tool's overlay matches, and the
 -- window-icon slicer reads from the same cell size.
 --
 -- Sprites by Hexany Ives (CC0): https://hexany-ives.itch.io/hexanys-monster-menagerie
-
-function _config()
-  return {
-    name = "custom_sprite_size",
-    sprite_size = 32,
-    -- `usagi tools .` will lay its grid out at 32px to match.
-  }
-end
 
 function _init()
   State = { t = 0 }

@@ -87,15 +87,16 @@ Here's a very simple working example:
 Here's an example of `main.yue`:
 
 ```yue
-export _config, _draw
-
-global _config = -> { name: "YueScript Ex" }
+export _draw
 
 global _draw = (dt) ->
   gfx.clear(gfx.COLOR_BLACK)
   gfx.text("Hello YueScript!", 10, 10, gfx.COLOR_WHITE)
   gfx.text("dt: " .. dt, 10, 32, gfx.COLOR_PEACH)
 ```
+
+Game config (name, `game_id`, resolution) goes in a `usagi.conf` file next to
+`main.lua`, so it stays out of the transpiled code.
 
 ## MoonScript
 
@@ -115,9 +116,7 @@ Here's a very simple working example:
 Here's an example of `main.moon`:
 
 ```moon
-export _config, _draw
-
-_config = -> { name: "MoonScript Ex" }
+export _draw
 
 _draw = (dt) ->
   gfx.clear(gfx.COLOR_BLACK)

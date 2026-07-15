@@ -1,3 +1,5 @@
+-- name = Localization
+
 -- Localization demo: keeps strings in JSON files under
 -- `data/strings/` and swaps the active table at runtime. The pattern
 -- scales to any number of languages: add a `data/strings/<code>.json`
@@ -11,10 +13,6 @@
 -- edits to the JSON without F5. Try translating a value in
 -- `data/strings/es.json` while the example is running. The screen
 -- updates immediately.
-
-function _config()
-  return { name = "Localization" }
-end
 
 local LANGS = { "en", "es" }
 

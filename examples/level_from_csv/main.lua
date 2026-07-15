@@ -1,3 +1,5 @@
+-- name = Level from CSV
+
 -- Loads a tile grid from a CSV file under `data/`. The engine doesn't
 -- ship a CSV parser. For a prototyping engine, the simple-grid case is two
 -- `string.gmatch` loops and you see exactly what's happening.
@@ -5,10 +7,6 @@
 -- `usagi.read_text` is called at the top of the chunk so live reload
 -- picks up edits to `data/level.csv` without F5. Open the CSV,
 -- change a few digits, save, and the level updates in place.
-
-function _config()
-  return { name = "Level from CSV" }
-end
 
 -- Splits a CSV string into a list-of-lists of strings. Trims each
 -- line's trailing \r so Windows-saved CSVs Just Work. Empty trailing

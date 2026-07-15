@@ -1,22 +1,15 @@
 local player_size = 16
 local player_speed = 180 -- px/s
+-- ANCHOR: vars
 local fire_delay = 0.1   -- s
 local fire_timer = 0
 local bullet_speed = 420 -- px/s
 local player_bullet_w = 4
 local player_bullet_h = 10
-
-function _config()
-  ---@type Usagi.Config
-  return {
-    name = "Shmup",
-    game_id = "com.brettmakesgames.shmuptutorial",
-    game_width = 320,
-    game_height = 320,
-  }
-end
+-- ANCHOR_END: vars
 
 function _init()
+  -- ANCHOR: state_bullets
   State = {
     player = {
       x = usagi.GAME_W / 2 - player_size / 2,
@@ -24,6 +17,7 @@ function _init()
       bullets = {}
     }
   }
+  -- ANCHOR_END: state_bullets
 end
 
 function _update(dt)
@@ -46,6 +40,7 @@ function _update(dt)
   State.player.x = util.clamp(State.player.x, 0, usagi.GAME_W - player_size)
   State.player.y = util.clamp(State.player.y, 0, usagi.GAME_H - player_size)
 
+  -- ANCHOR: firing
   fire_timer -= dt
 
   if fire_timer <= 0 and input.held(input.BTN1) then
@@ -70,6 +65,7 @@ function _update(dt)
       table.remove(State.player.bullets, i)
     end
   end
+  -- ANCHOR_END: firing
 end
 
 function _draw(dt)
@@ -79,8 +75,10 @@ function _draw(dt)
     player_size, player_size, gfx.COLOR_BLACK
   )
 
+  -- ANCHOR: draw_bullets
   for _, bullet in ipairs(State.player.bullets) do
     gfx.rect_fill(bullet.x, bullet.y,
       player_bullet_w, player_bullet_h, gfx.COLOR_LIGHT_GRAY)
   end
+  -- ANCHOR_END: draw_bullets
 end

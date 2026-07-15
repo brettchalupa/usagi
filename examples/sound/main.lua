@@ -1,6 +1,4 @@
-function _config()
-  return { name = "Sound" }
-end
+-- name = Sound
 
 function _update(dt)
   if input.pressed(input.BTN1) then

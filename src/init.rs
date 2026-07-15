@@ -8,6 +8,7 @@ use std::fs;
 use std::path::Path;
 
 const MAIN_LUA: &str = include_str!("../templates/init/main.lua");
+const USAGI_CONF: &str = include_str!("../templates/init/usagi.conf");
 // The engine repo dogfoods its own .luarc.json; reuse it as the user
 // template so config improvements flow into new projects automatically.
 const LUARC_JSON: &str = include_str!("../.luarc.json");
@@ -32,6 +33,11 @@ pub(crate) fn template_files() -> Vec<TemplateFile> {
         TemplateFile {
             rel: "main.lua",
             contents: MAIN_LUA.to_string(),
+            engine_managed: false,
+        },
+        TemplateFile {
+            rel: "usagi.conf",
+            contents: USAGI_CONF.to_string(),
             engine_managed: false,
         },
         TemplateFile {
@@ -143,6 +149,7 @@ mod tests {
         let dir = tempdir().unwrap();
         run(dir.path().to_str().unwrap()).unwrap();
         assert!(dir.path().join("main.lua").is_file());
+        assert!(dir.path().join("usagi.conf").is_file());
         assert!(dir.path().join(".luarc.json").is_file());
         assert!(dir.path().join(".gitignore").is_file());
         assert!(dir.path().join("USAGI.md").is_file());

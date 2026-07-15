@@ -1,3 +1,6 @@
+-- name = Custom Font (Silver)
+-- game_height = 256
+
 -- Custom font demo. Drops `font.png` (baked from Silver.ttf via
 -- `usagi font bake`) next to main.lua; the engine loads it
 -- automatically and uses it for gfx.text / gfx.text_ex. The pause
@@ -13,10 +16,6 @@
 --
 -- The `usagi export` bundler skips .ttf files, so shipping the source TTF here
 -- doesn't bloat exported games.
-
-function _config()
-  return { name = "Custom Font (Silver)", game_height = 256 }
-end
 
 function _draw(_dt)
   gfx.clear(gfx.COLOR_DARK_BLUE)

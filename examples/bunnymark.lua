@@ -1,3 +1,6 @@
+-- name = bunnymark
+-- game_id = com.usagi.bunnymark
+
 -- bunnymark: stress test for sprite throughput. Spawn batches of bunnies
 -- (sprite 1 from sprites.png) that fall and bounce, watch the framerate
 -- dive. Adapted from the Playdate SDK bunnymark.
@@ -41,13 +44,6 @@ local function despawn_batch()
     State.bunnies[i] = nil
   end
   State.count = n
-end
-
-function _config()
-  return {
-    name = "bunnymark",
-    game_id = "com.usagi.bunnymark",
-  }
 end
 
 function _init()

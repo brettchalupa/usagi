@@ -1,3 +1,5 @@
+-- name = Level from JSON
+
 -- Loads tile grids from a JSON file under `data/`. The same call works
 -- in dev (reads `examples/level_from_json/data/levels.json`) and in
 -- exported builds (reads it out of the bundle).
@@ -6,10 +8,6 @@
 -- picks up edits to `data/levels.json` without F5. Try opening
 -- `data/levels.json` while this is running, swap a `.` for a `2`, and
 -- save. The new wall shows up immediately.
-
-function _config()
-  return { name = "Level from JSON" }
-end
 
 local LEVELS = usagi.read_json("levels.json").levels
 

@@ -5,7 +5,7 @@
 -- Love2D opens a default 800x600 window automatically unless this file
 -- says otherwise. Setting `t.window = false` defers window creation to
 -- the shim's `love.load`, which calls `love.window.setMode` with the
--- size your `_config().game_width / game_height` declared. Result: the
+-- size your `game_width / game_height` config declared. Result: the
 -- window opens at the correct size in one step, no resize flash.
 --
 -- If you need other Love-side config (audio mix mode, identity for save

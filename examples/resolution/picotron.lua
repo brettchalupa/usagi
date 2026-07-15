@@ -1,8 +1,8 @@
--- Picotron 480x270 test
+-- name = Picotron Res 480x270
+-- game_width = 480
+-- game_height = 270
 
-function _config()
-  return { name = "Picotron Res 480x270", game_width = 480, game_height = 270 }
-end
+-- Picotron 480x270 test
 
 function _init()
   State = { x = 80, y = 80, vx = 180, vy = 130 }

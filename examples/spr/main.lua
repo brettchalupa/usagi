@@ -1,3 +1,6 @@
+-- name = Sprites
+-- icon = 1
+
 local SPR = {
   BUNNY = 1,
   SHIP = 2,
@@ -12,10 +15,6 @@ local EXHAUST_COLORS = {
   gfx.COLOR_RED,
   gfx.COLOR_BROWN,
 }
-
-function _config()
-  return { name = "Sprites", icon = 1 }
-end
 
 function _init()
   State = {

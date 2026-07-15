@@ -1,11 +1,11 @@
+-- name = high_res 640x360
+-- game_width = 640
+-- game_height = 360
+
 -- Double-default 640x360. Useful for confirming that the RT,
 -- letterbox math, and capture pipeline all scale up; also shows
 -- the trade-off of a fixed sprite size and bundled font (both look
 -- tiny relative to the viewport at this resolution).
-
-function _config()
-  return { name = "high_res 640x360", game_width = 640, game_height = 360 }
-end
 
 function _init()
   State = { x = 80, y = 80, vx = 180, vy = 130 }

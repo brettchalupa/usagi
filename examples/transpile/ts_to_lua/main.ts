@@ -1,6 +1,5 @@
 /************** Bare minimum type declarations for this example *************/
 
-declare var _config: (this: void) => Record<string, string | number | boolean>;
 declare var _update: (this: void, dt: number) => void;
 declare var _draw: (this: void, dt: number) => void;
 
@@ -38,10 +37,6 @@ let state = {
   x: 10,
   y: 40,
 };
-_config = () => {
-  return { game_width: 240, game_height: 240, name: "TS to Lua" };
-};
-
 _update = (dt: number) => {
   // px/sec
   let spd = 100;

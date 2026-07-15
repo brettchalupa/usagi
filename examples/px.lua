@@ -1,3 +1,5 @@
+-- name = Pixel Reads
+
 -- Demo of `gfx.get_px` (screen pixel read) and `gfx.get_spr_px`
 -- (sprite sheet pixel read).
 --
@@ -20,10 +22,6 @@ local PLAYER_COLOR = gfx.COLOR_YELLOW
 local PLAYER_SIZE  = 3
 
 local player       = { x = 20, y = 100 }
-
-function _config()
-  return { name = "Pixel Reads" }
-end
 
 local function draw_walls()
   -- Outer frame.

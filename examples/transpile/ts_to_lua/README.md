@@ -44,6 +44,7 @@ npm run export
 
 Look at `./main.ts` to see how to structure your code. Usagi relies on globals,
 so https://typescripttolua.github.io/docs/assigning-global-variables is followed
-by declaring the `_config`, `_update`, and `_draw` functions. It'd be nice if
-there were typedefs for Usagi, but for now, it has to be done manually. This
-would be a good community contribution. There are a few typedefs to get started.
+by declaring the `_update` and `_draw` functions. Game config goes in a
+`usagi.conf` file next to `main.lua`. It'd be nice if there were typedefs for
+Usagi, but for now, it has to be done manually. This would be a good community
+contribution. There are a few typedefs to get started.

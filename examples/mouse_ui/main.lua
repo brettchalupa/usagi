@@ -1,10 +1,8 @@
+-- name = Mouse UI
+
 -- Bare-bones mouse UI: a button that toggles a message, plus a
 -- draggable box. Shows the click-vs-drag pattern (mouse_pressed for
 -- one-shot button clicks, mouse_held + offset tracking for dragging).
-
-function _config()
-  return { name = "Mouse UI" }
-end
 
 local BUTTON = { x = 12, y = 24, w = 72, h = 18 }
 local MESSAGE = "Hello, mouse!"

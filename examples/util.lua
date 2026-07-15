@@ -1,3 +1,5 @@
+-- name = Util Demo
+--
 -- Util demo: a tiny shooter scene that exercises every util function.
 -- Move with arrows/WASD, BTN1 to shoot a 3-bullet spread. The red
 -- enemy chases you, the wall blocks the player and bullets, the green
@@ -9,10 +11,6 @@
 --   vec_normalize, vec_dist, vec_dist_sq, vec_from_angle
 --   point_in_rect, point_in_circ
 --   rect_overlap, circ_overlap, circ_rect_overlap
-
-function _config()
-  return { name = "Util Demo" }
-end
 
 local PSPEED = 80
 local PACCEL = 600

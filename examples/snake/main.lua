@@ -1,3 +1,6 @@
+-- name = Snake
+-- game_id = com.brettmakesgames.usagisnake
+
 -- Classic snake. Grid is COLS x ROWS cells at CELL pixels each.
 -- Direction input is edge-detected; the snake advances on a fixed TICK,
 -- so frame rate doesn't affect gameplay speed.
@@ -6,10 +9,6 @@ local CELL = 10
 local COLS = 32 -- usagi.GAME_W / CELL
 local ROWS = 18 -- usagi.GAME_H / CELL
 local TICK = 0.12
-
-function _config()
-  return { name = "Snake", game_id = "com.brettmakesgames.usagisnake" }
-end
 
 local function die()
   sfx.play("explosion")

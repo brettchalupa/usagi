@@ -1,8 +1,8 @@
--- Commodore 64 320x200 test
+-- name = Commodore 64 Res 320x200
+-- game_width = 320
+-- game_height = 200
 
-function _config()
-  return { name = "Commodore 64 Res 320x200", game_width = 320, game_height = 200 }
-end
+-- Commodore 64 320x200 test
 
 function _init()
   State = { x = 80, y = 80, vx = 180, vy = 130 }

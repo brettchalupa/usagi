@@ -1,11 +1,11 @@
+-- name = low_res 160x90
+-- game_width = 160
+-- game_height = 90
+
 -- Half-default 160x90. Useful for stress-testing tight UI layouts:
 -- the bundled font (5x7) and 16x16 sprites take up a much larger
 -- fraction of the viewport, and the pause menu starts to feel
 -- cramped at this size.
-
-function _config()
-  return { name = "low_res 160x90", game_width = 160, game_height = 90 }
-end
 
 function _init()
   State = { x = 16, y = 16, vx = 30, vy = 25 }
