@@ -1176,9 +1176,9 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "sola-raylib"
-version = "6.2.0"
+version = "6.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6343d88c6112f88bb7c563707ed4efacdd9e63e6cbec07e5055fac616d8a51bb"
+checksum = "fd87bb459298b85bc89de74a7516a39b41fe5a886c32d1fa31134bcdc6dfd404"
 dependencies = [
  "cfg-if",
  "paste",
@@ -1189,9 +1189,9 @@ dependencies = [
 
 [[package]]
 name = "sola-raylib-sys"
-version = "6.2.0"
+version = "6.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cbcf4ee579fca251c46539b6d5e8c79f11428ca6e127500f53b3e72353ad11d9"
+checksum = "8c162291f5d5eecc8bd65376199e831fd0bfe31abb1bddca9f2f4147414c438f"
 dependencies = [
  "bindgen",
  "cc",

@@ -5,8 +5,6 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
-No unreleased changes.
-
 Features:
 
 - Configure games with a `usagi.conf` file or `-- key = value` frontmatter
@@ -24,6 +22,10 @@ Fixes:
 
 - Nudge window size a little when launching so it's not too tiny when close to
   an integer scale; see [#82](https://codeberg.org/brettchalupa/usagi/issues/82)
+- Upstream fixes from sola-raylib relating to gamepad mappings and incorrect
+  gamepad device identification; see
+  [#3](https://codeberg.org/brettchalupa/usagi/issues/3) &
+  [#4](https://codeberg.org/brettchalupa/usagi/issues/4)
 
 ## v1.2.0 - July 2, 2026
 
