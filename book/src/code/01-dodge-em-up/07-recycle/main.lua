@@ -4,6 +4,11 @@ enemies = {}
 enemy_spawn_timer = 0
 enemy_spawn_delay = 0.5 -- secs
 
+function _config()
+  ---@type Usagi.Config
+  return { name = "Game", game_id = "com.usagiengine.YOURGAMENAME" }
+end
+
 function _init()
   -- Live reload preserves globals across saved edits but resets locals.
   -- Stash mutable game state in a capitalized global like `State` so it
@@ -44,13 +49,11 @@ function _update(dt)
     enemy.x -= enemy.spd
   end
 
-  -- ANCHOR: recycle
   for i = #enemies, 1, -1 do
     if enemies[i].x < -10 then
       table.remove(enemies, i)
     end
   end
-  -- ANCHOR_END: recycle
 end
 
 function _draw(dt)
@@ -62,7 +65,5 @@ function _draw(dt)
     gfx.circ_fill(enemy.x, enemy.y, 8, gfx.COLOR_RED)
   end
 
-  -- ANCHOR: enemy_count
   gfx.text("Enemies: " .. #enemies, 10, 10, gfx.COLOR_WHITE)
-  -- ANCHOR_END: enemy_count
 end

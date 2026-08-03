@@ -17,7 +17,7 @@ chapters.
 
 Run `usagi init snake` to create your new game. Open up that folder in your
 editor and your terminal and start `usagi dev`. Clear out the placeholder text
-drawing and set the values in `usagi.conf` appropriately.
+drawing and set the values in `_config` appropriately.
 
 TODO:
 

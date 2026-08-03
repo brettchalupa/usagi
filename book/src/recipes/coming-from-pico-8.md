@@ -86,11 +86,13 @@ folder
 to find your new `sprites.png` file. You can copy or move it into your Usagi
 game project.
 
-Pico-8's spritesheet is 8px by 8px by default. So in your Usagi game's
-`usagi.conf`, set the `sprite_size` accordingly:
+Pico-8's spritesheet is 8px by 8px by default. So in your Usagi `main.lua`,
+update your `_config()` function to set the `sprite_size` accordingly:
 
-```ini
-sprite_size = 8
+```lua
+function _config()
+  return { sprite_size = 8 } -- other options omitted
+end
 ```
 
 Alternatively, if you want your sprites larger or want to stick to Usagi's

@@ -65,9 +65,9 @@ unless you want to intentionally make it globally accessible. In Usagi code,
 globals start with capital letters, like the `State` variable, which I'll
 explain in a moment. Functions can also be `local`, but this requires you to
 place them in specific ordering in your source code, which is a hassle and
-beyond what this tutorial covers.
+beyodn what this tutorial covers.
 
-In the `usagi.conf` file, we set the `name` of our game and the `game_id`.
+In our `_config()` function, we set the `name` of our game and the `game_id`.
 Change the `game_id` to `com.usagiengine.YOURUSERNAME.shmup`, where you actually
 put in your username/handle. Or if you have a website or itch.io page, use it in
 reverse order, like `io.itch.brettchalupa.shmup`. This should be a unique
@@ -78,10 +78,6 @@ specified sizes. You can change these values to whatever you want, but for our
 game, a square field feels good since you don't have to worry about covering a
 wide distance to reach enemies on the other side of the screen. Enemies will fly
 in from the top, which will make our shoot 'em up a vertically-oriented game.
-
-```lua
-{{#include code/02-shoot-em-up/01-moveable-player/usagi.conf}}
-```
 
 In `_init()`, we create a global `State` table with our `player`'s position.
 `State` is a common way in Usagi games to have a global to contain all of the
@@ -94,7 +90,7 @@ game reseting.
 
 The math in the `player` `x` and `y` value centers our player horizontally and
 places the `y` value 60 pixels up from the bottom of the game. The values of
-`usagi.GAME_W` and `usagi.GAME_H` correspond to what we set in `usagi.conf`. You
+`usagi.GAME_W` and `usagi.GAME_H` correspond to what we set in `_config`. You
 could just hardcode `320` instead for each of them, but if you decide to change
 the width or height of your game, you'll be left searching for and updating all
 of those old values.
@@ -146,7 +142,7 @@ we'll remove them from the table.
 Start by setting up some local variables at the top of `main.lua`:
 
 ```lua
-{{#include code/02-shoot-em-up/02-firing-bullets/main.lua:vars}}
+{{#include code/02-shoot-em-up/02-firing-bullets/main.lua:3:7}}
 ```
 
 We'll use all of these variables for firing and drawing bullets.
@@ -154,7 +150,7 @@ We'll use all of these variables for firing and drawing bullets.
 In our `State` table, add a new empty table for `bullets`:
 
 ```lua
-{{#include code/02-shoot-em-up/02-firing-bullets/main.lua:state_bullets}}
+{{#include code/02-shoot-em-up/02-firing-bullets/main.lua:20:26}}
 ```
 
 We'll add new bullets into that table when they're fired and loop through it for
@@ -178,7 +174,7 @@ In our `_update` function, below where we handle player movement, add the
 following code:
 
 ```lua
-{{#include code/02-shoot-em-up/02-firing-bullets/main.lua:firing}}
+{{#include code/02-shoot-em-up/02-firing-bullets/main.lua:49:72}}
 ```
 
 In each frame, we subtract the `dt` from `fire_timer` to count it down. Then, if
@@ -205,7 +201,7 @@ Now we need to draw our bullets by looping through them at the bottom of
 `_draw()` and drawing a light gray rectangle:
 
 ```lua
-{{#include code/02-shoot-em-up/02-firing-bullets/main.lua:draw_bullets}}
+{{#include code/02-shoot-em-up/02-firing-bullets/main.lua:82:85}}
 ```
 
 The `for _, bullet in ipairs(State.player.bullets) do` line loops through each
@@ -231,7 +227,7 @@ Start by defining the `local` variable `hit_flash_time`. It's the time in
 seconds that an enemy will flash then they're hit by a bullet:
 
 ```lua
-{{#include code/02-shoot-em-up/03-enemies/main.lua:flash_var}}
+{{#include code/02-shoot-em-up/03-enemies/main.lua:8}}
 ```
 
 Then define a new function that returns a new enemy table at a given position.
@@ -239,7 +235,7 @@ This function makes it easy to keep all of the different of an enemy close
 together.
 
 ```lua
-{{#include code/02-shoot-em-up/03-enemies/main.lua:enemy_vars}}
+{{#include code/02-shoot-em-up/03-enemies/main.lua:20:31}}
 ```
 
 We'll call this function soon. The returned table has the width (`w`) and height
@@ -258,14 +254,14 @@ We'll store our enemies in a table in `State`, spawning three of them with our
 new `init_enemy` function:
 
 ```lua
-{{#include code/02-shoot-em-up/03-enemies/main.lua:init_enemy}}
+{{#include code/02-shoot-em-up/03-enemies/main.lua:33:46}}
 ```
 
 Then in `_update`, in our bullet loop, loop through each enemy and check if the
 bullet overlaps with any of the enemies:
 
 ```lua
-{{#include code/02-shoot-em-up/03-enemies/main.lua:bullet_hit}}
+{{#include code/02-shoot-em-up/03-enemies/main.lua:87:102}}
 ```
 
 `util.rect_overlap` is a function Usagi provides that checks if two rectangles
@@ -283,7 +279,7 @@ Now, similar to bullets and still in `_update`, we need to move our enemies down
 the screen and remove them if they've run out of hp or fly off the screen:
 
 ```lua
-{{#include code/02-shoot-em-up/03-enemies/main.lua:update_enemies}}
+{{#include code/02-shoot-em-up/03-enemies/main.lua:105:117}}
 ```
 
 We loop through in reverse, just like bullets. And we set `enemy.flash_timer` to
@@ -294,7 +290,7 @@ When we defeat all of our enemies, let's spawn some more, at the end of our
 `_update` function:
 
 ```lua
-{{#include code/02-shoot-em-up/03-enemies/main.lua:spawn_update}}
+{{#include code/02-shoot-em-up/03-enemies/main.lua:119:132}}
 ```
 
 There's nothing too fancy here. We check if the number of enemies is `0` and
@@ -306,7 +302,7 @@ we'll loop through each enemy and draw them, factoring in whether or not their
 instead of the red that we set in `init_enemy`:
 
 ```lua
-{{#include code/02-shoot-em-up/03-enemies/main.lua:draw_flash}}
+{{#include code/02-shoot-em-up/03-enemies/main.lua:142:148}}
 ```
 
 Our game is starting to have glimmers of being fun with enemies endlessly
@@ -331,14 +327,14 @@ variable at the top of the file for representing the width and height of the
 enemy bullets:
 
 ```lua
-{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:enemy_bullet_vars}}
+{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:9}}
 ```
 
 Add two new properties to our returned enemy table in `init_enemy()` that we can
 use to track when a enemy should fire a bullet:
 
 ```lua
-{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:fire_timer}}
+{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:31:34}}
 ```
 
 `fire_timer` will be used to countdown 1.5 seconds and then have the enemy fire
@@ -351,7 +347,7 @@ In the `_init` function's `State` table, add a new key: `enemy_bullets` that's
 initialized to an empty table: `{}`:
 
 ```lua
-{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:state_enemy_bullets}}
+{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:50}}
 ```
 
 We'll keep track of enemy bullets _separate_ from each enemy so that even after
@@ -365,7 +361,7 @@ trigonometry to accomplish this! Right after the code where we handle updating
 the enemy's flash timer, add this:
 
 ```lua
-{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:update_fire}}
+{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:120:142}}
 ```
 
 There's a lot here. Let's break it down and go over what's happening.
@@ -393,7 +389,7 @@ each enemy bullet, update its position, check for overlap with the player, and
 remove any bullets that are dead or offscreen:
 
 ```lua
-{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:update_enemy_bullets}}
+{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:149:165}}
 ```
 
 We need to take the `bullet.angle` into account when we move the bullet. In
@@ -411,7 +407,7 @@ Finally, loop through and draw each of the `State.enemy_bullets` _after_ we draw
 the player bullets:
 
 ```lua
-{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:draw_enemy_bullets}}
+{{#include code/02-shoot-em-up/04-aimed-bullets/main.lua:203:206}}
 ```
 
 There's nothing particularly special about this code, we draw a blue square to
@@ -456,7 +452,7 @@ that for collision detection. In `main.lua`, create a new function called
 to use:
 
 ```lua
-{{#include code/02-shoot-em-up/05-hitboxes/main.lua:hitbox_data}}
+{{#include code/02-shoot-em-up/05-hitboxes/main.lua:38:46}}
 ```
 
 The returned table is a small square centered on the player's location.
@@ -467,7 +463,7 @@ and the player's hitbox, change the second argument to instead call out to our
 new function:
 
 ```lua
-{{#include code/02-shoot-em-up/05-hitboxes/main.lua:overlap_fn}}
+{{#include code/02-shoot-em-up/05-hitboxes/main.lua:165:170}}
 ```
 
 **Aside:** if you wanted, you could even make the enemy bullet hitbox smaller
@@ -478,7 +474,7 @@ Let's draw the player's hitbox as a white dot in the middle of the player in
 `_draw` right after we draw our player:
 
 ```lua
-{{#include code/02-shoot-em-up/05-hitboxes/main.lua:draw_hitbox}}
+{{#include code/02-shoot-em-up/05-hitboxes/main.lua:199:203}}
 ```
 
 The reason we wrote the `player_hitbox` code instead of creating that table over
@@ -517,7 +513,7 @@ those logical groupings, give them names, and then call those functions in
 `_update`:
 
 ```lua
-{{#include code/02-shoot-em-up/06-refactoring/main.lua:update}}
+{{#include code/02-shoot-em-up/06-refactoring/main.lua:64:71}}
 ```
 
 Doesn't `_update` just feel better now? It's clear to see the order of
@@ -535,7 +531,7 @@ for a spawn event to happen.
 All of our new functions look like this:
 
 ```lua
-{{#include code/02-shoot-em-up/06-refactoring/main.lua:functions}}
+{{#include code/02-shoot-em-up/06-refactoring/main.lua:104:241}}
 ```
 
 Every function we extracted except `try_spawn_enemies` needs `dt` passed in. But
@@ -559,14 +555,14 @@ player to restart to try again.
 Start by adding a `game_over` key to the `State` table:
 
 ```lua
-{{#include code/02-shoot-em-up/07-game-over/main.lua:state_game_over}}
+{{#include code/02-shoot-em-up/07-game-over/main.lua:61}}
 ```
 
 Then, in our new `update_enemy_bullets` function, in addition to setting the
 bullet to to `dead`, we'll also set the `State.game_over` to `true`:
 
 ```lua
-{{#include code/02-shoot-em-up/07-game-over/main.lua:set_game_over}}
+{{#include code/02-shoot-em-up/07-game-over/main.lua:229:237}}
 ```
 
 We also call out to two functions Usagi provides: `effect.flash` and
@@ -579,7 +575,7 @@ In `_update`, check if `State.game_over` and check for player input to restart
 the game, otherwise call our normal update functions:
 
 ```lua
-{{#include code/02-shoot-em-up/07-game-over/main.lua:update_guard}}
+{{#include code/02-shoot-em-up/07-game-over/main.lua:65:78}}
 ```
 
 When `game_over` is true, we check to see if the player has pressed BTN1, and if
@@ -589,14 +585,14 @@ If the player is dead, we shouldn't draw their square in `_draw()`, so add this
 conditional check:
 
 ```lua
-{{#include code/02-shoot-em-up/07-game-over/main.lua:draw_guard}}
+{{#include code/02-shoot-em-up/07-game-over/main.lua:83:93}}
 ```
 
 We need to let the player know it's game over, so in `_draw()` render text at
 the very end of the function:
 
 ```lua
-{{#include code/02-shoot-em-up/07-game-over/main.lua:draw_game_over}}
+{{#include code/02-shoot-em-up/07-game-over/main.lua:113:117}}
 ```
 
 While we could only draw the enemies and bullets if it's not game over, it's fun
@@ -620,18 +616,24 @@ The simplest way to set this up is to create an array table where each item in
 the array is its own array table of spawn positions.
 
 ```lua
-{{#include code/02-shoot-em-up/08-enemy-waves/main.lua:waves_data}}
+{{#include code/02-shoot-em-up/08-enemy-waves/main.lua:10:32}}
 ```
 
-We reference `usagi.GAME_W` to position enemies relative to the game's width,
-which we set in `usagi.conf`. When we want enemies to spawn on the right side of
-the screen, we subtract some pixels from `usagi.GAME_W`. You could just hardcode
-the values too.
+Put the game width and height into local variables so that we can reference them
+in our `WAVES` positions. When we want enemies to spawn on the right side of the
+screen, subtract some pixels from `GAME_W`. You could just hardcode the values
+too.
 
-In some programming languages and in this book, it's common to capitalize all
-the characters of a value that isn't meant to change. Lua doesn't have a concept
-of constants, so to signify that our waves don't change, `WAVES` is written in
-`SCREAMING_SNAKE_CASE`.
+Two things to note:
+
+1. You might think: let's use `usagi.GAME_W` since we set that in `_config()`,
+   but that will actually lead to a bug because `usagi.GAME_W` when used outside
+   of a function will be different than what we set in `_config()`. (This is
+   something I want to fix in a future version of Usagi).
+2. In some programming languages and in this book, it's common to capitalize all
+   the characters of a variable value that isn't meant to change. Lua doesn't
+   have a concept of constants, so in order to signify that game width and
+   height and our waves don't change, they're written in `SCREAMING_SNAKE_CASE`.
 
 Each item in the `WAVES` array contains an array of spawn positions. In order to
 keep the code concise, we just use an array to represent the x and y position,
@@ -643,11 +645,17 @@ and edit the existing enemy spawns. Also, you don't have to format your code
 like it is in the book. Some editors automatically format code on save to make
 it easier to read.
 
+In `_config`, let's use our new `GAME_W` and `GAME_H`:
+
+```lua
+{{#include code/02-shoot-em-up/08-enemy-waves/main.lua:35:43}}
+```
+
 In `_init`, change `State.enemies` to be an empty table and set `current_wave`
 to `0`:
 
 ```lua
-{{#include code/02-shoot-em-up/08-enemy-waves/main.lua:spawn_wave}}
+{{#include code/02-shoot-em-up/08-enemy-waves/main.lua:72:84}}
 ```
 
 By setting `current_wave` to `0`, we'll let our game's revised
@@ -656,7 +664,7 @@ wave, which will populate `State.enemies`. Revise the `try_spawn_enemies`
 function to be:
 
 ```lua
-{{#include code/02-shoot-em-up/08-enemy-waves/main.lua:draw_wave}}
+{{#include code/02-shoot-em-up/08-enemy-waves/main.lua:268:276}}
 ```
 
 It checks if the length of `State.enemies` is `0` because the enemies all died
@@ -693,14 +701,14 @@ ran out.
 Start by adding a new `timer` field to `State` in `_init`:
 
 ```lua
-{{#include code/02-shoot-em-up/09-time-out/main.lua:state_timer}}
+{{#include code/02-shoot-em-up/09-time-out/main.lua:83}}
 ```
 
 Then in `_update` subtract `dt` from `State.timer` each frame that it's not game
 over and when the timer hits `0`, set the `State.game_over` boolean to `true`:
 
 ```lua
-{{#include code/02-shoot-em-up/09-time-out/main.lua:update_timer}}
+{{#include code/02-shoot-em-up/09-time-out/main.lua:87:97}}
 ```
 
 The `math.max` function call basically says, if `State.timer` is less than 0,
@@ -721,7 +729,7 @@ of the `State.timer` and when it is game over and the `State.timer` is `0`, show
 a "TIME OUT" message:
 
 ```lua
-{{#include code/02-shoot-em-up/09-time-out/main.lua:draw_time_out}}
+{{#include code/02-shoot-em-up/09-time-out/main.lua:142:152}}
 ```
 
 `string.format("%.2f", State.timer)` takes our `State.timer` value and converts
@@ -741,20 +749,20 @@ Add new `score` key to `State` in `_init()` that we'll use to keep track of
 score. Set it to `0` by default:
 
 ```lua
-{{#include code/02-shoot-em-up/10-scoring/main.lua:state_score}}
+{{#include code/02-shoot-em-up/10-scoring/main.lua:84}}
 ```
 
 In `_draw`, draw our score just like we draw our wave number:
 
 ```lua
-{{#include code/02-shoot-em-up/10-scoring/main.lua:draw_score}}
+{{#include code/02-shoot-em-up/10-scoring/main.lua:141}}
 ```
 
 Because we draw the score in the upper-left corner, we need to shift the game
 over and restart text down a bit by adding to their `y` draw value:
 
 ```lua
-{{#include code/02-shoot-em-up/10-scoring/main.lua:shift_text}}
+{{#include code/02-shoot-em-up/10-scoring/main.lua:147:155}}
 ```
 
 In `update_player_bullets`, check to ensure that the enemy has more than `0` HP
@@ -764,7 +772,7 @@ overlapping with the dead enemy to give us double score. And then add `100` to
 `0` or less):
 
 ```lua
-{{#include code/02-shoot-em-up/10-scoring/main.lua:add_score}}
+{{#include code/02-shoot-em-up/10-scoring/main.lua:203:214}}
 ```
 
 That's all it takes to add simple scoring to our game. In the **Bonus Credits**
@@ -804,7 +812,7 @@ In `update_player_fire` in `main.lua` when we fire the three player bullets,
 play the new sound effect:
 
 ```lua
-{{#include code/02-shoot-em-up/11-sfx/main.lua:play_shoot}}
+{{#include code/02-shoot-em-up/11-sfx/main.lua:182:185}}
 ```
 
 `sfx.play` plays the corresponding sound effect in the `sfx` folder once.
@@ -827,7 +835,7 @@ In `update_player_bullets`, in the same place we add to the score, play the new
 sound effect:
 
 ```lua
-{{#include code/02-shoot-em-up/11-sfx/main.lua:play_hit}}
+{{#include code/02-shoot-em-up/11-sfx/main.lua:212:215}}
 ```
 
 Make another explosion sound effect, `playerDeath.wav`, and put it in sfx. The
@@ -836,7 +844,7 @@ dying, so make it sound impactful. In `update_enemy_bullets`, play it when an
 enemy bullet overlaps with the player's hitbox:
 
 ```lua
-{{#include code/02-shoot-em-up/11-sfx/main.lua:play_player_hit}}
+{{#include code/02-shoot-em-up/11-sfx/main.lua:273:282}}
 ```
 
 Adding sound effects makes a huge difference. Play around with making different

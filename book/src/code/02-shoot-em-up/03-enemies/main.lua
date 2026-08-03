@@ -5,11 +5,18 @@ local fire_timer = 0
 local bullet_speed = 420 -- px/s
 local player_bullet_w = 4
 local player_bullet_h = 10
--- ANCHOR: flash_var
 local hit_flash_time = 0.2 -- secs
--- ANCHOR_END: flash_var
 
--- ANCHOR: enemy_vars
+function _config()
+  ---@type Usagi.Config
+  return {
+    name = "Shmup",
+    game_id = "com.brettmakesgames.shmuptutorial",
+    game_width = 320,
+    game_height = 320,
+  }
+end
+
 function init_enemy(x, y)
   return {
     x = x,
@@ -22,9 +29,7 @@ function init_enemy(x, y)
     flash_timer = 0
   }
 end
--- ANCHOR_END: enemy_vars
 
--- ANCHOR: init_enemy
 function _init()
   State = {
     player = {
@@ -39,7 +44,6 @@ function _init()
     },
   }
 end
--- ANCHOR_END: init_enemy
 
 function _update(dt)
   local input_delta = { x = 0, y = 0 }
@@ -80,7 +84,6 @@ function _update(dt)
     -- move the bullet upward
     bullet.y -= bullet_speed * dt
 
-    -- ANCHOR: bullet_hit
     -- check if the bullet has overlapped with any of the enemies
     for _, enemy in ipairs(State.enemies) do
       if util.rect_overlap(
@@ -97,10 +100,8 @@ function _update(dt)
     if bullet.y < -player_bullet_h or bullet.dead then
       table.remove(State.player.bullets, i)
     end
-    -- ANCHOR_END: bullet_hit
   end
 
-  -- ANCHOR: update_enemies
   for i = #State.enemies, 1, -1 do
     local enemy = State.enemies[i]
 
@@ -114,9 +115,7 @@ function _update(dt)
       table.remove(State.enemies, i)
     end
   end
-  -- ANCHOR_END: update_enemies
 
-  -- ANCHOR: spawn_update
   if #State.enemies == 0 then
     table.insert(
       State.enemies,
@@ -131,7 +130,6 @@ function _update(dt)
       init_enemy(usagi.GAME_W / 2, -60)
     )
   end
-  -- ANCHOR_END: spawn_update
 end
 
 function _draw(dt)
@@ -141,7 +139,6 @@ function _draw(dt)
     player_size, player_size, gfx.COLOR_BLACK
   )
 
-  -- ANCHOR: draw_flash
   for _, enemy in ipairs(State.enemies) do
     local color = enemy.color
     if enemy.flash_timer > 0 then
@@ -149,7 +146,6 @@ function _draw(dt)
     end
     gfx.rect_fill(enemy.x, enemy.y, enemy.w, enemy.h, color)
   end
-  -- ANCHOR_END: draw_flash
 
   for _, bullet in ipairs(State.player.bullets) do
     gfx.rect_fill(bullet.x, bullet.y,

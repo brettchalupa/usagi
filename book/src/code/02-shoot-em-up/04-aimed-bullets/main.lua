@@ -6,9 +6,17 @@ local bullet_speed = 420 -- px/s
 local player_bullet_w = 4
 local player_bullet_h = 10
 local hit_flash_time = 0.2 -- secs
--- ANCHOR: enemy_bullet_vars
 local enemy_bullet_size = 12
--- ANCHOR_END: enemy_bullet_vars
+
+function _config()
+  ---@type Usagi.Config
+  return {
+    name = "Shmup",
+    game_id = "com.brettmakesgames.shmuptutorial",
+    game_width = 320,
+    game_height = 320,
+  }
+end
 
 function init_enemy(x, y)
   return {
@@ -20,12 +28,10 @@ function init_enemy(x, y)
     speed = 44, -- px/s
     color = gfx.COLOR_RED,
     flash_timer = 0,
-    -- ANCHOR: fire_timer
     fire_timer = 1.5, -- seconds until first shot
     fire_delay = 0.4, -- seconds between shots
     shots_fired = 0,
     shots_limit = 3,
-    -- ANCHOR_END: fire_timer
   }
 end
 
@@ -41,9 +47,7 @@ function _init()
       init_enemy(usagi.GAME_W - 72, -20),
       init_enemy(usagi.GAME_W / 2, -60),
     },
-    -- ANCHOR: state_enemy_bullets
     enemy_bullets = {},
-    -- ANCHOR_END: state_enemy_bullets
   }
 end
 
@@ -113,7 +117,6 @@ function _update(dt)
       enemy.flash_timer = enemy.flash_timer - dt
     end
 
-    -- ANCHOR: update_fire
     enemy.fire_timer -= dt
     if enemy.fire_timer <= 0 and enemy.shots_fired < enemy.shots_limit then
       local ex = enemy.x + enemy.w / 2 - enemy_bullet_size / 2
@@ -137,14 +140,12 @@ function _update(dt)
       enemy.shots_fired += 1
       enemy.fire_timer = enemy.fire_delay
     end
-    -- ANCHOR_END: update_fire
 
     if enemy.hp <= 0 or enemy.y > usagi.GAME_H then
       table.remove(State.enemies, i)
     end
   end
 
-  -- ANCHOR: update_enemy_bullets
   for i = #State.enemy_bullets, 1, -1 do
     local bullet = State.enemy_bullets[i]
     local speed = 120
@@ -162,7 +163,6 @@ function _update(dt)
       table.remove(State.enemy_bullets, i)
     end
   end
-  -- ANCHOR_END: update_enemy_bullets
 
   if #State.enemies == 0 then
     table.insert(
@@ -200,10 +200,8 @@ function _draw(dt)
       player_bullet_w, player_bullet_h, gfx.COLOR_LIGHT_GRAY)
   end
 
-  -- ANCHOR: draw_enemy_bullets
   for _, bullet in ipairs(State.enemy_bullets) do
     gfx.rect_fill(bullet.x, bullet.y,
       enemy_bullet_size, enemy_bullet_size, gfx.COLOR_BLUE)
   end
-  -- ANCHOR_END: draw_enemy_bullets
 end

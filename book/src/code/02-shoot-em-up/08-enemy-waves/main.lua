@@ -7,7 +7,8 @@ local player_bullet_w = 4
 local player_bullet_h = 10
 local hit_flash_time = 0.2 -- secs
 local enemy_bullet_size = 12
--- ANCHOR: waves_data
+local GAME_W = 320
+local GAME_H = 320
 local WAVES = {
   {
     { 72,  -20 },
@@ -18,8 +19,8 @@ local WAVES = {
   {
     { 72,           -20 },
     { 100,          -60 },
-    { usagi.GAME_W - 72,  -20 },
-    { usagi.GAME_W - 100, -60 },
+    { GAME_W - 72,  -20 },
+    { GAME_W - 100, -60 },
   },
   {
     { 72,  -20 },
@@ -29,8 +30,17 @@ local WAVES = {
   },
   -- add more waves here youself!
 }
--- ANCHOR_END: waves_data
 
+
+function _config()
+  ---@type Usagi.Config
+  return {
+    name = "Shmup",
+    game_id = "com.brettmakesgames.shmuptutorial",
+    game_width = GAME_W,
+    game_height = GAME_H,
+  }
+end
 
 function init_enemy(x, y)
   return {
@@ -59,7 +69,6 @@ function player_hitbox(player)
   }
 end
 
--- ANCHOR: spawn_wave
 function _init()
   State = {
     player = {
@@ -73,7 +82,6 @@ function _init()
     current_wave = 0,
   }
 end
--- ANCHOR_END: spawn_wave
 
 function _update(dt)
   if State.game_over then
@@ -123,7 +131,7 @@ function _draw(dt)
       enemy_bullet_size, enemy_bullet_size, gfx.COLOR_BLUE)
   end
 
-  gfx.text("Wave: " .. State.current_wave, usagi.GAME_W - 60, 10, gfx.COLOR_BLACK)
+  gfx.text("Wave: " .. State.current_wave, GAME_W - 60, 10, gfx.COLOR_BLACK)
 
   if State.game_over then
     gfx.text("GAME OVER", 10, 10, gfx.COLOR_BLACK)
@@ -257,7 +265,6 @@ function update_enemy_bullets(dt)
   end
 end
 
--- ANCHOR: draw_wave
 function try_spawn_enemies()
   if #State.enemies == 0 and State.current_wave < #WAVES then
     State.current_wave += 1
@@ -267,4 +274,3 @@ function try_spawn_enemies()
     end
   end
 end
--- ANCHOR_END: draw_wave

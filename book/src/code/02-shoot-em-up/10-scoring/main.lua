@@ -7,6 +7,8 @@ local player_bullet_w = 4
 local player_bullet_h = 10
 local hit_flash_time = 0.2 -- secs
 local enemy_bullet_size = 12
+local GAME_W = 320
+local GAME_H = 320
 local WAVES = {
   {
     { 72,  -20 },
@@ -17,8 +19,8 @@ local WAVES = {
   {
     { 72,           -20 },
     { 100,          -60 },
-    { usagi.GAME_W - 72,  -20 },
-    { usagi.GAME_W - 100, -60 },
+    { GAME_W - 72,  -20 },
+    { GAME_W - 100, -60 },
   },
   {
     { 72,  -20 },
@@ -29,6 +31,16 @@ local WAVES = {
   -- add more waves here youself!
 }
 
+
+function _config()
+  ---@type Usagi.Config
+  return {
+    name = "Shmup",
+    game_id = "com.brettmakesgames.shmuptutorial",
+    game_width = GAME_W,
+    game_height = GAME_H,
+  }
+end
 
 function init_enemy(x, y)
   return {
@@ -69,9 +81,7 @@ function _init()
     game_over = false,
     current_wave = 0,
     timer = 60, -- secs
-    -- ANCHOR: state_score
     score = 0,
-    -- ANCHOR_END: state_score
   }
 end
 
@@ -128,15 +138,12 @@ function _draw(dt)
       enemy_bullet_size, enemy_bullet_size, gfx.COLOR_BLUE)
   end
 
-  -- ANCHOR: draw_score
   gfx.text("Score: " .. State.score, 10, 10, gfx.COLOR_BLACK)
-  -- ANCHOR_END: draw_score
 
-  gfx.text("Wave: " .. State.current_wave, usagi.GAME_W - 60, 10, gfx.COLOR_BLACK)
+  gfx.text("Wave: " .. State.current_wave, GAME_W - 60, 10, gfx.COLOR_BLACK)
 
-  gfx.text(string.format("%.2f", State.timer), usagi.GAME_W / 2 - 16, 10, gfx.COLOR_BLACK)
+  gfx.text(string.format("%.2f", State.timer), GAME_W / 2 - 16, 10, gfx.COLOR_BLACK)
 
-  -- ANCHOR: shift_text
   if State.game_over then
     if State.timer == 0 then
       gfx.text("TIME OUT", 10, 32, gfx.COLOR_BLACK)
@@ -146,7 +153,6 @@ function _draw(dt)
     gfx.text("Press " .. input.mapping_for(input.BTN1) .. " to restart!",
       10, 54, gfx.COLOR_BLACK)
   end
-  -- ANCHOR_END: shift_text
 end
 
 function update_player_move(dt)
@@ -194,7 +200,6 @@ function update_player_bullets(dt)
 
     -- check if the bullet has overlapped with any of the enemies
     for _, enemy in ipairs(State.enemies) do
-      -- ANCHOR: add_score
       if util.rect_overlap(
             { x = bullet.x, y = bullet.y,
               w = player_bullet_w, h = player_bullet_h },
@@ -207,7 +212,6 @@ function update_player_bullets(dt)
           State.score += 100
         end
       end
-      -- ANCHOR_END: add_score
     end
 
     -- remove bullets that have flown off the top of the screen

@@ -2,9 +2,12 @@ x = 20
 y = 60
 enemies = {}
 enemy_spawn_timer = 0
--- ANCHOR: spawn_delay
 enemy_spawn_delay = 0.5 -- secs
--- ANCHOR_END: spawn_delay
+
+function _config()
+  ---@type Usagi.Config
+  return { name = "Game", game_id = "com.usagiengine.YOURGAMENAME" }
+end
 
 function _init()
   -- Live reload preserves globals across saved edits but resets locals.
@@ -28,7 +31,6 @@ function _update(dt)
   end
 
   enemy_spawn_timer = enemy_spawn_timer - dt
-  -- ANCHOR: spawn_enemy
   if enemy_spawn_timer <= 0 then
     local padding = 10
     table.insert(
@@ -41,14 +43,11 @@ function _update(dt)
     )
     enemy_spawn_timer = enemy_spawn_delay
   end
-  -- ANCHOR_END: spawn_enemy
 
-  -- ANCHOR: update_speed
   for i = 1, #enemies do
     local enemy = enemies[i]
     enemy.x -= enemy.spd
   end
-  -- ANCHOR_END: update_speed
 end
 
 function _draw(dt)

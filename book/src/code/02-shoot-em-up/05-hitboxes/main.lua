@@ -8,6 +8,16 @@ local player_bullet_h = 10
 local hit_flash_time = 0.2 -- secs
 local enemy_bullet_size = 12
 
+function _config()
+  ---@type Usagi.Config
+  return {
+    name = "Shmup",
+    game_id = "com.brettmakesgames.shmuptutorial",
+    game_width = 320,
+    game_height = 320,
+  }
+end
+
 function init_enemy(x, y)
   return {
     x = x,
@@ -25,7 +35,6 @@ function init_enemy(x, y)
   }
 end
 
--- ANCHOR: hitbox_data
 function player_hitbox(player)
   local hitbox_size = 4
   return {
@@ -35,7 +44,6 @@ function player_hitbox(player)
     h = hitbox_size,
   }
 end
--- ANCHOR_END: hitbox_data
 
 function _init()
   State = {
@@ -154,14 +162,12 @@ function _update(dt)
     bullet.x += math.cos(bullet.angle) * speed * dt
     bullet.y += math.sin(bullet.angle) * speed * dt
 
-    -- ANCHOR: overlap_fn
     if util.rect_overlap(
           { x = bullet.x, y = bullet.y, w = enemy_bullet_size, h = enemy_bullet_size },
           player_hitbox(State.player)
         ) then
       bullet.dead = true
     end
-    -- ANCHOR_END: overlap_fn
 
     if bullet.y > usagi.GAME_H or bullet.dead then
       table.remove(State.enemy_bullets, i)
@@ -190,13 +196,11 @@ function _draw(dt)
     State.player.x, State.player.y,
     player_size, player_size, gfx.COLOR_BLACK
   )
-  -- ANCHOR: draw_hitbox
   local p_hitbox = player_hitbox(State.player)
   gfx.rect_fill(
     p_hitbox.x, p_hitbox.y, p_hitbox.w, p_hitbox.h,
     gfx.COLOR_WHITE
   )
-  -- ANCHOR_END: draw_hitbox
 
   for _, enemy in ipairs(State.enemies) do
     local color = enemy.color

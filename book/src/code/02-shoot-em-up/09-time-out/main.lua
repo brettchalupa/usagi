@@ -7,6 +7,8 @@ local player_bullet_w = 4
 local player_bullet_h = 10
 local hit_flash_time = 0.2 -- secs
 local enemy_bullet_size = 12
+local GAME_W = 320
+local GAME_H = 320
 local WAVES = {
   {
     { 72,  -20 },
@@ -17,8 +19,8 @@ local WAVES = {
   {
     { 72,           -20 },
     { 100,          -60 },
-    { usagi.GAME_W - 72,  -20 },
-    { usagi.GAME_W - 100, -60 },
+    { GAME_W - 72,  -20 },
+    { GAME_W - 100, -60 },
   },
   {
     { 72,  -20 },
@@ -29,6 +31,16 @@ local WAVES = {
   -- add more waves here youself!
 }
 
+
+function _config()
+  ---@type Usagi.Config
+  return {
+    name = "Shmup",
+    game_id = "com.brettmakesgames.shmuptutorial",
+    game_width = GAME_W,
+    game_height = GAME_H,
+  }
+end
 
 function init_enemy(x, y)
   return {
@@ -68,13 +80,10 @@ function _init()
     enemy_bullets = {},
     game_over = false,
     current_wave = 0,
-    -- ANCHOR: state_timer
     timer = 60, -- secs
-    -- ANCHOR_END: state_timer
   }
 end
 
--- ANCHOR: update_timer
 function _update(dt)
   if State.game_over then
     if input.pressed(input.BTN1) then
@@ -86,7 +95,6 @@ function _update(dt)
     if State.timer == 0 then
       State.game_over = true
     end
--- ANCHOR_END: update_timer
     update_player_move(dt)
     update_player_fire(dt)
     update_player_bullets(dt)
@@ -129,10 +137,9 @@ function _draw(dt)
       enemy_bullet_size, enemy_bullet_size, gfx.COLOR_BLUE)
   end
 
-  gfx.text("Wave: " .. State.current_wave, usagi.GAME_W - 60, 10, gfx.COLOR_BLACK)
+  gfx.text("Wave: " .. State.current_wave, GAME_W - 60, 10, gfx.COLOR_BLACK)
 
-  -- ANCHOR: draw_time_out
-  gfx.text(string.format("%.2f", State.timer), usagi.GAME_W / 2 - 16, 10, gfx.COLOR_BLACK)
+  gfx.text(string.format("%.2f", State.timer), GAME_W / 2 - 16, 10, gfx.COLOR_BLACK)
 
   if State.game_over then
     if State.timer == 0 then
@@ -143,7 +150,6 @@ function _draw(dt)
     gfx.text("Press " .. input.mapping_for(input.BTN1) .. " to restart!",
       10, 32, gfx.COLOR_BLACK)
   end
-  -- ANCHOR_END: draw_time_out
 end
 
 function update_player_move(dt)

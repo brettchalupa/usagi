@@ -8,6 +8,16 @@ local player_bullet_h = 10
 local hit_flash_time = 0.2 -- secs
 local enemy_bullet_size = 12
 
+function _config()
+  ---@type Usagi.Config
+  return {
+    name = "Shmup",
+    game_id = "com.brettmakesgames.shmuptutorial",
+    game_width = 320,
+    game_height = 320,
+  }
+end
+
 function init_enemy(x, y)
   return {
     x = x,
@@ -48,13 +58,10 @@ function _init()
       init_enemy(usagi.GAME_W / 2, -60),
     },
     enemy_bullets = {},
-    -- ANCHOR: state_game_over
     game_over = false,
-    -- ANCHOR_END: state_game_over
   }
 end
 
--- ANCHOR: update_guard
 function _update(dt)
   if State.game_over then
     if input.pressed(input.BTN1) then
@@ -69,12 +76,10 @@ function _update(dt)
     try_spawn_enemies()
   end
 end
--- ANCHOR_END: update_guard
 
 function _draw(dt)
   gfx.clear(gfx.COLOR_WHITE)
 
-  -- ANCHOR: draw_guard
   if not State.game_over then
     gfx.rect_fill(
       State.player.x, State.player.y,
@@ -86,7 +91,6 @@ function _draw(dt)
       gfx.COLOR_WHITE
     )
   end
-  -- ANCHOR_END: draw_guard
 
   for _, enemy in ipairs(State.enemies) do
     local color = enemy.color
@@ -106,13 +110,11 @@ function _draw(dt)
       enemy_bullet_size, enemy_bullet_size, gfx.COLOR_BLUE)
   end
 
-  -- ANCHOR: draw_game_over
   if State.game_over then
     gfx.text("GAME OVER", 10, 10, gfx.COLOR_BLACK)
     gfx.text("Press " .. input.mapping_for(input.BTN1) .. " to restart!",
       10, 32, gfx.COLOR_BLACK)
   end
-  -- ANCHOR_END: draw_game_over
 end
 
 function update_player_move(dt)
@@ -224,7 +226,6 @@ function update_enemy_bullets(dt)
     bullet.x += math.cos(bullet.angle) * speed * dt
     bullet.y += math.sin(bullet.angle) * speed * dt
 
-    -- ANCHOR: set_game_over
     if util.rect_overlap(
           { x = bullet.x, y = bullet.y, w = enemy_bullet_size, h = enemy_bullet_size },
           player_hitbox(State.player)
@@ -234,7 +235,6 @@ function update_enemy_bullets(dt)
       effect.flash(0.4, gfx.COLOR_WHITE)
       effect.screen_shake(0.8, 2)
     end
-    -- ANCHOR_END: set_game_over
 
     if bullet.y > usagi.GAME_H or bullet.dead then
       table.remove(State.enemy_bullets, i)

@@ -3,9 +3,12 @@ y = 60
 enemies = {}
 enemy_spawn_timer = 0
 enemy_spawn_delay = 0.5 -- secs
--- ANCHOR: lost_var
 game_over = false
--- ANCHOR_END: lost_var
+
+function _config()
+  ---@type Usagi.Config
+  return { name = "Game", game_id = "com.usagiengine.YOURGAMENAME" }
+end
 
 function _init()
   -- Live reload preserves globals across saved edits but resets locals.
@@ -42,7 +45,6 @@ function _update(dt)
     enemy_spawn_timer = enemy_spawn_delay
   end
 
-  -- ANCHOR: hit_check
   for i = 1, #enemies do
     local enemy = enemies[i]
     enemy.x -= enemy.spd
@@ -54,7 +56,6 @@ function _update(dt)
       game_over = true
     end
   end
-  -- ANCHOR_END: hit_check
 
   for i = #enemies, 1, -1 do
     if enemies[i].x < -10 then
@@ -62,7 +63,6 @@ function _update(dt)
     end
   end
 
-  -- ANCHOR: reset
   if game_over and input.pressed(input.BTN1) then
     -- reset our game data
     x = 20
@@ -71,29 +71,24 @@ function _update(dt)
     enemy_spawn_timer = 0
     game_over = false
   end
-  -- ANCHOR_END: reset
 end
 
 function _draw(dt)
   gfx.clear(gfx.COLOR_BLACK)
 
-  -- ANCHOR: draw_player
   if not game_over then
     -- draw the player
     gfx.rect_fill(x, y, 16, 16, gfx.COLOR_GREEN)
   end
-  -- ANCHOR_END: draw_player
 
   for i = 1, #enemies do
     local enemy = enemies[i]
     gfx.circ_fill(enemy.x, enemy.y, 8, gfx.COLOR_RED)
   end
 
-  -- ANCHOR: game_over_text
   if game_over then
     gfx.text("GAME OVER", 10, 10, gfx.COLOR_WHITE)
     gfx.text("Press " .. input.mapping_for(input.BTN1) .. " to restart",
       10, 30, gfx.COLOR_WHITE)
   end
-  -- ANCHOR_END: game_over_text
 end
