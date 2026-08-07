@@ -26,6 +26,8 @@ Fixes:
   gamepad device identification; see
   [#3](https://codeberg.org/brettchalupa/usagi/issues/3) &
   [#4](https://codeberg.org/brettchalupa/usagi/issues/4)
+- Optimize sound effect memory usage (~4x less RAM usage); see
+  [#95](https://codeberg.org/brettchalupa/usagi/issues/95)
 
 ## v1.2.0 - July 2, 2026
 

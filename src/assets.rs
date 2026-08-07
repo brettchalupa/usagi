@@ -229,55 +229,110 @@ impl SpriteSheet {
     }
 }
 
-fn load_voices<'a>(audio: &'a RaylibAudio, stem: &str, bytes: &[u8]) -> Option<Vec<Sound<'a>>> {
+fn load_pool<'a>(audio: &'a RaylibAudio, stem: &str, bytes: &[u8]) -> Option<VoicePool<'a>> {
     let wave = audio
         .new_wave_from_memory(".wav", bytes)
         .map_err(|e| crate::msg::err!("failed to decode sfx '{stem}': {e}"))
         .ok()?;
-    let mut voices = Vec::with_capacity(SFX_VOICES_PER_SOUND);
-    for i in 0..SFX_VOICES_PER_SOUND {
-        match audio.new_sound_from_wave(&wave) {
-            Ok(s) => voices.push(s),
-            Err(e) => {
-                if i == 0 {
-                    crate::msg::err!("failed to create sfx '{stem}': {e}");
-                    return None;
-                }
-                crate::msg::err!(
-                    "sfx '{stem}': only allocated {got}/{want} voices: {e}",
-                    got = i,
-                    want = SFX_VOICES_PER_SOUND,
-                );
-                break;
-            }
-        }
-    }
-    Some(voices)
+    let base = audio
+        .new_sound_from_wave(&wave)
+        .map_err(|e| crate::msg::err!("failed to create sfx '{stem}': {e}"))
+        .ok()?;
+    Some(VoicePool::new(stem, base))
 }
 
+/// One playable slot. The pool's first voice owns the decoded samples; the
+/// rest are raylib sound aliases, which share those samples and only carry
+/// their own playback state.
+trait Voice {
+    fn is_playing(&self) -> bool;
+    fn play(&self);
+    fn stop(&self);
+    fn set_volume(&self, v: f32);
+    fn set_pitch(&self, p: f32);
+    fn set_pan(&self, p: f32);
+}
+
+macro_rules! impl_voice {
+    ($t:ty) => {
+        impl Voice for $t {
+            fn is_playing(&self) -> bool {
+                <$t>::is_playing(self)
+            }
+            fn play(&self) {
+                <$t>::play(self)
+            }
+            fn stop(&self) {
+                <$t>::stop(self)
+            }
+            fn set_volume(&self, v: f32) {
+                <$t>::set_volume(self, v)
+            }
+            fn set_pitch(&self, p: f32) {
+                <$t>::set_pitch(self, p)
+            }
+            fn set_pan(&self, p: f32) {
+                <$t>::set_pan(self, p)
+            }
+        }
+    };
+}
+
+impl_voice!(Sound<'_>);
+impl_voice!(SoundAlias<'_, '_>);
+
 pub struct VoicePool<'a> {
-    voices: Vec<Sound<'a>>,
+    /// Declared before `base` so the aliases drop first: they point into
+    /// `base`'s sample buffer.
+    aliases: Vec<SoundAlias<'a, 'a>>,
+    base: Box<Sound<'a>>,
     next_steal: Cell<usize>,
 }
 
 impl<'a> VoicePool<'a> {
-    fn new(voices: Vec<Sound<'a>>) -> Self {
+    fn new(stem: &str, base: Sound<'a>) -> Self {
+        let base = Box::new(base);
+        let mut aliases = Vec::with_capacity(SFX_VOICES_PER_SOUND - 1);
+        for i in 1..SFX_VOICES_PER_SOUND {
+            match base.alias() {
+                Ok(a) => {
+                    // SAFETY: `base` is boxed, so its sample buffer has a
+                    // stable address for as long as the pool lives, and the
+                    // field order above guarantees the aliases drop first.
+                    aliases.push(unsafe {
+                        std::mem::transmute::<SoundAlias<'_, 'a>, SoundAlias<'a, 'a>>(a)
+                    });
+                }
+                Err(e) => {
+                    crate::msg::err!(
+                        "sfx '{stem}': only allocated {got}/{want} voices: {e}",
+                        got = i,
+                        want = SFX_VOICES_PER_SOUND,
+                    );
+                    break;
+                }
+            }
+        }
         Self {
-            voices,
+            aliases,
+            base,
             next_steal: Cell::new(0),
         }
     }
 
-    fn pick(&self) -> Option<&Sound<'a>> {
-        if let Some(idle) = self.voices.iter().find(|s| !s.is_playing()) {
+    fn voices(&self) -> impl Iterator<Item = &dyn Voice> {
+        std::iter::once(&*self.base as &dyn Voice)
+            .chain(self.aliases.iter().map(|a| a as &dyn Voice))
+    }
+
+    fn pick(&self) -> Option<&dyn Voice> {
+        if let Some(idle) = self.voices().find(|s| !s.is_playing()) {
             return Some(idle);
         }
-        if self.voices.is_empty() {
-            return None;
-        }
-        let idx = self.next_steal.get() % self.voices.len();
+        let len = self.aliases.len() + 1;
+        let idx = self.next_steal.get() % len;
         self.next_steal.set(idx + 1);
-        self.voices.get(idx)
+        self.voices().nth(idx)
     }
 
     fn play(&self, volume: f32, pitch: f32, pan: f32) {
@@ -289,19 +344,19 @@ impl<'a> VoicePool<'a> {
     }
 
     fn set_volume(&self, v: f32) {
-        for voice in &self.voices {
+        for voice in self.voices() {
             voice.set_volume(v);
         }
     }
 
     fn stop(&self) {
-        for voice in &self.voices {
+        for voice in self.voices() {
             voice.stop();
         }
     }
 
     fn is_playing(&self) -> bool {
-        self.voices.iter().any(|s| s.is_playing())
+        self.voices().any(|s| s.is_playing())
     }
 }
 
@@ -330,9 +385,9 @@ impl<'a> SfxLibrary<'a> {
         let mut pools = HashMap::new();
         for stem in vfs.sfx_stems() {
             if let Some(bytes) = vfs.read_sfx(&stem)
-                && let Some(voices) = load_voices(audio, &stem, &bytes)
+                && let Some(pool) = load_pool(audio, &stem, &bytes)
             {
-                pools.insert(stem, VoicePool::new(voices));
+                pools.insert(stem, pool);
             }
         }
         Self {
