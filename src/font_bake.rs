@@ -260,7 +260,7 @@ pub fn run(
         // Unpack FT_PIXEL_MODE_MONO. Each row is `pitch` bytes,
         // packed MSB-first (bit 7 = leftmost pixel). Pitch can include
         // padding bytes past width/8 rounded up.
-        let pitch = bitmap.pitch() as i32;
+        let pitch = bitmap.pitch();
         let buf = bitmap.buffer();
         let abs_pitch = pitch.unsigned_abs() as usize;
         let mut pixels: Vec<bool> = Vec::with_capacity((w * h) as usize);

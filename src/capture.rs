@@ -50,12 +50,6 @@ use std::sync::Arc;
 /// most GIF viewers honor cleanly.
 const MIN_DELAY_CS: u16 = 3;
 
-/// Target retained-buffer duration in seconds. At ~30fps after the
-/// frame-skip and 320×180 raw-RGB pre-upscale storage, this works out
-/// to roughly 26MB of resident memory, regardless of how long the
-/// session has been running.
-const BUFFER_SECONDS: f32 = 5.0;
-
 /// Nearest-neighbor upscale applied at save time so the resulting GIF
 /// reads well when shared.
 const RECORDING_SCALE: u16 = 2;
@@ -124,6 +118,9 @@ pub struct Recorder {
     height: u16,
     /// One-shot guard so the "disabled at this resolution" note logs once.
     oversize_logged: bool,
+    /// Length of the GIF capture to be saved on user input. Value is defined
+    /// in the main.lua configs, defaults to 5.0 or user given float number.
+    gif_length: f32,
 }
 
 /// Above this pixel budget the rolling recorder turns itself off: the
@@ -141,6 +138,7 @@ impl Recorder {
             width: 0,
             height: 0,
             oversize_logged: false,
+            gif_length: 0.0,
         }
     }
 
@@ -149,9 +147,15 @@ impl Recorder {
     /// has passed to clear the 30fps floor, reads the RT back from the
     /// GPU and appends the raw RGB pixels (already flipped top-down)
     /// to the ring. Evicts the oldest frames once total duration
-    /// exceeds `BUFFER_SECONDS`. Palette building / quantization is
+    /// exceeds `self.gif_length`. Palette building / quantization is
     /// deferred to save time on a worker thread.
-    pub fn capture(&mut self, rt: &RenderTexture2D, dt: f32, res: crate::config::Resolution) {
+    pub fn capture(
+        &mut self,
+        rt: &RenderTexture2D,
+        dt: f32,
+        res: crate::config::Resolution,
+        g: f32,
+    ) {
         if (res.w as u32) * (res.h as u32) > MAX_RECORDING_PIXELS {
             if !self.oversize_logged {
                 self.oversize_logged = true;
@@ -177,6 +181,7 @@ impl Recorder {
             self.total_seconds = 0.0;
             self.width = new_w;
             self.height = new_h;
+            self.gif_length = g;
         }
 
         let Ok(image) = rt.texture().load_image() else {
@@ -215,7 +220,7 @@ impl Recorder {
             delay_cs,
         });
         self.total_seconds += used_seconds;
-        while self.total_seconds > BUFFER_SECONDS {
+        while self.total_seconds > self.gif_length {
             match self.frames.pop_front() {
                 Some(front) => self.total_seconds -= front.delay_cs as f32 / 100.0,
                 None => {
@@ -575,16 +580,17 @@ mod tests {
     /// the real `capture` uses, but stubs the GPU readback with a
     /// zeroed RGB buffer so eviction can be exercised without a
     /// raylib context.
-    fn push_synthetic_frame(rec: &mut Recorder, dt: f32, w: u16, h: u16) -> Option<u16> {
+    fn push_synthetic_frame(rec: &mut Recorder, dt: f32, w: u16, h: u16, g: f32) -> Option<u16> {
         let delay_cs = tick_timing(&mut rec.accumulated_dt, dt)?;
         rec.width = w;
         rec.height = h;
+        rec.gif_length = g;
         rec.frames.push_back(CapturedFrame {
             rgb: Arc::from(vec![0u8; w as usize * h as usize * 3].into_boxed_slice()),
             delay_cs,
         });
         rec.total_seconds += delay_cs as f32 / 100.0;
-        while rec.total_seconds > BUFFER_SECONDS {
+        while rec.total_seconds > rec.gif_length {
             match rec.frames.pop_front() {
                 Some(front) => rec.total_seconds -= front.delay_cs as f32 / 100.0,
                 None => {
@@ -603,8 +609,8 @@ mod tests {
         // should round to ~3 cs.
         let mut rec = Recorder::new();
         let dt = 1.0 / 60.0;
-        assert_eq!(push_synthetic_frame(&mut rec, dt, 8, 8), None);
-        let kept = push_synthetic_frame(&mut rec, dt, 8, 8);
+        assert_eq!(push_synthetic_frame(&mut rec, dt, 8, 8, 5.0), None);
+        let kept = push_synthetic_frame(&mut rec, dt, 8, 8, 5.0);
         assert_eq!(kept, Some(3));
         assert_eq!(rec.frames.len(), 1);
     }
@@ -615,7 +621,7 @@ mod tests {
         // should be kept with the full delay so playback reflects the
         // real elapsed time.
         let mut rec = Recorder::new();
-        let kept = push_synthetic_frame(&mut rec, 0.1, 8, 8);
+        let kept = push_synthetic_frame(&mut rec, 0.1, 8, 8, 5.0);
         assert_eq!(kept, Some(10));
         assert_eq!(rec.frames.len(), 1);
     }
@@ -626,10 +632,10 @@ mod tests {
         // confirm the front gets popped while the back keeps growing.
         let mut rec = Recorder::new();
         for _ in 0..60 {
-            push_synthetic_frame(&mut rec, 0.1, 8, 8);
+            push_synthetic_frame(&mut rec, 0.1, 8, 8, 5.0);
         }
         assert!(
-            rec.total_seconds <= BUFFER_SECONDS + 0.01,
+            rec.total_seconds <= rec.gif_length + 0.01,
             "ring should keep total ~5s, got {}",
             rec.total_seconds
         );
@@ -646,7 +652,7 @@ mod tests {
         let mut total_kept_cs: u32 = 0;
         let frame_count = 600; // 10 seconds of game time at 60fps
         for _ in 0..frame_count {
-            if let Some(delay) = push_synthetic_frame(&mut rec, dt, 8, 8) {
+            if let Some(delay) = push_synthetic_frame(&mut rec, dt, 8, 8, 5.0) {
                 total_kept_cs += delay as u32;
             }
         }
@@ -655,9 +661,10 @@ mod tests {
         // Allow generous tolerance because the ring keeps only the
         // last 5s; the eviction subtracts what fell off too. Test that
         // total_seconds (kept after eviction) tracks 5s closely.
+        let gif_length_param = rec.gif_length;
         assert!(
-            (rec.total_seconds - BUFFER_SECONDS).abs() < 0.05,
-            "ring should hold ~{BUFFER_SECONDS}s, got {}",
+            (rec.total_seconds - rec.gif_length).abs() < 0.05,
+            "ring should hold ~{gif_length_param}s, got {}",
             rec.total_seconds
         );
         // And confirm the accumulated kept cs comes close to the real

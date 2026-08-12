@@ -59,6 +59,12 @@ impl Default for Resolution {
 /// window-icon slicer.
 pub const DEFAULT_SPRITE_SIZE: i32 = 16;
 
+/// Target retained-buffer duration in seconds. At ~30fps after the
+/// frame-skip and 320×180 raw-RGB pre-upscale storage, this works out
+/// to roughly 26MB of resident memory, regardless of how long the
+/// session has been running.
+pub const DEFAULT_GIF_LENGTH: f32 = 5.0;
+
 /// Fully-resolved project config, with defaults filled in for any
 /// fields no source set.
 #[derive(Debug, Clone)]
@@ -103,6 +109,8 @@ pub struct Config {
     /// Launch fullscreen by default. Only the default: once a player toggles
     /// fullscreen the saved setting wins. Set via `initial_fullscreen`.
     pub initial_fullscreen: bool,
+    /// Length of the GIF capture function in seconds.
+    pub gif_length: f32,
 }
 
 impl Default for Config {
@@ -116,6 +124,7 @@ impl Default for Config {
             sprite_size: DEFAULT_SPRITE_SIZE,
             pause_menu: true,
             initial_fullscreen: false,
+            gif_length: DEFAULT_GIF_LENGTH,
         }
     }
 }
@@ -133,6 +142,7 @@ struct Partial {
     sprite_size: Option<i32>,
     pause_menu: Option<bool>,
     initial_fullscreen: Option<bool>,
+    gif_length: Option<f32>,
 }
 
 impl Partial {
@@ -173,6 +183,11 @@ impl Partial {
         }
         if let Ok(Some(b)) = tbl.get::<Option<bool>>("initial_fullscreen") {
             p.initial_fullscreen = Some(b);
+        }
+        if let Ok(Some(g)) = tbl.get::<Option<f32>>("gif_length")
+            && g >= 1.0
+        {
+            p.gif_length = Some(g);
         }
         p
     }
@@ -258,6 +273,7 @@ fn apply_pair(p: &mut Partial, key: &str, value: &str, source: Source, warn: boo
         "game_height" => p.game_height = parse_dim(value, key, warn),
         "sprite_size" => p.sprite_size = parse_size(value, key, warn),
         "icon" => p.icon = parse_index(value, key, warn),
+        "gif_length" => p.gif_length = parse_dim(value, key, warn),
         _ => {
             if warn {
                 crate::msg::warn!("usagi.conf: unknown key '{key}'");
@@ -392,6 +408,7 @@ fn combine(lua: Option<Partial>, conf: Partial, fm: Partial, warn: bool) -> Conf
     merge!(game_width => c.resolution.w);
     merge!(game_height => c.resolution.h);
     merge!(sprite_size => c.sprite_size);
+    merge!(gif_length => c.gif_length);
     c
 }
 
@@ -586,6 +603,7 @@ mod tests {
         assert!(c.name.is_none());
         assert_eq!(c.resolution.w, Resolution::DEFAULT.w);
         assert_eq!(c.sprite_size, DEFAULT_SPRITE_SIZE);
+        assert_eq!(c.gif_length, DEFAULT_GIF_LENGTH);
         assert!(c.pause_menu);
     }
 
@@ -594,6 +612,7 @@ mod tests {
         // `f32::parse` accepts inf/nan; they must not slip past validation.
         assert_eq!(conf_partial("game_width = inf\n", false).game_width, None);
         assert_eq!(conf_partial("game_height = nan\n", false).game_height, None);
+        assert_eq!(conf_partial("gif_length = nan\n", false).gif_length, None);
     }
 
     #[test]

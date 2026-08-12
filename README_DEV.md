@@ -423,6 +423,7 @@ pixel_perfect = true
 # sprite_size = 32     # optional; default 16
 # pause_menu = false   # optional; default true
 # initial_fullscreen = true  # optional; default false
+# gif_length = 10      # optional; default 5
 ```
 
 Frontmatter comments must start on the very first line of `main.lua` (no blank
@@ -506,6 +507,11 @@ Supported keys:
   fullscreen. This only sets the default for a player's first launch; once they
   toggle fullscreen from the pause menu, that saved preference wins on later
   launches. Optional.
+- `gif_length` (default: `5`): length of the GIF capture created by Cmd+G GIF
+  recording feature. By default this is 5 seconds, but can be modified to an 
+  arbitrary float number. Be careful though as high export length may lead to
+  higher resource usage and performance drain as the engine is gathering frame
+  data to be exported.
 
 `icon` (optional) is a 1-based tile index into your `sprites.png`, same indexing
 as `gfx.spr`. Omitted, the embedded Usagi bunny is used. The chosen tile is
@@ -1393,14 +1399,14 @@ spr(0, 20, 30)
   runs each frame, with the pause overlay rendered on top. Music pauses on menu
   open and resumes on close.
 - Press **Shift+Esc** in dev mode to quit the game.
-- The engine keeps the last ~5 seconds of gameplay in memory at all times. Press
-  **F9** or **Cmd/Ctrl + G** to write that buffer out as a GIF in your user
-  Downloads dir, named `<game>-YYYYMMDD-HHMMSS.gif` (where `<game>` is the short
-  form of your `game_id` config, e.g. `~/Downloads/snake-20260101-120000.gif`).
-  Upscaled 2x (640×360) so they read well when embedded online. Rolling buffer:
-  trigger the save after the cool moment, not before. Per-frame timing reflects
-  real frame dt clamped to a 30fps floor, so a game that stutters produces a GIF
-  that plays at the same pace as the game ran.
+- The engine keeps the last ~5 seconds (by default, see: Configuration, `gif_length`)
+  of gameplay in memory at all times. Press **F9** or **Cmd/Ctrl + G** to write that 
+  buffer out as a GIF in your user Downloads dir, named `<game>-YYYYMMDD-HHMMSS.gif` 
+  (where `<game>` is the short form of your `game_id` config, e.g. 
+  `~/Downloads/snake-20260101-120000.gif`). Upscaled 2x (640×360) so they read well 
+  when embedded online. Rolling buffer: trigger the save after the cool moment, 
+  not before. Per-frame timing reflects real frame dt clamped to a 30fps floor, 
+  so a game that stutters produces a GIF that plays at the same pace as the game ran.
 - Press **F8** or **Cmd/Ctrl + F** to save a PNG screenshot to the same
   Downloads bucket. Same 2x upscale as the gif recorder, lossless,
   palette-exact.
