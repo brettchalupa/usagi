@@ -507,9 +507,9 @@ Supported keys:
   fullscreen. This only sets the default for a player's first launch; once they
   toggle fullscreen from the pause menu, that saved preference wins on later
   launches. Optional.
-- `gif_length` (default: `5`): length of the GIF capture created by Cmd+G GIF
-  recording feature. By default this is 5 seconds, but can be modified to an
-  arbitrary float number. Be careful though as high export length may lead to
+- `gif_length` (default: `5`): length in seconds of the GIF capture created by
+  Ctrl/Cmd+G GIF recording feature. By default this is 5 seconds, but can be
+  modified to an arbitrary float number. Note: longer recording time leads to
   higher resource usage and performance drain as the engine is gathering frame
   data to be exported.
 

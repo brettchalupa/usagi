@@ -1,5 +1,6 @@
 -- name = Snake
 -- game_id = com.brettmakesgames.usagisnake
+-- gif_length = 10
 
 -- Classic snake. Grid is COLS x ROWS cells at CELL pixels each.
 -- Direction input is edge-detected; the snake advances on a fixed TICK,
