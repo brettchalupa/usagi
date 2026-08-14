@@ -5,6 +5,10 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
+Nothing is unreleased yet!
+
+## v1.3.0 - August 14, 2026
+
 Features:
 
 - Configure games with a `usagi.conf` file or `-- key = value` frontmatter
