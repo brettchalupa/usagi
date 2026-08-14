@@ -1930,8 +1930,8 @@ impl Session {
                         Ok(())
                     })?;
                     let text = scope.create_function(
-                        |_, (s, x, y, c, a): (LuaString, f32, f32, i32, Option<f32>)| {
-                            let s = s.to_string_lossy();
+                        |_, (s, x, y, c, a): (LuaValue, f32, f32, i32, Option<f32>)| {
+                            let s = s.to_string().unwrap_or(String::from(""));
                             d_rt_cell.borrow_mut().draw_text_ex(
                                 font_ref,
                                 &s,
@@ -1946,7 +1946,7 @@ impl Session {
                     let text_ex = scope.create_function(
                         |_,
                          (s, x, y, scale, rotation, c, alpha): (
-                            LuaString,
+                            LuaValue,
                             f32,
                             f32,
                             f32,
@@ -1954,7 +1954,7 @@ impl Session {
                             i32,
                             f32,
                         )| {
-                            let s = s.to_string_lossy();
+                            let s = s.to_string().unwrap_or(String::from(""));
                             let base = font_ref.base_size() as f32;
                             let font_size = base * scale;
                             // Bounds drive the pivot. We center rotation
@@ -2364,7 +2364,7 @@ impl Session {
                             lua,
                             text,
                             "gfx.text",
-                            &["string", "number", "number", "number"],
+                            &["any", "number", "number", "number"],
                         )?,
                     )?;
                     gfx_tbl.set(
@@ -2374,8 +2374,7 @@ impl Session {
                             text_ex,
                             "gfx.text_ex",
                             &[
-                                "string", "number", "number", "number", "number", "number",
-                                "number",
+                                "any", "number", "number", "number", "number", "number", "number",
                             ],
                         )?,
                     )?;

@@ -29,4 +29,9 @@ function _draw(_dt)
 
   -- Plain gfx.text at native size for size reference.
   gfx.text("plain gfx.text for scale reference", 4, 168, gfx.COLOR_DARK_GRAY)
+
+  -- Non-strings can be passed into `gfx.text` and `gfx.text_ex`
+  gfx.text(10, 10, 10, gfx.COLOR_GREEN)
+  gfx.text_ex(true, 10, 20, 1, 0, gfx.COLOR_WHITE, 1)
+  gfx.text_ex(nil, 10, 30, 1, 0, gfx.COLOR_PINK, 1)
 end

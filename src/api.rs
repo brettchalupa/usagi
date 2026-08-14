@@ -504,7 +504,7 @@ mod tests {
 
     #[test]
     fn wrap_rejects_bad_arg_with_lua_error_not_panic() {
-        // GH Issue #103: callbacks must reject bad input via Lua-side
+        // Callbacks must reject bad input via Lua-side
         // `error(...)` so the longjmp stays inside Lua/C frames. Returning
         // `Err` from a typed Rust callback would re-raise via `lua_error`
         // through Rust frames, which trips Windows MSVC's GS stack-cookie
@@ -837,11 +837,11 @@ mod tests {
             )?;
             gfx.set(
                 "text",
-                scope.create_function(|_, _a: (LuaString, f32, f32, i32, Option<f32>)| Ok(()))?,
+                scope.create_function(|_, _a: (LuaValue, f32, f32, i32, Option<f32>)| Ok(()))?,
             )?;
             gfx.set(
                 "text_ex",
-                scope.create_function(|_, _a: (LuaString, f32, f32, f32, f32, i32, f32)| Ok(()))?,
+                scope.create_function(|_, _a: (LuaValue, f32, f32, f32, f32, i32, f32)| Ok(()))?,
             )?;
             gfx.set(
                 "spr",
@@ -954,6 +954,9 @@ mod tests {
                 gfx.tri_fill(10, 10, 30, 10, 20, 30, gfx.COLOR_BLUE)
                 gfx.text("hi", 0, 0, gfx.COLOR_WHITE)
                 gfx.text_ex("hi", 0, 0, 2, math.pi / 4, gfx.COLOR_WHITE, 1.0)
+                gfx.text(10, 4, 4, gfx.COLOR_WHITE)
+                gfx.text(false, 4, 4, gfx.COLOR_WHITE)
+                gfx.text_ex(10, 0, 0, 2, math.pi / 4, gfx.COLOR_WHITE, 1.0)
                 gfx.spr(1, usagi.GAME_W / 2, usagi.GAME_H / 2)
                 gfx.spr_ex(1, 0, 0, true, true, math.pi / 2, gfx.COLOR_WHITE, 1.0)
                 gfx.sspr(0, 0, 16, 16, 10, 10)

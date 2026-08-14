@@ -19,6 +19,10 @@ Features:
 - Warn when requiring files with different casing on the disk, as it can lead to
   issues on different file-systems; see
   [#81](https://codeberg.org/brettchalupa/usagi/issues/81)
+- The first arg for `gfx.text` and `gfx.text_ex` no longer need to be strings,
+  so `gfx.text(10, 4, 4, gfx.COLOR_BLACK)` renders 10 rather than erroring,
+  making for a more convenient API; if it fails to convert, it defaults to empty
+  string; see [#99](https://codeberg.org/brettchalupa/usagi/issues/99)
 
 Fixes:
 
