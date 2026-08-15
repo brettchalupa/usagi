@@ -40,10 +40,6 @@ If this is your first time seeing code, congratulations! This is Lua.
 is contained within the `function` and `end` run. We'll dive more into functions
 soon. But let's walk through the code a bit more first.
 
-`_config()` is a place where you can set your game's `name` and `game_id`. The
-`game_id` is used for putting your game's save data in the proper location on
-your players' computers. Don't worry about this too much yet.
-
 `_init()` is a function that gets run when your game starts (and when you press
 <kbd>F5</kbd> or <kbd>Ctrl+R</kbd>). It's a good place to set up data once.
 
@@ -78,6 +74,11 @@ make it by passing in arguments. Arguments are comma-separated values that
 correspond to the parameter list of the function. `gfx.text` expects the text
 message to show, the x coordinate, the y coordinate, and the color of the text
 as its arguments.
+
+`usagi.conf` is a file where you can set your game's `name` and `game_id`, among
+other configuration values. The `game_id` is used for putting your game's save
+data in the proper location on your players' computers. Don't worry about this
+too much yet.
 
 Try changing a few aspects of `gfx.text` and see what happens. Update the
 message, change the `10`s, and use a different color.
@@ -114,13 +115,13 @@ Usagi, let's make it easy to say hello to any given name.
 At the bottom of `main.lua`, add the following code:
 
 ```lua
-{{#include code/01-dodge-em-up/02-greet/main.lua:21:23}}
+{{#include code/01-dodge-em-up/02-greet/main.lua:greet}}
 ```
 
 Then, in `_draw`:
 
 ```lua
-{{#include code/01-dodge-em-up/02-greet/main.lua:18}}
+{{#include code/01-dodge-em-up/02-greet/main.lua:draw_greet}}
 ```
 
 Try changing the name. What our updated `gfx.text` is doing is calling our new
@@ -166,7 +167,7 @@ Let's draw a square to represent our player. You can delete our `greet`
 function. And then replace the `gfx.text` function call with this:
 
 ```lua
-{{#include code/01-dodge-em-up/03-square/main.lua:18}}
+{{#include code/01-dodge-em-up/03-square/main.lua:draw_square}}
 ```
 
 This draws a green rectangle at the position of x: 20 and y: 40. The rectangle
@@ -196,7 +197,7 @@ get a name so that we can reference it and change it.
 At the top of your `main.lua` file, add the following:
 
 ```lua
-{{#include code/01-dodge-em-up/04-input/main.lua:1:2}}
+{{#include code/01-dodge-em-up/04-input/main.lua:vars}}
 ```
 
 This creates and sets the `x` variable to the number `20` and the `y` value to
@@ -207,7 +208,7 @@ right side.
 Now update your `gfx.rect_fill` to use the new `x` and `y` variables:
 
 ```lua
-{{#include code/01-dodge-em-up/04-input/main.lua:33}}
+{{#include code/01-dodge-em-up/04-input/main.lua:draw_player}}
 ```
 
 Instead of using the hard-coded values we previously had to position the square,
@@ -226,7 +227,7 @@ something else you don't have to change your code. Kind of nice!
 We'll make use of this `input.held` check in our `_update` function:
 
 ```lua
-{{#include code/01-dodge-em-up/04-input/main.lua:16:29}}
+{{#include code/01-dodge-em-up/04-input/main.lua:update_input}}
 ```
 
 If you use the arrow keys, WASD, or your gamepad, you can move the green square
@@ -260,7 +261,7 @@ random speeds so that there's a bit of challenge.
 At the top of `main.lua`, below our `x` and `y` variable assignment, add this:
 
 ```lua
-{{#include code/01-dodge-em-up/05-enemies/main.lua:3}}
+{{#include code/01-dodge-em-up/05-enemies/main.lua:enemy_size}}
 ```
 
 This assigns `{}` to the `enemies` variable. But what do those squigly brackets
@@ -331,7 +332,7 @@ Right below that line, create these two new variables that we'll use for spawn
 timing:
 
 ```lua
-{{#include code/01-dodge-em-up/05-enemies/main.lua:4:5}}
+{{#include code/01-dodge-em-up/05-enemies/main.lua:spawn_vars}}
 ```
 
 In our `_update` function, below where we handle player input for movement, we
@@ -339,7 +340,7 @@ need to countdown our `enemy_spawn_timer` every frame of our game and add an
 enemy to our `enemies` array if the timer is less than or equal to `0`:
 
 ```lua
-{{#include code/01-dodge-em-up/05-enemies/main.lua:33:37}}
+{{#include code/01-dodge-em-up/05-enemies/main.lua:spawn_enemy}}
 ```
 
 Just like we do with the `x` and `y` position for player movement, we update our
@@ -366,7 +367,7 @@ position by subtracting a value from it. Walking through an array item by item
 is done with a `for` **loop**. Here's the code:
 
 ```lua
-{{#include code/01-dodge-em-up/05-enemies/main.lua:39:42}}
+{{#include code/01-dodge-em-up/05-enemies/main.lua:update_enemies}}
 ```
 
 Let's break it down line by line:
@@ -415,7 +416,7 @@ function, after we clear the screen and draw our player, we need to loop through
 our enemies yet again and draw them:
 
 ```lua
-{{#include code/01-dodge-em-up/05-enemies/main.lua:49:52}}
+{{#include code/01-dodge-em-up/05-enemies/main.lua:draw_enemies}}
 ```
 
 We use the same style of `for` loop. But rather than update the `enemy`'s
@@ -449,7 +450,7 @@ and 4. The possible values are 1, 2, 3, and 4.
 In `_update` change the code where we spawn our enemies to this:
 
 ```lua
-{{#include code/01-dodge-em-up/06-random/main.lua:34:45}}
+{{#include code/01-dodge-em-up/06-random/main.lua:spawn_enemy}}
 ```
 
 Rather than hardcoding the `y` value, we calculate a number between 10 and the
@@ -463,7 +464,7 @@ Then, below our spawning check, make it so that the `enemies` update loop uses
 the `enemy.spd` instead of the hardcoded value.
 
 ```lua
-{{#include code/01-dodge-em-up/06-random/main.lua:47:50}}
+{{#include code/01-dodge-em-up/06-random/main.lua:update_speed}}
 ```
 
 Our enemies are spawning all over the screen, with some moving faster than
@@ -471,7 +472,7 @@ others. But they're a bit few and far between to actually pose any threat. At
 the top of `main.lua`, decrease the `enemy_spawn_delay` value:
 
 ```lua
-{{#include code/01-dodge-em-up/06-random/main.lua:5}}
+{{#include code/01-dodge-em-up/06-random/main.lua:spawn_delay}}
 ```
 
 Spawning an enemy every half second is feeling pretty good to me! But you're
@@ -492,7 +493,7 @@ Well... let's find out! At the end of `_draw`, let's render some text that shows
 us how many enemies there are in our `enemies` array:
 
 ```lua
-{{#include code/01-dodge-em-up/07-recycle/main.lua:68}}
+{{#include code/01-dodge-em-up/07-recycle/main.lua:enemy_count}}
 ```
 
 The number of enemies keeps increasing. Which means each frame we're looping
@@ -513,7 +514,7 @@ table. Add this code below the for loop where we update the `x` position of each
 enemy:
 
 ```lua
-{{#include code/01-dodge-em-up/07-recycle/main.lua:52:56}}
+{{#include code/01-dodge-em-up/07-recycle/main.lua:recycle}}
 ```
 
 This is a new second loop through our enemies. But rather than going from the
@@ -607,7 +608,7 @@ Add a variable at the top of `main.lua` by our other variables that tracks
 whether or not we've lost:
 
 ```lua
-{{#include code/01-dodge-em-up/08-hit-detection/main.lua:6}}
+{{#include code/01-dodge-em-up/08-hit-detection/main.lua:lost_var}}
 ```
 
 You can assign `true` or `false` to variables, which are the boolean values that
@@ -619,7 +620,7 @@ Then in `_update`, where we loop through the enemies and update their position
 each enemy overlaps with the player:
 
 ```lua
-{{#include code/01-dodge-em-up/08-hit-detection/main.lua:48:58}}
+{{#include code/01-dodge-em-up/08-hit-detection/main.lua:hit_check}}
 ```
 
 `util.circ_rect_overlap` is a function Usagi provides that checks if any portion
@@ -640,7 +641,7 @@ but BTN is pressed), then we reset our game data to start the playing the game
 again.
 
 ```lua
-{{#include code/01-dodge-em-up/08-hit-detection/main.lua:66:73}}
+{{#include code/01-dodge-em-up/08-hit-detection/main.lua:reset}}
 ```
 
 `input.BTN1` is part of Usagi's universal, simple input API. We checked for
@@ -660,7 +661,7 @@ its value and update what we render accordingly.
 Let's only draw the player if it's not game over:
 
 ```lua
-{{#include code/01-dodge-em-up/08-hit-detection/main.lua:79:82}}
+{{#include code/01-dodge-em-up/08-hit-detection/main.lua:draw_player}}
 ```
 
 `if not game_over then` does exactly what it reads like: if `game_over` is
@@ -670,7 +671,7 @@ At the bottom of `_draw`, if it is game over, let the player know with some
 helpful text:
 
 ```lua
-{{#include code/01-dodge-em-up/08-hit-detection/main.lua:89:93}}
+{{#include code/01-dodge-em-up/08-hit-detection/main.lua:game_over_text}}
 ```
 
 `input.mapping_for` is a useful function Usagi provides that returns whatever
@@ -690,20 +691,20 @@ keep track of how long the player has survived and display that in our game.
 We need a new variable to keep track of `play_time` at the top of `main.lua`:
 
 ```lua
-{{#include code/01-dodge-em-up/09-play-time/main.lua:7}}
+{{#include code/01-dodge-em-up/09-play-time/main.lua:play_time_var}}
 ```
 
 In `_update` where we reset the game data, reset `play_time` to `0`:
 
 ```lua
-{{#include code/01-dodge-em-up/09-play-time/main.lua:67:75}}
+{{#include code/01-dodge-em-up/09-play-time/main.lua:reset_time}}
 ```
 
 Right below that restart check, check if it's not game over and add the `dt` to
 `play_time`:
 
 ```lua
-{{#include code/01-dodge-em-up/09-play-time/main.lua:77:79}}
+{{#include code/01-dodge-em-up/09-play-time/main.lua:update_time}}
 ```
 
 `dt` is a decimal value, since it's usually about 0.016. Each frame we add that
@@ -712,7 +713,7 @@ hasn't been hit. Then at the bottom of `_draw`, drop the decimal places from
 `play_time` and render the whole number of seconds the player has survived:
 
 ```lua
-{{#include code/01-dodge-em-up/09-play-time/main.lua:101}}
+{{#include code/01-dodge-em-up/09-play-time/main.lua:draw_time}}
 ```
 
 [View the source code for this section.](https://codeberg.org/brettchalupa/usagi/src/branch/main/book/src/code/01-dodge-em-up/09-play-time/main.lua)

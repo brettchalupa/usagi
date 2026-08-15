@@ -1,10 +1,7 @@
+-- ANCHOR: vars
 x = 20
 y = 40
-
-function _config()
-  ---@type Usagi.Config
-  return { name = "Game", game_id = "com.usagiengine.YOURGAMENAME" }
-end
+-- ANCHOR_END: vars
 
 function _init()
   -- Live reload preserves globals across saved edits but resets locals.
@@ -13,6 +10,7 @@ function _init()
   State = {}
 end
 
+-- ANCHOR: update_input
 function _update(dt)
   if input.held(input.LEFT) then
     x = x - 4
@@ -27,8 +25,11 @@ function _update(dt)
     y = y + 4
   end
 end
+-- ANCHOR_END: update_input
 
 function _draw(dt)
   gfx.clear(gfx.COLOR_BLACK)
+  -- ANCHOR: draw_player
   gfx.rect_fill(x, y, 16, 16, gfx.COLOR_GREEN)
+  -- ANCHOR_END: draw_player
 end

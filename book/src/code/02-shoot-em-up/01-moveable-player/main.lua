@@ -1,16 +1,6 @@
 local player_size = 16
 local player_speed = 180 -- px/s
 
-function _config()
-  ---@type Usagi.Config
-  return {
-    name = "Shmup",
-    game_id = "com.brettmakesgames.shmuptutorial",
-    game_width = 320,
-    game_height = 320,
-  }
-end
-
 function _init()
   State = {
     player = {

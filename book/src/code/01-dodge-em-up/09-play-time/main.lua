@@ -4,12 +4,9 @@ enemies = {}
 enemy_spawn_timer = 0
 enemy_spawn_delay = 0.5 -- secs
 game_over = false
+-- ANCHOR: play_time_var
 play_time = 0
-
-function _config()
-  ---@type Usagi.Config
-  return { name = "Game", game_id = "com.usagiengine.YOURGAMENAME" }
-end
+-- ANCHOR_END: play_time_var
 
 function _init()
   -- Live reload preserves globals across saved edits but resets locals.
@@ -64,6 +61,7 @@ function _update(dt)
     end
   end
 
+  -- ANCHOR: reset_time
   if game_over and input.pressed(input.BTN1) then
     -- reset our game data
     x = 20
@@ -73,10 +71,13 @@ function _update(dt)
     game_over = false
     play_time = 0
   end
+  -- ANCHOR_END: reset_time
 
+  -- ANCHOR: update_time
   if not game_over then
     play_time = play_time + dt
   end
+  -- ANCHOR_END: update_time
 end
 
 function _draw(dt)
@@ -98,5 +99,7 @@ function _draw(dt)
       10, 30, gfx.COLOR_WHITE)
   end
 
+  -- ANCHOR: draw_time
   gfx.text(math.floor(play_time) .. "s", 280, 10, gfx.COLOR_WHITE)
+  -- ANCHOR_END: draw_time
 end

@@ -7,8 +7,6 @@ local player_bullet_w = 4
 local player_bullet_h = 10
 local hit_flash_time = 0.2 -- secs
 local enemy_bullet_size = 12
-local GAME_W = 320
-local GAME_H = 320
 local WAVES = {
   {
     { 72,  -20 },
@@ -19,8 +17,8 @@ local WAVES = {
   {
     { 72,           -20 },
     { 100,          -60 },
-    { GAME_W - 72,  -20 },
-    { GAME_W - 100, -60 },
+    { usagi.GAME_W - 72,  -20 },
+    { usagi.GAME_W - 100, -60 },
   },
   {
     { 72,  -20 },
@@ -31,16 +29,6 @@ local WAVES = {
   -- add more waves here youself!
 }
 
-
-function _config()
-  ---@type Usagi.Config
-  return {
-    name = "Shmup",
-    game_id = "com.brettmakesgames.shmuptutorial",
-    game_width = GAME_W,
-    game_height = GAME_H,
-  }
-end
 
 function init_enemy(x, y)
   return {
@@ -140,9 +128,9 @@ function _draw(dt)
 
   gfx.text("Score: " .. State.score, 10, 10, gfx.COLOR_BLACK)
 
-  gfx.text("Wave: " .. State.current_wave, GAME_W - 60, 10, gfx.COLOR_BLACK)
+  gfx.text("Wave: " .. State.current_wave, usagi.GAME_W - 60, 10, gfx.COLOR_BLACK)
 
-  gfx.text(string.format("%.2f", State.timer), GAME_W / 2 - 16, 10, gfx.COLOR_BLACK)
+  gfx.text(string.format("%.2f", State.timer), usagi.GAME_W / 2 - 16, 10, gfx.COLOR_BLACK)
 
   if State.game_over then
     if State.timer == 0 then
@@ -179,10 +167,12 @@ end
 function update_player_fire(dt)
   fire_timer -= dt
 
+  -- ANCHOR: play_shoot
   if fire_timer <= 0 and input.held(input.BTN1) then
     local bul_y = State.player.y - player_bullet_h
     sfx.play("laserShoot")
     -- fire 3 bullets
+  -- ANCHOR_END: play_shoot
     table.insert(State.player.bullets,
       { x = State.player.x - player_bullet_w, y = bul_y })
     table.insert(State.player.bullets,
@@ -209,10 +199,12 @@ function update_player_bullets(dt)
         enemy.hp -= 1
         enemy.flash_timer = hit_flash_time
 
+        -- ANCHOR: play_hit
         if enemy.hp <= 0 then
           sfx.play("enemyDeath")
           State.score += 100
         end
+        -- ANCHOR_END: play_hit
       end
     end
 
@@ -270,6 +262,7 @@ function update_enemy_bullets(dt)
     bullet.x += math.cos(bullet.angle) * speed * dt
     bullet.y += math.sin(bullet.angle) * speed * dt
 
+    -- ANCHOR: play_player_hit
     if util.rect_overlap(
           { x = bullet.x, y = bullet.y, w = enemy_bullet_size, h = enemy_bullet_size },
           player_hitbox(State.player)
@@ -280,6 +273,7 @@ function update_enemy_bullets(dt)
       effect.flash(0.4, gfx.COLOR_WHITE)
       effect.screen_shake(0.8, 2)
     end
+    -- ANCHOR_END: play_player_hit
 
     if bullet.y > usagi.GAME_H or bullet.dead then
       table.remove(State.enemy_bullets, i)

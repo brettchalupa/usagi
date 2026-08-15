@@ -14,16 +14,17 @@ Usagi is interacted with via the command line. Initialize a new project with
 bootstraps your game.
 
 This creates a new `snake` folder on your computer. Within it you'll see
-`main.lua` with the four key Usagi lifecycle functions:
+`main.lua` with the three key Usagi lifecycle functions:
 
-- `_config` - defines various aspects of your game, like name, unique ID,
-  resolution, etc.
 - `_init` - code that's run on game start and when the game is hard reloaded in
   dev mode with <kbd>Ctrl + R</kbd>
 - `_update` - where your input, simulation, etc. goes; called every frame, 60
   times a second, with optional `dt` parameter
 - `_draw` - where you draw sprites, shapes, text, etc. to the screen; called
   every frame, 60 times a second, with optional `dt` parameterk
+
+You'll also see a `usagi.conf` file, where you define various aspects of your
+game, like name, unique ID, and resolution.
 
 Within your folder, start you game in dev mode: `usagi dev`
 
@@ -37,7 +38,7 @@ play, use `usagi run`.
 for the functions and constants in `meta/usagi.lua`.
 
 All of your sprites go in `sprites.png`. Usagi defaults to 16x16 sprite size but
-you can change that in `_config`. If you draw a sprite at the first grid
+you can change that in `usagi.conf`. If you draw a sprite at the first grid
 position, you'd draw it at x 10 and y 12 with `gfx.spr(1, 10, 12)`
 
 Draw text with: `gfx.text("Hello!", 10, 12, gfx.COLOR_BLACK)`

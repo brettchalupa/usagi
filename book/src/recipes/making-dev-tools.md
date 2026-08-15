@@ -53,10 +53,16 @@ Here are some ideas for what dev tools you could make:
 
 Here's an example of a dev tool I made for one of my shmups that lets me place
 enemies that spawn at a specific tick in the game. I interact with the UI with
-the mouse and it auto-saves everytime I make changes.
+the mouse and it auto-saves everytime I make changes. Since it's a single file,
+it's configured with frontmatter comments at the top instead of a separate
+`usagi.conf`.
 
 ```lua
 -- schedit - schedule editor
+-- name = Schedule Editor
+-- game_id = com.neogeargame.schedit
+-- game_width = 320
+-- game_height = 320
 
 local level1 = require("level1")
 local LANE = require("lane")
@@ -84,10 +90,6 @@ local function save_level()
 end
 
 Color = require("color")
-
-function _config()
-  return { name = "Schedule Editor", game_id = "com.neogeargame.schedit", game_width = 320, game_height = 320 }
-end
 
 function _init()
   State = {
