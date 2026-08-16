@@ -1,0 +1,31 @@
+# Compile a specific fennel file to lua
+compile target:
+    fennel --compile {{ target }} > {{ without_extension(target) }}.lua
+
+# Compile all fennel files to lua
+[unix]
+compile-all:
+    for target in *.fnl; do just compile "$target"; done
+[windows]
+compile-all:
+    Get-ChildItem -Filter *.fnl | ForEach-Object { just compile $_.Name }
+
+# Watch for changed fennel files and auto-compile them
+[unix]
+watch:
+    watchexec -e fnl --postpone --emit-events-to=environment -- 'just compile "$WATCHEXEC_WRITTEN_PATH"'
+[windows]
+watch:
+    watchexec -e fnl --postpone --emit-events-to=environment -- 'just compile "$Env:WATCHEXEC_WRITTEN_PATH"'
+
+# Run `usagi dev`
+usagi-dev:
+    usagi dev
+
+# Run both `usagi dev` and the file watcher
+[parallel]
+dev: watch usagi-dev
+
+# Set powershell as the shell on windows
+[windows]
+set shell := ["powershell.exe", "-NoLogo", "-Command"]

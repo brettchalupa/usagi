@@ -32,16 +32,30 @@ A defined `fn` in any scope (file scope included) is created as a `local functio
 
 ## Managing multiple source files
 
-The `fennel` executable does not have typical quality-of-like features like direct file output, multiple file arguments, or file watching (for auto-compilation on modifications).
+The `fennel` executable does not have typical quality-of-life features like direct file output, multiple file arguments, or file watching (for auto-compilation on modifications). If you want a more convenient workflow for your projects, you can use the [`justfile`](./justfile) provided in this repo.
 
-The `Makefile` in this folder demonstrates one cross-platform method of managing a project with *multiple .fnl files*. As an example, if you have `main.fnl` and `text_color.fnl` in the current folder, you can use GNU `make` to execute the instructions from `Makefile`, which runs the compilation command for both files.
+To use it, you need to install both [`just`](https://just.systems/) and [`watchexec`](https://watchexec.github.io/).
+
+Once installed, the `justfile` provides several commands to make working with Fennel more streamlined:
 
 ```sh
-# In the same folder as Makefile, main.fnl, text_color.fnl
-$ make
-fennel --compile main.fnl > main.lua
-fennel --compile text_color.fnl > text_color.lua
+# Compile a specific Fennel file
+$ just compile main.fnl
+
+# Compile all Fennel files in the current directory
+$ just compile-all
+
+# Watch for changes to Fennel files and automatically compiles them
+$ just watch
+
+# Start Usagi
+$ just usagi-dev
+
+# Start both Usagi and the file watcher simultaneously
+$ just dev
 ```
+
+The recommended option during development is `just dev`, as it runs both usagi and the file watcher in a single terminal pane.
 
 ## FAQ
 
