@@ -1099,7 +1099,10 @@ return a boolean.
 - `util.circ_rect_overlap(c, r)` — does circle `c` `{x, y, r}` overlap rect `r`
   `{x, y, w, h}`? Closest-point method.
 
-**Easing:** all take `a, b, progress` params and are pure (inputs never mutated). `a` is the starting point, `b` is the point you want to end up in, `progress` is the time progress of the animation(between 0 and 1). `progress` is never clamped.
+**Easing:** all take `a, b, progress` params and are pure (inputs never
+mutated). `a` is the starting point, `b` is the point you want to end up in,
+`progress` is the time progress of the animation(between 0 and 1). `progress` is
+never clamped.
 
 - `util.ease.sine_in(a, b, progress)` — sine ease-in.
 - `util.ease.sine_out(a, b, progress)` — sine ease-out.

@@ -5,7 +5,11 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## UNRELEASED
 
-Nothing is unreleased yet!
+Features:
+
+- New `util.easing.*` functions by curb; see
+  [PR #104](https://codeberg.org/brettchalupa/usagi/pulls/104);
+  [view the docs](https://usagiengine.com/#util)
 
 ## v1.3.0 - August 14, 2026
 

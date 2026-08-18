@@ -194,6 +194,7 @@ examples:
     just example dialog
     just example music
     just example save
+    just example easing
     just example mouse
     just example mouse_physics
     just example waypoint
