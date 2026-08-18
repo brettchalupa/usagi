@@ -369,6 +369,18 @@ util.point_in_circ(vec, circ)
 util.rect_overlap(rect, rect)
 util.circ_overlap(circ, circ)
 util.circ_rect_overlap(circ, rect)
+
+-- Util -- easing
+
+util.ease.sine_in(a, b, progress)
+util.ease.sine_out(a, b, progress)
+util.ease.sine_in_out(a, b, progress)
+util.ease.circ_in(a, b, progress)
+util.ease.circ_out(a, b, progress)
+util.ease.circ_in_out(a, b, progress)
+util.ease.expo_in(a, b, progress)
+util.ease.expo_out(a, b, progress)
+util.ease.expo_in_out(a, b, progress)
 ```
 
 ### Compound assignment operators
@@ -1086,6 +1098,18 @@ return a boolean.
   Tangent circles don't overlap.
 - `util.circ_rect_overlap(c, r)` — does circle `c` `{x, y, r}` overlap rect `r`
   `{x, y, w, h}`? Closest-point method.
+
+**Easing:** all take `a, b, progress` params and are pure (inputs never mutated). `a` is the starting point, `b` is the point you want to end up in, `progress` is the time progress of the animation(between 0 and 1). `progress` is never clamped.
+
+- `util.ease.sine_in(a, b, progress)` — sine ease-in.
+- `util.ease.sine_out(a, b, progress)` — sine ease-out.
+- `util.ease.sine_in_out(a, b, progress)` — sine ease-in-out.
+- `util.ease.circ_in(a, b, progress)` — circular ease-in.
+- `util.ease.circ_out(a, b, progress)` — circular ease-out.
+- `util.ease.circ_in_out(a, b, progress)` — circular ease-in-out.
+- `util.ease.expo_in(a, b, progress)` — exponential ease-in.
+- `util.ease.expo_out(a, b, progress)` — exponential ease-out.
+- `util.ease.expo_in_out(a, b, progress)` — exponential ease-in-out.
 
 ### `usagi`
 

@@ -163,7 +163,7 @@ function util.point_in_rect(p, r)
   assert_shape(p, { "x", "y" }, "point_in_rect", 1)
   assert_shape(r, { "x", "y", "w", "h" }, "point_in_rect", 2)
   return p.x >= r.x and p.x < r.x + r.w
-    and p.y >= r.y and p.y < r.y + r.h
+      and p.y >= r.y and p.y < r.y + r.h
 end
 
 -- True when the {x, y} point is strictly inside the circle {x, y, r}.
@@ -208,6 +208,84 @@ function util.circ_rect_overlap(c, r)
   local dx = c.x - cx
   local dy = c.y - cy
   return dx * dx + dy * dy < c.r * c.r
+end
+
+-- A collection of easing functions
+util.ease = {}
+
+-- Sine ease-in
+function util.ease.sine_in(a, b, progress)
+  return a + (b - a) * (1 - math.cos(progress * math.pi * 0.5))
+end
+
+-- Sine ease-out
+function util.ease.sine_out(a, b, progress)
+  return a + (b - a) * math.sin(progress * math.pi * 0.5)
+end
+
+-- Sine ease-in-out
+function util.ease.sine_in_out(a, b, progress)
+  return a + (b - a) * (-(math.cos(math.pi * progress) - 1) * 0.5)
+end
+
+-- Circular ease-in
+function util.ease.circ_in(a, b, progress)
+  return a + (b - a) * (1 - math.sqrt(1 - progress ^ 2))
+end
+
+-- Circular ease-out
+function util.ease.circ_out(a, b, progress)
+  return a + (b - a) * math.sqrt(1 - (progress - 1) ^ 2)
+end
+
+-- Circular ease-in-out
+function util.ease.circ_in_out(a, b, progress)
+  local t
+  if progress < 0.5 then
+    t = 0.5 * (1 - math.sqrt(1 - (2 * progress) ^ 2))
+  else
+    t = 0.5 * (math.sqrt(1 - (2 * progress - 2) ^ 2) + 1)
+  end
+
+  return a + (b - a) * t
+end
+
+-- Exponential ease-in
+function util.ease.expo_in(a, b, progress)
+  if progress == 0 then
+    return a
+  end
+
+  return a + (b - a) * 2 ^ (10 * progress - 10)
+end
+
+-- Exponential ease-out
+function util.ease.expo_out(a, b, progress)
+  if progress == 1 then
+    return b
+  end
+
+  return a + (b - a) * (1 - 2 ^ (-10 * progress))
+end
+
+-- Exponential ease-in-out
+function util.ease.expo_in_out(a, b, progress)
+  if progress == 0 then
+    return a
+  end
+  if progress == 1 then
+    return b
+  end
+
+  local t
+
+  if progress < 0.5 then
+    t = 0.5 * 2 ^ (20 * progress - 10)
+  else
+    t = 1 - 0.5 * 2 ^ (-20 * progress + 10)
+  end
+
+  return a + (b - a) * t
 end
 
 return util

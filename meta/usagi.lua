@@ -864,6 +864,73 @@ function util.circ_overlap(a, b) end
 ---@return boolean
 function util.circ_rect_overlap(c, r) end
 
+---A collection of easing functions
+---@class Usagi.Ease
+util.ease = {}
+
+---Sine ease-in
+---@param a number
+---@param b number
+---@param progress number
+---@return number
+function util.ease.sine_in(a, b, progress) end
+
+---Sine ease-out
+---@param a number
+---@param b number
+---@param progress number
+---@return number
+function util.ease.sine_out(a, b, progress) end
+
+---Sine ease-in-out
+---@param a number
+---@param b number
+---@param progress number
+---@return number
+function util.ease.sine_in_out(a, b, progress) end
+
+---Circular ease-in
+---@param a number
+---@param b number
+---@param progress number
+---@return number
+function util.ease.circ_in(a, b, progress) end
+
+---Circular ease-out
+---@param a number
+---@param b number
+---@param progress number
+---@return number
+function util.ease.circ_out(a, b, progress) end
+
+---Circular ease-in-out
+---@param a number
+---@param b number
+---@param progress number
+---@return number
+function util.ease.circ_in_out(a, b, progress) end
+
+---Exponential ease-in
+---@param a number
+---@param b number
+---@param progress number
+---@return number
+function util.ease.expo_in(a, b, progress) end
+
+---Exponential ease-out
+---@param a number
+---@param b number
+---@param progress number
+---@return number
+function util.ease.expo_out(a, b, progress) end
+
+---Exponential ease-in-out
+---@param a number
+---@param b number
+---@param progress number
+---@return number
+function util.ease.expo_in_out(a, b, progress) end
+
 ---Engine-level juice primitives: hitstop, screen shake, flash, and
 ---slow-motion. Each call sets per-session state that decays once per
 ---frame. Stacking rule across all four: longer duration wins; for
