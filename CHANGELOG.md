@@ -11,6 +11,11 @@ Features:
   [PR #104](https://codeberg.org/brettchalupa/usagi/pulls/104);
   [view the docs](https://usagiengine.com/#util)
 
+Fixes:
+
+- Save Inspector tool properly reads game_id from `usagi.conf`; see
+  [#108](https://codeberg.org/brettchalupa/usagi/issues/108)
+
 ## v1.3.0 - August 14, 2026
 
 Features:

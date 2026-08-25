@@ -365,7 +365,7 @@ fn build_palette_exact(rgb: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
     let mut color_to_idx: HashMap<(u8, u8, u8), u8> = HashMap::new();
     let mut palette: Vec<u8> = Vec::new();
     let mut indexed: Vec<u8> = Vec::with_capacity(n);
-    for chunk in rgb.chunks_exact(3) {
+    for chunk in rgb.as_chunks::<3>().0 {
         let key = (chunk[0], chunk[1], chunk[2]);
         let idx = if let Some(&i) = color_to_idx.get(&key) {
             i

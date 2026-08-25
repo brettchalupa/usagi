@@ -66,6 +66,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     let vfs = project_dir
         .as_ref()
         .map(|d| FsBacked::from_project_dir(d.clone()));
+
     // Read the project's `_config()` once at startup so tools that
     // depend on its values (currently the tilepicker's grid size)
     // pick up overrides like `sprite_size`. Falls back to defaults
@@ -77,11 +78,6 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
     let sfx_dir_display = project_dir.as_ref().map(|d| d.join("sfx"));
     let music_dir_display = project_dir.as_ref().map(|d| d.join("music"));
     let sprites_path_display = project_dir.as_ref().map(|d| d.join("sprites.png"));
-    // The tools UI uses its own dark theme (see `theme.rs`) for chrome,
-    // independent of whatever palette the project ships. The
-    // ColorPalette tool still reads `palette.png` itself (see
-    // `color_palette::State::new`) to show the user's custom palette
-    // in its swatches.
 
     // Same log-level handling as the game session: raylib defaults
     // to LOG_INFO and floods the terminal with GLFW/GL/audio init
@@ -150,7 +146,7 @@ pub fn run(project_path: Option<&str>) -> crate::Result<()> {
         active: Tool::Jukebox,
         jukebox: jukebox::State::new(&sfx, music_lib.track_names()),
         tilepicker: tilepicker::State::new(project_config.sprite_size),
-        save_inspector: save_inspector::State::new(project_path),
+        save_inspector: save_inspector::State::new(project_config.game_id),
         color_palette: color_palette::State::new(
             vfs.as_ref().map(|v| v as &dyn crate::vfs::VirtualFs),
         ),
