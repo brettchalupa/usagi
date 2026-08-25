@@ -4,8 +4,8 @@
 //! binaries land artifacts somewhere the player can find regardless of
 //! cwd.
 //!
-//! GIF pipeline (rolling buffer): every frame, accumulate real elapsed
-//! time. Once at least one frame's worth of time at the 30fps floor has
+//! GIF pipeline (rolling buffer): dev mode only, every frame, accumulate real
+//! elapsed time. Once at least one frame's worth of time at the 30fps floor has
 //! passed, read the game render target's pixel data back from the GPU
 //! and push the raw RGB pixels + actual elapsed centiseconds onto a
 //! ring sized to hold the last ~5 seconds. The expensive work (per-frame

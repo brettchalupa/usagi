@@ -13,6 +13,13 @@ Features:
 - Setting `gif_length` config value to `0` disables the GIF recorder, removing
   the small bit overhead associated; useful if you are developing or testing on
   older hardware; see [#69](https://codeberg.org/brettchalupa/usagi/issues/69)
+- GIF recorder only runs in dev mode with `usagi dev`; exported games and
+  `usagi run` do not not run the recorder so that the overhead of running it is
+  not passed onto players, especially those on less powerful hardware; players
+  who want to record their gameplay have their own means and the GIF recorder in
+  Usagi is meant as an easy way for devs to share their game progress. It's also
+  imperfect since effects like screenshake don't come through. So it's now dev
+  mode-only. See [#69](https://codeberg.org/brettchalupa/usagi/issues/69)
 
 Fixes:
 

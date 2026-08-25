@@ -1325,8 +1325,10 @@ impl Session {
             .apply_pending(&mut self.rl, &self.thread, self.vfs.as_ref());
 
         #[cfg(not(target_os = "emscripten"))]
-        self.recorder
-            .capture(&self.rt, dt, self.config.resolution, self.config.gif_length);
+        if self.is_recorder_enabled() {
+            self.recorder
+                .capture(&self.rt, dt, self.config.resolution, self.config.gif_length);
+        }
 
         // Snapshot the just-rendered frame for next tick's `gfx.get_px`
         // reads. Pixel reads always reflect the most recently finished
@@ -1699,8 +1701,8 @@ impl Session {
             let g_pressed = self.rl.is_key_pressed(KeyboardKey::KEY_G);
             let g_down = self.rl.is_key_down(KeyboardKey::KEY_G);
             let cmd_g = (g_pressed && mod_held) || (mod_just_pressed && g_down);
-            let save_rec = self.rl.is_key_pressed(KeyboardKey::KEY_F9) || cmd_g;
-            if save_rec {
+            if (self.rl.is_key_pressed(KeyboardKey::KEY_F9) || cmd_g) && self.is_recorder_enabled()
+            {
                 match self.recorder.save(&self.captures_dir, &self.capture_prefix) {
                     Ok(Some(path)) => crate::msg::info!("recording: writing {}", path.display()),
                     Ok(None) => {}
@@ -2676,6 +2678,14 @@ impl Session {
         if let Some(ref err) = self.last_error {
             draw_error_overlay(&mut d, self.font, err, screen_w, screen_h);
         }
+    }
+
+    /// Whether or not the GIF recorder is set to run, which is only
+    /// true if the gif_length config value is greater than 0 and in dev mode.
+    /// It's meant to be used by devs, not players, to easily share GIFs of the game.
+    /// Since there is overhead to it always running, it's only in dev mode.
+    fn is_recorder_enabled(&self) -> bool {
+        self.dev && self.config.gif_length > 0.
     }
 }
 
