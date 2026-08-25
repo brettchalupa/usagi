@@ -147,8 +147,8 @@ impl Recorder {
     /// has passed to clear the 30fps floor, reads the RT back from the
     /// GPU and appends the raw RGB pixels (already flipped top-down)
     /// to the ring. Evicts the oldest frames once total duration
-    /// exceeds `self.gif_length`. Palette building / quantization is
-    /// deferred to save time on a worker thread.
+    /// exceeds `self.gif_length`. No-ops if `self.gif_length` is 0 or negative.
+    /// Palette building / quantization is deferred to save time on a worker thread.
     pub fn capture(
         &mut self,
         rt: &RenderTexture2D,
@@ -156,6 +156,10 @@ impl Recorder {
         res: crate::config::Resolution,
         g: f32,
     ) {
+        if self.gif_length <= 0. {
+            return;
+        }
+
         if (res.w as u32) * (res.h as u32) > MAX_RECORDING_PIXELS {
             if !self.oversize_logged {
                 self.oversize_logged = true;
@@ -248,6 +252,9 @@ impl Recorder {
     /// empty. The actual write happens on the worker; its success or
     /// failure logs via `msg::info!` / `msg::err!` when done.
     pub fn save(&self, dest_dir: &Path, prefix: &str) -> std::io::Result<Option<PathBuf>> {
+        if self.gif_length <= 0. {
+            return Ok(None);
+        }
         if self.frames.is_empty() {
             crate::msg::warn!("recorder: nothing buffered yet, save skipped");
             return Ok(None);

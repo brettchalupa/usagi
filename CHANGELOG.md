@@ -10,6 +10,9 @@ Features:
 - New `util.easing.*` functions by curb; see
   [PR #104](https://codeberg.org/brettchalupa/usagi/pulls/104);
   [view the docs](https://usagiengine.com/#util)
+- Setting `gif_length` config value to `0` disables the GIF recorder, removing
+  the small bit overhead associated; useful if you are developing or testing on
+  older hardware; see [#69](https://codeberg.org/brettchalupa/usagi/issues/69)
 
 Fixes:
 
