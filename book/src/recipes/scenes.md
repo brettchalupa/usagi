@@ -5,6 +5,8 @@ expect a certain flow to the game's interface. The game launches to the main
 menu and can choose to start the game, load a previous game, view the credits,
 that sort of thing.
 
+[📺 Watch a video screencast on how to code scene switching from scratch.](https://www.youtube.com/watch?v=ttntGFymI7U)
+
 Building out various scenes and the ability to switch between them is simpler
 than you might think if you've never coded it before. In our game, we'll keep
 track of what the active scene is. Then in the Usagi game loop, in `_update` and
