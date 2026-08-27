@@ -7,7 +7,7 @@ dev-facing changes, not those related to developing the engine itself.
 
 Features:
 
-- New `util.easing.*` functions by curb; see
+- New `util.ease.*` functions by curbs; see
   [PR #104](https://codeberg.org/brettchalupa/usagi/pulls/104);
   [view the docs](https://usagiengine.com/#util)
 - Setting `gif_length` config value to `0` disables the GIF recorder, removing
