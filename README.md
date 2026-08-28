@@ -49,7 +49,7 @@ Manual download:
 [GitHub](https://github.com/brettchalupa/usagi/releases/latest) |
 [itch.io](https://brettchalupa.itch.io/usagi)
 
-Latest release: **v1.3.0**.
+Latest release: **v1.3.1**.
 
 [View the changelog.](https://usagiengine.com/changelog)
 
@@ -369,6 +369,18 @@ util.point_in_circ(vec, circ)
 util.rect_overlap(rect, rect)
 util.circ_overlap(circ, circ)
 util.circ_rect_overlap(circ, rect)
+
+-- Util -- easing
+
+util.ease.sine_in(a, b, progress)
+util.ease.sine_out(a, b, progress)
+util.ease.sine_in_out(a, b, progress)
+util.ease.circ_in(a, b, progress)
+util.ease.circ_out(a, b, progress)
+util.ease.circ_in_out(a, b, progress)
+util.ease.expo_in(a, b, progress)
+util.ease.expo_out(a, b, progress)
+util.ease.expo_in_out(a, b, progress)
 ```
 
 ### Compound assignment operators
@@ -511,7 +523,8 @@ Supported keys:
   Ctrl/Cmd+G GIF recording feature. By default this is 5 seconds, but can be
   modified to an arbitrary float number. Note: longer recording time leads to
   higher resource usage and performance drain as the engine is gathering frame
-  data to be exported.
+  data to be exported. Set to `0` to disable GIF recording in all builds,
+  removing the small overhead associated.
 
 `icon` (optional) is a 1-based tile index into your `sprites.png`, same indexing
 as `gfx.spr`. Omitted, the embedded Usagi bunny is used. The chosen tile is
@@ -1086,6 +1099,21 @@ return a boolean.
   Tangent circles don't overlap.
 - `util.circ_rect_overlap(c, r)` — does circle `c` `{x, y, r}` overlap rect `r`
   `{x, y, w, h}`? Closest-point method.
+
+**Easing:** all take `a, b, progress` params and are pure (inputs never
+mutated). `a` is the starting point, `b` is the point you want to end up in,
+`progress` is the time progress of the animation(between 0 and 1). `progress` is
+never clamped.
+
+- `util.ease.sine_in(a, b, progress)` — sine ease-in.
+- `util.ease.sine_out(a, b, progress)` — sine ease-out.
+- `util.ease.sine_in_out(a, b, progress)` — sine ease-in-out.
+- `util.ease.circ_in(a, b, progress)` — circular ease-in.
+- `util.ease.circ_out(a, b, progress)` — circular ease-out.
+- `util.ease.circ_in_out(a, b, progress)` — circular ease-in-out.
+- `util.ease.expo_in(a, b, progress)` — exponential ease-in.
+- `util.ease.expo_out(a, b, progress)` — exponential ease-out.
+- `util.ease.expo_in_out(a, b, progress)` — exponential ease-in-out.
 
 ### `usagi`
 

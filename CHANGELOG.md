@@ -3,7 +3,11 @@
 The history of Usagi releases and what changed in each release. It only contains
 dev-facing changes, not those related to developing the engine itself.
 
-## UNRELEASED
+## Unreleased
+
+No unreleased changes yet!
+
+## v1.3.1 - August 27, 2026
 
 Features:
 
