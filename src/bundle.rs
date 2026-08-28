@@ -142,6 +142,11 @@ impl Bundle {
             bundle.insert(rel, bytes);
         }
 
+        let config = root.join("usagi.conf");
+        if config.is_file() {
+            bundle.insert("usagi.conf", std::fs::read(&config)?);
+        }
+
         let sprites = root.join("sprites.png");
         if sprites.is_file() {
             bundle.insert("sprites.png", std::fs::read(&sprites)?);
