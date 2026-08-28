@@ -23,6 +23,9 @@ Features:
 
 Fixes:
 
+- Exported games properly include `usagi.conf`, applying configuration values as
+  expected; thanks to curbs for the fix; see
+  [#115](https://codeberg.org/brettchalupa/usagi/pulls/115)
 - Save Inspector tool properly reads game_id from `usagi.conf`; see
   [#108](https://codeberg.org/brettchalupa/usagi/issues/108)
 
@@ -36,7 +39,8 @@ Features:
   `_config()`. `usagi init` creates a `usagi.conf`. See
   [#55](https://codeberg.org/brettchalupa/usagi/issues/55)
 - Config option for `gif_length` (seconds) to support recording longer (or
-  shorter) gifs. See [#98](https://codeberg.org/brettchalupa/usagi/pulls/98)
+  shorter) gifs. Thanks to AchieGameDev. See
+  [#98](https://codeberg.org/brettchalupa/usagi/pulls/98)
 - Game rotation setting in 90deg increments via the Pause menu's Settings; see
   [#79](https://codeberg.org/brettchalupa/usagi/issues/79)
 - Warn when requiring files with different casing on the disk, as it can lead to
