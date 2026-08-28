@@ -520,11 +520,11 @@ Supported keys:
   toggle fullscreen from the pause menu, that saved preference wins on later
   launches. Optional.
 - `gif_length` (default: `5`): length in seconds of the GIF capture created by
-  Ctrl/Cmd+G GIF recording feature. By default this is 5 seconds, but can be
-  modified to an arbitrary float number. Note: longer recording time leads to
-  higher resource usage and performance drain as the engine is gathering frame
-  data to be exported. Set to `0` to disable GIF recording in all builds,
-  removing the small overhead associated.
+  Ctrl/Cmd+G GIF recording feature (which only runs in `usagi dev` builds). By
+  default this is 5 seconds, but can be modified to an arbitrary float number.
+  Note: longer recording time leads to higher resource usage and performance
+  drain as the engine is gathering frame data to be exported. Set to `0` to
+  disable GIF recording in all builds, removing the small overhead associated.
 
 `icon` (optional) is a 1-based tile index into your `sprites.png`, same indexing
 as `gfx.spr`. Omitted, the embedded Usagi bunny is used. The chosen tile is
