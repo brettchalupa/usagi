@@ -5,7 +5,11 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## Unreleased
 
-No unreleased changes yet!
+Fixes:
+
+- GIF recording now works in DEV mode; it accidentally got disabled for all in
+  the v1.3.1 release; see
+  [#117](https://codeberg.org/brettchalupa/usagi/issues/117)
 
 ## v1.3.1 - August 27, 2026
 

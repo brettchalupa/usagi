@@ -1116,6 +1116,7 @@ impl Session {
         // is newer than main.lua's.
         let last_modified = vfs.freshest_lua_mtime();
         let last_data_mtime = vfs.freshest_data_mtime();
+        let gif_length = config.gif_length;
 
         Ok(Self {
             rt,
@@ -1146,7 +1147,7 @@ impl Session {
             axis_edges,
             input_swallow: input::InputSwallow::new(),
             #[cfg(not(target_os = "emscripten"))]
-            recorder: Recorder::new(),
+            recorder: Recorder::new(gif_length),
             // Captures (gifs + screenshots) land in the user's
             // Downloads dir. Print the absolute path on save so a dev
             // running from a project dir can still locate the file.

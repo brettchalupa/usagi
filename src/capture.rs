@@ -118,8 +118,8 @@ pub struct Recorder {
     height: u16,
     /// One-shot guard so the "disabled at this resolution" note logs once.
     oversize_logged: bool,
-    /// Length of the GIF capture to be saved on user input. Value is defined
-    /// in the main.lua configs, defaults to 5.0 or user given float number.
+    /// Length of the GIF capture to be saved on user input, set by the developer
+    /// via Usagi config and passed into the initializer.
     gif_length: f32,
 }
 
@@ -130,7 +130,9 @@ pub struct Recorder {
 const MAX_RECORDING_PIXELS: u32 = 1280 * 720;
 
 impl Recorder {
-    pub fn new() -> Self {
+    /// Initialize a new Recorder, specifying the rolling `gif_length` to
+    /// record for.
+    pub fn new(gif_length: f32) -> Self {
         Self {
             frames: VecDeque::new(),
             total_seconds: 0.0,
@@ -138,7 +140,7 @@ impl Recorder {
             width: 0,
             height: 0,
             oversize_logged: false,
-            gif_length: 0.0,
+            gif_length,
         }
     }
 
@@ -405,7 +407,7 @@ fn build_palette_quantized(src_w: u16, src_h: u16, rgb: &[u8]) -> (Vec<u8>, Vec<
 
 impl Default for Recorder {
     fn default() -> Self {
-        Self::new()
+        Self::new(5.0)
     }
 }
 
@@ -614,7 +616,7 @@ mod tests {
         // Two 60fps game frames (each 1/60s ~= 16.67ms) should produce
         // one captured GIF frame at the 30fps floor. The frame's delay
         // should round to ~3 cs.
-        let mut rec = Recorder::new();
+        let mut rec = Recorder::new(5.0);
         let dt = 1.0 / 60.0;
         assert_eq!(push_synthetic_frame(&mut rec, dt, 8, 8, 5.0), None);
         let kept = push_synthetic_frame(&mut rec, dt, 8, 8, 5.0);
@@ -627,7 +629,7 @@ mod tests {
         // A 100ms frame (game stuttered) is well above the floor and
         // should be kept with the full delay so playback reflects the
         // real elapsed time.
-        let mut rec = Recorder::new();
+        let mut rec = Recorder::new(5.0);
         let kept = push_synthetic_frame(&mut rec, 0.1, 8, 8, 5.0);
         assert_eq!(kept, Some(10));
         assert_eq!(rec.frames.len(), 1);
@@ -637,7 +639,7 @@ mod tests {
     fn ring_evicts_oldest_once_total_exceeds_buffer_seconds() {
         // Push enough 100ms frames to overshoot the 5s buffer and
         // confirm the front gets popped while the back keeps growing.
-        let mut rec = Recorder::new();
+        let mut rec = Recorder::new(5.0);
         for _ in 0..60 {
             push_synthetic_frame(&mut rec, 0.1, 8, 8, 5.0);
         }
@@ -654,7 +656,7 @@ mod tests {
         // At 60fps the rounded 3cs floor would naively drop ~10% per
         // captured frame; the carry-remainder logic compensates so the
         // total accumulated GIF time tracks the wall-clock dt.
-        let mut rec = Recorder::new();
+        let mut rec = Recorder::new(5.0);
         let dt = 1.0 / 60.0;
         let mut total_kept_cs: u32 = 0;
         let frame_count = 600; // 10 seconds of game time at 60fps

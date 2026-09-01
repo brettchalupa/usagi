@@ -225,9 +225,9 @@ macro_rules! num_parser {
     };
 }
 
-// `is_finite` rejects `inf`/`nan`; `>= 1.0` rejects zero and negatives.
-num_parser!(parse_dim, f32, n => n.is_finite() && n >= 1.0, "a number >= 1");
-num_parser!(parse_size, i32, n => n >= 1, "an integer >= 1");
+num_parser!(parse_non_infinite_float, f32, n => n.is_finite(), "a non-infinite number");
+num_parser!(parse_positive_float, f32, n => n.is_finite() && n >= 1., "a positive, non-infinite number");
+num_parser!(parse_positive_int, i32, n => n >= 1, "an integer >= 1");
 
 fn parse_index(value: &str, key: &str, warn: bool) -> Option<u32> {
     match value.parse::<u32>() {
@@ -269,11 +269,11 @@ fn apply_pair(p: &mut Partial, key: &str, value: &str, source: Source, warn: boo
         "pixel_perfect" => p.pixel_perfect = parse_bool(value, key, warn),
         "pause_menu" => p.pause_menu = parse_bool(value, key, warn),
         "initial_fullscreen" => p.initial_fullscreen = parse_bool(value, key, warn),
-        "game_width" => p.game_width = parse_dim(value, key, warn),
-        "game_height" => p.game_height = parse_dim(value, key, warn),
-        "sprite_size" => p.sprite_size = parse_size(value, key, warn),
+        "game_width" => p.game_width = parse_positive_float(value, key, warn),
+        "game_height" => p.game_height = parse_positive_float(value, key, warn),
+        "sprite_size" => p.sprite_size = parse_positive_int(value, key, warn),
         "icon" => p.icon = parse_index(value, key, warn),
-        "gif_length" => p.gif_length = parse_dim(value, key, warn),
+        "gif_length" => p.gif_length = parse_non_infinite_float(value, key, warn),
         _ => {
             if warn {
                 crate::msg::warn!("usagi.conf: unknown key '{key}'");
