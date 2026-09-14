@@ -5,6 +5,10 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## Unreleased
 
+No unreleased changes yet.
+
+##  v1.3.2 - September 14, 2026
+
 Fixes:
 
 - GIF recording now works in DEV mode; it accidentally got disabled for all in
