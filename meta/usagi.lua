@@ -33,7 +33,7 @@ function gfx.clear(color) end
 
 ---Draws text at (x, y) in the given color. Uses the bundled monogram
 ---font at its 16px design size (a 5×7 pixel font with 16px line height).
----@param text  string  string to render
+---@param text  any     value to render
 ---@param x     number  left edge in game-space pixels
 ---@param y     number  top edge in game-space pixels
 ---@param color integer  a gfx.COLOR_* constant
@@ -45,7 +45,7 @@ function gfx.text(text, x, y, color, alpha) end
 ---top-left at `rotation = 0`. Integer scale values render crisp
 ---(monogram is a bitmap font with POINT filter); fractional values
 ---blur, so use integers unless you specifically want a smooth tween.
----@param text     string   string to render
+---@param text     any      value to render
 ---@param x        number   left edge in game-space pixels (unrotated bounding box)
 ---@param y        number   top edge in game-space pixels (unrotated bounding box)
 ---@param scale    number   font-size multiplier; integer recommended for crisp text
