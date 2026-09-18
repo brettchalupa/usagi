@@ -252,7 +252,7 @@ _draw(dt)
 
 gfx.clear(color)
 gfx.text(text, x, y, color, alpha?)
-gfx.text_ex(text, x, y, scale, rotation, color, alpha)
+gfx.text_ex(text, x, y, scale, rotation, color, alpha, spacing?)
 gfx.rect(x, y, w, h, color, alpha?)
 gfx.rect_fill(x, y, w, h, color, alpha?)
 gfx.rect_ex(x, y, w, h, thickness, color, alpha?)
@@ -496,6 +496,7 @@ Supported keys:
   renders as a black square with no error. If you have hundreds of frames, lay
   them out as a grid of rows rather than one very wide row. Usagi logs a warning
   at load when a sheet is too large.
+
 - `game_width` (default `320`) and `game_height` (default `180`): override the
   game's render resolution. The internal render target is sized to these
   dimensions; the window upscales to fit, preserving aspect ratio. Tested range
@@ -612,7 +613,8 @@ Every `gfx` drawing call below takes an optional trailing `alpha` (opacity in
   dimensions, use `usagi.measure_text` — it lives on `usagi` rather than `gfx`
   because measurement is a pure utility (no render side-effect) and is callable
   from any callback, including `_init`.
-- `gfx.text_ex(text, x, y, scale, rotation, color, alpha)` — extended `text`:
+- `gfx.text_ex(text, x, y, scale, rotation, color, alpha, spacing?)` — extended
+  `text`:
   - `scale` (number) — font-size multiplier. **Use integers** (`1`, `2`, `3`)
     for crisp text since atlas-baked fonts use POINT filtering and integer
     scales preserve the pixel-art look. Fractional values blur.
@@ -622,6 +624,8 @@ Every `gfx` drawing call below takes an optional trailing `alpha` (opacity in
     Useful for juice: wiggling subtitles, tilted labels, score popups.
   - `alpha` (number) — opacity in `0..1`. `1.0` is opaque, `0.0` is invisible.
     Use for fade-in/out, dimmed UI, ghosted previews.
+  - `spacing` (number) — spacing between characters, defaults to `0`; `-1` will
+    mean the characters are 1 pixel closer together.
 - `gfx.spr(index, x, y, alpha?)` — draw the 16×16 sprite at `index` (1 =
   top-left) from `sprites.png`. Native size, no flips, no rotation, no tint;
   opaque unless you pass `alpha`.

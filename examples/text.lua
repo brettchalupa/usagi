@@ -34,4 +34,16 @@ function _draw(_dt)
   gfx.text(10, 10, 10, gfx.COLOR_GREEN)
   gfx.text_ex(true, 10, 20, 1, 0, gfx.COLOR_WHITE, 1)
   gfx.text_ex(nil, 10, 30, 1, 0, gfx.COLOR_PINK, 1)
+
+  -- Spacing can also be specified as an optional parameter.
+  gfx.text_ex(
+    "spacing",
+    180 - (math.sin(usagi.elapsed * 4) + 1) * 8,
+    130,
+    2,
+    0,
+    gfx.COLOR_WHITE,
+    1,
+    (math.sin(usagi.elapsed * 4) + 1) * 4
+  )
 end

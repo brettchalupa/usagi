@@ -7,7 +7,7 @@ dev-facing changes, not those related to developing the engine itself.
 
 No unreleased changes yet.
 
-##  v1.3.2 - September 14, 2026
+## v1.3.2 - September 14, 2026
 
 Fixes:
 

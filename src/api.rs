@@ -841,7 +841,9 @@ mod tests {
             )?;
             gfx.set(
                 "text_ex",
-                scope.create_function(|_, _a: (LuaValue, f32, f32, f32, f32, i32, f32)| Ok(()))?,
+                scope.create_function(
+                    |_, _a: (LuaValue, f32, f32, f32, f32, i32, f32, Option<f32>)| Ok(()),
+                )?,
             )?;
             gfx.set(
                 "spr",

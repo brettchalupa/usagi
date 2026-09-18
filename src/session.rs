@@ -1948,7 +1948,7 @@ impl Session {
                     )?;
                     let text_ex = scope.create_function(
                         |_,
-                         (s, x, y, scale, rotation, c, alpha): (
+                         (s, x, y, scale, rotation, c, alpha, spacing): (
                             LuaValue,
                             f32,
                             f32,
@@ -1956,6 +1956,7 @@ impl Session {
                             f32,
                             i32,
                             f32,
+                            Option<f32>,
                         )| {
                             let s = s.to_string().unwrap_or(String::from(""));
                             let base = font_ref.base_size() as f32;
@@ -1975,7 +1976,7 @@ impl Session {
                                 half,
                                 rotation.to_degrees(),
                                 font_size,
-                                0.0,
+                                spacing.unwrap_or(0.0),
                                 tinted(c, alpha),
                             );
                             Ok(())

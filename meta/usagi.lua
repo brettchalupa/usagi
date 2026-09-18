@@ -52,7 +52,8 @@ function gfx.text(text, x, y, color, alpha) end
 ---@param rotation number   rotation in radians; use `math.rad(deg)` for literal-degree values, `0` for none
 ---@param color    integer  a gfx.COLOR_* constant
 ---@param alpha    number   opacity in `0..1`; `1.0` is opaque
-function gfx.text_ex(text, x, y, scale, rotation, color, alpha) end
+---@param spacing  number   spacing, defaults to 0; -1 will mean the characters are 1 pixel closer together
+function gfx.text_ex(text, x, y, scale, rotation, color, alpha, spacing) end
 
 ---Draws a rectangle outline.
 ---@param x     number  left edge in game-space pixels
