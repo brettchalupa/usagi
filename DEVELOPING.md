@@ -247,7 +247,8 @@ them for spot-checking a PR. For distribution, cut a release.
 2. Run `just examples` to verify everything is working as expected
 3. Test syntax error recovery in a `require` to ensure it works
 4. Test `usagi tools`
-5. Verify web builds work with `just push-web-test notetris` and test at
+5. Verify web builds (and gamepad input) work with `just push-web-test notetris`
+   and test at
    [https://brettchalupa.itch.io/usagi-web-test](https://brettchalupa.itch.io/usagi-web-test)
 6. Verify gamepads work
 7. Bump `version` in `Cargo.toml` and run `cargo update -p usagi` to refresh
