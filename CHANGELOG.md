@@ -7,6 +7,21 @@ dev-facing changes, not those related to developing the engine itself.
 
 No unreleased changes yet.
 
+## v1.3.3 - September 22, 2026
+
+Features:
+
+- `gfx.text_ex` now supports an optional `spacing` parameter as the final
+  argument for text spacing; see
+  [#124](https://codeberg.org/brettchalupa/usagi/pulls/124)
+
+Fixes:
+
+- Gamepads no longer cause web builds to crash; see upstream
+  [sola-raylib #74](https://github.com/brettchalupa/sola-raylib/pull/74)
+- Lua meta for LSP now has `text` param for `gfx.text` as `any` since it now
+  supports that; see [#125](https://codeberg.org/brettchalupa/usagi/pulls/125)
+
 ## v1.3.2 - September 14, 2026
 
 Fixes:
