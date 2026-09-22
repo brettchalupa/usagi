@@ -49,7 +49,7 @@ Manual download:
 [GitHub](https://github.com/brettchalupa/usagi/releases/latest) |
 [itch.io](https://brettchalupa.itch.io/usagi)
 
-Latest release: **v1.3.2**.
+Latest release: **v1.3.3**.
 
 [View the changelog.](https://usagiengine.com/changelog)
 
