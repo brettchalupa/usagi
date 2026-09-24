@@ -1,0 +1,11 @@
+dev:
+    deno task dev
+
+build:
+    deno task build
+
+fmt:
+    deno fmt .
+
+deploy: build
+    ./deploy.rb _build
