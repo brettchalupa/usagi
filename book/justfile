@@ -23,10 +23,6 @@ fmt:
 build:
     mdbook build
 
-# Deploy the book to Deno Deploy
+# Upload the built site to Bunny.net Storage
 deploy: build
-    rm -rf {{stage}}
-    mkdir -p {{stage}}/book
-    cp -R book/. {{stage}}/book/
-    cp main.ts deno.json {{stage}}/
-    cd {{stage}} && deno deploy --prod --org {{deno_org}} --app {{deno_app}}
+    ./deploy.rb

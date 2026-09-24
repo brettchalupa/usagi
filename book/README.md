@@ -13,5 +13,6 @@ Preview the changes at http://localhost:3000
 
 ## Hosting
 
-The site is hosted on Deno Deploy and currently requires a manual deploy with
-`just deploy`.
+The site is hosted on Bunny.net (Storage + CDN) Deno Deploy and currently
+requires a manual deploy with `just deploy` via the `./deploy.rb` script. Ruby
+must be installed.
