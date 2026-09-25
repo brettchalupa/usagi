@@ -6,17 +6,17 @@ Usagi is a 2D game engine for making pixel art games in **Lua** 5.5. It features
 live reload, single-command cross-platform export, and a pause menu with input
 remapping built in.
 
+[▶ Watch the 55 second engine trailer.](https://assets.brettchalupa.com/usagi.mp4)
+
 Usagi is free software made by [Brett Chalupa](https://brettmakesgames.com) and
 dedicated to the public domain.
 [Support development of the engine by buying me a coffee.](https://www.buymeacoffee.com/brettchalupa)
 
-<video controls crossorigin="anonymous" type="video/mp4" src="https://assets.brettchalupa.com/usagi.mp4"></video>
-
-**Links:** [usagiengine.com](https://usagiengine.com),
-[Book](https://book.usagiengine.com),
-[Discord](https://usagiengine.com/discord),
-[r/UsagiEngine](https://reddit.com/r/UsagiEngine),
-[Quickstart video](https://www.youtube.com/watch?v=0i1wIm6c6Rw),
+**Links:** [usagiengine.com](https://usagiengine.com) •
+[Book](https://book.usagiengine.com) •
+[Discord](https://usagiengine.com/discord) •
+[r/UsagiEngine](https://reddit.com/r/UsagiEngine) •
+[Quickstart Video](https://www.youtube.com/watch?v=0i1wIm6c6Rw) •
 [YouTube Playlist](https://www.youtube.com/playlist?list=PL0qDutCc8IQhkbS53etm9xV06XgEb4BEN)
 
 ## Install
