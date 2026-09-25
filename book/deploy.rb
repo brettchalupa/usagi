@@ -32,4 +32,5 @@ Dir.chdir(DIR) do
   workers.each(&:join)
 end
 
-system("bunny api -v POST /pullzone/6675787/purgeCache")
+puts "Clearing cache..."
+system("bunny api POST /pullzone/6675787/purgeCache")
