@@ -64,7 +64,33 @@ The canonical reference for the Windows setup is the
 `Install Windows zlib for freetype-sys` step in
 [ci.yml](https://github.com/brettchalupa/usagi/blob/main/.github/workflows/ci.yml).
 
-### Third-party licenses
+### Linux with apt (elementary OS, Ubuntu)
+
+Here are the various dependencies needed to be installed to compile Usagi on
+elementary OS (and possibly Ubuntu):
+
+```console
+sudo apt-get install -y \
+	libasound2-dev \
+	libudev-dev \
+	libx11-dev \
+	libxcursor-dev \
+	libxinerama-dev \
+	libxrandr-dev \
+	libxi-dev \
+	libgl1-mesa-dev \
+	libgles-dev \
+	libglvnd-dev \
+	libegl-dev \
+	libfreetype6-dev \
+	libglu1-mesa-dev \
+	libwayland-dev \
+	libxkbcommon-dev \
+	libclang-dev \
+	cmake
+```
+
+## Third-party licenses
 
 `THIRD_PARTY_LICENSES.md` is generated from `Cargo.lock` by
 [cargo-about](https://github.com/EmbarkStudios/cargo-about) and committed. It's
