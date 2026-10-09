@@ -16,38 +16,24 @@ dedicated to the public domain.
 [Book](https://book.usagiengine.com) •
 [Discord](https://usagiengine.com/discord) •
 [r/UsagiEngine](https://reddit.com/r/UsagiEngine) •
-[Quickstart Video](https://www.youtube.com/watch?v=0i1wIm6c6Rw) •
-[YouTube Playlist](https://www.youtube.com/playlist?list=PL0qDutCc8IQhkbS53etm9xV06XgEb4BEN)
+[Quickstart Video](https://www.youtube.com/watch?v=0i1wIm6c6Rw)
 
 ## Install
 
-**Linux, macOS:**
+Download the Usagi executable for your operating system from one of the
+following official locations:
 
-```sh
-curl -fsSL https://usagiengine.com/install.sh | sh
-```
+- [Codeberg](https://codeberg.org/brettchalupa/usagi/releases/latest)
+- [GitHub](https://github.com/brettchalupa/usagi/releases/latest)
+- [itch.io](https://brettchalupa.itch.io/usagi)
 
-**Windows (PowerShell):**
-
-```powershell
-irm https://usagiengine.com/install.ps1 | iex
-```
-
-The installer fetches the latest release, verifies its SHA-256 checksum,
-installs `usagi` to `~/.usagi/bin/` (or `%USERPROFILE%\.usagi\bin\` on Windows),
-and adds it to `PATH`.
-
-**Homebrew (package manager):**
+Or you can install it via the **Homebrew (package manager)** using the community
+tap:
 
 ```
 brew tap brettchalupa/usagi https://codeberg.org/brettchalupa/usagi
 brew install usagi
 ```
-
-Manual download:
-[Codeberg](https://codeberg.org/brettchalupa/usagi/releases/latest) |
-[GitHub](https://github.com/brettchalupa/usagi/releases/latest) |
-[itch.io](https://brettchalupa.itch.io/usagi)
 
 Latest release: **v1.3.3**.
 

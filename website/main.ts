@@ -115,18 +115,6 @@ const ASSETS: Asset[] = [
     "dest": "./favicon.png",
   },
   {
-    "source": "./install.sh",
-    "dest": "./install.sh",
-  },
-  {
-    "source": "./install.ps1",
-    "dest": "./install.ps1",
-  },
-  {
-    "source": "./install.ps1",
-    "dest": "./install.ps1",
-  },
-  {
     "source": "./card-logo.png",
     "dest": "./website/card-logo.png",
   },
