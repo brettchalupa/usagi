@@ -8,7 +8,7 @@ remapping built in.
 
 [▶ Watch the 55 second engine trailer.](https://assets.brettchalupa.com/usagi.mp4)
 
-Usagi is free software made by [Brett Chalupa](https://brettmakesgames.com) and
+Usagi is free software made by [Brett Chalupa](https://brettchalupa.com) and
 dedicated to the public domain.
 [Support development of the engine by buying me a coffee.](https://www.buymeacoffee.com/brettchalupa)
 
