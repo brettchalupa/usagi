@@ -159,6 +159,7 @@ async function generatePage(page: Page) {
  * into the `_build` directory.
  */
 async function generateSite() {
+  await Deno.remove(BUILD_DIR, { recursive: true });
   await Deno.mkdir(BUILD_DIR, { recursive: true });
   console.debug("generating pages...");
   await Promise.all(PAGES.map(generatePage));
