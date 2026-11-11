@@ -1,10 +1,15 @@
--- barebones typedef example for Usagi's `gfx` functions and constants
-global record gfx
-  clear: function(color: number)
-  text: function(text: string, x: number, y: number, color: number)
-  COLOR_BLACK: number
-  COLOR_WHITE: number
-  COLOR_PEACH: number
+-- Minimal typed usagi game
+
+local record GameState
+end
+
+global State: GameState
+
+global function _init()
+  State = {}
+end
+
+global function _update(dt:number)
 end
 
 global function _draw(dt: number)

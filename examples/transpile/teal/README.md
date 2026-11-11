@@ -9,9 +9,11 @@ Website: [https://teal-language.org/](https://teal-language.org/)
 
 1. Install the `tl` binary: `luarocks install tl` or download from
    [https://github.com/teal-language/tl/releases](https://github.com/teal-language/tl/releases)
-2. Write your code in `main.tl`, defining the `global` functions needed for
+2. define the types for Usagi in `usagi.d.tl` and optionally register it in a `tlconfig.lua` for the Teal typechecker.
+   If it is not registered you need a `require()`.
+3. Write your code in `main.tl`, defining the `global` functions needed for
    Usagi's callbacks, like `global function _draw`.
-3. Check your types with `tl check main.tl`
+3. Check your types with `tl check main.tl`. Optionally transpile it with the `-c` flag.
 4. Transpile your Teal to Lua with: `tl gen main.tl`
 5. Run your Usagi game with `usagi dev`
 
@@ -20,7 +22,7 @@ a nice contribution if anyone knows how.
 
 ## Defining Usagi's Types
 
-In the `main.tl` example, you'll find an example of how to define the types for
+In the `usagi.d.tl`, you'll find an example of how to define the types for
 Usagi. If the community finds themselves using Teal, it'd be nice to generate a
 complete and shared type definition file for Usagi.
 
