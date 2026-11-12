@@ -23,13 +23,6 @@ fmt:
 push:
     git push origin
     git push gh --no-verify
-    # always deploy the website when pushing so I don't forget
-    cd website && just deploy
-
-# Regenerate examples/loveify/notetris/ from the canonical sources. Run after editing notetris or the Love shim.
-loveify:
-    rm -rf examples/loveify/notetris
-    cargo run -- loveify examples/notetris examples/loveify/notetris
 
 [doc("""
 Regenerate THIRD_PARTY_LICENSES.md from the current Cargo.lock. Requires

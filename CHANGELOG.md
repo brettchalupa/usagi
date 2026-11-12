@@ -5,7 +5,10 @@ dev-facing changes, not those related to developing the engine itself.
 
 ## Unreleased
 
-No unreleased changes yet.
+BREAKING:
+
+- `usagi loveify` has been removed; it added too much maintenance burden for
+  every new API; it was a fun idea but not something worth maintaining
 
 ## v1.3.3 - September 22, 2026
 

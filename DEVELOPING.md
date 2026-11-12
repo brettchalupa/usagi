@@ -118,7 +118,6 @@ needs to happen to ensure everywhere is properly updated:
 - `README_DEV.md` cheatsheet
 - `meta/usagi.lua` docs
 - Changelog entry
-- Loveify implementation (no-op is fine if not viable)
 - An example that exercises the new function for easy testing; it should be run
   with `just examples`
 
@@ -165,15 +164,6 @@ See `justfile` for the full list of recipes.
 - `just fmt` - format Rust code
 - `just serve-web` - build and serve the web build at <http://localhost:3535>
   (requires `emcc` on PATH; see [docs/web-build.md](docs/web-build.md))
-
-### Testing the loveify commandRegenerating the loveify reference port
-
-Generate the gitignored notetris to test out that `usagi loveify` is working as
-expected:
-
-```sh
-just loveify
-```
 
 ## Adding Lua API bindings
 

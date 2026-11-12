@@ -22,7 +22,6 @@
 - [User Install vs Project Executable](./recipes/user-install-vs-project-executable.md)
 - [Transpiling to Lua](./recipes/transpiling-to-lua.md)
 - [Coming from Pico-8](./recipes/coming-from-pico-8.md)
-- [Porting to Love2D](./recipes/porting-to-love2d.md)
 - [Community Libraries](./recipes/community-libraries.md)
 - [Style Guide](./recipes/style-guide.md)
 - [Lua Cheatsheet](./recipes/lua-cheatsheet.md)
