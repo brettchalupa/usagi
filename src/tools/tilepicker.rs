@@ -46,7 +46,7 @@ pub(super) struct State {
     pub show_overlay: bool,
     pub bg_idx: usize,
     /// Cell size, in pixels, of the loaded `sprites.png`. Read from
-    /// the project's `_config().sprite_size` at tools startup
+    /// the project's configured `sprite_size` at tools startup
     /// (defaulting to 16). Drives the grid overlay and the
     /// 1-based-index click-to-copy.
     pub sprite_size: i32,

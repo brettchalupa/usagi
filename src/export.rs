@@ -76,14 +76,12 @@ pub fn run(
     }
 
     let web_shell_override = resolve_web_shell_override(&script_path, web_shell)?;
-    // Read `_config()` once for the whole export (game_id, icon, name,
+    // Read project config once for the whole export (game_id, icon, name,
     // and any future bundle metadata all consume this struct).
-    // Failures fall back to defaults so a broken project file
-    // doesn't fail the export.
     let project_config = crate::config::Config::read_for_export(&script_path);
     let project_name =
         crate::project_name::ProjectName::resolve(project_config.name.as_deref(), Some(&path_hint));
-    // GameId keys off the path hint (or `_config().game_id`), not the
+    // GameId keys off the path hint (or configured `game_id`), not the
     // display name, so renaming the game doesn't migrate save data.
     let bundle_id = game_id::resolve_for_export(&project_config, &path_hint, &bundle);
     // Slice the configured sprite tile (or use the embedded
@@ -149,10 +147,10 @@ struct Opts<'a> {
     /// `.app` ships without an icon (Linux/Windows/web targets ignore
     /// this field).
     icns_bytes: Option<&'a [u8]>,
-    /// Game render dimensions read from `_config()`. The web export
+    /// Game render dimensions read from project config. The web export
     /// templates the canvas backing-store from this so non-default
     /// resolutions ship with the right aspect ratio. Other targets
-    /// don't read it (the runtime resolves from `_config()` at boot).
+    /// don't read it (the runtime resolves config at boot).
     resolution: crate::config::Resolution,
 }
 
@@ -467,7 +465,7 @@ fn stage_file(src: &Path, dst: &Path) -> Result<()> {
 }
 
 /// Reads the web shell HTML, substitutes the canvas backing-store
-/// dims to match `_config().game_width / game_height`, and writes the
+/// dims to match `game_width` / `game_height`, and writes the
 /// result to `dst`. The aspect-ratio CSS in the bundled shell reads
 /// the canvas attrs at load time, so a single replacement of
 /// `width="640" height="360"` (the engine default's 2x backing store)

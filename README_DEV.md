@@ -523,16 +523,6 @@ Config is **read once at startup and cached**. Editing `usagi.conf` or the
 frontmatter while the game is running won't update the title or any other config
 field; restart the session to pick up changes.
 
-#### Deprecated: `_config()`
-
-Older games return a config table from a global `_config()` function. This still
-works but is deprecated: it forces the engine (and `usagi tools` /
-`usagi export`) to boot a Lua VM just to read config, and it has a load-order
-footgun where top-level reads of `usagi.GAME_W` see the default before
-`_config()` runs. `_config()` has the lowest precedence (frontmatter, then
-`usagi.conf`, then `_config()`), and Usagi logs a deprecation warning when it's
-present. Move your settings to `usagi.conf` or frontmatter.
-
 #### Window sizing and scaling
 
 You don't have to think about window size with Usagi. Your game gets scaled to

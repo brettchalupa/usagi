@@ -521,7 +521,7 @@ fn register_music_api(
 
 /// Installs `usagi.save(t)` and `usagi.load()` against the resolved
 /// `game_id`. Resolution happens once at session creation via
-/// `GameId::resolve` (preferring `_config().game_id`, falling back to
+/// `GameId::resolve` (preferring configured `game_id`, falling back to
 /// the project name, then a bundle-hash sentinel), so games that don't
 /// set `game_id` still get stable per-game persistence instead of an
 /// error. The closures each take their own `GameId` clone because
@@ -624,18 +624,19 @@ fn seed_dimensions(lua: &Lua, config: &Config) -> crate::Result<()> {
 
 use crate::config::Config;
 
-/// Reads project config from the live session Lua VM plus text sources
-/// (frontmatter + `usagi.conf`) on `vfs`. Errors flow into `last_error`
-/// for the on-screen overlay; missing fields fall back to defaults. The
-/// boot path uses `Config::read_text_sources` + `resolve` directly to
-/// avoid re-parsing; this wrapper is used by the tests.
+/// Reads project config from text sources (frontmatter + `usagi.conf`)
+/// on `vfs`. Missing fields fall back to defaults. Test helper.
 #[cfg(test)]
-fn read_config(lua: &Lua, vfs: Option<&dyn VirtualFs>, last_error: &mut Option<String>) -> Config {
+fn read_config(
+    _lua: &Lua,
+    vfs: Option<&dyn VirtualFs>,
+    _last_error: &mut Option<String>,
+) -> Config {
     let text = match vfs {
         Some(v) => Config::read_text_sources(v, true),
         None => Default::default(),
     };
-    Config::resolve(lua, &text, Some(last_error))
+    Config::resolve(&text)
 }
 
 /// All long-lived session state. Constructed once, frame() called once per
@@ -847,10 +848,7 @@ impl Session {
 
         // Read the text config once, then seed usagi.GAME_W/GAME_H/SPRITE_SIZE
         // from it before load_script so top-level reads like `w = usagi.GAME_W`
-        // see the real values. `_config` can't seed here (it needs the script
-        // loaded), so its load-order footgun persists only for that deprecated
-        // path. The same `text_config` feeds the authoritative resolve below,
-        // so the files aren't parsed twice.
+        // see the real values.
         let text_config = Config::read_text_sources(vfs.as_ref(), true);
         seed_dimensions(&lua, &Config::from_text(&text_config))?;
 
@@ -862,7 +860,7 @@ impl Session {
             load_script(&lua, vfs.as_ref()),
         );
 
-        let config = Config::resolve(&lua, &text_config, Some(&mut last_error));
+        let config = Config::resolve(&text_config);
 
         // Resolve game_id and load settings before the window opens
         // so the fullscreen state can be applied immediately after
@@ -907,8 +905,8 @@ impl Session {
         #[cfg(not(target_os = "emscripten"))]
         let capture_prefix = resolved_game_id.short_name().to_string();
 
-        // Resolved at this point from `_config().game_width / game_height`,
-        // defaulting to 320x180 when the user doesn't override.
+        // Resolved from `game_width` / `game_height`, defaulting to 320x180
+        // when not overridden.
         let res = config.resolution;
 
         // Placeholder backing-store size (also what web keeps, upscaled by
@@ -2885,50 +2883,36 @@ mod tests {
     }
 
     #[test]
-    fn config_returns_title_field() {
+    fn config_reads_frontmatter_fields() {
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
-        lua.load(
-            r#"
-            function _config()
-              return { name = "Hello, Usagi!" }
-            end
-            "#,
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("main.lua"),
+            "-- name = Hello, Usagi!\n-- pixel_perfect = false\nfunction _init() end\n",
         )
-        .exec()
         .unwrap();
+        let vfs = crate::vfs::FsBacked::from_project_dir(dir.path().to_path_buf());
         let mut err = None;
-        let config = read_config(&lua, None, &mut err);
+        let config = read_config(&lua, Some(&vfs), &mut err);
         assert_eq!(config.name.as_deref(), Some("Hello, Usagi!"));
-        assert!(err.is_none());
-    }
-
-    #[test]
-    fn config_returns_pixel_perfect_field() {
-        let lua = Lua::new();
-        setup_api(&lua, false).unwrap();
-        lua.load("function _config() return { pixel_perfect = false } end")
-            .exec()
-            .unwrap();
-        let mut err = None;
-        let config = read_config(&lua, None, &mut err);
         assert!(!config.pixel_perfect);
+        assert!(config.pause_menu);
         assert!(err.is_none());
     }
 
     #[test]
-    fn config_pause_menu_field_round_trips() {
-        // Default: pause_menu is on. Setting to false flips it. Setting
-        // to true is redundant but should still parse.
+    fn config_pause_menu_field_round_trips_from_conf() {
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("main.lua"), "function _init() end\n").unwrap();
+        let vfs = crate::vfs::FsBacked::from_project_dir(dir.path().to_path_buf());
         let mut err = None;
-        assert!(read_config(&lua, None, &mut err).pause_menu);
+        assert!(read_config(&lua, Some(&vfs), &mut err).pause_menu);
 
-        lua.load("function _config() return { pause_menu = false } end")
-            .exec()
-            .unwrap();
-        assert!(!read_config(&lua, None, &mut err).pause_menu);
+        std::fs::write(dir.path().join("usagi.conf"), "pause_menu = false\n").unwrap();
+        assert!(!read_config(&lua, Some(&vfs), &mut err).pause_menu);
     }
 
     #[test]
@@ -2943,19 +2927,19 @@ mod tests {
         );
     }
 
-    /// Regression: `_config()` returning a table without `pixel_perfect`
-    /// must keep the default value. mlua coerces missing/nil to
-    /// `Ok(false)` for `bool` fields, so the read path has to use
-    /// `Option<bool>` to preserve "field absent → keep default".
     #[test]
     fn config_without_pixel_perfect_field_keeps_default() {
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
-        lua.load(r#"function _config() return { name = "Game" } end"#)
-            .exec()
-            .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("main.lua"),
+            "-- name = Game\nfunction _init() end\n",
+        )
+        .unwrap();
+        let vfs = crate::vfs::FsBacked::from_project_dir(dir.path().to_path_buf());
         let mut err = None;
-        let config = read_config(&lua, None, &mut err);
+        let config = read_config(&lua, Some(&vfs), &mut err);
         assert_eq!(
             config.pixel_perfect,
             Config::default().pixel_perfect,
@@ -2979,37 +2963,15 @@ mod tests {
     fn config_with_no_name_field_leaves_name_unset() {
         let lua = Lua::new();
         setup_api(&lua, false).unwrap();
-        lua.load("function _config() return {} end").exec().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("main.lua"), "function _init() end\n").unwrap();
+        std::fs::write(dir.path().join("usagi.conf"), "pixel_perfect = true\n").unwrap();
+        let vfs = crate::vfs::FsBacked::from_project_dir(dir.path().to_path_buf());
         let mut err = None;
-        let config = read_config(&lua, None, &mut err);
+        let config = read_config(&lua, Some(&vfs), &mut err);
         assert!(config.name.is_none());
+        assert!(config.pixel_perfect);
         assert!(err.is_none());
-    }
-
-    #[test]
-    fn config_runtime_error_is_recorded() {
-        let lua = Lua::new();
-        setup_api(&lua, false).unwrap();
-        lua.load(r#"function _config() error("bad config") end"#)
-            .exec()
-            .unwrap();
-        let mut err = None;
-        let _ = read_config(&lua, None, &mut err);
-        let stored = err.expect("error should have been recorded");
-        assert!(stored.starts_with("_config: "), "got: {stored}");
-        assert!(stored.contains("bad config"), "got: {stored}");
-    }
-
-    #[test]
-    fn config_returning_non_table_is_recorded() {
-        let lua = Lua::new();
-        setup_api(&lua, false).unwrap();
-        lua.load(r#"function _config() return 42 end"#)
-            .exec()
-            .unwrap();
-        let mut err = None;
-        let _ = read_config(&lua, None, &mut err);
-        assert!(err.is_some());
     }
 
     /// Regression: top-level code reading `usagi.GAME_W` must see the

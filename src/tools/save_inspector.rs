@@ -3,11 +3,8 @@
 //! directory in the OS file manager.
 //!
 //! The tools window doesn't run the user's `_update` / `_draw`, but we
-//! do need `_config().game_id` so we can find the save file. Approach:
-//! one-shot Lua eval at startup that loads the project script, calls
-//! `_config()`, and pulls `game_id` out. The eval is sandboxed (no
-//! window, no audio); top-level code in `main.lua` typically just
-//! defines functions, so it's safe to execute.
+//! do need configured `game_id` so we can find the save file. The
+//! tools shell reads project config from frontmatter / `usagi.conf`.
 //!
 //! This tool only inspects native saves. Web saves live in
 //! `localStorage` inside the browser running the wasm build, which is
@@ -23,10 +20,8 @@ use sola_raylib::prelude::*;
 use std::path::PathBuf;
 
 pub(super) struct State {
-    /// `game_id` from `_config()`. None when the project doesn't set
-    /// one, when the script can't be loaded, or when the tools window
-    /// was opened with no project. All three cases render the same
-    /// "no game_id" message.
+    /// Configured `game_id`. None when the project doesn't set one or
+    /// when the tools window was opened with no project.
     pub game_id: Option<String>,
     /// Resolved save file path. None when `game_id` is None.
     pub path: Option<PathBuf>,
@@ -34,8 +29,8 @@ pub(super) struct State {
     /// yet" (file missing). `Some(s)` is the literal file bytes; we
     /// don't reformat since the engine writes pretty-printed already.
     pub content: Option<String>,
-    /// Set when something went wrong loading the project's `_config()`
-    /// or reading the save file. Rendered above the JSON area.
+    /// Set when something went wrong reading the save file. Rendered
+    /// above the JSON area.
     pub error: Option<String>,
 }
 
@@ -164,7 +159,7 @@ pub(super) fn draw(
 
     let game_id_line = match state.game_id.as_deref() {
         Some(id) => format!("game_id: {}", id),
-        None => "game_id: (not set; add `game_id` to _config())".into(),
+        None => "game_id: (not set; add `game_id` to usagi.conf or frontmatter)".into(),
     };
     d.draw_text_ex(
         font,
@@ -230,7 +225,7 @@ pub(super) fn draw(
     d.gui_panel(Rectangle::new(pane_x, pane_y, pane_w, pane_h), "save.json");
 
     let placeholder = match (have_id, have_save) {
-        (false, _) => Some("(set game_id in _config() to inspect saves)"),
+        (false, _) => Some("(set game_id in usagi.conf or frontmatter to inspect saves)"),
         (true, false) => Some("(no save yet; run the game and save once)"),
         _ => None,
     };

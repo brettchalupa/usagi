@@ -13,7 +13,7 @@ use sola_raylib::prelude::*;
 /// fall offset from where the player visually aimed.
 ///
 /// `res` is the configured render resolution (default 320x180;
-/// overridable via `_config().game_width / game_height`).
+/// overridable via `game_width` / `game_height`).
 ///
 /// `rotation` is the display rotation in degrees clockwise (0/90/180/270).
 /// A 90/270 rotation swaps the effective footprint so a rotated frame fits

@@ -181,7 +181,7 @@ impl Recorder {
         let new_w = res.w as u16;
         let new_h = res.h as u16;
         if self.width != new_w || self.height != new_h {
-            // Resolution changed (live `_config` reload, etc.). The
+            // Resolution changed (live config reload, etc.). The
             // GIF encoder needs uniform dims, so drop what we have.
             self.frames.clear();
             self.total_seconds = 0.0;
@@ -442,7 +442,7 @@ pub fn default_captures_dir() -> PathBuf {
 /// `prefix` and `ext`. Creates the directory if missing. Format:
 /// `<prefix>-YYYYMMDD-HHMMSS.<ext>`. If two captures start in the
 /// same second, a `-N` suffix is appended. The prefix is the game's
-/// short name (typically derived from `_config().game_id`) so users
+/// short name (typically derived from configured `game_id`) so users
 /// can tell different projects' captures apart at a glance.
 /// Shared between the GIF recorder and the PNG screenshot helper.
 pub(crate) fn next_capture_path(

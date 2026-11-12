@@ -6,7 +6,7 @@
 //!
 //! Layered fallback (first match wins):
 //!
-//! 1. `_config().game_id` (explicit). Validated with `save::validate_game_id`
+//! 1. Configured `game_id` (explicit). Validated with `save::validate_game_id`
 //!    before being accepted; an ill-formed value falls through to the next
 //!    layer rather than erroring.
 //! 2. `com.usagiengine.<sanitized-name-hint>`. Stable as long as the project
@@ -33,7 +33,7 @@ use sha2::{Digest, Sha256};
 /// settings, captures). Wraps a validated string; the only legal
 /// constructors are `resolve` / `resolve_for_export`, which run the
 /// layered fallback chain so the inner value is always one of:
-/// an explicitly-validated `_config().game_id`, a sanitized
+/// an explicitly-validated configured `game_id`, a sanitized
 /// `com.usagiengine.<name>`, an auto-hashed `com.usagiengine.auto<hex>`,
 /// or the `com.usagiengine.unknown` sentinel.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -333,10 +333,8 @@ mod tests {
         use tempfile::tempdir;
 
         /// Stages a temp project with the given main.lua body and
-        /// reads its `_config()` table once, returning the
-        /// `Config` the export-time resolvers operate on. Wraps the
-        /// throwaway-VM dance in a single call so each test reads
-        /// like `read → resolve → assert` without re-spinning Lua.
+        /// reads its config, returning the `Config` export-time
+        /// resolvers operate on.
         fn config_from_main(body: &str) -> (tempfile::TempDir, crate::config::Config) {
             let dir = tempdir().unwrap();
             let script = dir.path().join("main.lua");
@@ -347,8 +345,7 @@ mod tests {
 
         #[test]
         fn resolve_for_export_reads_explicit_game_id_from_config() {
-            let (_d, cfg) =
-                config_from_main(r#"function _config() return { game_id = "com.test.foo" } end"#);
+            let (_d, cfg) = config_from_main("-- game_id = com.test.foo\n");
             let bundle = Bundle::new();
             assert_eq!(
                 resolve_for_export(&cfg, "ignored", &bundle).as_str(),
@@ -358,8 +355,7 @@ mod tests {
 
         #[test]
         fn resolve_for_export_falls_through_invalid_explicit_to_name() {
-            let (_d, cfg) =
-                config_from_main(r#"function _config() return { game_id = "../bad" } end"#);
+            let (_d, cfg) = config_from_main("-- game_id = ../bad\n");
             let bundle = Bundle::new();
             assert_eq!(
                 resolve_for_export(&cfg, "snake", &bundle).as_str(),
@@ -369,7 +365,7 @@ mod tests {
 
         #[test]
         fn resolve_for_export_falls_through_missing_config_to_name() {
-            let (_d, cfg) = config_from_main(r#"-- no _config defined"#);
+            let (_d, cfg) = config_from_main("-- no config\n");
             let bundle = Bundle::new();
             assert_eq!(
                 resolve_for_export(&cfg, "snake", &bundle).as_str(),
@@ -379,21 +375,11 @@ mod tests {
 
         #[test]
         fn resolve_for_export_falls_through_to_bundle_hash_when_name_empty() {
-            let (_d, cfg) = config_from_main(r#"-- no _config defined"#);
+            let (_d, cfg) = config_from_main("-- no config\n");
             let mut bundle = Bundle::new();
             bundle.insert("main.lua", b"-- contents".to_vec());
             let id = resolve_for_export(&cfg, "!!!", &bundle);
             assert!(id.as_str().starts_with("com.usagiengine.auto"));
-        }
-
-        #[test]
-        fn resolve_for_export_swallows_top_level_script_errors() {
-            let (_d, cfg) = config_from_main(r#"function _config( -- broken"#);
-            let bundle = Bundle::new();
-            assert_eq!(
-                resolve_for_export(&cfg, "snake", &bundle).as_str(),
-                "com.usagiengine.snake",
-            );
         }
     }
 }

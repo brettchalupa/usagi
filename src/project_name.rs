@@ -2,7 +2,7 @@
 //! `display()` is the verbatim user string for the window title, macOS
 //! `.app/` directory, and Info.plist *Name keys. `slug()` is the ASCII
 //! kebab-case form for archive filenames, exe names, and the bundle
-//! binary. Source of truth is `_config().name`, with the project
+//! binary. Source of truth is configured `name`, with the project
 //! directory name (passed by the caller) as fallback.
 
 const FALLBACK_DISPLAY: &str = "Usagi";
@@ -15,7 +15,7 @@ pub struct ProjectName {
 }
 
 impl ProjectName {
-    /// Order: explicit `_config().name` → path-derived hint → engine defaults.
+    /// Order: explicit configured `name` → path-derived hint → engine defaults.
     pub fn resolve(config_name: Option<&str>, fallback_hint: Option<&str>) -> Self {
         let configured = config_name.map(str::trim).filter(|s| !s.is_empty());
         let hint = fallback_hint.map(str::trim).filter(|s| !s.is_empty());

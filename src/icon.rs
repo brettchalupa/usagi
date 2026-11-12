@@ -1,14 +1,13 @@
 //! Embedded window icon. Applied to the game window and the
 //! `usagi tools` window so the OS task switcher / dock / taskbar
-//! shows Usagi's logo by default. Games can override at runtime via
-//! `_config().icon = N` (1-based tile index into `sprites.png`,
-//! same convention as `gfx.spr`); the same value is consumed at
-//! `usagi export --target macos` time to generate the `.app`'s
-//! `AppIcon.icns`.
+//! shows Usagi's logo by default. Games can override via configured
+//! `icon = N` (1-based tile index into `sprites.png`, same convention
+//! as `gfx.spr`); the same value is consumed at `usagi export --target
+//! macos` time to generate the `.app`'s `AppIcon.icns`.
 
 use sola_raylib::prelude::*;
 
-/// Default 16x16 PNG used when the game doesn't set `_config().icon`.
+/// Default 16x16 PNG used when the game doesn't set `icon`.
 /// Public so the export path can hand the same bytes to
 /// `png_to_icns` for the macOS bundle.
 pub const ICON_PNG: &[u8] = include_bytes!("../assets/icon.png");

@@ -89,7 +89,7 @@ pub trait VirtualFs {
     fn supports_reload(&self) -> bool;
 
     /// Best-effort project-name hint, used by `game_id::resolve` as a
-    /// fallback when `_config().game_id` is unset. `FsBacked` returns the
+    /// fallback when configured `game_id` is unset. `FsBacked` returns the
     /// project's directory or script-stem name; `BundleBacked` returns
     /// None because in-memory bundles carry no original name. None at
     /// runtime is fine: the resolver drops to a bundle-hash fallback.
@@ -335,9 +335,14 @@ impl FsBacked {
     }
 
     pub fn from_project_dir(root: PathBuf) -> Self {
+        let script_filename = if root.join("main.lua").is_file() {
+            Some("main.lua".to_string())
+        } else {
+            None
+        };
         Self {
             root,
-            script_filename: None,
+            script_filename,
         }
     }
 

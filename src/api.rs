@@ -204,7 +204,7 @@ pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     // GAME_W / GAME_H are seeded with the engine defaults at API
     // setup so tests / tools that don't drive a session see sane
     // values. The session re-writes them with the resolved
-    // `_config().game_width / game_height` once read, before
+    // `game_width` / `game_height` once read, before
     // `_init` runs.
     usagi.set("GAME_W", Resolution::DEFAULT.w)?;
     usagi.set("GAME_H", Resolution::DEFAULT.h)?;
@@ -490,7 +490,7 @@ mod tests {
         let script = root.join("main.lua");
         fs::write(
             &script,
-            "data = usagi.read_json(\"test.json\")\nfunction _config() return { game_id = \"t.t.t\" } end\n",
+            "-- game_id = t.t.t\ndata = usagi.read_json(\"test.json\")\n",
         )
         .unwrap();
 

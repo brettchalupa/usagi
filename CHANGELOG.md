@@ -9,6 +9,8 @@ BREAKING:
 
 - `usagi loveify` has been removed; it added too much maintenance burden for
   every new API; it was a fun idea but not something worth maintaining
+- Deprecated `_config()` support removed, use `usagi.conf` or the comment
+  front-matter support added in v1.3.0
 
 ## v1.3.3 - September 22, 2026
 

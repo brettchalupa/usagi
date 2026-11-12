@@ -69,7 +69,7 @@ pub fn settings_path(game_id: &GameId) -> std::io::Result<std::path::PathBuf> {
 }
 
 /// Whether a settings blob has been saved for `game_id`. Used to tell a
-/// first run (apply `_config().initial_fullscreen`) from a returning player
+/// first run (apply `initial_fullscreen` from config) from a returning player
 /// (honor their saved fullscreen choice).
 pub fn exists(game_id: &GameId) -> bool {
     matches!(read_blob(game_id), Ok(Some(_)))

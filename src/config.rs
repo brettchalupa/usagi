@@ -3,33 +3,19 @@
 //! every other module that cares about project-level settings (window
 //! title, save namespace, app icon, pixel-perfect scaling).
 //!
-//! Three sources feed one `Config`, highest precedence first:
+//! Two sources feed one `Config`, highest precedence first:
 //!
 //! 1. **Frontmatter** comments at the top of `main.lua` (`-- name = Foo`).
 //!    Read as plain text, no Lua VM, so single-file games and dev tools
 //!    can still configure themselves.
 //! 2. **`usagi.conf`** at the project root, the same `key = value` format.
 //!    Recommended for larger games; easy for external tools to parse.
-//! 3. **`_config()`** returned from the game's Lua. Deprecated (it forces
-//!    a VM boot to read config and has a load-order footgun where
-//!    top-level `usagi.GAME_W` reads the default before `_config` runs).
-//!    Still honored, with a deprecation warning.
 //!
-//! Sources merge per-field: a field set by more than one source takes the
-//! highest-precedence value and logs a conflict warning. Missing fields
-//! fall through to the engine default.
-//!
-//! Two read paths share the field-extraction logic:
-//!
-//! - **Runtime:** `Config::read_from_lua` against the live session Lua VM
-//!   plus the session VFS. Errors flow into `last_error` for the on-screen
-//!   overlay.
-//! - **Export/tools:** `Config::read_for_export` reads the text sources
-//!   directly; only when neither is present does it spin up a throwaway VM
-//!   to read a deprecated `_config()`.
+//! Sources merge per-field: a field set by both sources takes the
+//! highest-precedence (frontmatter) value and logs a conflict warning.
+//! Missing fields fall through to the engine default.
 
 use crate::vfs::VirtualFs;
-use mlua::prelude::*;
 
 /// Game render dimensions in pixels. Travels as a unit through every
 /// pipeline step (window sizing, RT creation, view transform, capture,
@@ -145,53 +131,7 @@ struct Partial {
     gif_length: Option<f32>,
 }
 
-impl Partial {
-    /// Reads a `_config()` table. Per-field misses stay `None`; invalid
-    /// values (non-positive dimensions) drop silently, matching the old
-    /// runtime behavior of keeping the default rather than erroring.
-    fn from_lua_table(tbl: &LuaTable) -> Self {
-        let mut p = Self::default();
-        if let Ok(Some(t)) = tbl.get::<Option<String>>("name") {
-            p.name = Some(t);
-        }
-        if let Ok(Some(t)) = tbl.get::<Option<bool>>("pixel_perfect") {
-            p.pixel_perfect = Some(t);
-        }
-        if let Ok(Some(t)) = tbl.get::<Option<String>>("game_id") {
-            p.game_id = Some(t);
-        }
-        if let Ok(Some(n)) = tbl.get::<Option<u32>>("icon") {
-            p.icon = Some(n);
-        }
-        if let Ok(Some(w)) = tbl.get::<Option<f32>>("game_width")
-            && w >= 1.0
-        {
-            p.game_width = Some(w);
-        }
-        if let Ok(Some(h)) = tbl.get::<Option<f32>>("game_height")
-            && h >= 1.0
-        {
-            p.game_height = Some(h);
-        }
-        if let Ok(Some(s)) = tbl.get::<Option<i32>>("sprite_size")
-            && s >= 1
-        {
-            p.sprite_size = Some(s);
-        }
-        if let Ok(Some(b)) = tbl.get::<Option<bool>>("pause_menu") {
-            p.pause_menu = Some(b);
-        }
-        if let Ok(Some(b)) = tbl.get::<Option<bool>>("initial_fullscreen") {
-            p.initial_fullscreen = Some(b);
-        }
-        if let Ok(Some(g)) = tbl.get::<Option<f32>>("gif_length")
-            && g >= 1.0
-        {
-            p.gif_length = Some(g);
-        }
-        p
-    }
-}
+impl Partial {}
 
 /// Which text source a `key = value` pair came from. Only affects
 /// warnings: `usagi.conf` is a dedicated config file, so bad values and
@@ -348,20 +288,13 @@ fn conf_from_vfs(vfs: &dyn VirtualFs, warn: bool) -> Partial {
 }
 
 /// Picks the highest-precedence value for one field (frontmatter, then
-/// `usagi.conf`, then `_config`), warning when more than one source set
-/// it so the winner isn't a silent surprise.
-fn pick<T: Clone>(
-    field: &str,
-    fm: Option<T>,
-    conf: Option<T>,
-    lua: Option<T>,
-    warn: bool,
-) -> Option<T> {
+/// `usagi.conf`), warning when both sources set it so the winner isn't a
+/// silent surprise.
+fn pick<T: Clone>(field: &str, fm: Option<T>, conf: Option<T>, warn: bool) -> Option<T> {
     if warn {
         let sources: Vec<&str> = [
             fm.as_ref().map(|_| "frontmatter"),
             conf.as_ref().map(|_| "usagi.conf"),
-            lua.as_ref().map(|_| "_config"),
         ]
         .into_iter()
         .flatten()
@@ -374,18 +307,17 @@ fn pick<T: Clone>(
             );
         }
     }
-    fm.or(conf).or(lua)
+    fm.or(conf)
 }
 
-/// Merges the three sources into a resolved `Config`. `warn` gates the
+/// Merges the text sources into a resolved `Config`. `warn` gates the
 /// conflict/invalid-value logging so the pre-load global seed can run
 /// quietly and leave the authoritative logging to the full read.
-fn combine(lua: Option<Partial>, conf: Partial, fm: Partial, warn: bool) -> Config {
-    let lua = lua.unwrap_or_default();
-    // Resolve one field across the three sources, highest precedence first.
+fn combine(conf: Partial, fm: Partial, warn: bool) -> Config {
+    // Resolve one field across the text sources, highest precedence first.
     macro_rules! pick {
         ($field:ident) => {
-            pick(stringify!($field), fm.$field, conf.$field, lua.$field, warn)
+            pick(stringify!($field), fm.$field, conf.$field, warn)
         };
     }
     let mut c = Config {
@@ -412,28 +344,6 @@ fn combine(lua: Option<Partial>, conf: Partial, fm: Partial, warn: bool) -> Conf
     c
 }
 
-/// Reads a `_config()` partial from a live VM. Missing `_config` returns
-/// `None`; a `_config` that raises or returns a non-table fills
-/// `error_sink` (when `Some`) and returns `None`. Emits the deprecation
-/// warning whenever the function is present.
-fn lua_partial(lua: &Lua, error_sink: Option<&mut Option<String>>) -> Option<Partial> {
-    let config_fn = lua.globals().get::<LuaFunction>("_config").ok()?;
-    crate::msg::warn!(
-        "_config() is deprecated; move settings to usagi.conf or frontmatter comments"
-    );
-    match config_fn.call::<LuaTable>(()) {
-        Ok(tbl) => Some(Partial::from_lua_table(&tbl)),
-        Err(e) => {
-            let msg = format!("_config: {}", e);
-            crate::msg::err!("{}", msg);
-            if let Some(sink) = error_sink {
-                *sink = Some(msg);
-            }
-            None
-        }
-    }
-}
-
 /// Frontmatter + `usagi.conf` partials, parsed once. Held opaquely by the
 /// session so the pre-`load_script` dimension seed and the authoritative
 /// post-load resolve share one read of the files.
@@ -455,60 +365,25 @@ impl Config {
         }
     }
 
-    /// Resolves config from text sources alone (no `_config`). Quiet, for the
-    /// pre-`load_script` seed of `usagi.GAME_W/GAME_H/SPRITE_SIZE`; the
-    /// authoritative `resolve` owns the conflict warnings.
+    /// Resolves config from text sources. Quiet, for the pre-`load_script`
+    /// seed of `usagi.GAME_W/GAME_H/SPRITE_SIZE`; the authoritative
+    /// `resolve` owns the conflict warnings.
     pub fn from_text(text: &TextSources) -> Self {
-        combine(None, text.conf.clone(), text.fm.clone(), false)
+        combine(text.conf.clone(), text.fm.clone(), false)
     }
 
-    /// Authoritative resolution: `_config()` from the live VM merged under
-    /// the already-parsed text sources (frontmatter > usagi.conf > _config).
-    /// Per-field conflicts and `_config` errors are logged; a broken source
-    /// falls back to defaults rather than tearing the session down.
-    pub fn resolve(lua: &Lua, text: &TextSources, error_sink: Option<&mut Option<String>>) -> Self {
-        combine(
-            lua_partial(lua, error_sink),
-            text.conf.clone(),
-            text.fm.clone(),
-            true,
-        )
+    /// Authoritative resolution from the parsed text sources
+    /// (frontmatter > usagi.conf).
+    pub fn resolve(text: &TextSources) -> Self {
+        combine(text.conf.clone(), text.fm.clone(), true)
     }
 
     /// Reads project config off-thread of any running session, for export-
-    /// and tools-time consumers. Boots a throwaway Lua VM only when the
-    /// script defines the deprecated `_config()`; otherwise the text sources
-    /// are the whole story and no VM is needed. When `_config()` is present
-    /// it's merged under the text sources, so export/tools resolve the same
-    /// config the runtime does. Any failure returns `Self::default()` so the
-    /// caller keeps moving.
+    /// and tools-time consumers.
     #[cfg(not(target_os = "emscripten"))]
     pub fn read_for_export(script_path: &std::path::Path) -> Self {
-        use crate::api::{register_data_api, setup_api};
-        use crate::assets::{install_require, load_script};
-        use crate::vfs::FsBacked;
-        use std::rc::Rc;
-
-        let vfs: Rc<dyn VirtualFs> = Rc::new(FsBacked::from_script_path(script_path));
-        let text = Self::read_text_sources(vfs.as_ref(), true);
-        let has_config = vfs
-            .read_script()
-            .is_some_and(|b| String::from_utf8_lossy(&b).contains("_config"));
-        if !has_config {
-            return combine(None, text.conf.clone(), text.fm.clone(), true);
-        }
-
-        // Match the runtime: unsafe_new so user `_config()` code can use
-        // `debug.*` without crashing the export step. See session.rs.
-        let lua = unsafe { Lua::unsafe_new() };
-        if setup_api(&lua, false).is_err()
-            || install_require(&lua, vfs.clone()).is_err()
-            || register_data_api(&lua, vfs.clone()).is_err()
-            || load_script(&lua, vfs.as_ref()).is_err()
-        {
-            return Self::default();
-        }
-        Self::resolve(&lua, &text, None)
+        let vfs = crate::vfs::FsBacked::from_script_path(script_path);
+        Self::resolve(&Self::read_text_sources(&vfs, true))
     }
 }
 
@@ -583,15 +458,13 @@ mod tests {
     }
 
     #[test]
-    fn frontmatter_wins_over_conf_over_lua() {
+    fn frontmatter_wins_over_conf() {
         let fm = frontmatter_partial("-- name = FromFrontmatter\n", false);
-        let conf = conf_partial("name = FromConf\ngame_id = com.conf.game\n", false);
-        let lua = Partial {
-            name: Some("FromLua".into()),
-            sprite_size: Some(8),
-            ..Partial::default()
-        };
-        let c = combine(Some(lua), conf, fm, false);
+        let conf = conf_partial(
+            "name = FromConf\ngame_id = com.conf.game\nsprite_size = 8\n",
+            false,
+        );
+        let c = combine(conf, fm, false);
         assert_eq!(c.name.as_deref(), Some("FromFrontmatter"));
         assert_eq!(c.game_id.as_deref(), Some("com.conf.game"));
         assert_eq!(c.sprite_size, 8);
@@ -599,7 +472,7 @@ mod tests {
 
     #[test]
     fn unset_fields_fall_back_to_defaults() {
-        let c = combine(None, Partial::default(), Partial::default(), false);
+        let c = combine(Partial::default(), Partial::default(), false);
         assert!(c.name.is_none());
         assert_eq!(c.resolution.w, Resolution::DEFAULT.w);
         assert_eq!(c.sprite_size, DEFAULT_SPRITE_SIZE);
@@ -653,15 +526,13 @@ mod tests {
     }
 
     #[test]
-    fn export_merges_config_under_text_sources() {
-        // A mixed project (frontmatter + deprecated _config) must resolve the
-        // same for export/tools as at runtime: frontmatter wins, _config fills
-        // the rest, rather than _config being dropped.
+    fn export_reads_text_sources() {
         let dir = tempfile::tempdir().unwrap();
         let main = dir.path().join("main.lua");
+        std::fs::write(&main, "-- name = FromFrontmatter\n").unwrap();
         std::fs::write(
-            &main,
-            "-- name = FromFrontmatter\nfunction _config() return { game_id = \"com.x.y\", icon = 5 } end\n",
+            dir.path().join("usagi.conf"),
+            "game_id = com.x.y\nicon = 5\n",
         )
         .unwrap();
         let c = Config::read_for_export(&main);

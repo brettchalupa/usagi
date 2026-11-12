@@ -604,8 +604,8 @@ function usagi.measure_text(text) end
 function usagi.dump(v) end
 
 ---Persist a Lua table as JSON. Saves are per-game, namespaced by
----`game_id` from `_config()`. One file per game; nest your own
----structure inside (settings, run state, unlocks).
+---configured `game_id` (from `usagi.conf` or frontmatter). One file per
+---game; nest your own structure inside (settings, run state, unlocks).
 ---@param t table   table to serialize. functions, userdata, NaN, and cycles error
 function usagi.save(t) end
 
@@ -685,9 +685,10 @@ function usagi.is_fullscreen() end
 ---menu shouldn't offer a quit option there.
 function usagi.quit() end
 
----Config table returned by `_config()`. All fields optional except
----`game_id`, which is only required if you call `usagi.save` /
----`usagi.load`. Missing fields fall back to engine defaults.
+---Project configuration, set in `usagi.conf` or as leading `-- key = value`
+---frontmatter comments in `main.lua` (frontmatter wins over `usagi.conf`).
+---All fields optional except `game_id`, which is only required if you call
+---`usagi.save` / `usagi.load`. Missing fields fall back to engine defaults.
 ---@class Usagi.Config
 ---@field name? string  display name. Window title, macOS .app bundle directory, and (slugged) archive/binary names on `usagi export` (default: project directory name)
 ---@field pixel_perfect? boolean false (default) = any scale that fits the window while preserving aspect ratio; true = integer scale only with letterbox bars
@@ -697,11 +698,8 @@ function usagi.quit() end
 ---@field game_height? number  game render height in pixels (default 180). Tested range 90..360
 ---@field sprite_size? integer  side length, in pixels, of one cell in sprites.png (default 16). Drives gfx.spr indexing, the tilepicker tool's grid, and the window-icon slicer. sprites.png must be a multiple of this value on both axes.
 ---@field pause_menu? boolean  true (default) = engine handles Esc/P/Enter/Start to open the built-in pause overlay; false = those keys flow through to user code so games can roll their own menu. With it off you also give up keyboard remap UI, the Input Tester, and gamepad-driven menu nav. `usagi.menu_item` registrations no longer render. Suitable for keyboard-driven prototypes.
-
----Optional. Returns engine config read once before the window opens.
----Omit if the defaults are fine.
----@return Usagi.Config?
-function _config() end
+---@field initial_fullscreen? boolean  true to launch fullscreen by default (first run only; the player's saved choice wins after that)
+---@field gif_length? number  length of GIF capture in seconds (default 5)
 
 ---Called once when the game starts. Use for loading assets and initializing state.
 function _init() end
