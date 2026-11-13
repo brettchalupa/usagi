@@ -901,7 +901,7 @@ struct Session {
 }
 
 impl Session {
-    fn new(vfs: Rc<dyn VirtualFs>, dev: bool) -> crate::Result<Self> {
+    fn new(vfs: Rc<dyn VirtualFs>, dev: bool, force_fullscreen: bool) -> crate::Result<Self> {
         // Log the engine version once at boot so user-submitted bug
         // reports (console / terminal) carry the version stamp without
         // the user having to remember `usagi --version`. Same string
@@ -969,6 +969,12 @@ impl Session {
         #[cfg(not(target_os = "emscripten"))]
         if !crate::settings::exists(&resolved_game_id) {
             settings.fullscreen = config.initial_fullscreen;
+        }
+        // CLI `--fullscreen` (or `mygame --fullscreen`) overrides the
+        // player's saved choice so launchers can force fullscreen.
+        #[cfg(not(target_os = "emscripten"))]
+        if force_fullscreen {
+            settings.fullscreen = true;
         }
         let keymap = crate::keymap::load(&resolved_game_id);
         let pad_map = crate::pad_map::load(&resolved_game_id);
@@ -2710,8 +2716,8 @@ impl Session {
 /// sfx (either from disk or a fused bundle). When `dev` is true AND the
 /// vfs supports reload, files are re-read on mtime change. F5 always
 /// resets state via `_init()`.
-pub fn run(vfs: Rc<dyn VirtualFs>, dev: bool) -> crate::Result<()> {
-    let session = Session::new(vfs, dev)?;
+pub fn run(vfs: Rc<dyn VirtualFs>, dev: bool, force_fullscreen: bool) -> crate::Result<()> {
+    let session = Session::new(vfs, dev, force_fullscreen)?;
     // Pinned env summary under USAGI_VERBOSE=1. After `Session::new`
     // returns so `_init` has run and the heap-after-init reading is
     // steady-state.

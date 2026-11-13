@@ -134,12 +134,18 @@ enum Command {
     Run {
         /// Path to a .lua file or a directory with main.lua. Defaults to ".".
         path: Option<String>,
+        /// Launch in fullscreen, overriding the player's saved setting.
+        #[arg(long)]
+        fullscreen: bool,
     },
     /// Run a game with live-reload on save. F5 resets state. Defaults to
     /// the current directory.
     Dev {
         /// Path to a .lua file or a directory with main.lua. Defaults to ".".
         path: Option<String>,
+        /// Launch in fullscreen, overriding the player's saved setting.
+        #[arg(long)]
+        fullscreen: bool,
     },
     /// Bootstrap a new project (main.lua, .luarc.json, .gitignore, LSP
     /// stubs, embedded docs). Defaults to the current directory.
@@ -273,7 +279,7 @@ fn main() -> ExitCode {
     // `web/shell.html` and `docs/web-build.md`.
     #[cfg(target_os = "emscripten")]
     {
-        return finish(start_session("/game.usagi", false));
+        return finish(start_session("/game.usagi", false, false));
     }
 
     // Native: if this binary has a fused bundle appended, run that;
@@ -281,15 +287,20 @@ fn main() -> ExitCode {
     #[cfg(not(target_os = "emscripten"))]
     {
         if let Some(bundle) = Bundle::load_from_current_exe() {
-            return finish(run_bundled(bundle));
+            let force_fullscreen = std::env::args().any(|a| a == "--fullscreen");
+            return finish(run_bundled(bundle, force_fullscreen));
         }
         let cli = Cli::parse();
         let result = match cli.command {
             // No subcommand (double-click / `.desktop` launch): open the
             // drop-a-project launcher window.
             None => launcher::run(),
-            Some(Command::Run { path }) => start_session(path.as_deref().unwrap_or("."), false),
-            Some(Command::Dev { path }) => start_session(path.as_deref().unwrap_or("."), true),
+            Some(Command::Run { path, fullscreen }) => {
+                start_session(path.as_deref().unwrap_or("."), false, fullscreen)
+            }
+            Some(Command::Dev { path, fullscreen }) => {
+                start_session(path.as_deref().unwrap_or("."), true, fullscreen)
+            }
             Some(Command::Init { path }) => init::run(path.as_deref().unwrap_or(".")),
             Some(Command::Tools { path }) => tools::run(Some(path.as_deref().unwrap_or("."))),
             Some(Command::Templates { cmd }) => run_templates_cmd(cmd),
@@ -330,7 +341,7 @@ fn finish(result: Result<()>) -> ExitCode {
     }
 }
 
-fn start_session(path_arg: &str, dev: bool) -> Result<()> {
+fn start_session(path_arg: &str, dev: bool, force_fullscreen: bool) -> Result<()> {
     if Path::new(path_arg)
         .extension()
         .and_then(|e| e.to_str())
@@ -344,17 +355,17 @@ fn start_session(path_arg: &str, dev: bool) -> Result<()> {
         }
         let bundle = Bundle::load_from_path(Path::new(path_arg))
             .map_err(|e| Error::Cli(format!("loading bundle from {path_arg}: {e}")))?;
-        return run_bundled(bundle);
+        return run_bundled(bundle, force_fullscreen);
     }
 
     let script_path = cli::resolve_script_path(path_arg)?;
     let vfs = std::rc::Rc::new(FsBacked::from_script_path(Path::new(&script_path)));
-    session::run(vfs, dev)
+    session::run(vfs, dev, force_fullscreen)
 }
 
-fn run_bundled(bundle: Bundle) -> Result<()> {
+fn run_bundled(bundle: Bundle, force_fullscreen: bool) -> Result<()> {
     let vfs = std::rc::Rc::new(BundleBacked::new(bundle));
-    session::run(vfs, false)
+    session::run(vfs, false, force_fullscreen)
 }
 
 #[cfg(not(target_os = "emscripten"))]

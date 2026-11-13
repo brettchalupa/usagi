@@ -145,6 +145,8 @@ Run with:
 - `usagi dev path/to/my_game` for live-reload development (script, sprites, and
   sfx reload on save; [Reset](#reset) re-runs `_init`).
 - `usagi run path/to/my_game` to run without live-reload.
+- Pass `--fullscreen` to `usagi dev` or `usagi run` to force fullscreen for that
+  launch, overriding the player's saved preference (useful for launchers).
 - `usagi tools [path]` opens the Usagi tools window (jukebox, tile picker). See
   the **Tools** section below.
 - `usagi export path/to/my_game` packages a game for distribution: zips for

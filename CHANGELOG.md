@@ -20,6 +20,9 @@ Features:
 
 - Exported web `index.html`'s `<title>` is now set to the game's name; see
   [#123](https://codeberg.org/brettchalupa/usagi/issues/123)
+- `--fullscreen` flag for `usagi dev`, `usagi run`, and exported binary to force
+  fullscreen, regardless of player setting; useful for launchers; see
+  [#116](https://codeberg.org/brettchalupa/usagi/issues/116)
 
 Fixes:
 
