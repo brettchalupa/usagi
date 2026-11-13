@@ -785,6 +785,11 @@ struct Session {
     /// `_update`. f64 to avoid f32 precision drift over hour-long runs.
     elapsed: f64,
 
+    /// `elapsed` timestamp of the most recent hard reset. Used to
+    /// debounce so mashing the key doesn't queue repeated expensive full VM
+    /// rebuilds
+    last_reset_at: f64,
+
     /// Engine-level juice state (hitstop, screen shake, flash, slow_mo)
     /// driven by the `effect.*` Lua API. Decayed once per frame in
     /// `frame()` (gated on the pause overlay being closed), then read
@@ -1215,6 +1220,7 @@ impl Session {
             display_logged: false,
             config,
             elapsed: 0.0,
+            last_reset_at: f64::NEG_INFINITY,
             effects,
             last_clear: std::cell::Cell::new(0),
             pause: PauseMenu::new(),
@@ -1759,8 +1765,10 @@ impl Session {
             || self.rl.is_key_down(KeyboardKey::KEY_RIGHT_SUPER);
         let reset = self.rl.is_key_pressed(KeyboardKey::KEY_F5)
             || (self.rl.is_key_pressed(KeyboardKey::KEY_R) && (ctrl_held || super_held));
-        if reset {
+        // Debounce resets to prevent hanging from mashing reset
+        if reset && (self.elapsed - self.last_reset_at) >= 0.15 {
             self.reset_game();
+            self.last_reset_at = self.elapsed;
         }
 
         // Shift + Esc quits in dev builds

@@ -28,6 +28,8 @@ Fixes:
 
 - `sfx` function calls no longer crash in `_init`, see
   [#137](https://codeberg.org/brettchalupa/usagi/issues/137)
+- Debounce manual resets to prevent slowdown from mashing; see
+  [#101](https://codeberg.org/brettchalupa/usagi/issues/101)
 
 ## v1.3.3 - September 22, 2026
 
