@@ -16,6 +16,11 @@ BREAKING:
   Usagi v1 behavior. See
   [#130](https://codeberg.org/brettchalupa/usagi/issues/130)
 
+Features:
+
+- Exported web `index.html`'s `<title>` is now set to the game's name; see
+  [#123](https://codeberg.org/brettchalupa/usagi/issues/123)
+
 Fixes:
 
 - `sfx` function calls no longer crash in `_init`, see

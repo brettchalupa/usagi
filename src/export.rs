@@ -347,7 +347,12 @@ fn export_from_runtime_dir(
         }
         templates::Runtime::Web { js, wasm, html } => {
             let html_src = opts.web_shell_override.unwrap_or(&html);
-            stage_web_shell(html_src, &stage.path().join("index.html"), opts.resolution)?;
+            stage_web_shell(
+                html_src,
+                &stage.path().join("index.html"),
+                opts.resolution,
+                project_name.display(),
+            )?;
             stage_file(&js, &stage.path().join("usagi.js"))?;
             stage_file(&wasm, &stage.path().join("usagi.wasm"))?;
             bundle
@@ -465,21 +470,31 @@ fn stage_file(src: &Path, dst: &Path) -> Result<()> {
 }
 
 /// Reads the web shell HTML, substitutes the canvas backing-store
-/// dims to match `game_width` / `game_height`, and writes the
-/// result to `dst`. The aspect-ratio CSS in the bundled shell reads
-/// the canvas attrs at load time, so a single replacement of
+/// dims to match `game_width` / `game_height`, injects the project's
+/// display name into the `<title>` element, and writes the result to
+/// `dst`. The aspect-ratio CSS in the bundled shell reads the canvas
+/// attrs at load time, so a single replacement of
 /// `width="640" height="360"` (the engine default's 2x backing store)
 /// is enough to specialize layout for any resolution. Custom shells
-/// that don't include the default attrs pass through unchanged;
-/// users running their own HTML are expected to manage their own
-/// dims.
-fn stage_web_shell(src: &Path, dst: &Path, res: crate::config::Resolution) -> Result<()> {
+/// that don't include the default title/canvas attrs pass those
+/// substitutions through unchanged; users running their own HTML are
+/// expected to manage their own markup.
+fn stage_web_shell(
+    src: &Path,
+    dst: &Path,
+    res: crate::config::Resolution,
+    display_name: &str,
+) -> Result<()> {
     let html = std::fs::read_to_string(src)
         .map_err(|e| Error::Cli(format!("reading {}: {e}", src.display())))?;
     let (cw, ch) = web_canvas_dims(res);
-    let rendered = html.replace(
+    let mut rendered = html.replace(
         r#"width="640" height="360""#,
         &format!(r#"width="{cw}" height="{ch}""#),
+    );
+    rendered = rendered.replace(
+        "<title>Usagi</title>",
+        &format!("<title>{display_name}</title>"),
     );
     std::fs::write(dst, rendered)
         .map_err(|e| Error::Cli(format!("writing {}: {e}", dst.display())))?;
@@ -854,7 +869,7 @@ mod tests {
         )
         .unwrap();
         let r = crate::config::Resolution { w: 480.0, h: 270.0 };
-        stage_web_shell(&src, &dst, r).unwrap();
+        stage_web_shell(&src, &dst, r, "My Game").unwrap();
         let written = std::fs::read_to_string(&dst).unwrap();
         assert!(
             written.contains(r#"width="960" height="540""#),
@@ -867,17 +882,35 @@ mod tests {
     }
 
     #[test]
-    fn stage_web_shell_passes_through_custom_shell_without_default_dims() {
-        // A user shell that doesn't include the literal `width="640"
-        // height="360"` substring should be written verbatim. Users
-        // running their own HTML are responsible for their canvas dims.
+    fn stage_web_shell_substitutes_title_with_game_name() {
         let dir = tempdir().unwrap();
         let src = dir.path().join("shell.html");
         let dst = dir.path().join("index.html");
-        let original = r#"<canvas id="canvas" width="800" height="450"></canvas>"#;
+        std::fs::write(
+            &src,
+            r#"<!doctype html><html><head><title>Usagi</title></head></html>"#,
+        )
+        .unwrap();
+        stage_web_shell(&src, &dst, crate::config::Resolution::DEFAULT, "Snake").unwrap();
+        let written = std::fs::read_to_string(&dst).unwrap();
+        assert!(written.contains("<title>Snake</title>"), "got: {written}");
+        assert!(!written.contains("<title>Usagi</title>"), "got: {written}");
+    }
+
+    #[test]
+    fn stage_web_shell_passes_through_custom_shell_without_default_dims_or_title() {
+        // A user shell that doesn't include the default canvas dims or
+        // title placeholder should be written verbatim aside from
+        // requested substitutions that don't match. Users running their
+        // own HTML are responsible for their markup.
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("shell.html");
+        let dst = dir.path().join("index.html");
+        let original =
+            r#"<canvas id="canvas" width="800" height="450"></canvas><title>Custom</title>"#;
         std::fs::write(&src, original).unwrap();
         let r = crate::config::Resolution::DEFAULT;
-        stage_web_shell(&src, &dst, r).unwrap();
+        stage_web_shell(&src, &dst, r, "My Game").unwrap();
         assert_eq!(std::fs::read_to_string(&dst).unwrap(), original);
     }
 
