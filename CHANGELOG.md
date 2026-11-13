@@ -12,6 +12,11 @@ BREAKING:
 - Deprecated `_config()` support removed, use `usagi.conf` or the comment
   front-matter support added in v1.3.0
 
+Fixes:
+
+- `sfx` function calls no longer crash in `_init`, see
+  [#137](https://codeberg.org/brettchalupa/usagi/issues/137)
+
 ## v1.3.3 - September 22, 2026
 
 Features:

@@ -568,6 +568,66 @@ fn new_lua() -> Lua {
     lua
 }
 
+/// Installs `sfx.play` / `sfx.play_ex` / `sfx.stop` / `sfx.stop_all` /
+/// `sfx.is_playing` once at session startup against a shared `SfxLibrary`.
+/// The closures `borrow` the library on each call, so they can be invoked
+/// from `_init`, `_update`, `_draw`, or any other callback without relying
+/// on per-frame scope rebinding.
+fn register_sfx_api(lua: &Lua, sfx: &Rc<std::cell::RefCell<SfxLibrary<'static>>>) -> LuaResult<()> {
+    let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
+
+    let s = Rc::clone(sfx);
+    let play = lua.create_function(move |_, name: LuaString| {
+        let name = name.to_string_lossy();
+        s.borrow().play(&name);
+        Ok(())
+    })?;
+    sfx_tbl.set("play", wrap(lua, play, "sfx.play", &["string"])?)?;
+
+    let s = Rc::clone(sfx);
+    let play_ex = lua.create_function(
+        move |_, (name, volume, pitch, pan): (LuaString, f32, f32, f32)| {
+            let name = name.to_string_lossy();
+            s.borrow().play_with(&name, volume, pitch, pan);
+            Ok(())
+        },
+    )?;
+    sfx_tbl.set(
+        "play_ex",
+        wrap(
+            lua,
+            play_ex,
+            "sfx.play_ex",
+            &["string", "number", "number", "number"],
+        )?,
+    )?;
+
+    let s = Rc::clone(sfx);
+    let stop = lua.create_function(move |_, name: LuaString| {
+        s.borrow().stop(&name.to_string_lossy());
+        Ok(())
+    })?;
+    sfx_tbl.set("stop", wrap(lua, stop, "sfx.stop", &["string"])?)?;
+
+    let s = Rc::clone(sfx);
+    let stop_all = lua.create_function(move |_, ()| {
+        s.borrow().stop_all();
+        Ok(())
+    })?;
+    sfx_tbl.set("stop_all", wrap(lua, stop_all, "sfx.stop_all", &[])?)?;
+
+    let s = Rc::clone(sfx);
+    let is_playing = lua.create_function(move |_, name: LuaString| {
+        Ok(s.borrow().is_playing(&name.to_string_lossy()))
+    })?;
+    sfx_tbl.set(
+        "is_playing",
+        wrap(lua, is_playing, "sfx.is_playing", &["string"])?,
+    )?;
+
+    Ok(())
+}
+
 /// APIs that must exist before `load_script` runs: base tables (`setup_api`),
 /// `require`, and the data readers (so top-level `usagi.read_json` resolves).
 /// Shared by `Session::new` and the hard-reset VM rebuild so the two can't
@@ -582,13 +642,15 @@ fn install_core_apis(lua: &Lua, dev: bool, vfs: &Rc<dyn VirtualFs>) -> crate::Re
 /// The rest of the persistent APIs, registered against the session's shared
 /// handles after they exist. Also seeds `usagi.GAME_W/GAME_H/SPRITE_SIZE`.
 /// Shared by `Session::new` and the hard-reset VM rebuild. Per-frame `gfx.*`
-/// / `sfx.*` closures aren't here; they re-register via `lua.scope`.
+/// closures are rebound via `lua.scope`; `sfx.*`/`music.*` are registered
+/// here once so they are available during `_init` and all callbacks.
 #[allow(clippy::too_many_arguments)]
 fn install_game_apis(
     lua: &Lua,
     user_font: &'static Font,
     input_bridge: &InputBridge,
     game_id: &crate::game_id::GameId,
+    sfx: &Rc<std::cell::RefCell<SfxLibrary<'static>>>,
     music: &Rc<std::cell::RefCell<MusicLibrary<'static>>>,
     shader: &Rc<std::cell::RefCell<ShaderManager>>,
     effects: &Rc<std::cell::RefCell<Effects>>,
@@ -600,6 +662,7 @@ fn install_game_apis(
     register_usagi_measure_text(lua, user_font)?;
     register_input_api(lua, input_bridge)?;
     register_save_api(lua, game_id.clone())?;
+    register_sfx_api(lua, sfx)?;
     register_music_api(lua, music)?;
     register_shader_api(lua, shader)?;
     register_effect_api(lua, effects)?;
@@ -688,7 +751,10 @@ struct Session {
     /// pain. The audio device lives for program lifetime anyway; this is
     /// not a real leak (process exit reclaims it).
     audio: Option<&'static RaylibAudio>,
-    sfx: SfxLibrary<'static>,
+    /// Shared sfx library. `Rc<RefCell>` lets persistent `sfx.*` closures
+    /// be registered once at startup (callable from `_init`) and allows
+    /// hot-reload to replace contents.
+    sfx: Rc<std::cell::RefCell<SfxLibrary<'static>>>,
     /// `MusicLibrary` mutates on play/loop/stop/pause/update, so it
     /// lives behind an `Rc<RefCell>`. The session and the Lua-side
     /// `music.*` closures both hold an `Rc`, which lets the closures
@@ -1081,6 +1147,7 @@ impl Session {
         };
         sfx.set_volume(settings.sfx_volume);
         music.set_volume(settings.music_volume);
+        let sfx = Rc::new(std::cell::RefCell::new(sfx));
         let music = Rc::new(std::cell::RefCell::new(music));
         let shader = Rc::new(std::cell::RefCell::new(ShaderManager::new()));
         let effects = Rc::new(std::cell::RefCell::new(Effects::new()));
@@ -1095,6 +1162,7 @@ impl Session {
             user_font,
             &input_bridge,
             &game_id,
+            &sfx,
             &music,
             &shader,
             &effects,
@@ -1472,9 +1540,12 @@ impl Session {
         }
 
         if let Some(a) = self.audio
-            && self.sfx.reload_if_changed(a, self.vfs.as_ref())
+            && self
+                .sfx
+                .borrow_mut()
+                .reload_if_changed(a, self.vfs.as_ref())
         {
-            crate::msg::info!("reloaded sfx ({} sound(s))", self.sfx.len());
+            crate::msg::info!("reloaded sfx ({} sound(s))", self.sfx.borrow().len());
         }
 
         if let Some(a) = self.audio
@@ -1510,6 +1581,7 @@ impl Session {
             self.user_font,
             &self.input_bridge,
             &self.game_id,
+            &self.sfx,
             &self.music,
             &self.shader,
             &self.effects,
@@ -1678,7 +1750,7 @@ impl Session {
             self.settings.music_volume = m;
             self.settings.sfx_volume = s;
             self.music.borrow_mut().set_volume(m);
-            self.sfx.set_volume(s);
+            self.sfx.borrow_mut().set_volume(s);
             if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
                 crate::msg::err!("settings write failed: {e}");
             }
@@ -1745,7 +1817,7 @@ impl Session {
             PauseAction::SetSfxVolume(v) => {
                 let v = v.clamp(0.0, 1.0);
                 self.settings.sfx_volume = v;
-                self.sfx.set_volume(v);
+                self.sfx.borrow_mut().set_volume(v);
                 if let Err(e) = crate::settings::write(&self.game_id, &self.settings) {
                     crate::msg::err!("settings write failed: {e}");
                 }
@@ -1793,7 +1865,6 @@ impl Session {
         let sprite_size = self.config.sprite_size;
         let Self {
             lua,
-            sfx,
             update,
             last_error,
             screen_pixels,
@@ -1804,7 +1875,6 @@ impl Session {
         let Some(update_fn) = update.as_ref() else {
             return;
         };
-        let sfx_ref: &SfxLibrary<'static> = sfx;
         let screen_pixels_ref: Option<&crate::pixels::Pixels> = screen_pixels.as_ref();
         let screen_px_used_ref: &std::cell::Cell<bool> = screen_px_used;
         let sprite_pixels_ref: Option<&crate::pixels::Pixels> = sprites.pixels();
@@ -1812,47 +1882,6 @@ impl Session {
             last_error,
             "_update",
             lua.scope(|scope| {
-                let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
-                let play = scope.create_function(|_, name: LuaString| {
-                    let name = name.to_string_lossy();
-                    sfx_ref.play(&name);
-                    Ok(())
-                })?;
-                sfx_tbl.set("play", wrap(lua, play, "sfx.play", &["string"])?)?;
-                let play_ex = scope.create_function(
-                    |_, (name, volume, pitch, pan): (LuaString, f32, f32, f32)| {
-                        let name = name.to_string_lossy();
-                        sfx_ref.play_with(&name, volume, pitch, pan);
-                        Ok(())
-                    },
-                )?;
-                sfx_tbl.set(
-                    "play_ex",
-                    wrap(
-                        lua,
-                        play_ex,
-                        "sfx.play_ex",
-                        &["string", "number", "number", "number"],
-                    )?,
-                )?;
-                let stop = scope.create_function(|_, name: LuaString| {
-                    sfx_ref.stop(&name.to_string_lossy());
-                    Ok(())
-                })?;
-                sfx_tbl.set("stop", wrap(lua, stop, "sfx.stop", &["string"])?)?;
-                let stop_all = scope.create_function(|_, ()| {
-                    sfx_ref.stop_all();
-                    Ok(())
-                })?;
-                sfx_tbl.set("stop_all", wrap(lua, stop_all, "sfx.stop_all", &[])?)?;
-                let is_playing = scope.create_function(|_, name: LuaString| {
-                    Ok(sfx_ref.is_playing(&name.to_string_lossy()))
-                })?;
-                sfx_tbl.set(
-                    "is_playing",
-                    wrap(lua, is_playing, "sfx.is_playing", &["string"])?,
-                )?;
-
                 let gfx_tbl: LuaTable = lua.globals().get("gfx")?;
                 let get_px = scope.create_function(|_, (x, y): (f32, f32)| {
                     // Latch the readback on for subsequent frames.
@@ -1897,7 +1926,6 @@ impl Session {
             rl,
             thread,
             rt,
-            sfx,
             sprites,
             screen_pixels,
             font,
@@ -1919,7 +1947,6 @@ impl Session {
             let screen_pixels_ref: Option<&crate::pixels::Pixels> = screen_pixels.as_ref();
             let screen_px_used_ref: &std::cell::Cell<bool> = screen_px_used;
             let font_ref: &Font = user_font;
-            let sfx_ref: &SfxLibrary<'static> = sfx;
             record_err(
                 last_error,
                 "_draw",
@@ -2544,46 +2571,6 @@ impl Session {
                             "gfx.get_spr_px",
                             &["number", "number", "number"],
                         )?,
-                    )?;
-                    let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
-                    let play = scope.create_function(|_, name: LuaString| {
-                        let name = name.to_string_lossy();
-                        sfx_ref.play(&name);
-                        Ok(())
-                    })?;
-                    sfx_tbl.set("play", wrap(lua, play, "sfx.play", &["string"])?)?;
-                    let play_ex = scope.create_function(
-                        |_, (name, volume, pitch, pan): (LuaString, f32, f32, f32)| {
-                            let name = name.to_string_lossy();
-                            sfx_ref.play_with(&name, volume, pitch, pan);
-                            Ok(())
-                        },
-                    )?;
-                    sfx_tbl.set(
-                        "play_ex",
-                        wrap(
-                            lua,
-                            play_ex,
-                            "sfx.play_ex",
-                            &["string", "number", "number", "number"],
-                        )?,
-                    )?;
-                    let stop = scope.create_function(|_, name: LuaString| {
-                        sfx_ref.stop(&name.to_string_lossy());
-                        Ok(())
-                    })?;
-                    sfx_tbl.set("stop", wrap(lua, stop, "sfx.stop", &["string"])?)?;
-                    let stop_all = scope.create_function(|_, ()| {
-                        sfx_ref.stop_all();
-                        Ok(())
-                    })?;
-                    sfx_tbl.set("stop_all", wrap(lua, stop_all, "sfx.stop_all", &[])?)?;
-                    let is_playing = scope.create_function(|_, name: LuaString| {
-                        Ok(sfx_ref.is_playing(&name.to_string_lossy()))
-                    })?;
-                    sfx_tbl.set(
-                        "is_playing",
-                        wrap(lua, is_playing, "sfx.is_playing", &["string"])?,
                     )?;
 
                     draw_fn.call::<()>(dt)?;
