@@ -232,7 +232,7 @@ _draw(dt)
 
 -- Config: usagi.conf at project root, or `-- key = value` frontmatter
 -- comments atop main.lua. Keys: name, game_id, icon, game_width,
--- game_height, sprite_size, pixel_perfect, pause_menu, initial_fullscreen.
+-- game_height, sprite_size, pixel_perfect, pause_menu, pause_on_focus_lost, initial_fullscreen.
 
 -- Graphics
 
@@ -420,6 +420,7 @@ pixel_perfect = true
 # game_height = 270    # optional; default 180
 # sprite_size = 32     # optional; default 16
 # pause_menu = false   # optional; default true
+# pause_on_focus_lost = false  # optional; default true
 # initial_fullscreen = true  # optional; default false
 # gif_length = 10      # optional; default 5
 ```
@@ -502,6 +503,12 @@ Supported keys:
   Tester, and gamepad-driven menu nav (sub-views of the same overlay), and
   `usagi.menu_item` registrations no longer render. Suitable for keyboard-driven
   prototypes. Optional.
+- `pause_on_focus_lost` (default `true`): when `true`, the engine automatically
+  pauses game execution while the window (or browser tab) is unfocused and
+  resumes when focus returns. This pause is silent (it does not open the pause
+  menu): `_update` stops, music pauses, and the last rendered frame stays on
+  screen until focus is regained. Set to `false` for games that should keep
+  running in the background, e.g., idle games. Optional.
 - `initial_fullscreen` (default `false`): when `true`, the game launches in
   fullscreen. This only sets the default for a player's first launch; once they
   toggle fullscreen from the pause menu, that saved preference wins on later

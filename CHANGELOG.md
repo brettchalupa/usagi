@@ -11,6 +11,10 @@ BREAKING:
   every new API; it was a fun idea but not something worth maintaining
 - Deprecated `_config()` support removed, use `usagi.conf` or the comment
   front-matter support added in v1.3.0
+- Games now pause automatically when focus is lost, set via the new
+  `pause_on_focus_lost` config option. Set it to to `false` to return to the
+  Usagi v1 behavior. See
+  [#130](https://codeberg.org/brettchalupa/usagi/issues/130)
 
 Fixes:
 

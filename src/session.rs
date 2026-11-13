@@ -823,6 +823,10 @@ struct Session {
     /// `InputState` until each release, so a BTN1/BTN2 press that
     /// exits the menu doesn't fire in `_update` the same frame.
     input_swallow: input::InputSwallow,
+    /// True while the window/tab is unfocused and `config.pause_on_focus_lost`
+    /// is enabled. Pauses update and music without opening the pause menu,
+    /// and auto-resumes on focus regain (unless the pause menu is open).
+    focus_paused: bool,
     /// In-game rolling GIF recorder: always holding the last ~5s of
     /// rendered frames in memory; F9 / Cmd+G writes the current buffer
     /// out. Native-only since emscripten has no real filesystem.
@@ -1212,6 +1216,7 @@ impl Session {
             gamepad_probe: input::GamepadProbe::new(),
             axis_edges,
             input_swallow: input::InputSwallow::new(),
+            focus_paused: false,
             #[cfg(not(target_os = "emscripten"))]
             recorder: Recorder::new(gif_length),
             // Captures (gifs + screenshots) land in the user's
@@ -1259,6 +1264,27 @@ impl Session {
         self.handle_global_shortcuts();
 
         let dt = self.rl.get_frame_time().min(MAX_FRAME_DT);
+        let focused = self.rl.is_window_focused();
+        if self.config.pause_on_focus_lost {
+            if !focused {
+                if !self.pause.open && !self.focus_paused {
+                    self.focus_paused = true;
+                    self.music.borrow_mut().pause();
+                }
+            } else if self.focus_paused {
+                self.focus_paused = false;
+                if !self.pause.open {
+                    self.music.borrow_mut().resume();
+                }
+            }
+        } else if self.focus_paused {
+            // Config disabled mid-session is unlikely, but recover cleanly.
+            self.focus_paused = false;
+            if !self.pause.open {
+                self.music.borrow_mut().resume();
+            }
+        }
+
         if self.config.pause_menu {
             let menu_labels = crate::menu_items::snapshot_labels(&self.menu_items);
             let pause_action = self.pause.update(
@@ -1364,16 +1390,20 @@ impl Session {
         }
 
         if self.pause.just_opened() {
-            self.music.borrow_mut().pause()
+            self.music.borrow_mut().pause();
         }
-        if self.pause.just_closed() {
-            self.music.borrow_mut().resume()
+        if self.pause.just_closed() && !self.focus_paused {
+            self.music.borrow_mut().resume();
         }
         self.music.borrow_mut().update();
 
         if self.pause.open {
             self.run_draw(dt, fps);
             self.draw_paused();
+        } else if self.focus_paused {
+            // Auto-paused due to focus loss: freeze game/update state but keep
+            // rendering the last frame (no pause-menu overlay).
+            self.run_draw(dt, fps);
         } else {
             // Decay juice timers with real wall-clock dt before
             // anything reads them, so hitstop/shake/flash/slow_mo

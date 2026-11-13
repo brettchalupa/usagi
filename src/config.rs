@@ -92,6 +92,11 @@ pub struct Config {
     /// Disabling also silences the Test / Configure Keys / Configure
     /// Gamepad screens, since they're sub-views of the same overlay.
     pub pause_menu: bool,
+    /// When `true` (default) the engine automatically pauses game execution
+    /// while the window or browser tab is unfocused, and resumes when focus
+    /// returns. Set via `pause_on_focus_lost = false` for games that should
+    /// keep running in the background (for example, idle games).
+    pub pause_on_focus_lost: bool,
     /// Launch fullscreen by default. Only the default: once a player toggles
     /// fullscreen the saved setting wins. Set via `initial_fullscreen`.
     pub initial_fullscreen: bool,
@@ -109,6 +114,7 @@ impl Default for Config {
             resolution: Resolution::DEFAULT,
             sprite_size: DEFAULT_SPRITE_SIZE,
             pause_menu: true,
+            pause_on_focus_lost: true,
             initial_fullscreen: false,
             gif_length: DEFAULT_GIF_LENGTH,
         }
@@ -127,6 +133,7 @@ struct Partial {
     game_height: Option<f32>,
     sprite_size: Option<i32>,
     pause_menu: Option<bool>,
+    pause_on_focus_lost: Option<bool>,
     initial_fullscreen: Option<bool>,
     gif_length: Option<f32>,
 }
@@ -208,6 +215,7 @@ fn apply_pair(p: &mut Partial, key: &str, value: &str, source: Source, warn: boo
         "game_id" => p.game_id = Some(value.to_string()),
         "pixel_perfect" => p.pixel_perfect = parse_bool(value, key, warn),
         "pause_menu" => p.pause_menu = parse_bool(value, key, warn),
+        "pause_on_focus_lost" => p.pause_on_focus_lost = parse_bool(value, key, warn),
         "initial_fullscreen" => p.initial_fullscreen = parse_bool(value, key, warn),
         "game_width" => p.game_width = parse_positive_float(value, key, warn),
         "game_height" => p.game_height = parse_positive_float(value, key, warn),
@@ -336,6 +344,7 @@ fn combine(conf: Partial, fm: Partial, warn: bool) -> Config {
     }
     merge!(pixel_perfect => c.pixel_perfect);
     merge!(pause_menu => c.pause_menu);
+    merge!(pause_on_focus_lost => c.pause_on_focus_lost);
     merge!(initial_fullscreen => c.initial_fullscreen);
     merge!(game_width => c.resolution.w);
     merge!(game_height => c.resolution.h);
@@ -478,6 +487,35 @@ mod tests {
         assert_eq!(c.sprite_size, DEFAULT_SPRITE_SIZE);
         assert_eq!(c.gif_length, DEFAULT_GIF_LENGTH);
         assert!(c.pause_menu);
+        assert!(c.pause_on_focus_lost);
+    }
+
+    #[test]
+    fn pause_on_focus_lost_can_be_disabled_in_conf() {
+        let c = combine(
+            conf_partial("pause_on_focus_lost = false\n", false),
+            Partial::default(),
+            false,
+        );
+        assert!(!c.pause_on_focus_lost);
+    }
+
+    #[test]
+    fn pause_on_focus_lost_can_be_set_in_frontmatter() {
+        let c = combine(
+            Partial::default(),
+            frontmatter_partial("-- pause_on_focus_lost = false\n", false),
+            false,
+        );
+        assert!(!c.pause_on_focus_lost);
+    }
+
+    #[test]
+    fn frontmatter_wins_for_pause_on_focus_lost() {
+        let fm = frontmatter_partial("-- pause_on_focus_lost = true\n", false);
+        let conf = conf_partial("pause_on_focus_lost = false\n", false);
+        let c = combine(conf, fm, false);
+        assert!(c.pause_on_focus_lost);
     }
 
     #[test]
