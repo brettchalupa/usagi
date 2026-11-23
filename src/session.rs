@@ -658,6 +658,7 @@ fn install_game_apis(
     fullscreen_state: &Rc<std::cell::Cell<bool>>,
     lua_quit_requested: &Rc<std::cell::Cell<bool>>,
     config: &Config,
+    debug: &Rc<std::cell::RefCell<crate::debug::Debug>>,
 ) -> crate::Result<()> {
     register_usagi_measure_text(lua, user_font)?;
     register_input_api(lua, input_bridge)?;
@@ -670,6 +671,7 @@ fn install_game_apis(
     register_fullscreen_api(lua, fullscreen_state)?;
     register_quit_api(lua, lua_quit_requested)?;
     seed_dimensions(lua, config)?;
+    crate::debug::register_api(lua, debug)?;
     Ok(())
 }
 
@@ -774,7 +776,7 @@ struct Session {
     /// detection. None when the project has no palette.png (or the
     /// backend has no mtimes, e.g. bundled games).
     palette_mtime: Option<SystemTime>,
-    show_fps: bool,
+    debug: Rc<std::cell::RefCell<crate::debug::Debug>>,
     /// One-shot guard for the display/scaling diagnostic, logged on the first
     /// frame (after the window size settles) rather than during setup.
     display_logged: bool,
@@ -1169,6 +1171,7 @@ impl Session {
         let menu_items = crate::menu_items::new_store();
         let fullscreen_state = Rc::new(std::cell::Cell::new(settings.fullscreen));
         let lua_quit_requested = Rc::new(std::cell::Cell::new(false));
+        let debug = Rc::new(std::cell::RefCell::new(crate::debug::Debug::new(dev)));
 
         // Register the rest of the persistent APIs now that every handle
         // exists. Shared with the hard-reset VM rebuild via `install_game_apis`.
@@ -1185,6 +1188,7 @@ impl Session {
             &fullscreen_state,
             &lua_quit_requested,
             &config,
+            &debug,
         )?;
 
         if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
@@ -1216,7 +1220,7 @@ impl Session {
             last_modified,
             last_data_mtime,
             palette_mtime,
-            show_fps: false,
+            debug,
             display_logged: false,
             config,
             elapsed: 0.0,
@@ -1322,7 +1326,8 @@ impl Session {
 
         let screen_w = self.rl.get_screen_width();
         let screen_h = self.rl.get_screen_height();
-        let fps = self.rl.get_fps();
+
+        self.debug.borrow_mut().tick(self.rl.get_fps());
 
         // Display/scaling diagnostic for bug reports, logged once the window
         // size has settled: game res, logical window vs physical framebuffer,
@@ -1410,7 +1415,7 @@ impl Session {
         self.music.borrow_mut().update();
 
         if self.pause.open {
-            self.run_draw(dt, fps);
+            self.run_draw(dt);
             self.draw_paused();
         } else if self.focus_paused {
             // Auto-paused due to focus loss: freeze game/update state but keep
@@ -1426,7 +1431,7 @@ impl Session {
             if !frozen {
                 self.run_update(scaled_dt);
             }
-            self.run_draw(dt, fps);
+            self.run_draw(dt);
         }
 
         self.shader
@@ -1631,6 +1636,7 @@ impl Session {
             &self.fullscreen_state,
             &self.lua_quit_requested,
             &self.config,
+            &self.debug,
         )
     }
 
@@ -1750,7 +1756,7 @@ impl Session {
 
         // ~ toggles the FPS overlay.
         if self.rl.is_key_pressed(KeyboardKey::KEY_GRAVE) {
-            self.show_fps = !self.show_fps;
+            self.debug.borrow_mut().toggle_visible();
         }
 
         // F5 / Ctrl+R / Cmd+R run _init() to wipe game state. Always
@@ -1961,7 +1967,7 @@ impl Session {
         );
     }
 
-    fn run_draw(&mut self, dt: f32, fps: u32) {
+    fn run_draw(&mut self, dt: f32) {
         let flash_overlay = self.effects.borrow().flash_overlay();
         let res = self.config.resolution;
         let sprite_size = self.config.sprite_size;
@@ -1976,7 +1982,7 @@ impl Session {
             user_font,
             draw,
             last_error,
-            show_fps,
+            debug,
             last_clear,
             screen_px_used,
             ..
@@ -2627,16 +2633,8 @@ impl Session {
             c.a = alpha;
             d_rt.draw_rectangle(0, 0, res.w as i32, res.h as i32, c);
         }
-        if *show_fps {
-            d_rt.draw_text_ex(
-                font,
-                &format!("FPS: {}", fps),
-                Vector2::new(0.0, 0.0),
-                crate::font::MONOGRAM_SIZE as f32,
-                0.0,
-                Color::GREEN,
-            );
-        }
+        debug.borrow().draw(&mut d_rt, font);
+
         end_rt_blend();
     }
 

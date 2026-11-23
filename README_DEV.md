@@ -226,6 +226,11 @@ usagi.toggle_fullscreen() -- flips fullscreen, returns the new state as bool
 usagi.is_fullscreen()
 usagi.quit() -- terminate the main loop (no-op visually on web)
 
+-- debugger functions
+
+usagi.debug.set(key, value) -- shows a key/value pair in the overlay opened via the ` key.
+usagi.debug.get(key) -- retrieves a value from the overlay
+
 -- Lifecycle callbacks
 
 _init()

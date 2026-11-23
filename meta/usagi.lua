@@ -685,6 +685,23 @@ function usagi.is_fullscreen() end
 ---menu shouldn't offer a quit option there.
 function usagi.quit() end
 
+---Usagi's debugging tools
+---@class Usagi.Debug
+usagi.debug = {}
+
+---Sets a key/value pair in the debug overlay.
+---@param key string
+---@param value string
+function usagi.debug.set(key, value) end
+
+---Gets a value from the debug overlay by key. The value is always a string.
+---@param key string
+---@return string
+function usagi.debug.get(key) end
+
+---Config table returned by `_config()`. All fields optional except
+---`game_id`, which is only required if you call `usagi.save` /
+---`usagi.load`. Missing fields fall back to engine defaults.
 ---Project configuration, set in `usagi.conf` or as leading `-- key = value`
 ---frontmatter comments in `main.lua` (frontmatter wins over `usagi.conf`).
 ---All fields optional except `game_id`, which is only required if you call

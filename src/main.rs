@@ -17,6 +17,7 @@ mod assets;
 mod bundle;
 mod cli;
 mod config;
+mod debug;
 mod diag;
 mod effect;
 mod error;
