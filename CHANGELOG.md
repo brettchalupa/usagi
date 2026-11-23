@@ -23,6 +23,9 @@ Features:
 - `--fullscreen` flag for `usagi dev`, `usagi run`, and exported binary to force
   fullscreen, regardless of player setting; useful for launchers; see
   [#116](https://codeberg.org/brettchalupa/usagi/issues/116)
+- Ability to set debug values that show up in the dev debug overlay via
+  `usagi.debug.set()` and `usagi.debug.get()`; thanks to Curbs! See
+  [#142](https://codeberg.org/brettchalupa/usagi/pulls/142)
 
 Fixes:
 

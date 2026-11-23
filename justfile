@@ -210,4 +210,5 @@ examples:
     just example to_json
     just example bunnymark
     just example pixel_perfect
+    just example debug
     USAGI_VERBOSE=1 just example diagnostics

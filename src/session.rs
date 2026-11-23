@@ -1420,7 +1420,7 @@ impl Session {
         } else if self.focus_paused {
             // Auto-paused due to focus loss: freeze game/update state but keep
             // rendering the last frame (no pause-menu overlay).
-            self.run_draw(dt, fps);
+            self.run_draw(dt);
         } else {
             // Decay juice timers with real wall-clock dt before
             // anything reads them, so hitstop/shake/flash/slow_mo
