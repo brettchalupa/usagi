@@ -10,13 +10,10 @@ remapping built in.
 
 Usagi is free software made by [Brett Chalupa](https://brettchalupa.com) and
 dedicated to the public domain.
-[Support development of the engine by buying me a coffee.](https://www.buymeacoffee.com/brettchalupa)
 
 **Links:** [usagiengine.com](https://usagiengine.com) •
 [Book](https://book.usagiengine.com) •
 [Discord](https://usagiengine.com/discord) •
-[r/UsagiEngine](https://reddit.com/r/UsagiEngine) •
-[Quickstart Video](https://www.youtube.com/watch?v=0i1wIm6c6Rw)
 
 ## Install
 
