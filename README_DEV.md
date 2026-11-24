@@ -1878,14 +1878,6 @@ the current session with `$env:NO_COLOR = "1"`, or persistently via
 `[Environment]::SetEnvironmentVariable("NO_COLOR", "1", "User")`. cmd uses
 `set NO_COLOR=1`.
 
-## Developing
-
-- `just run` - run hello_usagi example
-- `just ok` - run all checks
-- `just fmt` - format Rust code
-- `just serve-web` - build and serve the web build at <http://localhost:3535>
-  (requires `emcc` on PATH; see [docs/web-build.md](docs/web-build.md))
-
 ## Reference and Inspiration
 
 - Pico-8
