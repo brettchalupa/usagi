@@ -13,7 +13,7 @@ dedicated to the public domain.
 
 **Links:** [usagiengine.com](https://usagiengine.com) •
 [Book](https://book.usagiengine.com) •
-[Discord](https://usagiengine.com/discord) •
+[Discord](https://usagiengine.com/discord)
 
 ## Install
 
